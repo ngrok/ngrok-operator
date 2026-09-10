@@ -128,6 +128,7 @@ var _ = BeforeSuite(func() {
 	// Setup BoundEndpoint controller
 	controllerReconciler := &BoundEndpointReconciler{
 		Client:        k8sManager.GetClient(),
+		APIReader:     k8sManager.GetAPIReader(),
 		Scheme:        k8sManager.GetScheme(),
 		Log:           logf.Log.WithName("boundendpoint-controller"),
 		Recorder:      k8sManager.GetEventRecorder("boundendpoint-controller"),
@@ -151,6 +152,7 @@ var _ = BeforeSuite(func() {
 	// Setup BoundEndpoint poller with very long interval (we'll trigger manually)
 	pollerController = &BoundEndpointPoller{
 		Client:                       k8sManager.GetClient(),
+		APIReader:                    k8sManager.GetAPIReader(),
 		Log:                          logf.Log.WithName("boundendpoint-poller"),
 		Recorder:                     k8sManager.GetEventRecorder("boundendpoint-poller"),
 		Namespace:                    "ngrok-op",
@@ -199,12 +201,20 @@ func triggerPoller(ctx context.Context) error {
 	return pollerController.reconcileBoundEndpointsFromAPI(ctx)
 }
 
-// setMockEndpoints sets the endpoints that the mock API will return
+// setMockEndpoints sets the account's endpoints that the mock API will return.
+// The poller lists the account, not the operator's bound endpoints, so this
+// seeds the endpoints client.
 func setMockEndpoints(endpoints []ngrok.Endpoint) {
-	mockClientset.KubernetesOperators().(*nmockapi.KubernetesOperatorsClient).SetBoundEndpoints(endpoints)
+	mockClientset.Endpoints().(*nmockapi.EndpointsClient).Set(endpoints)
 }
 
 // resetMockEndpoints clears all mock endpoints
 func resetMockEndpoints() {
-	mockClientset.KubernetesOperators().(*nmockapi.KubernetesOperatorsClient).ResetBoundEndpoints()
+	mockClientset.Endpoints().(*nmockapi.EndpointsClient).Reset()
+}
+
+// kubernetesTargets builds the projection field that marks an endpoint for
+// projection.
+func kubernetesTargets(targets ...ngrok.EndpointKubernetesTarget) *ngrok.EndpointKubernetes {
+	return &ngrok.EndpointKubernetes{Targets: targets}
 }

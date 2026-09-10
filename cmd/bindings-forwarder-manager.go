@@ -21,7 +21,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
+	"strconv"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -32,6 +34,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/spf13/cobra"
+	"golang.ngrok.com/ngrok/privatedial"
 	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -65,15 +68,18 @@ func init() {
 
 type bindingsForwarderManagerOpts struct {
 	// flags
-	releaseName string
-	metricsAddr string
-	probeAddr   string
-	description string
-	managerName string
-	zapOpts     *zap.Options
+	releaseName           string
+	metricsAddr           string
+	probeAddr             string
+	description           string
+	managerName           string
+	usePrivateDial        bool
+	privateDialConnectURL string
+	zapOpts               *zap.Options
 
 	// env vars
-	namespace string
+	namespace      string
+	privateDialPAT string
 }
 
 func bindingsForwarderCmd() *cobra.Command {
@@ -90,6 +96,8 @@ func bindingsForwarderCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
+	c.Flags().BoolVar(&opts.usePrivateDial, "use-private-dial", envBool("USE_PRIVATE_DIAL"), "Reach endpoints over private dial instead of the mTLS bindings ingress")
+	c.Flags().StringVar(&opts.privateDialConnectURL, "private-dial-connect-url", "h2.connect-endpoint.ngrok.com:443", "host:port of the private-dial connect ingress")
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
@@ -97,6 +105,13 @@ func bindingsForwarderCmd() *cobra.Command {
 	c.Flags().AddGoFlagSet(goFlagSet)
 
 	return c
+}
+
+// envBool is the default for a boolean flag that a Helm chart sets through the
+// environment. An unparseable value is false, the same as unset.
+func envBool(name string) bool {
+	v, _ := strconv.ParseBool(os.Getenv(name))
+	return v
 }
 
 func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
@@ -143,6 +158,35 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		return err
 	}
 
+	// Private dial authenticates the whole session with a Personal Access
+	// Token, and the account it belongs to is what resolves the endpoint. This
+	// is not the agent authtoken that serves the endpoint: the private-dial
+	// handler rejects any credential that is not a PAT.
+	var privateDialer bindingscontroller.PrivateDialer
+	if opts.usePrivateDial {
+		opts.privateDialPAT, ok = os.LookupEnv("NGROK_PRIVATE_DIAL_PAT")
+		if !ok || opts.privateDialPAT == "" {
+			return errors.New("NGROK_PRIVATE_DIAL_PAT environment variable should be set when private dial is enabled, but was not")
+		}
+		if opts.privateDialConnectURL == "" {
+			return errors.New("--private-dial-connect-url is required when private dial is enabled")
+		}
+
+		dialer := privatedial.New(privatedial.Config{
+			H2ServerAddr: opts.privateDialConnectURL,
+			// The forwarder runs wherever the cluster runs, and UDP egress is
+			// not something we can assume, so skip the QUIC race.
+			ForceProtocol: privatedial.ProtocolH2,
+			AuthToken:     opts.privateDialPAT,
+			ClientVersion: "ngrok-operator/" + buildInfo.Version,
+			Logger:        slog.Default(),
+		})
+		defer dialer.Close()
+		privateDialer = dialer
+
+		setupLog.Info("private dial enabled", "connectURL", opts.privateDialConnectURL)
+	}
+
 	// Create drain state checker - controller will use this to check if draining
 	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.releaseName)
 
@@ -154,10 +198,11 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		BindingsDriver:         bd,
 		KubernetesOperatorName: opts.releaseName,
 		RootCAs:                certPool,
+		PrivateDialer:          privateDialer,
 		DrainState:             drainState,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "BindingsForwarder")
-		os.Exit(1)
+		// Return rather than os.Exit, so the deferred dialer Close still runs.
+		return fmt.Errorf("unable to create the BindingsForwarder controller: %w", err)
 	}
 
 	// register healthchecks

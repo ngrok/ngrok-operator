@@ -29,7 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
+	"strconv"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -106,6 +106,10 @@ type BoundEndpointReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
 	controller *controller.BaseController[*bindingsv1alpha1.BoundEndpoint]
+
+	// APIReader reads straight from the API server, past the controller's
+	// cache. It exists only for stillExists; everything else reads the cache.
+	APIReader client.Reader
 
 	Log      logr.Logger
 	Recorder events.EventRecorder
@@ -199,7 +203,37 @@ func (r *BoundEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}, nil
 }
 
+// stillExists reports whether the BoundEndpoint is still live, reading past the
+// controller's cache.
+//
+// The reconciler acts on a cached copy, so a reconcile queued before a delete
+// can run after it and rebuild the Services the delete just removed. Nothing
+// cleans those up afterwards, because the BoundEndpoint they belong to is gone.
+// The poller deletes and creates BoundEndpoints in the same cycle whenever an
+// endpoint's target list changes, which makes that race easy to hit.
+func (r *BoundEndpointReconciler) stillExists(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) (bool, error) {
+	if r.APIReader == nil {
+		return true, nil
+	}
+
+	live := &bindingsv1alpha1.BoundEndpoint{}
+	if err := r.APIReader.Get(ctx, client.ObjectKeyFromObject(cr), live); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			return false, nil
+		}
+		return false, err
+	}
+	return live.DeletionTimestamp == nil, nil
+}
+
 func (r *BoundEndpointReconciler) create(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
+	if live, err := r.stillExists(ctx, cr); err != nil {
+		return err
+	} else if !live {
+		ctrl.LoggerFrom(ctx).Info("BoundEndpoint is gone, skipping Service creation", "name", cr.Name)
+		return nil
+	}
+
 	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
 
 	// Create upstream service
@@ -265,6 +299,13 @@ func (r *BoundEndpointReconciler) createUpstreamService(ctx context.Context, own
 
 func (r *BoundEndpointReconciler) update(ctx context.Context, cr *bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
+
+	if live, err := r.stillExists(ctx, cr); err != nil {
+		return err
+	} else if !live {
+		log.Info("BoundEndpoint is gone, skipping Service update", "name", cr.Name)
+		return nil
+	}
 
 	desiredTargetService, desiredUpstreamService := r.convertBoundEndpointToServices(cr)
 
@@ -356,33 +397,32 @@ func (r *BoundEndpointReconciler) deleteBoundEndpointServices(ctx context.Contex
 
 	targetService, upstreamService := r.convertBoundEndpointToServices(cr)
 
-	targetNamespace := &v1.Namespace{Name: targetService.Namespace}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: targetNamespace.Name}, targetNamespace); err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, "Failed to get Target Namespace")
-			return err
-		}
-		// fallthrough, no Target Service to delete
-	} else {
-		// Target Namespace exists, try to delete the Target Service
-
-		if err := r.Client.Delete(ctx, targetService); err != nil {
-			if client.IgnoreNotFound(err) == nil {
-				return nil
-			}
-			r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "Delete", "Delete", "Failed to delete Target Service")
-			log.Error(err, "Failed to delete Target Service")
-			return err
-		}
+	// Deleting a Service in a namespace that is gone returns NotFound, so this
+	// no longer checks the namespace first. It also no longer returns early
+	// when the Target Service is already gone: that used to leave the Upstream
+	// Service behind with nothing left to clean it up.
+	err := r.Client.Delete(ctx, targetService)
+	switch {
+	case err == nil:
+		log.Info("Deleted Target Service", "service", targetService.Name, "namespace", targetService.Namespace)
+	case client.IgnoreNotFound(err) == nil:
+		log.Info("Target Service already gone", "service", targetService.Name, "namespace", targetService.Namespace)
+	default:
+		r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "Delete", "Delete", "Failed to delete Target Service")
+		log.Error(err, "Failed to delete Target Service", "service", targetService.Name, "namespace", targetService.Namespace)
+		return err
 	}
 
-	if err := r.Client.Delete(ctx, upstreamService); err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "Delete", "Delete", "Failed to delete Upstream Service")
-			log.Error(err, "Failed to delete Upstream Service")
-			return err
-		}
-		// fallthrough, nothing to do
+	err = r.Client.Delete(ctx, upstreamService)
+	switch {
+	case err == nil:
+		log.Info("Deleted Upstream Service", "service", upstreamService.Name, "namespace", upstreamService.Namespace)
+	case client.IgnoreNotFound(err) == nil:
+		log.Info("Upstream Service already gone", "service", upstreamService.Name, "namespace", upstreamService.Namespace)
+	default:
+		r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "Delete", "Delete", "Failed to delete Upstream Service")
+		log.Error(err, "Failed to delete Upstream Service", "service", upstreamService.Name, "namespace", upstreamService.Namespace)
+		return err
 	}
 
 	return nil
@@ -557,18 +597,21 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 	// we forget to set a deadline or cancel the context let's make sure we don't run forever
 	retries := 8
 
-	// rely on kube-dns to resolve the targetService's ExternalName
-	uri, err := url.Parse(boundEndpoint.Spec.EndpointURL)
-	if err != nil {
-		wrappedErr := fmt.Errorf("failed to parse BoundEndpoint URL %s: %w", boundEndpoint.Spec.EndpointURL, err)
-		log.Error(wrappedErr, bindErrMsg, "url", boundEndpoint.Spec.EndpointURL)
-		return wrappedErr
-	}
+	// Dial the Target Service and let kube-dns resolve its ExternalName. This
+	// address used to be parsed out of Spec.EndpointURL, which held
+	// `service.namespace` back when the projection target and the dial target
+	// were the same string. They are separate now: EndpointURL is the ngrok
+	// endpoint's own hostname, which does not resolve in-cluster, so the
+	// address has to come from Spec.Target.
+	addr := net.JoinHostPort(
+		fmt.Sprintf("%s.%s", boundEndpoint.Spec.Target.Service, boundEndpoint.Spec.Target.Namespace),
+		strconv.Itoa(int(boundEndpoint.Spec.Target.Port)),
+	)
 
 	for i := range retries {
 		select {
 		case <-ctx.Done():
-			err = errors.New("attempting to connect to BoundEndpoint URL timed out")
+			err := errors.New("attempting to connect to BoundEndpoint URL timed out")
 			log.Error(err, bindErrMsg)
 			return err
 
@@ -579,14 +622,14 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 				backoff *= 2
 			}
 
-			conn, err := net.DialTimeout("tcp", uri.Host, time.Second*2)
+			conn, err := net.DialTimeout("tcp", addr, time.Second*2)
 			if err != nil {
-				log.Error(err, "failed to dial endpoint uri", "attempt", i+1)
+				log.Error(err, "failed to dial target service", "attempt", i+1, "addr", addr)
 				continue
 			}
 			// conn exists, close it
 			if err := conn.Close(); err != nil {
-				log.Error(err, "failed to close connection to endpoint uri", "attempt", i+1)
+				log.Error(err, "failed to close connection to target service", "attempt", i+1, "addr", addr)
 				continue
 			}
 
@@ -596,7 +639,7 @@ func (r *BoundEndpointReconciler) testBoundEndpointConnectivity(ctx context.Cont
 
 	}
 
-	err = errors.New("exceeded max retries")
+	err := errors.New("exceeded max retries")
 	log.Error(err, bindErrMsg)
 	return err
 

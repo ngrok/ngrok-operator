@@ -59,6 +59,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+// PrivateDialer opens a connection to a private (.internal) ngrok endpoint.
+// *privatedial.Dialer from ngrok-go satisfies it; the interface keeps this
+// package testable and free of the transport's dependencies.
+type PrivateDialer interface {
+	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
 type ForwarderReconciler struct {
 	client.Client
 
@@ -70,6 +77,12 @@ type ForwarderReconciler struct {
 	BindingsDriver         *bindingsdriver.BindingsDriver
 	KubernetesOperatorName string
 	RootCAs                *x509.CertPool
+
+	// PrivateDialer reaches the endpoint over private dial instead of the mTLS
+	// binding leg. It is nil unless private dial is enabled, and it is built
+	// once at manager setup because one dialer holds one session and each
+	// connection is a stream on it.
+	PrivateDialer PrivateDialer
 
 	// DrainState is used to check if the operator is draining.
 	// If draining, non-delete reconciles are skipped to prevent new finalizers.
@@ -149,6 +162,24 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		"port", epb.Spec.Port,
 	)
 
+	endpointURL, err := url.Parse(epb.Spec.EndpointURL)
+	if err != nil {
+		return err
+	}
+
+	host := endpointURL.Hostname()
+	port, err := strconv.Atoi(endpointURL.Port())
+	if err != nil {
+		return err
+	}
+
+	// Private dial reaches the endpoint by its own hostname, so it needs
+	// neither the operator's binding certificate nor its bindings ingress.
+	if r.PrivateDialer != nil {
+		log.Info("Listening on port", "dial", "private", "host", host)
+		return r.BindingsDriver.Listen(int32(epb.Spec.Port), r.privateDialHandler(ctx, log, host, port))
+	}
+
 	// Get the KubernetesOperator
 
 	op := ngrokv1alpha1.KubernetesOperator{}
@@ -164,17 +195,6 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 	if op.Status.BindingsIngressEndpoint == "" {
 		return errors.New("operator binding configuration does not have an ingress endpoint")
-	}
-
-	endpointURL, err := url.Parse(epb.Spec.EndpointURL)
-	if err != nil {
-		return err
-	}
-
-	host := endpointURL.Hostname()
-	port, err := strconv.Atoi(endpointURL.Port())
-	if err != nil {
-		return err
 	}
 
 	ingressEndpoint, err := getIngressEndpointWithFallback(op.Status.BindingsIngressEndpoint, log)
@@ -268,9 +288,44 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 		return joinConnections(log, conn, ngrokConn)
 	}
 
-	log.Info("Listening on port")
+	log.Info("Listening on port", "dial", "mtls")
 
 	return r.BindingsDriver.Listen(int32(epb.Spec.Port), cnxnHandler)
+}
+
+// privateDialHandler relays each accepted connection to the endpoint over
+// private dial.
+//
+// This replaces the mTLS leg: the mTLS dial reaches the bindings ingress and
+// then names the endpoint in a binding upgrade, while private dial resolves
+// the endpoint's own hostname on an already-authenticated session. The
+// in-cluster half of the path is unchanged, because the endpoint's identity is
+// still the local port the bytes land on.
+//
+// KNOWN REGRESSION (GAT-475): pod identity is lost here. The mTLS path sends
+// conn.k8s.pod.* to Traffic Policy in the binding upgrade. Private dial has no
+// equivalent yet -- DialReq.metadata exists but the backend never reads it --
+// so any policy that matches on conn.k8s.pod.* silently stops matching on this
+// path. Full parity needs the operator to fill DialReq.metadata and the
+// backend to read it.
+func (r *ForwarderReconciler) privateDialHandler(ctx context.Context, log logr.Logger, host string, port int) func(net.Conn) error {
+	target := net.JoinHostPort(host, strconv.Itoa(port))
+
+	return func(conn net.Conn) error {
+		defer conn.Close()
+
+		log := log.WithValues("remoteAddr", conn.RemoteAddr(), "target", target)
+		log.Info("Handling connnection")
+
+		ngrokConn, err := r.PrivateDialer.DialContext(ctx, "tcp", target)
+		if err != nil {
+			log.Error(err, "private dial failed")
+			return err
+		}
+
+		log.Info("private-dialed endpoint")
+		return joinConnections(log, conn, ngrokConn)
+	}
 }
 
 func (r *ForwarderReconciler) loadTLSCertificate(ctx context.Context, namespace, name string) (tls.Certificate, error) {

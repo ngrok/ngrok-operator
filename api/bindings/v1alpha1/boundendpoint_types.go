@@ -35,13 +35,17 @@ import (
 
 // BoundEndpointSpec defines the desired state of BoundEndpoint
 type BoundEndpointSpec struct {
-	// EndpointURL is the unique identifier
-	// representing the BoundEndpoint + its Endpoints
-	// Format: <scheme>://<service>.<namespace>:<port>
+	// EndpointURL is the ngrok endpoint the pod forwarders dial.
+	// Format: <scheme>://<host>[:<port>]
+	//
+	// The host is any DNS name, because the dial target is now the endpoint's
+	// own hostname -- typically a private endpoint such as `foo.internal` or
+	// `foo.bar.internal`. Where the endpoint is projected in the cluster is
+	// Spec.Target, not this URL, so the old two-label `service.namespace`
+	// pattern no longer describes this field.
 	//
 	// +kubebuilder:validation:Required
-	// See: https://regex101.com/r/9QkXWl/1
-	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$`
+	// +kubebuilder:validation:Pattern=`^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<host>[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)(:(?P<port>\d+))?$`
 	EndpointURL string `json:"endpointURL"`
 
 	// Scheme is a user-defined field for endpoints that describe how the data packets
@@ -96,7 +100,10 @@ type BoundEndpointStatus struct {
 	// All endpoints share the same underlying Kubernetes services
 	Endpoints []BindingEndpoint `json:"endpoints,omitempty"`
 
-	// HashedName is the hashed output of the TargetService and TargetNamespace for unique identification
+	// HashedName is the hashed output of the ngrok endpoint ID, the target
+	// Service and the target Namespace for unique identification. The endpoint
+	// ID is included so that one endpoint projected into several namespaces
+	// gets one BoundEndpoint per namespace.
 	HashedName string `json:"hashedName,omitempty"`
 
 	// EndpointsSummary provides a human-readable count of bound endpoints

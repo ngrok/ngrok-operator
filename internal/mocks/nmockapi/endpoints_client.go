@@ -43,12 +43,24 @@ func (m *EndpointsClient) Create(_ context.Context, item *ngrok.EndpointCreate) 
 		TrafficPolicy:  item.TrafficPolicy,
 		Bindings:       item.Bindings,
 		PoolingEnabled: ptr.Deref(item.PoolingEnabled, false),
+		Kubernetes:     item.Kubernetes,
 		CreatedAt:      m.createdAt(),
 		URI:            fmt.Sprintf("https://mock-api.ngrok.com/endpoints/%s", id),
 	}
 
 	m.items[id] = newEndpoint
 	return newEndpoint, nil
+}
+
+// Set replaces the endpoints the client returns. Callers that need endpoints
+// they did not create through Create -- the poller tests, which read the
+// account's endpoints -- use this to seed the account.
+func (m *EndpointsClient) Set(endpoints []ngrok.Endpoint) {
+	m.Reset()
+	for i := range endpoints {
+		endpoint := endpoints[i]
+		m.items[endpoint.ID] = &endpoint
+	}
 }
 
 func (m *EndpointsClient) Update(ctx context.Context, item *ngrok.EndpointUpdate) (*ngrok.Endpoint, error) {
@@ -79,6 +91,14 @@ func (m *EndpointsClient) Update(ctx context.Context, item *ngrok.EndpointUpdate
 	}
 	if item.PoolingEnabled != nil {
 		existingItem.PoolingEnabled = *item.PoolingEnabled
+	}
+	if item.Kubernetes != nil {
+		// An empty target list clears the projection, matching the API.
+		if len(item.Kubernetes.Targets) == 0 {
+			existingItem.Kubernetes = nil
+		} else {
+			existingItem.Kubernetes = item.Kubernetes
+		}
 	}
 
 	m.items[item.ID] = existingItem

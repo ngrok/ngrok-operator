@@ -69,12 +69,15 @@ spec:
             properties:
               endpointURL:
                 description: |-
-                  EndpointURL is the unique identifier
-                  representing the BoundEndpoint + its Endpoints
-                  Format: <scheme>://<service>.<namespace>:<port>
+                  EndpointURL is the ngrok endpoint the pod forwarders dial.
+                  Format: <scheme>://<host>[:<port>]
 
-                  See: https://regex101.com/r/9QkXWl/1
-                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<service>[a-z][a-zA-Z0-9-]{0,62})\.(?P<namespace>[a-z][a-zA-Z0-9-]{0,62})(:(?P<port>\d+))?$
+                  The host is any DNS name, because the dial target is now the endpoint's
+                  own hostname -- typically a private endpoint such as `foo.internal` or
+                  `foo.bar.internal`. Where the endpoint is projected in the cluster is
+                  Spec.Target, not this URL, so the old two-label `service.namespace`
+                  pattern no longer describes this field.
+                pattern: ^((?P<scheme>(tcp|http|https|tls)?)://)?(?P<host>[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)(:(?P<port>\d+))?$
                 type: string
               port:
                 description: Port is the Service port this Endpoint uses internally
@@ -250,8 +253,11 @@ spec:
                   Examples: "1 endpoint", "2 endpoints"
                 type: string
               hashedName:
-                description: HashedName is the hashed output of the TargetService
-                  and TargetNamespace for unique identification
+                description: |-
+                  HashedName is the hashed output of the ngrok endpoint ID, the target
+                  Service and the target Namespace for unique identification. The endpoint
+                  ID is included so that one endpoint projected into several namespaces
+                  gets one BoundEndpoint per namespace.
                 type: string
               observedGeneration:
                 description: |-

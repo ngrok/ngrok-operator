@@ -10,26 +10,31 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 )
 
-func Test_parseHostport(t *testing.T) {
+func Test_parseDialURL(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		proto   string
-		url     string
-		want    *parsedHostport
-		wantErr bool
+		name     string
+		endpoint ngrok.Endpoint
+		want     *parsedHostport
+		wantErr  bool
 	}{
-		{"empty", "", "", nil, true},
-		{"invalid", "https", "does-not-parse", nil, true},
+		{"empty", ngrok.Endpoint{}, nil, true},
+		{"invalid", ngrok.Endpoint{Proto: "https", URL: "https://[::1"}, nil, true},
+		{"no-host", ngrok.Endpoint{Proto: "https", URL: "https:///path"}, nil, true},
 		// We trust the api to only support specific schemes
-		// {"invalid-scheme", "scheme", "scheme://test.not-working", nil, true},
-		{"mismatched-scheme", "tls", "https://test.not-working", nil, true},
-		{"missing-tcp-port", "tcp", "tcp://test.not-working", nil, true},
+		{"mismatched-scheme", ngrok.Endpoint{Proto: "tls", URL: "https://test.internal"}, nil, true},
+		{"missing-tcp-port", ngrok.Endpoint{Proto: "tcp", URL: "tcp://test.internal"}, nil, true},
+		{"unknown-scheme-no-port", ngrok.Endpoint{URL: "ftp://test.internal"}, nil, true},
 		// with defaults
-		{"simple", "", "service.namespace", &parsedHostport{"https", "service", "namespace", 443}, false},
-		{"full", "tcp", "tcp://service.namespace:1234", &parsedHostport{"tcp", "service", "namespace", 1234}, false},
-		{"http-no-port", "http", "service.namespace", &parsedHostport{"http", "service", "namespace", 80}, false},
+		{"simple", ngrok.Endpoint{URL: "foo.internal"}, &parsedHostport{"https", "foo.internal", 443}, false},
+		{"full", ngrok.Endpoint{Proto: "tcp", URL: "tcp://foo.internal:1234"}, &parsedHostport{"tcp", "foo.internal", 1234}, false},
+		{"http-no-port", ngrok.Endpoint{Proto: "http", URL: "foo.internal"}, &parsedHostport{"http", "foo.internal", 80}, false},
+		// The dial host is the endpoint's own hostname, so it is no longer
+		// constrained to two labels.
+		{"multi-label", ngrok.Endpoint{URL: "tcp://foo.bar.internal:80"}, &parsedHostport{"tcp", "foo.bar.internal", 80}, false},
+		// Endpoints that predate the url field only carry public_url.
+		{"public-url-fallback", ngrok.Endpoint{PublicURL: "tcp://foo.internal:80"}, &parsedHostport{"tcp", "foo.internal", 80}, false},
 	}
 
 	for _, test := range tests {
@@ -37,7 +42,7 @@ func Test_parseHostport(t *testing.T) {
 			t.Parallel()
 			assert := assert.New(t)
 
-			got, err := parseHostport(test.proto, test.url)
+			got, err := parseDialURL(test.endpoint)
 			if test.wantErr {
 				assert.Error(err)
 				return
@@ -46,6 +51,41 @@ func Test_parseHostport(t *testing.T) {
 			assert.Equal(test.want, got)
 		})
 	}
+}
+
+// boundEndpoint is the BoundEndpoint the aggregator should produce for one
+// endpoint projected into one target.
+func boundEndpoint(endpointID, dialURL, scheme, service, namespace string, port int32) bindingsv1alpha1.BoundEndpoint {
+	return bindingsv1alpha1.BoundEndpoint{
+		Name: BoundEndpointName(endpointID, service, namespace),
+		Spec: bindingsv1alpha1.BoundEndpointSpec{
+			EndpointURL: dialURL,
+			Scheme:      scheme,
+			Target: bindingsv1alpha1.EndpointTarget{
+				Service:   service,
+				Namespace: namespace,
+				Port:      port,
+				Protocol:  "TCP",
+			},
+		},
+		Status: bindingsv1alpha1.BoundEndpointStatus{
+			Endpoints: []bindingsv1alpha1.BindingEndpoint{
+				{Ref: ngrok.Ref{ID: endpointID}},
+			},
+		},
+	}
+}
+
+func keyed(endpoints ...bindingsv1alpha1.BoundEndpoint) AggregatedEndpoints {
+	aggregated := AggregatedEndpoints{}
+	for _, endpoint := range endpoints {
+		aggregated[endpoint.Name] = endpoint
+	}
+	return aggregated
+}
+
+func targets(targets ...ngrok.EndpointKubernetesTarget) *ngrok.EndpointKubernetes {
+	return &ngrok.EndpointKubernetes{Targets: targets}
 }
 
 func Test_AggregateBindingEndpoints(t *testing.T) {
@@ -59,159 +99,131 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 	}{
 		{"empty", []ngrok.Endpoint{}, AggregatedEndpoints{}, false},
 		{
-			name: "single",
+			// Carrying kubernetes.targets is the signal to project. Every other
+			// endpoint on the account is left alone, which is what keeps this
+			// operator from projecting the whole account.
+			name: "skips-endpoints-without-targets",
 			endpoints: []ngrok.Endpoint{
-				{ID: "ep_123", PublicURL: "https://service1.namespace1"},
+				{ID: "ep_public", URL: "https://example.ngrok.app"},
+				{ID: "ep_empty", URL: "tcp://foo.internal:80", Kubernetes: targets()},
 			},
-			want: AggregatedEndpoints{
-				"https://service1.namespace1:443": {
-					Spec: bindingsv1alpha1.BoundEndpointSpec{
-						EndpointURL: "https://service1.namespace1:443",
-						Scheme:      "https",
-						Target: bindingsv1alpha1.EndpointTarget{
-							Service:   "service1",
-							Namespace: "namespace1",
-							Port:      443,
-							Protocol:  "TCP",
-						},
-					},
-					Status: bindingsv1alpha1.BoundEndpointStatus{
-						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{ID: "ep_123"},
-						},
-					},
-				},
-			},
+			want:    AggregatedEndpoints{},
 			wantErr: false,
 		},
 		{
-			// Regression test: a single endpoint whose hostname does not match
-			// the <service>.<namespace> format (here a 3-label hostname) must
-			// not abort the aggregation — valid endpoints in the same batch
-			// must still be returned, and the parse failure must be reported
-			// in the returned error.
+			name: "single-target",
+			endpoints: []ngrok.Endpoint{{
+				ID:         "ep_123",
+				URL:        "tcp://foo.internal:80",
+				Kubernetes: targets(ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-a", Port: 80}),
+			}},
+			want:    keyed(boundEndpoint("ep_123", "tcp://foo.internal:80", "tcp", "myservice", "team-a", 80)),
+			wantErr: false,
+		},
+		{
+			// The point of the target list: one endpoint, one dial identity,
+			// several projections. Each gets its own BoundEndpoint, so each
+			// gets its own forwarder port and Services.
+			name: "fans-out-over-targets",
+			endpoints: []ngrok.Endpoint{{
+				ID:  "ep_123",
+				URL: "tcp://foo.internal:80",
+				Kubernetes: targets(
+					ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-a", Port: 80},
+					ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-b", Port: 80},
+				),
+			}},
+			want: keyed(
+				boundEndpoint("ep_123", "tcp://foo.internal:80", "tcp", "myservice", "team-a", 80),
+				boundEndpoint("ep_123", "tcp://foo.internal:80", "tcp", "myservice", "team-b", 80),
+			),
+			wantErr: false,
+		},
+		{
+			// Two endpoints projecting the same service.namespace pair would
+			// have collided under the old URL-derived name.
+			name: "distinct-endpoints-same-target",
+			endpoints: []ngrok.Endpoint{
+				{
+					ID:         "ep_100",
+					URL:        "tcp://foo.internal:80",
+					Kubernetes: targets(ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-a", Port: 80}),
+				},
+				{
+					ID:         "ep_200",
+					URL:        "tcp://bar.internal:80",
+					Kubernetes: targets(ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-b", Port: 80}),
+				},
+			},
+			want: keyed(
+				boundEndpoint("ep_100", "tcp://foo.internal:80", "tcp", "myservice", "team-a", 80),
+				boundEndpoint("ep_200", "tcp://bar.internal:80", "tcp", "myservice", "team-b", 80),
+			),
+			wantErr: false,
+		},
+		{
+			// A single unparseable endpoint must not abort the aggregation:
+			// valid endpoints in the same batch are still returned, and the
+			// failure is reported in the returned error.
 			name: "skips-unparseable-and-keeps-valid",
 			endpoints: []ngrok.Endpoint{
-				{ID: "ep_bad1", PublicURL: "https://controller.example.com"},
-				{ID: "ep_good", PublicURL: "https://service1.namespace1"},
-				{ID: "ep_bad2", PublicURL: "https://just-one-label"},
-			},
-			want: AggregatedEndpoints{
-				"https://service1.namespace1:443": {
-					Spec: bindingsv1alpha1.BoundEndpointSpec{
-						EndpointURL: "https://service1.namespace1:443",
-						Scheme:      "https",
-						Target: bindingsv1alpha1.EndpointTarget{
-							Service:   "service1",
-							Namespace: "namespace1",
-							Port:      443,
-							Protocol:  "TCP",
-						},
-					},
-					Status: bindingsv1alpha1.BoundEndpointStatus{
-						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{ID: "ep_good"},
-						},
-					},
+				{
+					ID:         "ep_bad",
+					Proto:      "tcp",
+					URL:        "tcp://foo.internal",
+					Kubernetes: targets(ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-a", Port: 80}),
+				},
+				{
+					ID:         "ep_good",
+					URL:        "tcp://bar.internal:80",
+					Kubernetes: targets(ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-b", Port: 80}),
 				},
 			},
+			want:    keyed(boundEndpoint("ep_good", "tcp://bar.internal:80", "tcp", "myservice", "team-b", 80)),
 			wantErr: true,
 		},
 		{
-			// When every endpoint is unparseable we should get an empty
-			// aggregation plus a non-nil error, not a nil map.
-			name: "all-unparseable",
-			endpoints: []ngrok.Endpoint{
-				{ID: "ep_bad1", PublicURL: "https://controller.example.com"},
-				{ID: "ep_bad2", PublicURL: "https://a.b.c.d"},
-			},
-			want:    AggregatedEndpoints{},
+			// A bad target loses only that projection, not the endpoint's
+			// other targets.
+			name: "skips-invalid-target-and-keeps-valid",
+			endpoints: []ngrok.Endpoint{{
+				ID:  "ep_123",
+				URL: "tcp://foo.internal:80",
+				Kubernetes: targets(
+					ngrok.EndpointKubernetesTarget{Service: "", Namespace: "team-a", Port: 80},
+					ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-b", Port: 0},
+					ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-c", Port: 80},
+				),
+			}},
+			want:    keyed(boundEndpoint("ep_123", "tcp://foo.internal:80", "tcp", "myservice", "team-c", 80)),
 			wantErr: true,
 		},
 		{
-			name: "full",
-			endpoints: []ngrok.Endpoint{
-				{ID: "ep_100", PublicURL: "https://service1.namespace1"},
-				{ID: "ep_101", PublicURL: "https://service1.namespace1"},
-				{ID: "ep_102", PublicURL: "https://service1.namespace1"},
-				{ID: "ep_200", PublicURL: "tcp://service2.namespace2:2020"},
-				{ID: "ep_201", PublicURL: "tcp://service2.namespace2:2020"},
-				{ID: "ep_300", PublicURL: "service3.namespace3"},
-				{ID: "ep_400", PublicURL: "http://service4.namespace4:8080"},
-			},
-			want: AggregatedEndpoints{
-				"https://service1.namespace1:443": {
-					Spec: bindingsv1alpha1.BoundEndpointSpec{
-						EndpointURL: "https://service1.namespace1:443",
-						Scheme:      "https",
-						Target: bindingsv1alpha1.EndpointTarget{
-							Service:   "service1",
-							Namespace: "namespace1",
-							Port:      443,
-							Protocol:  "TCP",
-						},
-					},
-					Status: bindingsv1alpha1.BoundEndpointStatus{
-						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{ID: "ep_100"},
-							{ID: "ep_101"},
-							{ID: "ep_102"},
-						},
-					},
-				},
-				"tcp://service2.namespace2:2020": {
-					Spec: bindingsv1alpha1.BoundEndpointSpec{
-						EndpointURL: "tcp://service2.namespace2:2020",
-						Scheme:      "tcp",
-						Target: bindingsv1alpha1.EndpointTarget{
-							Service:   "service2",
-							Namespace: "namespace2",
-							Port:      2020,
-							Protocol:  "TCP",
-						},
-					},
-					Status: bindingsv1alpha1.BoundEndpointStatus{
-						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{ID: "ep_200"},
-							{ID: "ep_201"},
-						},
-					},
-				},
-				"https://service3.namespace3:443": {
-					Spec: bindingsv1alpha1.BoundEndpointSpec{
-						EndpointURL: "https://service3.namespace3:443",
-						Scheme:      "https",
-						Target: bindingsv1alpha1.EndpointTarget{
-							Service:   "service3",
-							Namespace: "namespace3",
-							Port:      443,
-							Protocol:  "TCP",
-						},
-					},
-					Status: bindingsv1alpha1.BoundEndpointStatus{
-						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{ID: "ep_300"},
-						},
-					},
-				},
-				"http://service4.namespace4:8080": {
-					Spec: bindingsv1alpha1.BoundEndpointSpec{
-						EndpointURL: "http://service4.namespace4:8080",
-						Scheme:      "http",
-						Target: bindingsv1alpha1.EndpointTarget{
-							Service:   "service4",
-							Namespace: "namespace4",
-							Port:      8080,
-							Protocol:  "TCP",
-						},
-					},
-					Status: bindingsv1alpha1.BoundEndpointStatus{
-						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{ID: "ep_400"},
-						},
-					},
-				},
-			},
+			// The API rejects a repeated pair, so reaching this means the
+			// endpoint came from an older control plane. Two BoundEndpoints
+			// fighting over one Service is worse than one missing Service.
+			name: "skips-duplicate-target",
+			endpoints: []ngrok.Endpoint{{
+				ID:  "ep_123",
+				URL: "tcp://foo.internal:80",
+				Kubernetes: targets(
+					ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-a", Port: 80},
+					ngrok.EndpointKubernetesTarget{Service: "myservice", Namespace: "team-a", Port: 8080},
+				),
+			}},
+			want:    keyed(boundEndpoint("ep_123", "tcp://foo.internal:80", "tcp", "myservice", "team-a", 80)),
+			wantErr: true,
+		},
+		{
+			// The target port is the client-facing Service port and is
+			// independent of the port the forwarder dials.
+			name: "target-port-differs-from-dial-port",
+			endpoints: []ngrok.Endpoint{{
+				ID:         "ep_123",
+				URL:        "tcp://redis.internal:6379",
+				Kubernetes: targets(ngrok.EndpointKubernetesTarget{Service: "myredis", Namespace: "team-a", Port: 6379}),
+			}},
+			want:    keyed(boundEndpoint("ep_123", "tcp://redis.internal:6379", "tcp", "myredis", "team-a", 6379)),
 			wantErr: false,
 		},
 	}
@@ -232,4 +244,22 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 			assert.Equal(test.want, got)
 		})
 	}
+}
+
+func Test_BoundEndpointName(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+
+	base := BoundEndpointName("ep_123", "myservice", "team-a")
+	assert.Equal(base, BoundEndpointName("ep_123", "myservice", "team-a"), "name must be stable")
+
+	// The name is a Kubernetes object name, so it has to stay a DNS label.
+	assert.LessOrEqual(len(base), 63)
+	assert.Regexp("^[a-z]([-a-z0-9]*[a-z0-9])?$", base)
+
+	// Every component has to change the name, or two projections would collide
+	// on one BoundEndpoint and one forwarder port.
+	assert.NotEqual(base, BoundEndpointName("ep_456", "myservice", "team-a"))
+	assert.NotEqual(base, BoundEndpointName("ep_123", "other", "team-a"))
+	assert.NotEqual(base, BoundEndpointName("ep_123", "myservice", "team-b"))
 }

@@ -361,6 +361,22 @@ bindings:
   serviceLabels: {}
   ingressEndpoint: "kubernetes-binding-ingress.ngrok.io:443"
 
+  ## Reach endpoints over private dial instead of the mTLS bindings ingress.
+  ## The forwarder then dials the endpoint's own hostname, so it needs neither
+  ## the operator certificate nor bindings.ingressEndpoint.
+  ## @param bindings.privateDial.enabled Use private dial for the forwarder's egress leg
+  ## @param bindings.privateDial.connectURL host:port of the private-dial connect ingress
+  ## @param bindings.privateDial.existingSecret Name of a Secret holding the Personal Access Token that authenticates the private-dial session
+  ## @param bindings.privateDial.existingSecretKey Key within that Secret
+  ##
+  privateDial:
+    enabled: false
+    connectURL: "h2.connect-endpoint.ngrok.com:443"
+    ## Private dial accepts only a Personal Access Token (ngrok_pat_*), never
+    ## the agent authtoken, so it reads its own Secret.
+    existingSecret: ""
+    existingSecretKey: "PAT"
+
   forwarder:
     ## @param bindings.forwarder.replicaCount The number of bindings forwarders to run.
     ##

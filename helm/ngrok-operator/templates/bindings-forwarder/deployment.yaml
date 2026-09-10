@@ -89,6 +89,10 @@ spec:
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name={{ include "ngrok-operator.fullname" . }}-bindings-forwarder
+        {{- if .Values.bindings.privateDial.enabled }}
+        - --use-private-dial
+        - --private-dial-connect-url={{ .Values.bindings.privateDial.connectURL }}
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -97,6 +101,13 @@ spec:
             secretKeyRef:
               key: AUTHTOKEN
               name: {{ include "ngrok-operator.credentialsSecretName" . }}
+        {{- if .Values.bindings.privateDial.enabled }}
+        - name: NGROK_PRIVATE_DIAL_PAT
+          valueFrom:
+            secretKeyRef:
+              key: {{ .Values.bindings.privateDial.existingSecretKey }}
+              name: {{ required "bindings.privateDial.existingSecret is required when private dial is enabled" .Values.bindings.privateDial.existingSecret }}
+        {{- end }}
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

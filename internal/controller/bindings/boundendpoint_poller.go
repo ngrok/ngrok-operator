@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/google/uuid"
 	"github.com/ngrok/ngrok-api-go/v9"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -36,6 +35,15 @@ type DrainState = drain.State
 // BoundEndpointPoller is a process to poll the ngrok API for binding_endpoints and reconcile the desired state with the cluster state of BoundEndpoints
 type BoundEndpointPoller struct {
 	client.Client
+
+	// APIReader reads straight from the API server, past the manager's cache.
+	// Every read whose result is written back has to use it: a full Update
+	// built from a stale cached copy silently drops fields another writer has
+	// added since, and the BoundEndpoint controller's finalizer is one of them.
+	// Losing that finalizer means a later delete removes the BoundEndpoint
+	// without the controller ever cleaning up its Services.
+	APIReader client.Reader
+
 	Log      logr.Logger
 	Recorder events.EventRecorder
 
@@ -44,6 +52,16 @@ type BoundEndpointPoller struct {
 
 	// KubernetesOperatorConfigName is the expected name of the KubernetesOperator that we should poll
 	KubernetesOperatorConfigName string
+
+	// EndpointSelectors are the operator's configured endpoint selectors.
+	//
+	// They are NOT evaluated yet. Carrying kubernetes.targets is now the signal
+	// to project an endpoint, so a selector only narrows which clusters project
+	// an endpoint that already asked to be projected; the default is "true",
+	// which narrows nothing. Until the endpoints list API can evaluate them
+	// server-side, this operator projects every endpoint on the account that
+	// carries the field, and Start logs any selector it is ignoring.
+	EndpointSelectors []string
 
 	// NgrokClientset is the ngrok API clientset
 	NgrokClientset ngrokapi.Clientset
@@ -79,6 +97,16 @@ type BoundEndpointPoller struct {
 	koId string
 }
 
+// read returns the reader for any object the poller is about to write back.
+// It falls back to the cached client so tests that leave APIReader unset keep
+// working.
+func (r *BoundEndpointPoller) read() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
+	}
+	return r.Client
+}
+
 // cancelIfDraining checks if drain mode is active and cancels any active reconciliation.
 // Returns true if draining (caller should return early).
 func (r *BoundEndpointPoller) cancelIfDraining(ctx context.Context, log logr.Logger, operation string) bool {
@@ -99,6 +127,14 @@ func (r *BoundEndpointPoller) Start(ctx context.Context) error {
 	// Initialize the port allocator before starting any polling — the poller
 	// calls methods on it (Replace, SetAny, Unset) that would nil-panic otherwise.
 	r.portAllocator = newPortBitmap(r.PortRange.Min, r.PortRange.Max)
+
+	for _, selector := range r.EndpointSelectors {
+		if selector == "true" {
+			continue
+		}
+		log.Info("Ignoring endpoint selector: this operator projects every endpoint on the account that carries kubernetes.targets",
+			"selector", selector)
+	}
 
 	// retrieve k8sop ID
 	r.koId = r.getKubernetesOperatorId(ctx)
@@ -209,29 +245,38 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointsFromAPI(ctx context.Context
 		return nil
 	}
 
-	// Fetch the mock endpoint data from the API
-	var apiBindingEndpoints []ngrok.Endpoint
-	iter := r.NgrokClientset.KubernetesOperators().GetBoundEndpoints(r.koId, &ngrok.Paging{})
+	// List the account's endpoints. The endpoints to project are the ones
+	// carrying kubernetes.targets; the aggregator drops the rest. This replaces
+	// the kubernetes-binding poll (GetBoundEndpoints), which only ever returned
+	// endpoints bound to this operator -- a binding that this projection model
+	// no longer uses.
+	//
+	// The filter runs client-side because the endpoints list API has no
+	// server-side "has a kubernetes projection" filter yet. Adding one, in the
+	// shape of the reserved-domains filter, is the productization step; it
+	// changes only which endpoints arrive here.
+	var apiEndpoints []ngrok.Endpoint
+	iter := r.NgrokClientset.Endpoints().List(&ngrok.Paging{})
 	for iter.Next(ctx) {
 		item := iter.Item()
 		if item != nil {
-			apiBindingEndpoints = append(apiBindingEndpoints, *item)
+			apiEndpoints = append(apiEndpoints, *item)
 		}
 	}
 
 	err := iter.Err()
 	if err != nil {
-		log.Error(err, "Failed to fetch binding_endpoints from API")
+		log.Error(err, "Failed to fetch endpoints from API")
 		return err
 	}
 
-	// Aggregate the endpoints we got from the API. Endpoints whose hostport
+	// Aggregate the endpoints we got from the API. Endpoints and targets that
 	// cannot be parsed are skipped and the aggregator returns a joined error
 	// describing those failures; we log it but continue reconciling the valid
 	// endpoints so a single malformed entry can't stall the entire poll cycle.
-	desiredBoundEndpoints, err := ngrokapi.AggregateBindingEndpoints(ctx, apiBindingEndpoints)
+	desiredBoundEndpoints, err := ngrokapi.AggregateBindingEndpoints(ctx, apiEndpoints)
 	if err != nil {
-		log.Error(err, "Some binding_endpoints failed to parse; continuing with valid ones")
+		log.Error(err, "Some endpoints failed to parse; continuing with valid ones")
 	}
 
 	// Get all current BoundEndpoint resources in the cluster.
@@ -319,8 +364,7 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, 
 				// process from list
 				for _, binding := range remainingBindings {
 					if err := action(ctx, binding); err != nil {
-						name := hashURL(binding.Spec.EndpointURL)
-						log.Error(err, "Failed to reconcile BoundEndpoint", "action", actionMsg, "name", name, "url", binding.Spec.EndpointURL)
+						log.Error(err, "Failed to reconcile BoundEndpoint", "action", actionMsg, "name", binding.Name, "url", binding.Spec.EndpointURL)
 						failedBindings = append(failedBindings, binding)
 					}
 				}
@@ -335,6 +379,11 @@ func (r *BoundEndpointPoller) reconcileBoundEndpointAction(ctx context.Context, 
 // filterBoundEndpointActions takse 2 sets of existing and desired BoundEndpoints
 // and returns 3 lists: toCreate, toUpdate, toDelete
 // representing the actions needed to reconcile the existing set with the desired set
+//
+// Both sets are keyed by BoundEndpoint name, which the aggregator derives from
+// the endpoint ID and the target. The name, not the endpoint URL, is the
+// identity here: several targets of one endpoint share a URL and would collide
+// under a URL key.
 func (r *BoundEndpointPoller) filterBoundEndpointActions(ctx context.Context, existingBoundEndpoints []bindingsv1alpha1.BoundEndpoint, desiredEndpoints ngrokapi.AggregatedEndpoints) (toCreate []bindingsv1alpha1.BoundEndpoint, toUpdate []bindingsv1alpha1.BoundEndpoint, toDelete []bindingsv1alpha1.BoundEndpoint) {
 	log := ctrl.LoggerFrom(ctx)
 
@@ -345,21 +394,10 @@ func (r *BoundEndpointPoller) filterBoundEndpointActions(ctx context.Context, ex
 	log.V(9).Info("Filtering BoundEndpoints", "existing", existingBoundEndpoints, "desired", desiredEndpoints)
 
 	for _, existingBoundEndpoint := range existingBoundEndpoints {
-		endpointURL := existingBoundEndpoint.Spec.EndpointURL
-
-		if desiredBoundEndpoint, ok := desiredEndpoints[endpointURL]; ok {
-			expectedName := hashURL(desiredBoundEndpoint.Spec.EndpointURL)
-
-			// if the names match, then they are the same resource and we can update it
-			if existingBoundEndpoint.Name == expectedName {
-				// existing endpoint is in our desired set
-				// update this BoundEndpoint
-				toUpdate = append(toUpdate, desiredBoundEndpoint)
-			} else {
-				// otherwise, we need a delete + create, rather than an update
-				toDelete = append(toDelete, existingBoundEndpoint)
-				toCreate = append(toCreate, desiredBoundEndpoint)
-			}
+		if desiredBoundEndpoint, ok := desiredEndpoints[existingBoundEndpoint.Name]; ok {
+			// existing endpoint is in our desired set
+			// update this BoundEndpoint
+			toUpdate = append(toUpdate, desiredBoundEndpoint)
 		} else {
 			// existing endpoint is not in our desired set
 			// delete this BoundEndpoint
@@ -368,7 +406,7 @@ func (r *BoundEndpointPoller) filterBoundEndpointActions(ctx context.Context, ex
 
 		// remove the desired endpoint from the set
 		// so we can see which endpoints are net-new
-		delete(desiredEndpoints, endpointURL)
+		delete(desiredEndpoints, existingBoundEndpoint.Name)
 	}
 
 	for _, desiredBoundEndpoint := range desiredEndpoints {
@@ -383,7 +421,9 @@ func (r *BoundEndpointPoller) filterBoundEndpointActions(ctx context.Context, ex
 func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	name := hashURL(desired.Spec.EndpointURL)
+	// The aggregator names the desired BoundEndpoint from the endpoint ID and
+	// the target, so that an endpoint's several targets stay distinct here.
+	name := desired.Name
 
 	// allocate a port
 	port, err := r.portAllocator.SetAny()
@@ -432,7 +472,7 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 		// intentionally fall through and fill in status
 		log.Info("BoundEndpoint already exists, but status is empty, filling in status...", "name", name, "url", toCreate.Spec.EndpointURL, "toCreate", toCreate)
 
-		if err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: name}, toCreate); err != nil {
+		if err := r.read().Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: name}, toCreate); err != nil {
 			log.Error(err, "Failed to get existing BoundEndpoint, skipping status update...", "name", name, "url", toCreate.Spec.EndpointURL)
 			return nil
 		}
@@ -468,14 +508,14 @@ func (r *BoundEndpointPoller) createBinding(ctx context.Context, desired binding
 func (r *BoundEndpointPoller) updateBinding(ctx context.Context, desired bindingsv1alpha1.BoundEndpoint) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	desiredName := hashURL(desired.Spec.EndpointURL)
+	desiredName := desired.Name
 
 	// Attach the metadata fields to the desired boundendpoint
 	desired.Spec.Target.Metadata.Annotations = r.TargetServiceAnnotations
 	desired.Spec.Target.Metadata.Labels = r.TargetServiceLabels
 
 	existing := &bindingsv1alpha1.BoundEndpoint{}
-	err := r.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: desiredName}, existing)
+	err := r.read().Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: desiredName}, existing)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// BoundEndpoint doesn't exist, create it on the next polling loop
@@ -566,7 +606,7 @@ func (r *BoundEndpointPoller) updateBindingStatus(ctx context.Context, desired *
 
 	// Get the current version to preserve controller-owned fields
 	current := &bindingsv1alpha1.BoundEndpoint{}
-	if err := r.Get(ctx, client.ObjectKeyFromObject(desired), current); err != nil {
+	if err := r.read().Get(ctx, client.ObjectKeyFromObject(desired), current); err != nil {
 		log.Error(err, "Failed to get current BoundEndpoint for status update", "name", desired.Name)
 		return err
 	}
@@ -635,10 +675,4 @@ func boundEndpointNeedsUpdate(ctx context.Context, existing bindingsv1alpha1.Bou
 	}
 
 	return false
-}
-
-// hashURL hashes a URL to a unique string that can be used as BoundEndpoint.metadata.name
-func hashURL(url string) string {
-	uid := uuid.NewSHA1(uuid.NameSpaceURL, []byte(url))
-	return "ngrok-" + uid.String()
 }

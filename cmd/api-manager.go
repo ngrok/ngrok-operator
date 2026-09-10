@@ -777,6 +777,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 	// BoundEndpoints
 	if err := (&bindingscontroller.BoundEndpointReconciler{
 		Client:        mgr.GetClient(),
+		APIReader:     mgr.GetAPIReader(),
 		Scheme:        mgr.GetScheme(),
 		Log:           ctrl.Log.WithName("controllers").WithName("BoundEndpoint"),
 		Recorder:      mgr.GetEventRecorder("bindings-controller"),
@@ -793,10 +794,12 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 	// Create a new Runnable that implements Start that the manager can manage running
 	if err := mgr.Add(&bindingscontroller.BoundEndpointPoller{
 		Client:                       mgr.GetClient(),
+		APIReader:                    mgr.GetAPIReader(),
 		Log:                          ctrl.Log.WithName("controllers").WithName("BoundEndpointPoller"),
 		Recorder:                     mgr.GetEventRecorder("endpoint-binding-poller"),
 		Namespace:                    opts.namespace,
 		KubernetesOperatorConfigName: opts.releaseName,
+		EndpointSelectors:            opts.bindings.endpointSelectors,
 		TargetServiceAnnotations:     targetServiceAnnotations,
 		TargetServiceLabels:          targetServiceLabels,
 		PollingInterval:              10 * time.Second,
