@@ -99,4 +99,3 @@ func TestSetIPPolicyRulesConfiguredCondition(t *testing.T) {
 	assert.Equal(t, "Failed to configure IP Policy rules", condition.Message)
 	assert.Equal(t, int64(1), condition.ObservedGeneration)
 }
-
