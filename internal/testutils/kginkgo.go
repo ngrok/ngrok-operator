@@ -127,9 +127,7 @@ func (k *KGinkgo) ExpectCreateNamespace(ctx context.Context, name string) {
 	GinkgoHelper()
 
 	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
+		Name: name,
 	}
 	Expect(k.client.Create(ctx, ns)).To(Succeed())
 }
@@ -147,9 +145,7 @@ func (k *KGinkgo) ExpectDeleteNamespace(ctx context.Context, name string) {
 	GinkgoHelper()
 
 	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
+		Name: name,
 	}
 	err := k.client.Delete(ctx, ns)
 	if err != nil && !apierrors.IsNotFound(err) {

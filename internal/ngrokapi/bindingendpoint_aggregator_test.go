@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 )
 
@@ -77,7 +77,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: ngrok.Ref{ID: "ep_123"}},
+							{ID: "ep_123"},
 						},
 					},
 				},
@@ -110,7 +110,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: ngrok.Ref{ID: "ep_good"}},
+							{ID: "ep_good"},
 						},
 					},
 				},
@@ -153,9 +153,9 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: ngrok.Ref{ID: "ep_100"}},
-							{Ref: ngrok.Ref{ID: "ep_101"}},
-							{Ref: ngrok.Ref{ID: "ep_102"}},
+							{ID: "ep_100"},
+							{ID: "ep_101"},
+							{ID: "ep_102"},
 						},
 					},
 				},
@@ -172,8 +172,8 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: ngrok.Ref{ID: "ep_200"}},
-							{Ref: ngrok.Ref{ID: "ep_201"}},
+							{ID: "ep_200"},
+							{ID: "ep_201"},
 						},
 					},
 				},
@@ -190,7 +190,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: ngrok.Ref{ID: "ep_300"}},
+							{ID: "ep_300"},
 						},
 					},
 				},
@@ -207,7 +207,7 @@ func Test_AggregateBindingEndpoints(t *testing.T) {
 					},
 					Status: bindingsv1alpha1.BoundEndpointStatus{
 						Endpoints: []bindingsv1alpha1.BindingEndpoint{
-							{Ref: ngrok.Ref{ID: "ep_400"}},
+							{ID: "ep_400"},
 						},
 					},
 				},

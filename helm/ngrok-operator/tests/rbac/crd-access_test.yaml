@@ -12,8 +12,12 @@ templates:
 - rbac/crd-access/ippolicy-viewer.yaml
 - rbac/crd-access/kubernetesoperator-editor.yaml
 - rbac/crd-access/kubernetesoperator-viewer.yaml
+# LEGACY-trafficpolicy-kind: drop these two entries at cleanup; the canonical
+# trafficpolicy-{editor,viewer} entries below stay.
 - rbac/crd-access/ngroktrafficpolicy-editor.yaml
 - rbac/crd-access/ngroktrafficpolicy-viewer.yaml
+- rbac/crd-access/trafficpolicy-editor.yaml
+- rbac/crd-access/trafficpolicy-viewer.yaml
 tests:
 - it: should match snapshot with defaults
   asserts:
@@ -52,6 +56,44 @@ tests:
         - bindings.k8s.ngrok.com
         resources:
         - boundendpoints
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
+- it: should use ngrok.com for the canonical trafficpolicy editor
+  template: rbac/crd-access/trafficpolicy-editor.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ngrok.com
+        resources:
+        - trafficpolicies
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
+# LEGACY-trafficpolicy-kind: drop this test at cleanup along with the template
+# it covers.
+- it: should keep the deprecated ngrok.k8s.ngrok.com trafficpolicy editor
+  template: rbac/crd-access/ngroktrafficpolicy-editor.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ngrok.k8s.ngrok.com
+        resources:
+        - ngroktrafficpolicies
         verbs:
         - create
         - delete

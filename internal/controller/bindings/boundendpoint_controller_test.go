@@ -30,7 +30,6 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Test_convertBoundEndpointToServices(t *testing.T) {
@@ -41,10 +40,8 @@ func Test_convertBoundEndpointToServices(t *testing.T) {
 	}
 
 	boundEndpoint := &bindingsv1alpha1.BoundEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "abc123", // hashed/unique name
-			Namespace: "ngrok-op",
-		},
+		Name:      "abc123", // hashed/unique name
+		Namespace: "ngrok-op",
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
 			Scheme: "https",
 			Target: bindingsv1alpha1.EndpointTarget{
@@ -154,10 +151,8 @@ func Test_convertBoundEndpointToServices_HTTP(t *testing.T) {
 	}
 
 	boundEndpoint := &bindingsv1alpha1.BoundEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-http",
-			Namespace: "ngrok-op",
-		},
+		Name:      "test-http",
+		Namespace: "ngrok-op",
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
 			Scheme: "http",
 			Target: bindingsv1alpha1.EndpointTarget{
@@ -193,10 +188,8 @@ func Test_convertBoundEndpointToServices_TCP(t *testing.T) {
 	}
 
 	boundEndpoint := &bindingsv1alpha1.BoundEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-tcp",
-			Namespace: "ngrok-op",
-		},
+		Name:      "test-tcp",
+		Namespace: "ngrok-op",
 		Spec: bindingsv1alpha1.BoundEndpointSpec{
 			Scheme: "tcp",
 			Target: bindingsv1alpha1.EndpointTarget{

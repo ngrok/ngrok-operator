@@ -25,11 +25,19 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    deprecated: true
+    deprecationWarning: ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy is deprecated;
+      use ngrok.com/v1 TrafficPolicy instead. Re-stamp the manifest's kind and apiVersion,
+      apply it, then delete the NgrokTrafficPolicy object.
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies
-          API
+        description: |-
+          NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API.
+
+          Deprecated: use the canonical ngrok.com/v1 TrafficPolicy. This kind is
+          still served and resolved for one migration release; see
+          docs/developer-guide/passivity-shims.md.
         properties:
           apiVersion:
             description: |-
@@ -49,7 +57,9 @@ spec:
           metadata:
             type: object
           spec:
-            description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+            description: |-
+              This spec is deprecated in favor of the canonical ngrok.com/v1
+              TrafficPolicySpec.
             properties:
               policy:
                 description: |-

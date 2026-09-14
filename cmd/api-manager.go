@@ -52,12 +52,13 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/ngrok/ngrok-api-go/v7"
-	"github.com/ngrok/ngrok-api-go/v7/api_keys"
+	"github.com/ngrok/ngrok-api-go/v9"
+	"github.com/ngrok/ngrok-api-go/v9/api_keys"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
@@ -71,7 +72,6 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	// +kubebuilder:scaffold:imports
 )
@@ -85,6 +85,7 @@ func init() {
 	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 	utilruntime.Must(ingressv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
@@ -444,21 +445,20 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         opts.electionID != "",
 		LeaderElectionID:       opts.electionID,
-	}
 
-	// The KubernetesOperator CR is a singleton owned by the operator and always
-	// lives in the release namespace, regardless of `watchNamespace`. Pin its
-	// cache scope to the release namespace so the controller can always list/watch
-	// it, and so RBAC for it can stay narrowly scoped to the release namespace.
-	options.Cache = cache.Options{
-		ByObject: map[client.Object]cache.ByObject{
-			&ngrokv1alpha1.KubernetesOperator{}: {
-				Namespaces: map[string]cache.Config{
-					opts.namespace: {},
+		// The KubernetesOperator CR is a singleton owned by the operator and always
+		// lives in the release namespace, regardless of `watchNamespace`. Pin its
+		// cache scope to the release namespace so the controller can always list/watch
+		// it, and so RBAC for it can stay narrowly scoped to the release namespace.
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&ngrokv1alpha1.KubernetesOperator{}: {
+					Namespaces: map[string]cache.Config{
+						opts.namespace: {},
+					},
 				},
 			},
-		},
-	}
+		}}
 	if opts.ingressWatchNamespace != "" {
 		options.Cache.DefaultNamespaces = map[string]cache.Config{
 			opts.ingressWatchNamespace: {},
@@ -499,7 +499,7 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 	// by making a dummy request to list API keys
 	// and checking for errors
 	cApiKeys := api_keys.NewClient(ngrokClientConfig)
-	cIter := cApiKeys.List(&ngrok.Paging{Limit: new("1")})
+	cIter := cApiKeys.List(&ngrok.FilteredPaging{Limit: new("1")})
 	cIter.Next(ctx)
 	if cIter.Err() != nil {
 		return nil, fmt.Errorf("Unable to verify API Key: %w", cIter.Err())
@@ -619,9 +619,29 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		os.Exit(1)
 	}
 
+	// LEGACY-trafficpolicy-kind: BEGIN
+	// Deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy reconciler.
+	// Runs alongside the canonical ngrok.com/v1 TrafficPolicy reconciler
+	// below during the passive-migration window. Both are instantiations of
+	// the same generic PolicyReconciler, so this block and the alias it names
+	// are the only things to delete at cleanup — the reconciler
+	// implementation is shared and stays.
 	if err := (&ngrokcontroller.NgrokTrafficPolicyReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorder("policy-controller"),
+		Driver:   driver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NgrokTrafficPolicy")
+		os.Exit(1)
+	}
+	// LEGACY-trafficpolicy-kind: END
+
+	// Canonical ngrok.com/v1 TrafficPolicy reconciler.
+	if err := (&ngrokcontroller.TrafficPolicyReconciler{
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("traffic-policy-v1"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorder("policy-controller"),
 		Driver:   driver,
@@ -793,10 +813,8 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 
 func createKubernetesOperator(ctx context.Context, client client.Client, opts apiManagerOpts) error {
 	k8sOperator := &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      opts.releaseName,
-			Namespace: opts.namespace,
-		},
+		Name:      opts.releaseName,
+		Namespace: opts.namespace,
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{

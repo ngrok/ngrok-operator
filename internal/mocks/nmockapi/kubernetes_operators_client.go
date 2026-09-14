@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 )
 
 // KubernetesOperatorsClient is a mock implementation of the ngrok API client for managing kubernetes operators.
 type KubernetesOperatorsClient struct {
-	baseClient[*ngrok.KubernetesOperator]
+	baseClient[*ngrok.KubernetesOperator, ngrok.Paging]
 
 	// mu protects boundEndpoints
 	mu sync.RWMutex
@@ -20,7 +20,7 @@ type KubernetesOperatorsClient struct {
 
 func NewKubernetesOperatorsClient() *KubernetesOperatorsClient {
 	return &KubernetesOperatorsClient{
-		baseClient:     newBase[*ngrok.KubernetesOperator]("ko"),
+		baseClient:     newBase[*ngrok.KubernetesOperator, ngrok.Paging]("ko"),
 		boundEndpoints: []ngrok.Endpoint{},
 	}
 }

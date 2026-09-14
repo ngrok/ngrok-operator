@@ -41,15 +41,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 // CloudEndpointReconciler reconciles a CloudEndpoint object
@@ -157,8 +159,19 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.GenerationChangedPredicate{},
 			),
 		)).
+		// LEGACY-trafficpolicy-kind: BEGIN
+		// Watch the deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy
+		// so endpoints resolving through the fallback path re-enqueue on
+		// legacy-kind updates. Delete this Watches call at cleanup.
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
+			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointForTrafficPolicy),
+		).
+		// LEGACY-trafficpolicy-kind: END
+		Watches(
+			// Canonical ngrok.com/v1 TrafficPolicy. Same mapper — the index
+			// key is namespace/name only, so both kinds enqueue identically.
+			&ngrokv1.TrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointForTrafficPolicy),
 		).
 		Watches(
@@ -237,7 +250,7 @@ func (r *CloudEndpointReconciler) createWithPolicy(ctx context.Context, clep *ng
 		Description:    &clep.Spec.Description,
 		Metadata:       &metadata,
 		TrafficPolicy:  policy,
-		Bindings:       clep.Spec.Bindings,
+		Bindings:       util.NilIfEmpty(clep.Spec.Bindings),
 		PoolingEnabled: clep.Spec.PoolingEnabled,
 	}
 
@@ -298,7 +311,7 @@ func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha
 		Description:    &clep.Spec.Description,
 		Metadata:       &metadata,
 		TrafficPolicy:  &policy,
-		Bindings:       clep.Spec.Bindings,
+		Bindings:       util.NilIfEmpty(clep.Spec.Bindings),
 		PoolingEnabled: clep.Spec.PoolingEnabled,
 	}
 
@@ -481,24 +494,31 @@ func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv
 // #region Helper Functions
 
 // findCloudEndpointForTrafficPolicy returns reconcile requests for every
-// CloudEndpoint that references the supplied NgrokTrafficPolicy via the new
+// CloudEndpoint that references the supplied TrafficPolicy via the new
 // targetRef shape or the deprecated spec.trafficPolicyName — both flow through
 // the same composite-key index.
+//
+// The mapper is kind-agnostic by construction: it accepts anything satisfying
+// trafficpolicypkg.TrafficPolicyResource, which today means both the canonical
+// ngrok.com/v1 TrafficPolicy and the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy. That works because the
+// endpoint index key is namespace/name only, with no kind component. Testing
+// against the interface rather than a list of concrete types means this
+// function needs no edit when the legacy kind is dropped.
 func (r *CloudEndpointReconciler) findCloudEndpointForTrafficPolicy(ctx context.Context, o client.Object) []ctrl.Request {
-	tp, ok := o.(*ngrokv1alpha1.NgrokTrafficPolicy)
-	if !ok {
+	if _, ok := o.(trafficpolicypkg.TrafficPolicyResource); !ok {
 		return nil
 	}
 
 	var list ngrokv1alpha1.CloudEndpointList
-	if err := r.Client.List(ctx, &list, client.MatchingFields{trafficpolicypkg.RefIndex: trafficpolicypkg.LookupKey(tp)}); err != nil {
+	if err := r.Client.List(ctx, &list, client.MatchingFields{trafficpolicypkg.RefIndex: trafficpolicypkg.LookupKey(o)}); err != nil {
 		r.Log.Error(err, "failed to list CloudEndpoints using index")
 		return nil
 	}
 
 	requests := make([]ctrl.Request, 0, len(list.Items))
 	for _, clep := range list.Items {
-		requests = append(requests, ctrl.Request{NamespacedName: client.ObjectKey{Name: clep.Name, Namespace: clep.Namespace}})
+		requests = append(requests, ctrl.Request{Name: clep.Name, Namespace: clep.Namespace})
 	}
 	return requests
 }

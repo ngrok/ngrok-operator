@@ -14,11 +14,9 @@ import (
 // Helper function to create a test AgentEndpoint
 func createTestAgentEndpoint(name, namespace string) *ngrokv1alpha1.AgentEndpoint {
 	return &ngrokv1alpha1.AgentEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       name,
-			Namespace:  namespace,
-			Generation: 1,
-		},
+		Name:       name,
+		Namespace:  namespace,
+		Generation: 1,
 		Status: ngrokv1alpha1.AgentEndpointStatus{
 			Conditions: []metav1.Condition{},
 		},

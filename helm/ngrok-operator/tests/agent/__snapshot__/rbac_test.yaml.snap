@@ -102,6 +102,14 @@ should match snapshot in default mode:
           - get
           - list
           - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies
+        verbs:
+          - get
+          - list
+          - watch
   4: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
@@ -216,6 +224,14 @@ should match snapshot in namespaced mode:
           - ngrok.k8s.ngrok.com
         resources:
           - ngroktrafficpolicies
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - trafficpolicies
         verbs:
           - get
           - list

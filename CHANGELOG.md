@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0
 
 Before upgrading, review the
-[Helm chart 0.23 to 0.24 upgrade guide](docs/upgrading-to-0.24.md).
+[Helm chart 0.23 to 0.24 upgrade guide](https://github.com/ngrok/ngrok-operator/blob/main/docs/upgrading-to-0.24.md).
 
 Moving `0.22.0-rc.2` to `0.22.0`. See the `0.22.0-rc.1` and `0.22.0-rc.2` notes below for changes.
 
@@ -24,7 +24,7 @@ Moving `0.22.0-rc.2` to `0.22.0`. See the `0.22.0-rc.1` and `0.22.0-rc.2` notes 
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0-rc.1
 
 For upgrade steps and required manifest migrations, see the
-[Helm chart 0.23 to 0.24 upgrade guide](docs/upgrading-to-0.24.md).
+[Helm chart 0.23 to 0.24 upgrade guide](https://github.com/ngrok/ngrok-operator/blob/main/docs/upgrading-to-0.24.md).
 
 ### Breaking Changes
 - Migrated ingress class handling to the new `ngrok.com` API group by @alex-bezek in [#819](https://github.com/ngrok/ngrok-operator/pull/819)

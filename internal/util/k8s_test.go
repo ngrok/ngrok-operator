@@ -11,7 +11,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,19 +23,15 @@ func TestToClientObjects(t *testing.T) {
 
 	s = []ingressv1alpha1.Domain{
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test",
-				Namespace: "default",
-			},
+			Name:      "test",
+			Namespace: "default",
 			Spec: ingressv1alpha1.DomainSpec{
 				Domain: "test.ngrok.io",
 			},
 		},
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test2",
-				Namespace: "other",
-			},
+			Name:      "test2",
+			Namespace: "other",
 			Spec: ingressv1alpha1.DomainSpec{
 				Domain: "test.ngrok.io",
 			},
@@ -96,13 +91,9 @@ func Test_ObjNameFuncs(t *testing.T) {
 		{
 			name: "configmap",
 			obj: &v1.ConfigMap{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "ConfigMap",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-cm",
-				},
+				Kind:       "ConfigMap",
+				APIVersion: "v1",
+				Name:       "my-cm",
 			},
 			wants: []fnTest{
 				{fn: ObjToName, want: "my-cm"},
@@ -115,13 +106,9 @@ func Test_ObjNameFuncs(t *testing.T) {
 		{
 			name: "job",
 			obj: &batchv1.Job{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Job",
-					APIVersion: "batch/v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-job",
-				},
+				Kind:       "Job",
+				APIVersion: "batch/v1",
+				Name:       "my-job",
 			},
 			wants: []fnTest{
 				{fn: ObjToName, want: "my-job"},
@@ -134,13 +121,9 @@ func Test_ObjNameFuncs(t *testing.T) {
 		{
 			name: "custom",
 			obj: &v1.ConfigMap{ // use a configmap, but change the type meta
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "CustomObject",
-					APIVersion: "k8s.ngrok.com/v1beta1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-obj",
-				},
+				Kind:       "CustomObject",
+				APIVersion: "k8s.ngrok.com/v1beta1",
+				Name:       "my-obj",
 			},
 			wants: []fnTest{
 				{fn: ObjToName, want: "my-obj"},
@@ -178,54 +161,42 @@ func TestHasFinalizer(t *testing.T) {
 		{
 			name: "different finalizer",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{"other.finalizer"},
-				},
+				Finalizers: []string{"other.finalizer"},
 			},
 			want: false,
 		},
 		{
 			name: "has new finalizer",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{FinalizerName},
-				},
+				Finalizers: []string{FinalizerName},
 			},
 			want: true,
 		},
 		{
 			name: "has legacy finalizer",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{LegacyFinalizerName},
-				},
+				Finalizers: []string{LegacyFinalizerName},
 			},
 			want: true,
 		},
 		{
 			name: "has both finalizers",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{FinalizerName, LegacyFinalizerName},
-				},
+				Finalizers: []string{FinalizerName, LegacyFinalizerName},
 			},
 			want: true,
 		},
 		{
 			name: "has new finalizer among others",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{"other.finalizer", FinalizerName, "another.finalizer"},
-				},
+				Finalizers: []string{"other.finalizer", FinalizerName, "another.finalizer"},
 			},
 			want: true,
 		},
 		{
 			name: "has legacy finalizer among others",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{"other.finalizer", LegacyFinalizerName, "another.finalizer"},
-				},
+				Finalizers: []string{"other.finalizer", LegacyFinalizerName, "another.finalizer"},
 			},
 			want: true,
 		},
@@ -259,9 +230,7 @@ func TestAddFinalizer(t *testing.T) {
 		{
 			name: "add to existing",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{"other.finalizer"},
-				},
+				Finalizers: []string{"other.finalizer"},
 			},
 			wantAdded:         true,
 			wantLegacyPresent: true,
@@ -270,9 +239,7 @@ func TestAddFinalizer(t *testing.T) {
 		{
 			name: "legacy already present",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{LegacyFinalizerName},
-				},
+				Finalizers: []string{LegacyFinalizerName},
 			},
 			wantAdded:         false,
 			wantLegacyPresent: true,
@@ -281,9 +248,7 @@ func TestAddFinalizer(t *testing.T) {
 		{
 			name: "new finalizer already present from prior R2 reconcile",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{FinalizerName},
-				},
+				Finalizers: []string{FinalizerName},
 			},
 			// R1 still wants the legacy key on the object, so the add
 			// returns true even though HasFinalizer was already true.
@@ -319,9 +284,7 @@ func TestRemoveFinalizer(t *testing.T) {
 		{
 			name: "remove when new present",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{FinalizerName},
-				},
+				Finalizers: []string{FinalizerName},
 			},
 			wantRemoved: true,
 			wantPresent: false,
@@ -329,9 +292,7 @@ func TestRemoveFinalizer(t *testing.T) {
 		{
 			name: "remove when legacy present",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{LegacyFinalizerName},
-				},
+				Finalizers: []string{LegacyFinalizerName},
 			},
 			wantRemoved: true,
 			wantPresent: false,
@@ -339,9 +300,7 @@ func TestRemoveFinalizer(t *testing.T) {
 		{
 			name: "remove when both present",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{FinalizerName, LegacyFinalizerName},
-				},
+				Finalizers: []string{FinalizerName, LegacyFinalizerName},
 			},
 			wantRemoved: true,
 			wantPresent: false,
@@ -349,9 +308,7 @@ func TestRemoveFinalizer(t *testing.T) {
 		{
 			name: "remove when not present",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{"other.finalizer"},
-				},
+				Finalizers: []string{"other.finalizer"},
 			},
 			wantRemoved: false,
 			wantPresent: false,
@@ -359,9 +316,7 @@ func TestRemoveFinalizer(t *testing.T) {
 		{
 			name: "remove from multiple with new",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{"other.finalizer", FinalizerName, "another.finalizer"},
-				},
+				Finalizers: []string{"other.finalizer", FinalizerName, "another.finalizer"},
 			},
 			wantRemoved: true,
 			wantPresent: false,
@@ -369,9 +324,7 @@ func TestRemoveFinalizer(t *testing.T) {
 		{
 			name: "remove from multiple with legacy",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{"other.finalizer", LegacyFinalizerName, "another.finalizer"},
-				},
+				Finalizers: []string{"other.finalizer", LegacyFinalizerName, "another.finalizer"},
 			},
 			wantRemoved: true,
 			wantPresent: false,
@@ -400,10 +353,8 @@ func TestRegisterAndSyncFinalizer(t *testing.T) {
 		{
 			name: "add finalizer to object without one",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
-					Namespace: "default",
-				},
+				Name:      "test-ingress",
+				Namespace: "default",
 			},
 			wantErr:       false,
 			wantFinalizer: true,
@@ -412,11 +363,9 @@ func TestRegisterAndSyncFinalizer(t *testing.T) {
 		{
 			name: "object already has legacy finalizer",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:       "test-ingress",
-					Namespace:  "default",
-					Finalizers: []string{LegacyFinalizerName},
-				},
+				Name:       "test-ingress",
+				Namespace:  "default",
+				Finalizers: []string{LegacyFinalizerName},
 			},
 			wantErr:       false,
 			wantFinalizer: true,
@@ -463,11 +412,9 @@ func TestRemoveAndSyncFinalizer(t *testing.T) {
 		{
 			name: "remove new finalizer from object with one",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:       "test-ingress",
-					Namespace:  "default",
-					Finalizers: []string{FinalizerName},
-				},
+				Name:       "test-ingress",
+				Namespace:  "default",
+				Finalizers: []string{FinalizerName},
 			},
 			wantErr:       false,
 			wantFinalizer: false,
@@ -475,11 +422,9 @@ func TestRemoveAndSyncFinalizer(t *testing.T) {
 		{
 			name: "remove legacy finalizer from object with one",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:       "test-ingress",
-					Namespace:  "default",
-					Finalizers: []string{LegacyFinalizerName},
-				},
+				Name:       "test-ingress",
+				Namespace:  "default",
+				Finalizers: []string{LegacyFinalizerName},
 			},
 			wantErr:       false,
 			wantFinalizer: false,
@@ -487,10 +432,8 @@ func TestRemoveAndSyncFinalizer(t *testing.T) {
 		{
 			name: "remove finalizer from object without one",
 			obj: &netv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-ingress",
-					Namespace: "default",
-				},
+				Name:      "test-ingress",
+				Namespace: "default",
 			},
 			wantErr:       false,
 			wantFinalizer: false,

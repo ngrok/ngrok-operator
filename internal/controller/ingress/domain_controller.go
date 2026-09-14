@@ -27,6 +27,7 @@ package ingress
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -41,7 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	"github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	basecontroller "github.com/ngrok/ngrok-operator/internal/controller"
@@ -152,7 +153,7 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Requeue if the domain is not ready
 	if !IsDomainReady(domain) {
 		// Requeue the event relying on the controllers custom RateLimiter for exponential backoff
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{Requeue: true}, nil //nolint:staticcheck
 	}
 
 	return result, nil
@@ -231,7 +232,11 @@ func (r *DomainReconciler) delete(ctx context.Context, domain *v1alpha1.Domain) 
 
 // finds the reserved domain by the hostname. If it doesn't exist, returns nil
 func (r *DomainReconciler) findReservedDomainByHostname(ctx context.Context, domainName string) (*ngrok.ReservedDomain, error) {
-	iter := r.DomainsClient.List(&ngrok.Paging{})
+	// Filter server-side via ngrok's API filtering (https://ngrok.com/docs/api/api-filtering)
+	// instead of paging through every reserved domain on the account.
+	iter := r.DomainsClient.List(&ngrok.FilteredPaging{
+		Filter: new(fmt.Sprintf("obj.domain == %q", domainName)),
+	})
 	for iter.Next(ctx) {
 		domain := iter.Item()
 		if domain.Domain == domainName {

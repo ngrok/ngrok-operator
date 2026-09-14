@@ -125,10 +125,8 @@ var _ = Describe("routeReferencesNgrokGateway", Ordered, func() {
 
 		BeforeEach(func(ctx SpecContext) {
 			gw = &gatewayv1.Gateway{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      testutils.RandomName("gw"),
-					Namespace: "default",
-				},
+				Name:      testutils.RandomName("gw"),
+				Namespace: "default",
 				Spec: gatewayv1.GatewaySpec{
 					GatewayClassName: gatewayv1.ObjectName(unmanagedGatewayClass.Name),
 					Listeners: []gatewayv1.Listener{

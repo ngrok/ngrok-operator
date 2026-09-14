@@ -128,8 +128,7 @@ func ExtractUseEndpointPooling(obj client.Object) (*bool, error) {
 		return nil, err
 	}
 
-	result := strings.EqualFold(val, "true")
-	return &result, nil
+	return new(strings.EqualFold(val, "true")), nil
 }
 
 // Determines which traffic is allowed to reach an endpoint

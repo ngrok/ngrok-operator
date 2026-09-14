@@ -207,15 +207,13 @@ func (t *trafficPolicyImpl) mergeEnabled(incomingEnabled *bool) {
 	// original traffic policy had no enabled set, take on new value
 	if t.enabled == nil {
 		// don't want to copy the pointer, as the value will still be linked to a different policy
-		temp := *incomingEnabled
-		t.enabled = &temp
+		t.enabled = new(*incomingEnabled)
 		return
 	}
 
 	// both being set likely won't happen. However, if we have a mismatch, we should keep it enabled. Otherwise,
 	// we might accidentally turn off something important like auth.
-	resolvedEnabled := *t.enabled || *incomingEnabled
-	t.enabled = &resolvedEnabled
+	t.enabled = new(*t.enabled || *incomingEnabled)
 }
 
 // filterEnabled looks for a top level "enabled" in the json, removes it, and returns the value. For the module and gateway

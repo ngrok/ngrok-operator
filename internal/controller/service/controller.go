@@ -34,9 +34,10 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
@@ -54,7 +55,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -155,9 +155,18 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.ResourceVersionChangedPredicate{},
 			),
 		)).
-		// Watch traffic policies for changes
+		// Watch traffic policies for changes. Both served kinds are watched
+		// through the same mapper — it keys off namespace/name only, so it is
+		// already kind-agnostic.
+		//
+		// LEGACY-trafficpolicy-kind: drop the NgrokTrafficPolicy watch at
+		// cleanup; the canonical watch below stays.
 		Watches(
 			&ngrokv1alpha1.NgrokTrafficPolicy{},
+			handler.EnqueueRequestsFromMapFunc(r.findServicesForTrafficPolicy),
+		).
+		Watches(
+			&ngrokv1.TrafficPolicy{},
 			handler.EnqueueRequestsFromMapFunc(r.findServicesForTrafficPolicy),
 		)
 
@@ -357,10 +366,8 @@ func (r *ServiceReconciler) findServicesForTrafficPolicy(ctx context.Context, po
 		svcNamespace := svc.GetNamespace()
 		svcName := svc.GetName()
 		requests[i] = reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: svcNamespace,
-				Name:      svcName,
-			},
+			Namespace: svcNamespace,
+			Name:      svcName,
 		}
 		log.V(3).Info("Triggering reconciliation for service", "namespace", svcNamespace, "name", svcName)
 	}
@@ -398,7 +405,7 @@ func (r *ServiceReconciler) setComputedURLAnnotation(ctx context.Context, svc *c
 }
 
 func (r *ServiceReconciler) tcpAddressIsReserved(ctx context.Context, hostport string) (bool, error) {
-	iter := r.TCPAddresses.List(&ngrok.Paging{})
+	iter := r.TCPAddresses.List(&ngrok.FilteredPaging{})
 	for iter.Next(ctx) {
 		addr := iter.Item()
 		if addr.Addr == hostport {
@@ -438,13 +445,19 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 	// If an explicit traffic policy is defined on the service, merge it with the existing traffic policy
 	// before adding the forward-internal action.
 	// TODO: We still need to handle legacy traffic policy conversion
-	policy, err := getNgrokTrafficPolicyForService(ctx, r.Client, svc)
+	policy, err := getTrafficPolicyForService(ctx, r.Client, svc)
 	if err != nil {
 		log.Error(err, "Failed to get traffic policy")
 		return objects, err
 	}
 	if policy != nil {
-		explicitTP, err := trafficpolicy.NewTrafficPolicyFromJSON(policy.Spec.Policy)
+		// LEGACY-trafficpolicy-kind: drop this log branch at cleanup.
+		if policy.LegacyKind {
+			log.Info("resolved TrafficPolicy via deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy; migrate to ngrok.com/v1 TrafficPolicy",
+				"service", svc.Name, "namespace", svc.Namespace, "trafficPolicy", policy.Object.GetName())
+		}
+
+		explicitTP, err := trafficpolicy.NewTrafficPolicyFromJSON(policy.Policy)
 		if err != nil {
 			return objects, err
 		}
@@ -548,14 +561,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 	// For the default/collapse strategy, make a single AgentEndpoint
 	case ir.IRMappingStrategy_EndpointsCollapsed:
 		agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: svc.Name + "-",
-				Namespace:    svc.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
-				},
-				Labels: r.ControllerLabels.Labels(),
+			GenerateName: svc.Name + "-",
+			Namespace:    svc.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 			},
+			Labels: r.ControllerLabels.Labels(),
 			Spec: ngrokv1alpha1.AgentEndpointSpec{
 				URL:      computedEndpointURL,
 				Bindings: useBindings,
@@ -584,14 +595,12 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		}
 
 		cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: svc.Name + "-",
-				Namespace:    svc.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
-				},
-				Labels: r.ControllerLabels.Labels(),
+			GenerateName: svc.Name + "-",
+			Namespace:    svc.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 			},
+			Labels: r.ControllerLabels.Labels(),
 			Spec: ngrokv1alpha1.CloudEndpointSpec{
 				URL:            computedEndpointURL,
 				Bindings:       useBindings,
@@ -602,21 +611,19 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				// only `policy` survives. Drop the `Policy` write in the cleanup release.
 				TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 					Inline: rawPolicy,
-					Policy: rawPolicy,
+					Policy: rawPolicy, //nolint:staticcheck // SA1019: deliberate legacy dual-write, see above
 				},
 			},
 		}
 		objects = append(objects, cloudEndpoint)
 
 		agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: svc.Name + "-internal-",
-				Namespace:    svc.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
-				},
-				Labels: r.ControllerLabels.Labels(),
+			GenerateName: svc.Name + "-internal-",
+			Namespace:    svc.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 			},
+			Labels: r.ControllerLabels.Labels(),
 			Spec: ngrokv1alpha1.AgentEndpointSpec{
 				URL: internalURL,
 				Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -877,7 +884,15 @@ func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
 	}
 }
 
-func getNgrokTrafficPolicyForService(ctx context.Context, c client.Client, svc *corev1.Service) (*ngrokv1alpha1.NgrokTrafficPolicy, error) {
+// getTrafficPolicyForService resolves the traffic policy named by the
+// service's annotation. It returns (nil, nil) when the service carries no
+// traffic-policy annotation at all.
+//
+// Resolution goes through trafficpolicy.LookupPolicy, so it is canonical-first
+// with a fallback to the deprecated kind — the annotation names a policy by
+// bare name, with no kind or group, so a user who re-stamps their manifest to
+// ngrok.com/v1 TrafficPolicy keeps working without editing the Service.
+func getTrafficPolicyForService(ctx context.Context, c client.Client, svc *corev1.Service) (*trafficpolicy.PolicyLookup, error) {
 	policyName, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(svc)
 	if err != nil {
 		if errors.IsMissingAnnotations(err) {
@@ -886,9 +901,11 @@ func getNgrokTrafficPolicyForService(ctx context.Context, c client.Client, svc *
 		return nil, err
 	}
 
-	policy := &ngrokv1alpha1.NgrokTrafficPolicy{}
-	err = c.Get(ctx, client.ObjectKey{Namespace: svc.Namespace, Name: policyName}, policy)
-	return policy, err
+	lookup, err := trafficpolicy.LookupPolicy(ctx, c, client.ObjectKey{Namespace: svc.Namespace, Name: policyName})
+	if err != nil {
+		return nil, err
+	}
+	return &lookup, nil
 }
 
 func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, endpoint ngrokv1alpha1.EndpointWithDomain) error {

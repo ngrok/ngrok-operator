@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 )
 
 type TCPAddressesClient struct {
-	baseClient[*ngrok.ReservedAddr]
+	baseClient[*ngrok.ReservedAddr, ngrok.FilteredPaging]
 }
 
 func NewTCPAddressClient() *TCPAddressesClient {
 	return &TCPAddressesClient{
-		baseClient: newBase[*ngrok.ReservedAddr](
+		baseClient: newBase[*ngrok.ReservedAddr, ngrok.FilteredPaging](
 			"ra",
 		),
 	}

@@ -5,14 +5,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ngrok/ngrok-operator/internal/errors"
 )
 
 func objWithAnnotations(anns map[string]string) client.Object {
-	return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: anns}}
+	return &corev1.Pod{Annotations: anns}
 }
 
 func TestGetStringAnnotationDualRead(t *testing.T) {

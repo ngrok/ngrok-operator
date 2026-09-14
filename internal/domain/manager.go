@@ -263,10 +263,8 @@ func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain,
 // createNewDomain creates a new Domain CRD
 func (m *Manager) createNewDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, domain, hyphenatedDomain string) (*DomainResult, error) {
 	newDomain := &ingressv1alpha1.Domain{
-		ObjectMeta: ctrl.ObjectMeta{
-			Name:      hyphenatedDomain,
-			Namespace: endpoint.GetNamespace(),
-		},
+		Name:      hyphenatedDomain,
+		Namespace: endpoint.GetNamespace(),
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain: domain,
 		},

@@ -52,8 +52,12 @@ func addKnownTypes(s *runtime.Scheme) error {
 		&CloudEndpointList{},
 		&KubernetesOperator{},
 		&KubernetesOperatorList{},
+		// LEGACY-trafficpolicy-kind: BEGIN — drop the two NgrokTrafficPolicy
+		// registrations at cleanup; the canonical replacement lives in
+		// api/ngrok/v1.
 		&NgrokTrafficPolicy{},
 		&NgrokTrafficPolicyList{},
+		// LEGACY-trafficpolicy-kind: END
 	)
 	metav1.AddToGroupVersion(s, GroupVersion)
 	return nil

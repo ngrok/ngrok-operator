@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	"k8s.io/utils/ptr"
 )
 
 // EndpointsClient is a mock implementation of the ngrok API client for managing endpoints.
 type EndpointsClient struct {
-	baseClient[*ngrok.Endpoint]
+	baseClient[*ngrok.Endpoint, ngrok.Paging]
 }
 
 func NewEndpointsClient() *EndpointsClient {
 	return &EndpointsClient{
-		baseClient: newBase[*ngrok.Endpoint]("ep"),
+		baseClient: newBase[*ngrok.Endpoint, ngrok.Paging]("ep"),
 	}
 }
 

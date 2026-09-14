@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -75,10 +75,8 @@ func AggregateBindingEndpoints(ctx context.Context, endpoints []ngrok.Endpoint) 
 
 		// add the found endpoint to the list of endpoints
 		bindingEndpoint.Status.Endpoints = append(bindingEndpoint.Status.Endpoints, bindingsv1alpha1.BindingEndpoint{
-			Ref: ngrok.Ref{
-				ID:  endpoint.ID,
-				URI: endpoint.URI,
-			},
+			ID:  endpoint.ID,
+			URI: endpoint.URI,
 		})
 
 		// update the aggregated map

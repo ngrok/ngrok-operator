@@ -86,9 +86,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		// Create namespace for testing
 		ns := &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-			},
+			Name: namespace,
 		}
 		Expect(k8sClient.Create(context.Background(), ns)).To(Succeed())
 
@@ -101,9 +99,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		// Clean up namespace
 		if namespace != "" {
 			ns := &v1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
+				Name: namespace,
 			}
 			err := k8sClient.Delete(context.Background(), ns)
 			Expect(err).NotTo(HaveOccurred())
@@ -113,10 +109,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 	Context("Basic endpoint operations", func() {
 		It("should successfully reconcile TCP endpoint", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tcp-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "tcp-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://1.tcp.ngrok.io:12345",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -160,10 +154,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should not create domain CR for custom TCP endpoint", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tcp-custom-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "tcp-custom-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://1.2.3.4:25565",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -207,10 +199,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should not update LastTransitionTime on re-reconcile when ready state unchanged", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "stable-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "stable-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://1.tcp.ngrok.io:12345",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -274,10 +264,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should handle internal endpoints without domain creation", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "internal-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "internal-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "https://test.internal",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -307,10 +295,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should create domain CR for custom domains", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "custom-domain-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "custom-domain-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "https://custom.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -345,10 +331,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should handle endpoint creation failure", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "failing-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "failing-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://2.tcp.ngrok.io:54321",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -377,10 +361,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should handle endpoint deletion", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "delete-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "delete-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://3.tcp.ngrok.io:11111",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -424,10 +406,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 	Context("Traffic policy handling", func() {
 		It("should handle inline traffic policy", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "inline-policy-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "inline-policy-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://4.tcp.ngrok.io:44444",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -473,10 +453,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should resolve traffic policy reference", func(ctx SpecContext) {
 			// Create traffic policy
 			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "referenced-policy",
-					Namespace: namespace,
-				},
+				Name:      "referenced-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
@@ -484,10 +462,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ref-policy-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "ref-policy-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://5.tcp.ngrok.io:55555",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -534,10 +510,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should handle missing traffic policy reference", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "missing-policy-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "missing-policy-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://6.tcp.ngrok.io:66666",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -569,10 +543,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should reject both inline and reference policy at validation", func() {
 			// This should be caught by k8s validation, so we expect the Create to fail
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid-policy-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "invalid-policy-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://7.tcp.ngrok.io:77777",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -595,10 +567,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should successfully apply traffic policy", func(ctx SpecContext) {
 			// Create a traffic policy
 			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-policy",
-					Namespace: namespace,
-				},
+				Name:      "test-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"inbound":[{"type":"deny"}]}`),
 				},
@@ -606,10 +576,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-endpoint-with-policy",
-					Namespace: namespace,
-				},
+				Name:      "test-endpoint-with-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://10.tcp.ngrok.io:10101",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -660,10 +628,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should reconcile when traffic policy is updated", func(ctx SpecContext) {
 			// Create a traffic policy
 			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "update-policy",
-					Namespace: namespace,
-				},
+				Name:      "update-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"inbound":[{"type":"deny"}]}`),
 				},
@@ -671,10 +637,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "update-policy-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "update-policy-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://11.tcp.ngrok.io:11111",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -736,10 +700,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 	Context("when AgentEndpoint creation fails", func() {
 		It("should set appropriate error conditions", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "failing-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "failing-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://12.tcp.ngrok.io:12121",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -781,10 +743,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 	Context("when AgentEndpoint is deleted", func() {
 		It("should call delete on the mock driver", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "delete-test-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "delete-test-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://13.tcp.ngrok.io:13131",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -829,10 +789,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 	Context("Client certificate handling", func() {
 		It("should handle missing client certificate secret", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "missing-cert-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "missing-cert-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://8.tcp.ngrok.io:88888",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -862,10 +820,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should handle invalid certificate data", func(ctx SpecContext) {
 			// Create secret with invalid cert data
 			secret := &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid-cert",
-					Namespace: namespace,
-				},
+				Name:      "invalid-cert",
+				Namespace: namespace,
 				Data: map[string][]byte{
 					"tls.crt": []byte("invalid-cert-data"),
 					"tls.key": []byte("invalid-key-data"),
@@ -874,10 +830,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, secret)).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid-cert-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "invalid-cert-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://9.tcp.ngrok.io:99999",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -907,10 +861,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should handle missing tls.crt in secret", func(ctx SpecContext) {
 			// Create secret missing tls.crt
 			secret := &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "no-crt-secret",
-					Namespace: namespace,
-				},
+				Name:      "no-crt-secret",
+				Namespace: namespace,
 				Data: map[string][]byte{
 					"tls.key": []byte("some-key-data"),
 				},
@@ -918,10 +870,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, secret)).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "no-crt-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "no-crt-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://10.tcp.ngrok.io:10000",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -953,8 +903,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should wire the server certificate through to the driver", func(ctx SpecContext) {
 			certPEM, keyPEM := generateSelfSignedTLSPEM()
 			serverSecret := &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-server", Namespace: namespace},
-				Type:       v1.SecretTypeTLS,
+				Name: "tls-term-server", Namespace: namespace,
+				Type: v1.SecretTypeTLS,
 				Data: map[string][]byte{
 					"tls.crt": certPEM,
 					"tls.key": keyPEM,
@@ -963,7 +913,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, serverSecret)).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-ok", Namespace: namespace},
+				Name: "tls-term-ok", Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "tls://tls-term-ok.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
@@ -991,7 +941,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should set ConfigError when the server cert Secret is missing", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-missing", Namespace: namespace},
+				Name: "tls-term-missing", Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "tls://tls-term-missing.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
@@ -1017,8 +967,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should set ConfigError when tls.crt is malformed", func(ctx SpecContext) {
 			Expect(k8sClient.Create(ctx, &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-bad", Namespace: namespace},
-				Type:       v1.SecretTypeTLS,
+				Name: "tls-term-bad", Namespace: namespace,
+				Type: v1.SecretTypeTLS,
 				Data: map[string][]byte{
 					"tls.crt": []byte("not a real cert"),
 					"tls.key": []byte("not a real key"),
@@ -1026,7 +976,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			})).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-bad-aep", Namespace: namespace},
+				Name: "tls-term-bad-aep", Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "tls://tls-term-bad.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
@@ -1051,17 +1001,17 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should set ConfigError when the mTLS CA Secret is missing ca.crt", func(ctx SpecContext) {
 			certPEM, keyPEM := generateSelfSignedTLSPEM()
 			Expect(k8sClient.Create(ctx, &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-mtls-server", Namespace: namespace},
-				Type:       v1.SecretTypeTLS,
-				Data:       map[string][]byte{"tls.crt": certPEM, "tls.key": keyPEM},
+				Name: "tls-term-mtls-server", Namespace: namespace,
+				Type: v1.SecretTypeTLS,
+				Data: map[string][]byte{"tls.crt": certPEM, "tls.key": keyPEM},
 			})).To(Succeed())
 			Expect(k8sClient.Create(ctx, &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-mtls-no-ca", Namespace: namespace},
-				Data:       map[string][]byte{"other": []byte("nope")},
+				Name: "tls-term-mtls-no-ca", Namespace: namespace,
+				Data: map[string][]byte{"other": []byte("nope")},
 			})).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-mtls-bad", Namespace: namespace},
+				Name: "tls-term-mtls-bad", Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "tls://tls-term-mtls-bad.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
@@ -1089,18 +1039,18 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should wire mTLS mode through to the driver", func(ctx SpecContext) {
 			certPEM, keyPEM := generateSelfSignedTLSPEM()
 			Expect(k8sClient.Create(ctx, &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-mode-server", Namespace: namespace},
-				Type:       v1.SecretTypeTLS,
-				Data:       map[string][]byte{"tls.crt": certPEM, "tls.key": keyPEM},
+				Name: "tls-mode-server", Namespace: namespace,
+				Type: v1.SecretTypeTLS,
+				Data: map[string][]byte{"tls.crt": certPEM, "tls.key": keyPEM},
 			})).To(Succeed())
 			// Reuse the same self-signed cert as a CA bundle for the test.
 			Expect(k8sClient.Create(ctx, &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-mode-ca", Namespace: namespace},
-				Data:       map[string][]byte{"ca.crt": certPEM},
+				Name: "tls-mode-ca", Namespace: namespace,
+				Data: map[string][]byte{"ca.crt": certPEM},
 			})).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-mode-request", Namespace: namespace},
+				Name: "tls-mode-request", Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "tls://tls-mode-request.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
@@ -1132,7 +1082,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should reject https:// urls when tlsTermination is set", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "tls-term-bad-url", Namespace: namespace},
+				Name: "tls-term-bad-url", Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "https://tls-term-bad-url.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
@@ -1155,10 +1105,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should reconcile TCP endpoint automatically using Eventually", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tcp-runtime-auto",
-					Namespace: namespace,
-				},
+				Name:      "tcp-runtime-auto",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://99.tcp.ngrok.io:99999",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -1203,10 +1151,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should handle endpoint creation failure with runtime controller", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "fail-runtime-auto",
-					Namespace: namespace,
-				},
+				Name:      "fail-runtime-auto",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://98.tcp.ngrok.io:98989",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -1236,10 +1182,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should not infinitely requeue when the ngrok API rejects the traffic policy", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "policy-rejected-runtime",
-					Namespace: namespace,
-				},
+				Name:      "policy-rejected-runtime",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://99.tcp.ngrok.io:99999",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -1299,10 +1243,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should handle endpoint deletion with runtime controller", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "delete-runtime-auto",
-					Namespace: namespace,
-				},
+				Name:      "delete-runtime-auto",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://97.tcp.ngrok.io:97979",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -1348,10 +1290,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		It("should reconcile traffic policy reference with runtime controller", func(ctx SpecContext) {
 			// Create traffic policy first
 			trafficPolicy := &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "runtime-auto-policy",
-					Namespace: namespace,
-				},
+				Name:      "runtime-auto-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"on_http_request":[{"name":"rate-limit"}]}`),
 				},
@@ -1359,10 +1299,8 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "policy-runtime-auto",
-					Namespace: namespace,
-				},
+				Name:      "policy-runtime-auto",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://96.tcp.ngrok.io:96969",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -1467,10 +1405,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		It("should reconcile when client certificate secret is created after AgentEndpoint", func(ctx SpecContext) {
 			// Create AgentEndpoint first, without the certificate secret existing yet
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cert-watch-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "cert-watch-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "tcp://cert-watch.tcp.ngrok.io:12345",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -1505,11 +1441,9 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Creating the client certificate secret")
 			certSecret := &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "watch-test-cert",
-					Namespace: namespace,
-				},
-				Type: v1.SecretTypeTLS,
+				Name:      "watch-test-cert",
+				Namespace: namespace,
+				Type:      v1.SecretTypeTLS,
 				Data: map[string][]byte{
 					"tls.crt": []byte(testCert),
 					"tls.key": []byte(testKey),
@@ -1547,10 +1481,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 	Context("Domain handling", func() {
 		It("should skip domain creation for Kubernetes-bound endpoint", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "k8s-bound-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "k8s-bound-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "http://aws.demo",
 					Bindings: []string{"kubernetes"},
@@ -1612,10 +1544,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			BeforeEach(func(ctx SpecContext) {
 				By("Creating a domain that would be stale")
 				staleDomain = &ingressv1alpha1.Domain{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "stale-domain-ref",
-						Namespace: namespace,
-					},
+					Name:      "stale-domain-ref",
+					Namespace: namespace,
 					Spec: ingressv1alpha1.DomainSpec{
 						Domain: "test.default",
 					},
@@ -1623,10 +1553,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				Expect(k8sClient.Create(ctx, staleDomain)).To(Succeed())
 
 				agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "k8s-binding-with-stale-ref",
-						Namespace: namespace,
-					},
+					Name:      "k8s-binding-with-stale-ref",
+					Namespace: namespace,
 					Spec: ngrokv1alpha1.AgentEndpointSpec{
 						URL:      "http://test.default",
 						Bindings: []string{"kubernetes"},
@@ -1665,10 +1593,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 		It("should create endpoint even when domain is not ready", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-endpoint",
-					Namespace: namespace,
-				},
+				Name:      "test-endpoint",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "http://example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -1763,10 +1689,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 		It("should reconcile endpoint when domain status becomes ready", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-domain-reconcile",
-					Namespace: namespace,
-				},
+				Name:      "test-domain-reconcile",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "https://test-reconcile.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{
@@ -1840,10 +1764,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 		It("should clear stale domainRef when endpoint has kubernetes binding", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "endpoint-with-stale-ref",
-					Namespace: namespace,
-				},
+				Name:      "endpoint-with-stale-ref",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "http://stale.example.com",
 					Bindings: []string{"kubernetes"},
@@ -1904,10 +1826,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		It("should delete stale domain when endpoint has kubernetes binding and domainRef", func(ctx SpecContext) {
 			// Create domain first
 			staleDomain := &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "stale-to-delete-example-com",
-					Namespace: namespace,
-				},
+				Name:      "stale-to-delete-example-com",
+				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: "stale-to-delete.example.com",
 				},
@@ -1915,10 +1835,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			Expect(k8sClient.Create(ctx, staleDomain)).To(Succeed())
 
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "endpoint-triggers-domain-delete",
-					Namespace: namespace,
-				},
+				Name:      "endpoint-triggers-domain-delete",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "https://stale-to-delete.example.com",
 					Bindings: []string{"kubernetes"},
@@ -1991,10 +1909,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		It("should handle multiple Kubernetes-bound endpoints with same domain", func(ctx SpecContext) {
 			endpoints := []*ngrokv1alpha1.AgentEndpoint{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "k8s-endpoint-1",
-						Namespace: namespace,
-					},
+					Name:      "k8s-endpoint-1",
+					Namespace: namespace,
 					Spec: ngrokv1alpha1.AgentEndpointSpec{
 						URL:      "http://aws.demo",
 						Bindings: []string{"kubernetes"},
@@ -2004,10 +1920,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "k8s-endpoint-2",
-						Namespace: namespace,
-					},
+					Name:      "k8s-endpoint-2",
+					Namespace: namespace,
 					Spec: ngrokv1alpha1.AgentEndpointSpec{
 						URL:      "http://aws.demo",
 						Bindings: []string{"kubernetes"},
@@ -2063,10 +1977,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		It("should reject endpoint with multiple bindings", func() {
 			// This should be caught by k8s validation (MaxItems=1), so we expect the Create to fail
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid-multiple-bindings",
-					Namespace: namespace,
-				},
+				Name:      "invalid-multiple-bindings",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "http://test.demo",
 					Bindings: []string{"public", "internal"}, // Multiple bindings should be rejected
@@ -2086,10 +1998,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 		It("should accept endpoint with single binding", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "valid-single-binding",
-					Namespace: namespace,
-				},
+				Name:      "valid-single-binding",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL:      "http://test.demo",
 					Bindings: []string{"internal"}, // Single binding is valid

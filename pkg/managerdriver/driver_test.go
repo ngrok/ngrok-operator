@@ -27,6 +27,7 @@ import (
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/errors"
@@ -50,6 +51,7 @@ var _ = Describe("Driver", func() {
 	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 	utilruntime.Must(gatewayv1beta1.Install(scheme))
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ngrokv1.AddToScheme(scheme))
 
 	BeforeEach(func() {
 		driver = NewDriver(
@@ -254,18 +256,16 @@ var _ = Describe("Driver", func() {
 					i.Spec.Rules = []netv1.IngressRule{
 						{
 							Host: "foo.ngrok.io",
-							IngressRuleValue: netv1.IngressRuleValue{
-								HTTP: &netv1.HTTPIngressRuleValue{
-									Paths: []netv1.HTTPIngressPath{
-										{
-											Path:     "/",
-											PathType: ptr.To(netv1.PathTypePrefix),
-											Backend: netv1.IngressBackend{
-												Service: &netv1.IngressServiceBackend{
-													Name: s.Name,
-													Port: netv1.ServiceBackendPort{
-														Name: s.Spec.Ports[0].Name,
-													},
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path:     "/",
+										PathType: ptr.To(netv1.PathTypePrefix),
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: s.Name,
+												Port: netv1.ServiceBackendPort{
+													Name: s.Spec.Ports[0].Name,
 												},
 											},
 										},
@@ -279,10 +279,8 @@ var _ = Describe("Driver", func() {
 
 			BeforeEach(func() {
 				httpService = &v1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "http-service",
-						Namespace: namespace,
-					},
+					Name:      "http-service",
+					Namespace: namespace,
 					Spec: v1.ServiceSpec{
 						Ports: []v1.ServicePort{
 							{
@@ -294,12 +292,10 @@ var _ = Describe("Driver", func() {
 					},
 				}
 				httpsService = &v1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "https-service",
-						Namespace: namespace,
-						Annotations: map[string]string{
-							"k8s.ngrok.com/app-protocols": `{"https": "https"}`,
-						},
+					Name:      "https-service",
+					Namespace: namespace,
+					Annotations: map[string]string{
+						"k8s.ngrok.com/app-protocols": `{"https": "https"}`,
 					},
 					Spec: v1.ServiceSpec{
 						Ports: []v1.ServicePort{
@@ -312,11 +308,9 @@ var _ = Describe("Driver", func() {
 					},
 				}
 				ingress = &netv1.Ingress{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        "test-ingress",
-						Namespace:   namespace,
-						Annotations: map[string]string{"k8s.ngrok.com/mapping-strategy": "edges"},
-					},
+					Name:        "test-ingress",
+					Namespace:   namespace,
+					Annotations: map[string]string{"k8s.ngrok.com/mapping-strategy": "edges"},
 					Spec: netv1.IngressSpec{
 						IngressClassName: &ic.Name,
 						Rules:            []netv1.IngressRule{},
@@ -493,20 +487,16 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				trafficPolicy = &ngrokv1alpha1.NgrokTrafficPolicy{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-policy",
-						Namespace: namespace,
-					},
+					Name:      "test-policy",
+					Namespace: namespace,
 					Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 
 						Policy: rawPolicy,
 					},
 				}
 				httpService = &v1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "http-service",
-						Namespace: namespace,
-					},
+					Name:      "http-service",
+					Namespace: namespace,
 					Spec: v1.ServiceSpec{
 						Ports: []v1.ServicePort{
 							{
@@ -518,27 +508,23 @@ var _ = Describe("Driver", func() {
 					},
 				}
 				ingress = &netv1.Ingress{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-ingress",
-						Namespace: namespace,
-					},
+					Name:      "test-ingress",
+					Namespace: namespace,
 					Spec: netv1.IngressSpec{
 						IngressClassName: &ic.Name,
 						Rules: []netv1.IngressRule{
 							{
 								Host: "foo.ngrok.io",
-								IngressRuleValue: netv1.IngressRuleValue{
-									HTTP: &netv1.HTTPIngressRuleValue{
-										Paths: []netv1.HTTPIngressPath{
-											{
-												Path:     "/",
-												PathType: ptr.To(netv1.PathTypePrefix),
-												Backend: netv1.IngressBackend{
-													Service: &netv1.IngressServiceBackend{
-														Name: httpService.Name,
-														Port: netv1.ServiceBackendPort{
-															Name: httpService.Spec.Ports[0].Name,
-														},
+								HTTP: &netv1.HTTPIngressRuleValue{
+									Paths: []netv1.HTTPIngressPath{
+										{
+											Path:     "/",
+											PathType: ptr.To(netv1.PathTypePrefix),
+											Backend: netv1.IngressBackend{
+												Service: &netv1.IngressServiceBackend{
+													Name: httpService.Name,
+													Port: netv1.ServiceBackendPort{
+														Name: httpService.Spec.Ports[0].Name,
 													},
 												},
 											},
@@ -753,16 +739,14 @@ var _ = Describe("Driver", func() {
 				ingress.Spec.Rules = []netv1.IngressRule{
 					{
 						Host: "app.example.com",
-						IngressRuleValue: netv1.IngressRuleValue{
-							HTTP: &netv1.HTTPIngressRuleValue{
-								Paths: []netv1.HTTPIngressPath{
-									{
-										Path: "/",
-										Backend: netv1.IngressBackend{
-											Service: &netv1.IngressServiceBackend{
-												Name: "example",
-												Port: netv1.ServiceBackendPort{Number: 80},
-											},
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "example",
+											Port: netv1.ServiceBackendPort{Number: 80},
 										},
 									},
 								},
@@ -771,16 +755,14 @@ var _ = Describe("Driver", func() {
 					},
 					{
 						Host: "service.namespace.internal",
-						IngressRuleValue: netv1.IngressRuleValue{
-							HTTP: &netv1.HTTPIngressRuleValue{
-								Paths: []netv1.HTTPIngressPath{
-									{
-										Path: "/",
-										Backend: netv1.IngressBackend{
-											Service: &netv1.IngressServiceBackend{
-												Name: "example",
-												Port: netv1.ServiceBackendPort{Number: 80},
-											},
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "example",
+											Port: netv1.ServiceBackendPort{Number: 80},
 										},
 									},
 								},
@@ -819,16 +801,14 @@ var _ = Describe("Driver", func() {
 				ingress.Spec.Rules = []netv1.IngressRule{
 					{
 						Host: "foo.internal",
-						IngressRuleValue: netv1.IngressRuleValue{
-							HTTP: &netv1.HTTPIngressRuleValue{
-								Paths: []netv1.HTTPIngressPath{
-									{
-										Path: "/",
-										Backend: netv1.IngressBackend{
-											Service: &netv1.IngressServiceBackend{
-												Name: "example",
-												Port: netv1.ServiceBackendPort{Number: 80},
-											},
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "example",
+											Port: netv1.ServiceBackendPort{Number: 80},
 										},
 									},
 								},
@@ -837,16 +817,14 @@ var _ = Describe("Driver", func() {
 					},
 					{
 						Host: "bar.internal",
-						IngressRuleValue: netv1.IngressRuleValue{
-							HTTP: &netv1.HTTPIngressRuleValue{
-								Paths: []netv1.HTTPIngressPath{
-									{
-										Path: "/",
-										Backend: netv1.IngressBackend{
-											Service: &netv1.IngressServiceBackend{
-												Name: "example",
-												Port: netv1.ServiceBackendPort{Number: 80},
-											},
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{
+											Name: "example",
+											Port: netv1.ServiceBackendPort{Number: 80},
 										},
 									},
 								},
@@ -912,9 +890,7 @@ var _ = Describe("Driver", func() {
 		}
 		newTestDomain := func(name, domain string, cnameTarget *string) ingressv1alpha1.Domain {
 			return ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: name,
-				},
+				Name: name,
 				Spec: ingressv1alpha1.DomainSpec{
 					Domain: domain,
 				},
@@ -968,9 +944,7 @@ var _ = Describe("Driver", func() {
 				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				domains = newTestDomainList(
 					ingressv1alpha1.Domain{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "example-com",
-						},
+						Name: "example-com",
 						Spec: ingressv1alpha1.DomainSpec{
 							Domain: "example.com",
 						},
@@ -1100,15 +1074,28 @@ var _ = Describe("Driver", func() {
 		var policyCrd *ngrokv1alpha1.NgrokTrafficPolicy
 		var legacyPolicyCrd *ngrokv1alpha1.NgrokTrafficPolicy
 
+		// extensionRefFilter builds the single-filter rule used by the
+		// dual-kind resolution tests below.
+		extensionRefFilter := func(name, kind, group string) []gatewayv1.HTTPRouteFilter {
+			return []gatewayv1.HTTPRouteFilter{
+				{
+					Type: "ExtensionRef",
+					ExtensionRef: &gatewayv1.LocalObjectReference{
+						Name:  gatewayv1.ObjectName(name),
+						Kind:  gatewayv1.Kind(kind),
+						Group: gatewayv1.Group(group),
+					},
+				},
+			}
+		}
+
 		BeforeEach(func() {
 			rule = &gatewayv1.HTTPRouteRule{}
 			namespace = "test"
 
 			policyCrd = &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-policy",
-					Namespace: namespace,
-				},
+				Name:      "test-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"on_http_request": [{"name":"t","actions":[{"type":"deny"}]}]}`),
 				},
@@ -1116,10 +1103,8 @@ var _ = Describe("Driver", func() {
 			Expect(driver.store.Add(policyCrd)).To(BeNil())
 
 			legacyPolicyCrd = &ngrokv1alpha1.NgrokTrafficPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "legacy-test-policy",
-					Namespace: namespace,
-				},
+				Name:      "legacy-test-policy",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.NgrokTrafficPolicySpec{
 					Policy: []byte(`{"inbound": [{"name":"t","actions":[{"type":"deny"}]}], "outbound": []}`),
 				},
@@ -1226,6 +1211,76 @@ var _ = Describe("Driver", func() {
 			Expect(err).To(BeNil())
 			Expect(string(jsonString)).To(Equal(expectedPolicy))
 		})
+
+		// LEGACY-trafficpolicy-kind: the "legacy" halves of this context go
+		// away at cleanup; the canonical-kind case stays.
+		Context("dual-kind extensionRef resolution", func() {
+			const canonicalBody = `{"on_http_request":[{"name":"canonical","actions":[{"type":"deny"}]}]}`
+			expectedRuleName := func(name string) string {
+				return `{"on_http_request":[{"actions":[{"type":"deny"}],"name":"` + name + `"}]}`
+			}
+
+			resolve := func(name, kind, group string) string {
+				rule.Filters = extensionRefFilter(name, kind, group)
+				policy, err := driver.createEndpointPolicyForGateway(rule, namespace)
+				Expect(err).To(BeNil())
+				Expect(policy).ToNot(BeNil())
+				jsonString, err := json.Marshal(policy)
+				Expect(err).To(BeNil())
+				return string(jsonString)
+			}
+
+			BeforeEach(func() {
+				Expect(driver.store.Add(&ngrokv1.TrafficPolicy{
+					Name:      "canonical-policy",
+					Namespace: namespace,
+					Spec:      ngrokv1.TrafficPolicySpec{Policy: []byte(canonicalBody)},
+				})).To(BeNil())
+			})
+
+			It("resolves a canonical TrafficPolicy named by kind TrafficPolicy", func() {
+				Expect(resolve("canonical-policy", "TrafficPolicy", "ngrok.com")).
+					To(Equal(expectedRuleName("canonical")))
+			})
+
+			It("resolves a canonical TrafficPolicy when the route still names the legacy kind", func() {
+				// A HTTPRoute authored before the migration keeps working once
+				// the user re-stamps only the policy manifest.
+				Expect(resolve("canonical-policy", "NgrokTrafficPolicy", "ngrok.k8s.ngrok.com")).
+					To(Equal(expectedRuleName("canonical")))
+			})
+
+			It("resolves a legacy NgrokTrafficPolicy when the route names the canonical kind", func() {
+				// The mirror case: the route was migrated first, the policy
+				// object has not been re-stamped yet.
+				Expect(resolve("test-policy", "TrafficPolicy", "ngrok.com")).
+					To(Equal(expectedRuleName("t")))
+			})
+
+			It("prefers the canonical kind when both exist under one name", func() {
+				Expect(driver.store.Add(&ngrokv1.TrafficPolicy{
+					Name:      "test-policy",
+					Namespace: namespace,
+					Spec:      ngrokv1.TrafficPolicySpec{Policy: []byte(canonicalBody)},
+				})).To(BeNil())
+
+				Expect(resolve("test-policy", "TrafficPolicy", "ngrok.com")).
+					To(Equal(expectedRuleName("canonical")))
+			})
+
+			It("errors when neither kind holds the named policy", func() {
+				rule.Filters = extensionRefFilter("nowhere", "TrafficPolicy", "ngrok.com")
+				_, err := driver.createEndpointPolicyForGateway(rule, namespace)
+				Expect(err).To(HaveOccurred())
+				Expect(errors.IsErrorNotFound(err)).To(BeTrue())
+			})
+
+			It("rejects an unknown extensionRef kind", func() {
+				rule.Filters = extensionRefFilter("canonical-policy", "SomethingElse", "ngrok.com")
+				_, err := driver.createEndpointPolicyForGateway(rule, namespace)
+				Expect(err).To(HaveOccurred())
+			})
+		})
 	})
 
 	Describe("When not running concurrently", func() {
@@ -1324,28 +1379,26 @@ var _ = Describe("Driver", func() {
 			i1.Spec.Rules = []netv1.IngressRule{
 				{
 					Host: "a.customdomain.com",
-					IngressRuleValue: netv1.IngressRuleValue{
-						HTTP: &netv1.HTTPIngressRuleValue{
-							Paths: []netv1.HTTPIngressPath{
-								{
-									Path: "/",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "test-service",
-											Port: netv1.ServiceBackendPort{
-												Number: 80,
-											},
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "test-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 80,
 										},
 									},
 								},
-								{
-									Path: "/api",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "api-service",
-											Port: netv1.ServiceBackendPort{
-												Number: 80,
-											},
+							},
+							{
+								Path: "/api",
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "api-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 80,
 										},
 									},
 								},
@@ -1355,17 +1408,15 @@ var _ = Describe("Driver", func() {
 				},
 				{
 					Host: "b.customdomain.com",
-					IngressRuleValue: netv1.IngressRuleValue{
-						HTTP: &netv1.HTTPIngressRuleValue{
-							Paths: []netv1.HTTPIngressPath{
-								{
-									Path: "/b/",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "b-service",
-											Port: netv1.ServiceBackendPort{
-												Number: 80,
-											},
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{
+							{
+								Path: "/b/",
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "b-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 80,
 										},
 									},
 								},
@@ -1382,17 +1433,15 @@ var _ = Describe("Driver", func() {
 			i2.Spec.Rules = []netv1.IngressRule{
 				{
 					Host: "c.customdomain.com",
-					IngressRuleValue: netv1.IngressRuleValue{
-						HTTP: &netv1.HTTPIngressRuleValue{
-							Paths: []netv1.HTTPIngressPath{
-								{
-									Path: "/",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "test-service",
-											Port: netv1.ServiceBackendPort{
-												Number: 80,
-											},
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "test-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 80,
 										},
 									},
 								},
@@ -1402,17 +1451,15 @@ var _ = Describe("Driver", func() {
 				},
 				{
 					Host: "d.customdomain.com",
-					IngressRuleValue: netv1.IngressRuleValue{
-						HTTP: &netv1.HTTPIngressRuleValue{
-							Paths: []netv1.HTTPIngressPath{
-								{
-									Path: "/",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "test-service",
-											Port: netv1.ServiceBackendPort{
-												Number: 80,
-											},
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "test-service",
+										Port: netv1.ServiceBackendPort{
+											Number: 80,
 										},
 									},
 								},
@@ -1619,12 +1666,8 @@ var _ = Describe("Driver", func() {
 				{
 					BackendRefs: []gatewayv1.HTTPBackendRef{
 						{
-							BackendRef: gatewayv1.BackendRef{
-								BackendObjectReference: gatewayv1.BackendObjectReference{
-									Name: "example",
-									Port: ptr.To(gatewayv1.PortNumber(80)),
-								},
-							},
+							Name: "example",
+							Port: ptr.To(gatewayv1.PortNumber(80)),
 						},
 					},
 				},
@@ -1674,16 +1717,14 @@ var _ = Describe("Driver", func() {
 			albIngress.Spec.Rules = []netv1.IngressRule{
 				{
 					Host: "alb.example.com",
-					IngressRuleValue: netv1.IngressRuleValue{
-						HTTP: &netv1.HTTPIngressRuleValue{
-							Paths: []netv1.HTTPIngressPath{
-								{
-									Path: "/",
-									Backend: netv1.IngressBackend{
-										Service: &netv1.IngressServiceBackend{
-											Name: "alb-service",
-											Port: netv1.ServiceBackendPort{Number: 80},
-										},
+					HTTP: &netv1.HTTPIngressRuleValue{
+						Paths: []netv1.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: netv1.IngressBackend{
+									Service: &netv1.IngressServiceBackend{
+										Name: "alb-service",
+										Port: netv1.ServiceBackendPort{Number: 80},
 									},
 								},
 							},
