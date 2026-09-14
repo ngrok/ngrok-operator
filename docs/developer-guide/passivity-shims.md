@@ -868,7 +868,7 @@ object before starting the old binary.
   under R1 still carries the legacy string until its next reconcile — and
   **keep** the `Schemaless` / `PreserveUnknownFields` markers; see the
   deferral below for why the schema cannot tighten here.
-- **R3 — read-side cleanup:** delete `UnmarshalJSON` and the
+- **R3 — read-side cleanup (K8SOP-321):** delete `UnmarshalJSON` and the
   `KubernetesOperatorEnabledFeatures` type, switching the field to plain
   `[]string`, and only then drop the `Schemaless` /
   `PreserveUnknownFields` markers so the CRD regenerates as strict
