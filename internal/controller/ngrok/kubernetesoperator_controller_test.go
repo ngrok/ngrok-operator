@@ -30,37 +30,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 
 	BeforeAll(func() {
 		kginkgo = testutils.NewKGinkgo(k8sClient)
-
-		kginkgo.ExpectCreateNamespace(context.Background(), controllerNamespace)
 	})
-
-	// forceDeleteKO removes the finalizer and deletes the KubernetesOperator to
-	// avoid triggering the drain workflow during test cleanup.
-	forceDeleteKO := func(ctx context.Context) {
-		ko := &ngrokv1alpha1.KubernetesOperator{}
-		err := k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: controllerNamespace,
-			Name:      k8sOpName,
-		}, ko)
-		if apierrors.IsNotFound(err) {
-			return
-		}
-		Expect(err).NotTo(HaveOccurred())
-
-		if util.RemoveFinalizer(ko) {
-			Expect(k8sClient.Update(ctx, ko)).To(Succeed())
-		}
-		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ko))).To(Succeed())
-
-		// Wait for it to actually be gone
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx, client.ObjectKey{
-				Namespace: controllerNamespace,
-				Name:      k8sOpName,
-			}, &ngrokv1alpha1.KubernetesOperator{})
-			return apierrors.IsNotFound(err)
-		}).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
-	}
 
 	AfterEach(func() {
 		mockKubernetesOperators := mockClientset.KubernetesOperators().(*nmockapi.KubernetesOperatorsClient)

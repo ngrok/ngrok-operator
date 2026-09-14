@@ -43,11 +43,17 @@ registration already exists leave `Registered=True` and are reported through
 `Ready=False` and `Ready.message`.
 
 `enabledFeatures` changed from a comma-separated string to a `[]string`. The
-v1alpha1 Go type contains a temporary, read-only compatibility decoder that
-accepts both representations during an in-place upgrade. Current versions
-always write an array, so the next status update passively normalizes the
-stored value. The decoder can be removed once upgrades from versions that
-wrote the string representation are outside the supported upgrade window.
+v1alpha1 Go type contains a temporary compatibility decoder that accepts both
+representations during an in-place upgrade. The operator writes an array, so
+the next status update passively normalizes the stored value — no manual step
+is needed. Until the decoder is removed, the CRD schema for this field stays
+permissive and does **not** enforce an array; both are dropped together in a
+later release, once upgrades from versions that wrote the string
+representation are outside the supported upgrade window.
+
+`kubectl get kubernetesoperators` correspondingly shows the `Enabled Features`
+column as `["ingress","bindings"]` rather than `ingress,bindings`. Anything
+parsing that field should expect a list.
 
 ## Upgrade Path
 

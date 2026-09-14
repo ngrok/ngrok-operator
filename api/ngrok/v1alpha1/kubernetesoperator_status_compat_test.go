@@ -49,7 +49,7 @@ func TestKubernetesOperatorEnabledFeatures_UnmarshalJSON(t *testing.T) {
 
 // The write-side cleanup landed, so the field marshals as a plain array. The
 // previous release decodes that, which is what keeps a rollback to it safe.
-func TestKubernetesOperatorEnabledFeatures_MarshalJSON(t *testing.T) {
+func TestKubernetesOperatorEnabledFeatures_Marshal(t *testing.T) {
 	tests := []struct {
 		name     string
 		features KubernetesOperatorEnabledFeatures

@@ -61,15 +61,17 @@ release where the operator can still *see* legacy-only objects.
   Safe because R2 had a full release window to delete-on-reconcile every
   reachable object.
 
-The roles map to releases as follows. Only R1 is firm; the later numbers
-may still change, so the code and the rest of this guide refer to the
-roles by name rather than by version:
+The roles are referred to by name throughout this guide and in the code,
+never by version, because the target versions move. Each catalog entry
+below carries its own release numbers, and they do not all line up — the
+prefix migration, the finalizer, and the enabledFeatures type change are
+each on their own cadence.
 
-| Role | What it does                                                     | Release          |
-| ---- | ---------------------------------------------------------------- | ---------------- |
-| R1   | read both, write both, never delete legacy                       | 0.24             |
-| R2   | write new only, delete legacy on reconcile, keep dual-read       | 1.0 (planned)    |
-| R3   | drop dual-read and all `Legacy*` symbols                         | 1.1 (planned)    |
+| Role | What it does                                                     |
+| ---- | ---------------------------------------------------------------- |
+| R1   | read both, write both, never delete legacy                       |
+| R2   | write new only, delete legacy on reconcile, keep dual-read       |
+| R3   | drop dual-read and all `Legacy*` symbols                         |
 
 Rollback from R1 to the prior release works because the legacy key is
 still on every object the operator wrote. Rollback from R2 to R1 works
@@ -132,13 +134,33 @@ Used for: the operator finalizer (`ngrok.com/finalizer`).
 Some changes are safe to ship in the operator binary but unsafe to ship in
 the rendered helm chart at the same time, because the rendered manifest
 takes effect mid-upgrade while the old operator pod is still running.
-The IngressClass `spec.controller` flip is one example: the operator binary
-gains dual-match in R1; the rendered manifest stays on the legacy value
-until R2. The `status.enabledFeatures` CRD schema is the other: the binary
-stops writing the legacy string in R2, but the schema that would reject
-that string stays loose until R3, because the R1 operator keeps writing it
-across the upgrade window. See the enabledFeatures catalog entry for the
-measured failure modes.
+Two distinct hazards live here, and the difference matters when deciding
+whether your own migration is affected:
+
+- **A deferred manifest *value*.** The IngressClass `spec.controller` flip:
+  the operator binary gains dual-match in R1; the rendered manifest stays
+  on the legacy value until R2.
+- **A deferred *schema that rejects writes*.** The `status.enabledFeatures`
+  CRD schema: the binary stops writing the legacy string in R2, but the
+  schema that would reject that string stays loose until R3, because the R1
+  operator keeps writing it across the upgrade window. See the
+  enabledFeatures catalog entry for the measured failure modes.
+
+The second is the generalizable rule, and it is easy to miss because it
+does not look like a manifest change at all:
+
+> **Whenever a release tightens a CRD schema, ask which binary is still
+> writing the old shape while that schema is live. The hazard is a live
+> writer, not stale data** — which is also why "tell users to run a
+> conversion command first" does not fix it. No pre-upgrade `kubectl patch`
+> stops the previous release's pod from re-writing the legacy shape seconds
+> later. Closing that race by hand means stopping the operator, patching,
+> and starting the new one: downtime, not a safe manual step.
+
+A schema tightening must therefore trail the write-side flip by one
+release, exactly like a deferred manifest value. This applies to any
+`Schemaless` / `PreserveUnknownFields` pair being removed, and to any
+`+kubebuilder:default` being retyped alongside it.
 
 ## `LEGACY-*` sentinels
 
@@ -837,9 +859,12 @@ decode the *entire* stored object with the old binary's plain-`string`
 workaround short of `kubectl edit --subresource=status` on every existing
 object before starting the old binary.
 
-- **Pattern:** Two-release (deprecated form, same key), operator-written
-  variant — no coexistence window is needed because there is exactly one
-  writer. Tag: `LEGACY-enabledfeatures-format`.
+- **Pattern:** Three-release: a two-release write-side migration plus a
+  deferred manifest change (see "Deferral for rollout races"). There is
+  exactly one writer, so no dual-write coexistence is needed — that part
+  still holds and is the genuine difference from the prefix migrations —
+  but the CRD schema must trail the write-side flip by one release. Tag:
+  `LEGACY-enabledfeatures-format`.
 - **Type:** `api/ngrok/v1alpha1/kubernetesoperator_types.go`'s
   `KubernetesOperatorStatus.EnabledFeatures` keeps its final-state type
   (`KubernetesOperatorEnabledFeatures`, an eventual `[]string`) and doc
@@ -862,6 +887,21 @@ object before starting the old binary.
     (`ko.Status.EnabledFeatures = ngrokKo.EnabledFeatures`) is unaware of
     the wire format; the shim type's `MarshalJSON`/`UnmarshalJSON` handle
     it transparently.
+  - **User-visible side effect of the flip, from R2 onward:** the
+    `Enabled Features` printer column
+    (`+kubebuilder:printcolumn ... type="string"`) renders the raw value,
+    so `kubectl get kubernetesoperators` changes from `ingress,bindings`
+    to `["ingress","bindings"]`, and is mixed across clusters during the
+    migration window depending on whether an object has self-healed yet.
+    The column does **not** go blank: the apiserver's table conversion
+    takes the `Type == "string"` branch straight to
+    `jsonpath.PrintResults`, which JSON-encodes composite values —
+    `cellForJSONValue`, which would return an empty cell for a non-string,
+    is only reached for integer/number/boolean/date columns. Nothing can
+    restore the bare comma form: `array` is not a legal
+    `additionalPrinterColumns` type and JSONPath cannot join. Anyone
+    scripting `-o jsonpath='{.status.enabledFeatures}'` and splitting on
+    commas breaks at R2, so it needs a release-note line.
 - **R2 — write-side cleanup (0.25):** delete `MarshalJSON` so the field
   marshals as a plain array again. Rollback to R1 stays safe because R1
   reads either shape. **Keep** `UnmarshalJSON` — an object last reconciled
@@ -873,6 +913,28 @@ object before starting the old binary.
   `[]string`, and only then drop the `Schemaless` /
   `PreserveUnknownFields` markers so the CRD regenerates as strict
   `type: array`. Sweep with `git grep 'LEGACY-enabledfeatures-format'`.
+
+  **R3's precondition, which is the load-bearing claim for the whole
+  sequence:** deleting the decoder is safe only if every stored object was
+  rewritten during R2. It normally is —
+  `BaseController.ReconcileStatus` issues an unconditional
+  `Status().Update()` with no diff-skip, and the informer's initial List
+  delivers Create events past the reconcile predicate, so every operator
+  restart (and therefore every helm upgrade) reconciles the object at
+  least once. Two gaps survive that argument: `ownKOPredicate` narrows
+  reconciliation to one name and namespace while the cache is broader, so
+  a *second* `KubernetesOperator` in the release namespace is listed and
+  decoded but never reconciled; and anyone who runs R2 with `replicas=0`,
+  or upgrades CRDs only, never reconciles under R2 at all. A legacy string
+  surviving into R3 breaks the whole informer's List decode, not just that
+  object — the symptom the 0.24 RC already hit. Either gate the R3 upgrade
+  on `kubectl get kubernetesoperators -A -o json | jq -r '.items[] |
+  select((.status.enabledFeatures // []) | type == "string") |
+  .metadata.namespace + "/" + .metadata.name'` returning empty, or keep a
+  tolerant decode at R3 (plain `[]string` with an `UnmarshalJSON` that
+  returns `nil` rather than an error on a string), which degrades the
+  failure from "informer wedged, operator crash-loops" to "one stale
+  object shows empty features until something reconciles it."
 
 #### Why the CRD schema tightening waits for R3
 

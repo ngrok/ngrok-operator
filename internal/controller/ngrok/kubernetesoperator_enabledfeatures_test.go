@@ -6,11 +6,8 @@ import (
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
-	"github.com/ngrok/ngrok-operator/internal/testutils"
-	"github.com/ngrok/ngrok-operator/internal/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,15 +15,14 @@ import (
 
 // LEGACY-enabledfeatures-format: BEGIN
 
-var _ = Describe("KubernetesOperator status.enabledFeatures format", Ordered, func() {
+// ContinueOnFailure: the two specs are independent, and Ordered would
+// otherwise let a failure in the self-heal spec silently skip the schema gate
+// below.
+var _ = Describe("KubernetesOperator status.enabledFeatures format", Ordered, ContinueOnFailure, func() {
 	const (
 		timeout  = 15 * time.Second
 		interval = 500 * time.Millisecond
 	)
-
-	BeforeAll(func() {
-		testutils.NewKGinkgo(k8sClient).ExpectCreateNamespace(context.Background(), controllerNamespace)
-	})
 
 	// unstructuredKO reads the object without the typed decoder, so the raw
 	// stored wire format of status.enabledFeatures is visible.
@@ -43,24 +39,10 @@ var _ = Describe("KubernetesOperator status.enabledFeatures format", Ordered, fu
 	}
 
 	AfterEach(func(ctx SpecContext) {
-		ko := &ngrokv1alpha1.KubernetesOperator{}
-		err := k8sClient.Get(ctx, client.ObjectKey{Namespace: controllerNamespace, Name: k8sOpName}, ko)
-		if apierrors.IsNotFound(err) {
-			return
-		}
-		Expect(err).NotTo(HaveOccurred())
-		if util.RemoveFinalizer(ko) {
-			Expect(k8sClient.Update(ctx, ko)).To(Succeed())
-		}
-		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ko))).To(Succeed())
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: controllerNamespace, Name: k8sOpName}, &ngrokv1alpha1.KubernetesOperator{})
-			return apierrors.IsNotFound(err)
-		}).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
-
 		mocked := mockClientset.KubernetesOperators().(*nmockapi.KubernetesOperatorsClient)
 		mocked.ClearErrors()
 		mocked.Reset()
+		forceDeleteKO(ctx)
 	})
 
 	It("writes the array form and rewrites a stored legacy string on the next reconcile", func(ctx SpecContext) {

@@ -27,6 +27,7 @@ package ngrok
 import (
 	"context"
 	"testing"
+	"time"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -36,8 +37,10 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -117,6 +120,10 @@ var _ = BeforeSuite(func() {
 
 	kginkgo = testutils.NewKGinkgo(k8sClient)
 
+	// Shared by every Describe in this suite, so it is created once here
+	// rather than raced for in each container's BeforeAll.
+	kginkgo.ExpectCreateNamespace(ctx, controllerNamespace)
+
 	// Create mock clientset
 	mockClientset = nmockapi.NewClientset()
 
@@ -174,6 +181,30 @@ var _ = BeforeSuite(func() {
 		Expect(err).NotTo(HaveOccurred())
 	}()
 })
+
+// forceDeleteKO removes the finalizer and deletes the KubernetesOperator to
+// avoid triggering the drain workflow during test cleanup.
+func forceDeleteKO(ctx context.Context) {
+	GinkgoHelper()
+
+	key := client.ObjectKey{Namespace: controllerNamespace, Name: k8sOpName}
+	ko := &ngrokv1alpha1.KubernetesOperator{}
+	err := k8sClient.Get(ctx, key, ko)
+	if apierrors.IsNotFound(err) {
+		return
+	}
+	Expect(err).NotTo(HaveOccurred())
+
+	if util.RemoveFinalizer(ko) {
+		Expect(k8sClient.Update(ctx, ko)).To(Succeed())
+	}
+	Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ko))).To(Succeed())
+
+	Eventually(func() bool {
+		err := k8sClient.Get(ctx, key, &ngrokv1alpha1.KubernetesOperator{})
+		return apierrors.IsNotFound(err)
+	}).WithTimeout(15 * time.Second).WithPolling(500 * time.Millisecond).Should(BeTrue())
+}
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

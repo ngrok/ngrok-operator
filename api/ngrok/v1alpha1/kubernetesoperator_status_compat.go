@@ -53,7 +53,8 @@ import (
 // change to the feature set; validation ratcheting spares only a rewrite of
 // an identical value, and only on k8s >= 1.30. That operator would be unable
 // to record status at all. Deferring the schema by one release is the same
-// deferral the IngressClass spec.controller flip uses.
+// race the IngressClass spec.controller flip defers for, though that one
+// defers a rendered manifest value rather than a schema.
 type KubernetesOperatorEnabledFeatures []string
 
 func (features *KubernetesOperatorEnabledFeatures) UnmarshalJSON(data []byte) error {
