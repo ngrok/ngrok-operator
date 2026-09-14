@@ -27,6 +27,12 @@ spec:
             "(length(to_array(conditions)[? type == 'Registered' && status == 'True']) > `0`)": true
             (id != null && starts_with(id, 'k8sop_')): true
             (uri != null): true
+            # LEGACY-enabledfeatures-format: the operator writes the array
+            # form. Drop this comment, not the assertion, at the read-side
+            # cleanup.
+            enabledFeatures:
+            - ingress
+            - bindings
 
   - name: assert Secret/ngrok-operator-default-tls exists (CSR is signed)
     try:

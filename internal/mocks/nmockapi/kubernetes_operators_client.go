@@ -32,11 +32,12 @@ func (m *KubernetesOperatorsClient) Create(_ context.Context, item *ngrok.Kubern
 
 	id := m.newID()
 	newOp := &ngrok.KubernetesOperator{
-		ID:          id,
-		URI:         fmt.Sprintf("https://mock-api.ngrok.com/kubernetes_operators/%s", id),
-		CreatedAt:   m.createdAt(),
-		Description: item.Description,
-		Metadata:    item.Metadata,
+		ID:              id,
+		URI:             fmt.Sprintf("https://mock-api.ngrok.com/kubernetes_operators/%s", id),
+		CreatedAt:       m.createdAt(),
+		Description:     item.Description,
+		Metadata:        item.Metadata,
+		EnabledFeatures: item.EnabledFeatures,
 	}
 
 	// Convert binding create to binding (simplified for mock)
@@ -71,6 +72,9 @@ func (m *KubernetesOperatorsClient) Update(ctx context.Context, item *ngrok.Kube
 	}
 	if item.Metadata != nil {
 		existingItem.Metadata = *item.Metadata
+	}
+	if item.EnabledFeatures != nil {
+		existingItem.EnabledFeatures = item.EnabledFeatures
 	}
 
 	m.items[item.ID] = existingItem

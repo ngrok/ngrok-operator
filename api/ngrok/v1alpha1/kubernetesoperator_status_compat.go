@@ -33,21 +33,27 @@ import (
 
 // LEGACY-enabledfeatures-format: BEGIN
 //
-// KubernetesOperatorEnabledFeatures decodes either the array this field will
-// write once the migration window closes, or the comma-separated string
-// written by pre-migration operator versions (and by this version, for now —
-// see MarshalJSON below).
+// KubernetesOperatorEnabledFeatures decodes either the array this field now
+// writes, or the comma-separated string written by pre-migration operator
+// versions.
 //
-// Two-release, same-key type change (see docs/developer-guide/passivity-shims.md):
-// this release still WRITES the legacy comma-separated string, so a rollback
-// to a pre-migration operator can decode status it never expected to change
-// shape. Once this release is the accepted rollback floor, delete
-// MarshalJSON below (write-side cleanup) so the field marshals as a plain
-// array again, drop the `+kubebuilder:validation:Type=string` override on
-// the field in kubernetesoperator_types.go, and regenerate the CRD. Keep
-// UnmarshalJSON a while longer — existing objects still carry the legacy
-// string until their next reconcile — then delete it too (read-side
-// cleanup) along with this type, switching the field to plain []string.
+// Two-release, same-key type change (see docs/developer-guide/passivity-shims.md).
+// The write-side cleanup has shipped: MarshalJSON is gone and the field
+// marshals as a plain array, which the previous release decodes, so a
+// rollback to it stays safe. The read-side cleanup release deletes
+// UnmarshalJSON and this type, switching the field to plain []string, and
+// only then drops the Schemaless/PreserveUnknownFields markers in
+// kubernetesoperator_types.go so the CRD regenerates as a strict array.
+//
+// Those markers cannot come out in the same release as MarshalJSON. The
+// previous release's operator writes the legacy string against whatever CRD
+// is installed, for the length of a rolling upgrade and for an unbounded
+// window when installCRDs=false puts the CRD chart ahead of the operator. A
+// strict `type: array` rejects that write on object creation and on any
+// change to the feature set; validation ratcheting spares only a rewrite of
+// an identical value, and only on k8s >= 1.30. That operator would be unable
+// to record status at all. Deferring the schema by one release is the same
+// deferral the IngressClass spec.controller flip uses.
 type KubernetesOperatorEnabledFeatures []string
 
 func (features *KubernetesOperatorEnabledFeatures) UnmarshalJSON(data []byte) error {
@@ -73,16 +79,6 @@ func (features *KubernetesOperatorEnabledFeatures) UnmarshalJSON(data []byte) er
 
 	*features = strings.Split(legacy, ",")
 	return nil
-}
-
-// MarshalJSON writes the legacy comma-separated string form so a rollback to
-// a pre-migration operator can still decode this field.
-//
-// LEGACY-enabledfeatures-format (write-side cleanup): delete this method once
-// this release is the accepted rollback floor; encoding/json will then
-// marshal the field as a plain array.
-func (features KubernetesOperatorEnabledFeatures) MarshalJSON() ([]byte, error) {
-	return json.Marshal(strings.Join(features, ","))
 }
 
 // LEGACY-enabledfeatures-format: END

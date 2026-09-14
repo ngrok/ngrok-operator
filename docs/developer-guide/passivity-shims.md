@@ -132,9 +132,13 @@ Used for: the operator finalizer (`ngrok.com/finalizer`).
 Some changes are safe to ship in the operator binary but unsafe to ship in
 the rendered helm chart at the same time, because the rendered manifest
 takes effect mid-upgrade while the old operator pod is still running.
-The IngressClass `spec.controller` flip is the only example so far. The
-operator binary gains dual-match in R1; the rendered manifest stays on the
-legacy value until R2.
+The IngressClass `spec.controller` flip is one example: the operator binary
+gains dual-match in R1; the rendered manifest stays on the legacy value
+until R2. The `status.enabledFeatures` CRD schema is the other: the binary
+stops writing the legacy string in R2, but the schema that would reject
+that string stays loose until R3, because the R1 operator keeps writing it
+across the upgrade window. See the enabledFeatures catalog entry for the
+measured failure modes.
 
 ## `LEGACY-*` sentinels
 
@@ -305,7 +309,7 @@ and the precise code touched at each step.
 ### Operator finalizer (operator-written, lifecycle-gating)
 
 - **Pattern:** Three-release dance (finalizer-style; see above).
-- **R1 (0.24):** `internal/util/k8s.go`:
+- **R1 — migration release (0.24):** `internal/util/k8s.go`:
   - `HasFinalizer` checks both (already implemented).
   - `AddFinalizer` adds `LegacyFinalizerName` only; **does not** add
     `FinalizerName` and does **not** remove `LegacyFinalizerName`.
@@ -342,7 +346,7 @@ preserves rollback safety.
 ### IngressClass `spec.controller` (rollout-race deferral)
 
 - **Pattern:** Helm-rendered manifest deferred to cleanup release.
-- **R1 (0.24):**
+- **R1 — migration release (0.24):**
   - Operator binary: `internal/store/store.go::ListNgrokIngressClassesV1`
     dual-matches whenever `controllerName` equals either stock default
     (legacy `k8s.ngrok.com/ingress-controller` or new
@@ -370,7 +374,7 @@ and the precise code touched at each step.
 ### `CloudEndpoint.spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`
 
 - **Pattern:** Two-release (deprecated field). Tag: `LEGACY-trafficpolicy-name`.
-- **R1 (0.24):**
+- **R1 — migration release (0.24):**
   - CRD: the CloudEndpoint schema never carried a spec-level CEL rule
     rejecting `trafficPolicyName` + `trafficPolicy`; the R1 CRD stays
     permissive, so the two can coexist at admission during a staged
@@ -410,7 +414,7 @@ and the precise code touched at each step.
 ### `CloudEndpoint.spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`
 
 - **Pattern:** Two-release (deprecated nested field). Tag: `LEGACY-trafficpolicy-policy`.
-- **R1 (0.24):**
+- **R1 — migration release (0.24):**
   - CRD: union CEL on `CloudEndpointTrafficPolicyCfg` relaxed from
     "exactly one of inline/targetRef/policy" to "at most one of
     inline/targetRef" so `policy` may coexist with either canonical
@@ -655,7 +659,7 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
   migration. The dual-read *is* the user contract, which places its removal
   at the 1.0 major-version boundary rather than the R3 read-side sweep:
   dropping it in a post-1.0 minor would be a user-visible breaking change.
-- **R1 (0.24):** `internal/annotations/parser/parser.go` resolves each key
+- **R1 — migration release (0.24):** `internal/annotations/parser/parser.go` resolves each key
   via `annotationKeyFor` — canonical `ngrok.com/<suffix>` wins on presence,
   legacy `k8s.ngrok.com/<suffix>` is the fallback. All `Extract*` helpers in
   `internal/annotations/annotations.go` inherit this through the parser with
@@ -670,7 +674,7 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
 
 - **Pattern:** Two-release, read-side only (same rationale as user-facing
   annotations; removal at 1.0).
-- **R1 (0.24):** `pkg/managerdriver/translate_gatewayapi.go` reads both
+- **R1 — migration release (0.24):** `pkg/managerdriver/translate_gatewayapi.go` reads both
   `ngrok.com/terminate-tls.*` and `k8s.ngrok.com/terminate-tls.*`; when both
   prefixes define the same option suffix the canonical key wins,
   deterministically (canonical suffixes are collected before the merge loop
@@ -684,7 +688,7 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
 ### Service `app-protocols` annotation and `http2` appProtocol value (read-side compatibility)
 
 - **Pattern:** Two-release, read-side only (removal at 1.0).
-- **R1 (0.24):** `pkg/managerdriver/utils.go::getProtoForServicePort` reads
+- **R1 — migration release (0.24):** `pkg/managerdriver/utils.go::getProtoForServicePort` reads
   `ngrok.com/app-protocols` (presence-based) and falls back to
   `k8s.ngrok.com/app-protocols`; `knownApplicationProtocols` accepts both
   `ngrok.com/http2` and `k8s.ngrok.com/http2` port `appProtocol` values,
@@ -699,7 +703,7 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
 ### Bindings-forwarder pod identity prefix filter (read-side compatibility)
 
 - **Pattern:** Two-release, read-side only (removal at 1.0).
-- **R1 (0.24):** `internal/controller/bindings/forwarder_controller.go::podIdentityFromPod`
+- **R1 — migration release (0.24):** `internal/controller/bindings/forwarder_controller.go::podIdentityFromPod`
   forwards pod annotations under either prefix. Keys are forwarded verbatim,
   so upstream traffic-policy expressions that match on annotation key names
   migrate on the pod owner's schedule, not the operator's.
@@ -769,7 +773,7 @@ normalizes both.
 - **Affected fields:** `Domain.spec.metadata`, `IPPolicy.spec.metadata` and
   `IPPolicy.spec.rules[].metadata`, `KubernetesOperator.spec.metadata`,
   `CloudEndpoint.spec.metadata`, `AgentEndpoint.spec.metadata`.
-- **R1 (0.24):**
+- **R1 — migration release (0.24):**
   - CRD: the field is schemaless, so both string and object shapes admit. The
     `+kubebuilder:default` stays a **JSON string** (`{"owned-by":"ngrok-operator"}`)
     so defaulted objects remain rollback-safe to a prior release (see below).
@@ -845,7 +849,7 @@ object before starting the old binary.
   (`+kubebuilder:validation:Type=string` was tried first and rejected by
   controller-gen: `conflicting types in allOf branches in schema: array vs
   string`, because the field's underlying Go type is a slice).
-- **R1 (0.24):**
+- **R1 — migration release (0.24):**
   - `api/ngrok/v1alpha1/kubernetesoperator_status_compat.go`:
     `UnmarshalJSON` (already landed in #846) keeps reading either shape.
     A new `MarshalJSON` writes the legacy comma-separated string — the
@@ -858,14 +862,51 @@ object before starting the old binary.
     (`ko.Status.EnabledFeatures = ngrokKo.EnabledFeatures`) is unaware of
     the wire format; the shim type's `MarshalJSON`/`UnmarshalJSON` handle
     it transparently.
-- **R-cleanup:** delete `MarshalJSON` (write-side cleanup) so the field
-  marshals as a plain array again; drop the `Schemaless` /
-  `PreserveUnknownFields` markers and regenerate the CRD back to strict
-  `type: array`. Keep `UnmarshalJSON` one release longer — an object last
-  reconciled under R1 still carries the legacy string until its next
-  reconcile — then delete it too (read-side cleanup) along with the
+- **R2 — write-side cleanup (0.25):** delete `MarshalJSON` so the field
+  marshals as a plain array again. Rollback to R1 stays safe because R1
+  reads either shape. **Keep** `UnmarshalJSON` — an object last reconciled
+  under R1 still carries the legacy string until its next reconcile — and
+  **keep** the `Schemaless` / `PreserveUnknownFields` markers; see the
+  deferral below for why the schema cannot tighten here.
+- **R3 — read-side cleanup:** delete `UnmarshalJSON` and the
   `KubernetesOperatorEnabledFeatures` type, switching the field to plain
-  `[]string`. Sweep with `git grep 'LEGACY-enabledfeatures-format'`.
+  `[]string`, and only then drop the `Schemaless` /
+  `PreserveUnknownFields` markers so the CRD regenerates as strict
+  `type: array`. Sweep with `git grep 'LEGACY-enabledfeatures-format'`.
+
+#### Why the CRD schema tightening waits for R3
+
+The originally planned R-cleanup folded the `MarshalJSON` removal and the
+schema tightening into one release. It can't: they are a write-side change
+and a *manifest* change, and this is the same rollout race the IngressClass
+`spec.controller` flip defers for (see "Deferral for rollout races"). The
+CRD chart takes effect while the previous release's operator is still the
+one writing status — for the length of a rolling upgrade, and for an
+unbounded window with `installCRDs=false`, where the documented order is to
+upgrade `ngrok-crds` first. A rollback that leaves the newer CRD chart
+installed has the same shape.
+
+Measured against a real apiserver (k8s 1.36), strict `type: array` CRD
+versus an R1 operator writing the comma string:
+
+| R1 operator does | Result under strict `type: array` |
+| ---------------- | --------------------------------- |
+| user `kubectl apply` on spec, stored status still the legacy string | accepted — validation ratcheting, field unchanged |
+| rewrites the *same* string | accepted — unchanged, ratcheted |
+| writes a *changed* string (feature set toggled) | **rejected**: `status.enabledFeatures: Invalid value: "string": enabledFeatures in body must be of type array: "string"` |
+| creates a KubernetesOperator and writes string status | **rejected**, same error — no ratcheting on create |
+| R2 operator writes the array | accepted, stored value self-heals |
+
+The two rejections leave that operator unable to record status at all — a
+fresh registration never completes. Ratcheting also only covers the two
+accepted rows on k8s >= 1.30; below that every row fails. Deferring the
+markers to R3 removes the hazard entirely, because R3's rollback target
+(R2) already writes arrays.
+
+`internal/controller/ngrok/kubernetesoperator_enabledfeatures_test.go`
+holds the gate: it reads the installed CRD in envtest and fails if
+`status.enabledFeatures` gains a `type` while `UnmarshalJSON` is still in
+the tree.
 
 ### Why not a rename or a conversion webhook
 
