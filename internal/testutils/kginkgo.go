@@ -129,9 +129,7 @@ func (k *KGinkgo) ExpectCreateNamespace(ctx context.Context, name string) {
 	ns := &corev1.Namespace{
 		Name: name,
 	}
-	// Idempotent so multiple Ordered containers in one suite can each ensure
-	// the shared namespace exists without depending on which runs first.
-	Expect(client.IgnoreAlreadyExists(k.client.Create(ctx, ns))).To(Succeed())
+	Expect(k.client.Create(ctx, ns)).To(Succeed())
 }
 
 // ExpectDeleteNamespace deletes a namespace with the given name.
