@@ -43,7 +43,7 @@ jobs:
       env:
         # This job installs an ALREADY-RELEASED chart, so it must keep using the
         # credential values that release understands. Switch these to
-        # credentials.pat once a chart version containing that value has shipped.
+        # credentials.accessToken once a chart version containing that value has shipped.
         NGROK_AUTHTOKEN: "SOME_AUTHTOKEN" # For now, these don't matter, mainly testing that it pulls the image and can get the CRDs
         NGROK_API_KEY: "SOME_API_KEY"
       timeout-minutes: 10

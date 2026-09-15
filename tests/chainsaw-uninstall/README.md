@@ -85,7 +85,7 @@ tests/chainsaw-uninstall/
 
 ## Prerequisites
 
-- `NGROK_PAT` environment variable
+- `NGROK_ACCESS_TOKEN` environment variable
 - Kind cluster running
 - Docker available
 

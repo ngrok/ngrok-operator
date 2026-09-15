@@ -7,7 +7,8 @@ This is the Helm chart to install official the ngrok Kubernetes Operator
 ## Prerequisites
 
 The cluster Must be setup with a secret named `ngrok-operator-credentials` with the following key:
-* PAT
+* AGENT_ACCESS_TOKEN
+* API_MANAGER_ACCESS_TOKEN
 
 ## Installation
 
@@ -134,10 +135,12 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### Credentials configuration
 
-| Name                      | Description                                                                                                        | Value |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----- |
-| `credentials.secret.name` | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name. | `""`  |
-| `credentials.pat`         | Your ngrok personal access token. If provided, it will be written to the secret.                                   | `""`  |
+| Name                                 | Description                                                                                                                      | Value |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `credentials.secret.name`            | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.               | `""`  |
+| `credentials.accessToken`            | Your ngrok access token. Used by every component that needs one, unless overridden below.                                        | `""`  |
+| `credentials.agent.accessToken`      | Optional access token for the agent-manager only. Falls back to credentials.accessToken. Only needs permission to start tunnels. | `""`  |
+| `credentials.apiManager.accessToken` | Optional access token for the api-manager only. Falls back to credentials.accessToken. Only needs ngrok API permissions.         | `""`  |
 
 ### Kubernetes Ingress feature configuration
 

@@ -68,10 +68,10 @@ Should match snapshot:
               command:
                 - /ngrok-operator
               env:
-                - name: NGROK_PAT
+                - name: NGROK_ACCESS_TOKEN
                   valueFrom:
                     secretKeyRef:
-                      key: PAT
+                      key: AGENT_ACCESS_TOKEN
                       name: RELEASE-NAME-ngrok-operator-credentials
                 - name: POD_NAMESPACE
                   valueFrom:

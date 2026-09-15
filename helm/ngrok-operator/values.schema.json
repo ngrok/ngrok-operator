@@ -301,10 +301,30 @@
                         }
                     }
                 },
-                "pat": {
+                "accessToken": {
                     "type": "string",
-                    "description": "Your ngrok personal access token. If provided, it will be written to the secret.",
+                    "description": "Your ngrok access token. Used by every component that needs one, unless overridden below.",
                     "default": ""
+                },
+                "agent": {
+                    "type": "object",
+                    "properties": {
+                        "accessToken": {
+                            "type": "string",
+                            "description": "Optional access token for the agent-manager only. Falls back to credentials.accessToken. Only needs permission to start tunnels.",
+                            "default": ""
+                        }
+                    }
+                },
+                "apiManager": {
+                    "type": "object",
+                    "properties": {
+                        "accessToken": {
+                            "type": "string",
+                            "description": "Optional access token for the api-manager only. Falls back to credentials.accessToken. Only needs ngrok API permissions.",
+                            "default": ""
+                        }
+                    }
                 }
             }
         },
