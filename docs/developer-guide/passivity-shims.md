@@ -202,7 +202,7 @@ Current sentinel tags:
   `ngrok.com/v1 TrafficPolicy`. Covers both the kind change and the group
   move, since we fold them into a single dual-CRD migration rather than
   paying two dual-read cycles.
-- `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
+- `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag). Read-side only from 0.25; deleted with the `v1alpha1` CRDs.
 - `LEGACY-enabledfeatures-format` — `KubernetesOperator.status.enabledFeatures` comma-separated **string** → `[]string` (a field *type* change on an operator-only, operator-written status field; same `json:` tag).
 
 ## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
@@ -749,64 +749,94 @@ This is a different animal from the field renames above. The other CRD
 migrations parked the new shape on a **new** `json:` key and let the old key
 age out. Here the shape we want (a `map[string]string`) has to live on the key
 that is already occupied by string data in the wild (`metadata`). You cannot
-passively change the type a live key accepts — existing stored objects hold a
-string under `metadata`, and re-typing the key to an object would make them
-unreadable by the typed operator and un-appliable. So instead of a rename, the
-field becomes **schemaless** for the migration window: the API server accepts
-either a JSON string or a JSON object under the same key, and the operator
-normalizes both.
+passively change the type a live key accepts: existing stored objects hold a
+string under `metadata`, and re-typing the key would make every one of them
+undecodable by the typed client. That is not a per-object error — the List for
+that kind fails outright, the manager's cache never syncs, and the operator
+crashloops. Measured; see
+[`docs/superpowers/plans/2026-09-14-metadata-map-on-ngrok-com-v1.md`](../superpowers/plans/2026-09-14-metadata-map-on-ngrok-com-v1.md).
 
-- **Pattern:** Two-release (deprecated form, same key). Tag: `LEGACY-metadata-format`.
-- **Type:** the field is a bare `json.RawMessage` with
-  `+kubebuilder:validation:Schemaless` and `+kubebuilder:pruning:PreserveUnknownFields`
-  markers (the same shape as `CloudEndpoint.spec.trafficPolicy.inline`), so
-  `encoding/json` and controller-gen handle (un)marshaling and deepcopy — no wrapper
-  type. `common.MetadataAPIString` (in `api/common/v1alpha1/metadata_types.go`) turns
-  a raw value into the string the ngrok API expects: a legacy string passes through
-  verbatim; a flat string→string map is re-marshaled with sorted keys (no spurious
-  API diffs); any other JSON (nested, null, or non-string values) is passed through
-  unchanged.
+So the v1alpha1 field stays **schemaless** for the whole migration — it keeps
+accepting either shape — and the real `map[string]string` lands on the
+`ngrok.com/v1` CRDs, which have no stored objects to strand. The legacy string
+form is retired by deleting the v1alpha1 CRDs, not by tightening them.
+
+- **Pattern:** Three-release. Tag: `LEGACY-metadata-format`.
 - **Affected fields:** `Domain.spec.metadata`, `IPPolicy.spec.metadata` and
   `IPPolicy.spec.rules[].metadata`, `KubernetesOperator.spec.metadata`,
   `CloudEndpoint.spec.metadata`, `AgentEndpoint.spec.metadata`.
+- **Type:** on v1alpha1 the field is a bare `json.RawMessage` with
+  `+kubebuilder:validation:Schemaless` and
+  `+kubebuilder:pruning:PreserveUnknownFields` (the same shape as
+  `CloudEndpoint.spec.trafficPolicy.inline`), so `encoding/json` and
+  controller-gen handle (un)marshaling and deepcopy. On `ngrok.com/v1` it is a
+  plain `map[string]string` with a real `additionalProperties: {type: string}`
+  schema.
+
 - **R1 (0.24):**
   - CRD: the field is schemaless, so both string and object shapes admit. The
-    `+kubebuilder:default` stays a **JSON string** (`{"owned-by":"ngrok-operator"}`)
-    so defaulted objects remain rollback-safe to a prior release (see below).
-  - Controllers read via `common.MetadataAPIString(spec.Metadata)` at every ngrok
-    API call site and drift comparison. There is deliberately **no** runtime deprecation event
-    for the string form: the only reliable signal that would need it (an object
-    that isn't operator-managed) requires ownership-suppression machinery not worth
-    its weight, and the strict schema at cleanup rejects the string form at
-    admission — a hard error that supersedes any transient event. The deprecation
-    lives in the docs (this guide, the migration guide, and the CRD field
-    description) only.
+    `+kubebuilder:default` is a **JSON string** (`{"owned-by":"ngrok-operator"}`)
+    so defaulted objects remain rollback-safe to a prior release.
+  - Controllers read via `common.MetadataAPIString(spec.Metadata)` at every
+    ngrok API call site and drift comparison.
   - Operator-generated objects (`pkg/managerdriver/translator.go`,
-    `pkg/managerdriver/domains.go`) keep writing the **string** form via
-    `commonv1alpha1.MetadataFromLegacyString` for rollback safety.
-- **R-cleanup:** drop the legacy string branch in `MetadataAPIString` and delete
-  `MetadataFromLegacyString`; change the fields from `json.RawMessage` to
-  `map[string]string`; flip the CRD default to the object form; switch the
-  operator-generated write paths to the map form; make the CRD schema a real
-  `additionalProperties: {type: string}` object. Sweep with
-  `git grep 'LEGACY-metadata-format'`.
+    `pkg/managerdriver/domains.go`) keep writing the **string** form for
+    rollback safety.
+  - There is deliberately **no** runtime deprecation event for the string
+    form: the signal that would need it (an object that isn't
+    operator-managed) requires ownership-suppression machinery not worth its
+    weight. The deprecation lives in the docs and, from R2, in the admission
+    error a user gets when re-stamping to `ngrok.com/v1`.
+- **R2 (0.25) — write-side cleanup:**
+  - `common.MetadataFromLegacyString` is deleted: nothing in the operator
+    writes the string form any more. `pkg/managerdriver/metadata.go`
+    (`metadataForGeneratedObject`) converts the internally-merged metadata
+    string into the object form, and the four write sites in `translator.go`
+    and `domains.go` use it.
+  - The `+kubebuilder:default` on all six v1alpha1 fields flips to the
+    **object** form, so newly defaulted objects stop adding to the string
+    population. Legal because the field is schemaless; a 0.24 operator reads
+    the object form fine.
+  - `common.MetadataAPIString` **canonicalizes** a legacy string that holds a
+    flat JSON object, emitting the same compact key-sorted bytes as the map
+    path. This is load-bearing, not cosmetic: during the group move a
+    v1alpha1 object and its `ngrok.com/v1` twin can resolve to the same ngrok
+    resource, and if the two controllers disagreed byte-for-byte they would
+    take turns updating it forever. Pinned by
+    `TestMetadataShapesAgree`.
+  - New `ngrok.com/v1` CRDs are born `map[string]string` with an object-form
+    default. Read paths go through a `GetNgrokMetadata()` accessor so generic
+    code never branches on the shape.
+  - **Users convert their own objects this release** — see
+    [`docs/upgrading-to-0.25.md`](../upgrading-to-0.25.md). The operator
+    rewrites the objects it generates; hand-authored ones need an audit,
+    because not every legacy value can be expressed as a string map.
+  - Rollback to 0.24 is safe (it reads both shapes). Rollback to 0.23 is
+    **not**, because operator-written metadata is now object form.
+- **R3 (v1alpha1 group removal):** the string branch in `MetadataAPIString`,
+  `testutils.LegacyMetadataString`, and this sentinel are deleted along with
+  the deprecated CRDs. Nothing is left to read the string form because nothing
+  is left to store it. Sweep with `git grep 'LEGACY-metadata-format'`.
 
-### Why not a rename or a conversion webhook
+### Why not a rename, a conversion webhook, or an in-place retype
 
 - **Rename to a new key** (`metadataMap`, etc.) would force users through *two*
   migrations — first onto the interim key, then back onto `metadata` once the
   string field is removed — and leave an awkward field name in the API for the
   whole 0.2x line. Rejected.
 - **A storage-version conversion webhook** cleanly retypes a live key, but the
-  operator does not otherwise use a conversion webhook, and the planned
-  `ngrok.com/v1` group move is itself expected to be a dual-read migration rather
-  than a webhook. Not adopting one just for this field.
+  operator does not otherwise use a conversion webhook, and the `ngrok.com/v1`
+  group move is itself a dual-read migration rather than a webhook. Not
+  adopting one just for this field.
+- **Retyping the v1alpha1 fields in place** is what the earlier version of this
+  section prescribed. It crashloops the operator on any object still holding a
+  string — including objects whose authors never set the field, since the R1
+  default *is* a string. Do not do this.
 
-The cost of the schemaless approach is weaker server-side validation: the API
-server no longer enforces string values on the map. The operator normalizes the
-supported forms (legacy string, flat string map) and passes any other JSON
-through to ngrok unchanged rather than rejecting it — plus the rollback caveat
-for object-form adopters documented in the user-facing guide.
+The cost of the schemaless approach is weaker server-side validation on the
+deprecated CRDs: the API server does not enforce string values there. The
+operator normalizes the supported forms and passes any other JSON through to
+ngrok unchanged rather than rejecting it. `ngrok.com/v1` does enforce it.
 
 ## Per-shim catalog: `KubernetesOperator.status.enabledFeatures` type change
 
