@@ -142,9 +142,12 @@ whether your own migration is affected:
   on the legacy value until R2.
 - **A deferred *schema that rejects writes*.** The `status.enabledFeatures`
   CRD schema: the binary stops writing the legacy string in R2, but the
-  schema that would reject that string stays loose until R3, because the R1
-  operator keeps writing it across the upgrade window. See the
-  enabledFeatures catalog entry for the measured failure modes.
+  schema that would reject that string cannot tighten in the same release,
+  because the R1 operator keeps writing the string across the upgrade
+  window. That migration ended up never tightening at all — the CRD is
+  being deleted by the group move instead — but the measured failure modes
+  in its catalog entry are the best evidence we have for the rule, and
+  `LEGACY-metadata-format` is the live case that still has to obey it.
 
 The second is the generalizable rule, and it is easy to miss because it
 does not look like a manifest change at all:
@@ -859,12 +862,11 @@ decode the *entire* stored object with the old binary's plain-`string`
 workaround short of `kubectl edit --subresource=status` on every existing
 object before starting the old binary.
 
-- **Pattern:** Three-release: a two-release write-side migration plus a
-  deferred manifest change (see "Deferral for rollout races"). There is
-  exactly one writer, so no dual-write coexistence is needed — that part
-  still holds and is the genuine difference from the prefix migrations —
-  but the CRD schema must trail the write-side flip by one release. Tag:
-  `LEGACY-enabledfeatures-format`.
+- **Pattern:** Two-release write-side migration on the v1alpha1 kind, with
+  the read side retired by the `ngrok.com/v1` group move rather than by a
+  schema tightening of its own. There is exactly one writer, so no
+  dual-write coexistence is needed — the genuine difference from the prefix
+  migrations. Tag: `LEGACY-enabledfeatures-format`.
 - **Type:** `api/ngrok/v1alpha1/kubernetesoperator_types.go`'s
   `KubernetesOperatorStatus.EnabledFeatures` keeps its final-state type
   (`KubernetesOperatorEnabledFeatures`, an eventual `[]string`) and doc
@@ -922,47 +924,68 @@ object before starting the old binary.
   under R1 still carries the legacy string until its next reconcile — and
   **keep** the `Schemaless` / `PreserveUnknownFields` markers; see the
   deferral below for why the schema cannot tighten here.
-- **R3 — read-side cleanup (K8SOP-321):** delete `UnmarshalJSON` and the
-  `KubernetesOperatorEnabledFeatures` type, switching the field to plain
-  `[]string`, and only then drop the `Schemaless` /
-  `PreserveUnknownFields` markers so the CRD regenerates as strict
-  `type: array`. Sweep with `git grep 'LEGACY-enabledfeatures-format'`.
+- **R3 — superseded by the `ngrok.com/v1` group move (K8SOP-321).** The
+  original plan was to delete `UnmarshalJSON` and then tighten the
+  v1alpha1 CRD to strict `type: array`. That tightening is no longer worth
+  doing. `KubernetesOperator` moves to `ngrok.com/v1` in 0.25 under the
+  dual-CRD pattern, and the v1alpha1 CRD is deleted in a later release —
+  you do not tighten the schema of a CRD that is scheduled for deletion.
+  **The v1alpha1 kind therefore never converges on the array shape.**
+  `UnmarshalJSON`, the `KubernetesOperatorEnabledFeatures` type and the
+  `Schemaless` / `PreserveUnknownFields` markers all retire together when
+  `api/ngrok/v1alpha1/kubernetesoperator_types.go` goes, as part of the
+  group move's own cleanup sweep. `git grep 'LEGACY-enabledfeatures-format'`
+  at that point should be the last sweep for the tag.
 
-  **R3's precondition, which is the load-bearing claim for the whole
-  sequence:** deleting the decoder is safe only if every stored object was
-  rewritten during R2. It normally is —
-  `BaseController.ReconcileStatus` issues an unconditional
+  Keeping the decoder until the kind dies is strictly cheaper than the
+  alternative: it costs ~25 lines that were going to be deleted anyway,
+  and it removes an entire release's worth of upgrade hazard (see below).
+
+- **The canonical `ngrok.com/v1` type ships clean.** `EnabledFeatures` is a
+  plain `[]string` with a strict `type: array` schema and no shim from day
+  one. It is new storage — nothing has ever written a string to it and no
+  released binary reads it — so there is nothing to be passive about. Do
+  not port the shim type across.
+
+- **The one cross-kind guard.** Never copy `status` between the two kinds
+  unstructured. A v1alpha1 object that has not yet self-healed still holds
+  the comma string, and copying it raw onto the strict v1 CRD is rejected
+  at admission. Any cross-kind write must round-trip through the typed
+  decoder, which normalizes it to an array on the way out.
+
+  **Why the self-heal coverage argument stopped being load-bearing.** While
+  R3 was still going to delete the decoder, it was safe only if every
+  stored object had been rewritten during R2 — and that argument has holes
+  worth recording, because the next migration that deletes a decoder will
+  hit them. `BaseController.ReconcileStatus` issues an unconditional
   `Status().Update()` with no diff-skip, and the informer's initial List
-  delivers Create events past the reconcile predicate, so every operator
-  restart (and therefore every helm upgrade) reconciles the object at
-  least once. Two gaps survive that argument: `ownKOPredicate` narrows
-  reconciliation to one name and namespace while the cache is broader, so
-  a *second* `KubernetesOperator` in the release namespace is listed and
-  decoded but never reconciled; and the whole class of "api-manager never
-  ran normal mode for the R2 window" leaves the object untouched. That
-  class is wider than it looks: besides `replicas=0` and a CRD-only
-  upgrade, `oneClickDemoMode: true` returns at `cmd/api-manager.go:273`
-  into `runOneClickDemoMode`, which bypasses `runNormalMode` entirely —
-  both `createKubernetesOperator` (`cmd/api-manager.go:354`) and every
-  controller registration. Reproduced on kind: register under R1, run the
-  whole R2 window in demo mode, then turn demo mode off under R3, and
-  api-manager crash-loops on the string it never healed. A legacy string
-  surviving into R3 breaks the whole informer's List decode, not just that
-  object — the symptom the 0.24 RC already hit. Either gate the R3 upgrade
-  on `kubectl get kubernetesoperators -A -o json | jq -r '.items[] |
-  select((.status.enabledFeatures // []) | type == "string") |
-  .metadata.namespace + "/" + .metadata.name'` returning empty, or keep a
-  tolerant decode at R3 (plain `[]string` with an `UnmarshalJSON` that
-  returns `nil` rather than an error on a string), which degrades the
-  failure from "informer wedged, operator crash-loops" to "one stale
-  object shows empty features until something reconciles it."
+  delivers Create events past the reconcile predicate, so any operator
+  restart heals the object. But `ownKOPredicate` narrows reconciliation to
+  one name and namespace while the cache is broader, so a *second*
+  `KubernetesOperator` in the release namespace is listed and decoded but
+  never reconciled; and the whole class of "api-manager never ran normal
+  mode for a release window" leaves the object untouched. That class is
+  wider than it looks: besides `replicas=0` and a CRD-only upgrade,
+  `oneClickDemoMode: true` returns at `cmd/api-manager.go:273` into
+  `runOneClickDemoMode`, bypassing `runNormalMode` entirely — both
+  `createKubernetesOperator` and every controller registration — while the
+  pod stays Ready the whole time. Reproduced on kind: a legacy string that
+  survives into a release with no decoder breaks the whole informer's List
+  decode, not just that object, which is the symptom the 0.24 RC already
+  hit. **Do not assume "the operator rewrites it on reconcile" without
+  checking which code paths actually reconcile.**
 
-#### Why the CRD schema tightening waits for R3
+#### Why a schema tightening cannot ride along with the write-side flip
+
+This migration ends up dodging the problem — the v1alpha1 schema is never
+tightened at all — but the measurements below are why, and they are the
+reference evidence for the general rule in "Deferral for rollout races".
+`LEGACY-metadata-format` is the live case that still has to obey it.
 
 The originally planned R-cleanup folded the `MarshalJSON` removal and the
 schema tightening into one release. It can't: they are a write-side change
 and a *manifest* change, and this is the same rollout race the IngressClass
-`spec.controller` flip defers for (see "Deferral for rollout races"). The
+`spec.controller` flip defers for. The
 CRD chart takes effect while the previous release's operator is still the
 one writing status — for the length of a rolling upgrade, and for an
 unbounded window with `installCRDs=false`, where the documented order is to
@@ -982,14 +1005,13 @@ versus an R1 operator writing the comma string:
 
 The two rejections leave that operator unable to record status at all — a
 fresh registration never completes. Ratcheting also only covers the two
-accepted rows on k8s >= 1.30; below that every row fails. Deferring the
-markers to R3 removes the hazard entirely, because R3's rollback target
-(R2) already writes arrays.
+accepted rows on k8s >= 1.30; below that every row fails. Not tightening
+the v1alpha1 schema at all removes the hazard permanently.
 
 `internal/controller/ngrok/kubernetesoperator_enabledfeatures_test.go`
 holds the gate: it reads the installed CRD in envtest and fails if
-`status.enabledFeatures` gains a `type` while `UnmarshalJSON` is still in
-the tree.
+`status.enabledFeatures` on the v1alpha1 kind gains a `type`. It retires
+with the kind.
 
 ### Why not a rename or a conversion webhook
 

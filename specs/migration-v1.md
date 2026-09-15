@@ -46,10 +46,10 @@ registration already exists leave `Registered=True` and are reported through
 v1alpha1 Go type contains a temporary compatibility decoder that accepts both
 representations during an in-place upgrade. The operator writes an array, so
 the next status update passively normalizes the stored value — no manual step
-is needed. Until the decoder is removed, the CRD schema for this field stays
-permissive and does **not** enforce an array; both are dropped together in a
-later release, once upgrades from versions that wrote the string
-representation are outside the supported upgrade window.
+is needed. On the deprecated `v1alpha1` kind the CRD schema for this field
+stays permissive and does **not** enforce an array; the decoder and the
+permissive schema are both removed when that kind is removed. The canonical
+`ngrok.com/v1` kind enforces an array from the start.
 
 `kubectl get kubernetesoperators` correspondingly shows the `Enabled Features`
 column as `["ingress","bindings"]` rather than `ingress,bindings`. Anything

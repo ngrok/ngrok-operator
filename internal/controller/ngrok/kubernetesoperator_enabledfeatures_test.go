@@ -91,13 +91,13 @@ var _ = Describe("KubernetesOperator status.enabledFeatures format", Ordered, Co
 		}).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 	})
 
-	// The Schemaless/PreserveUnknownFields markers on the field outlive
-	// MarshalJSON by one release: the previous release's operator still writes
-	// the legacy string, and a strict `type: array` rejects that write on
-	// create and on any change to the feature set. Tightening the schema is
-	// only safe once UnmarshalJSON goes too, so fail here if the markers are
-	// dropped while the decoder is still in the tree.
-	It("keeps the CRD schema loose while UnmarshalJSON is still present", func(ctx SpecContext) {
+	// The Schemaless/PreserveUnknownFields markers outlive MarshalJSON: the
+	// previous release's operator still writes the legacy string, and a strict
+	// `type: array` rejects that write on create and on any change to the
+	// feature set. This kind is being replaced by ngrok.com/v1 and deleted, so
+	// it never converges on the array shape and the markers should never be
+	// dropped while it exists. This spec retires with the kind.
+	It("keeps the v1alpha1 CRD schema loose for as long as the kind exists", func(ctx SpecContext) {
 		crd := &unstructured.Unstructured{}
 		crd.SetGroupVersionKind(schema.GroupVersionKind{
 			Group:   "apiextensions.k8s.io",
@@ -125,7 +125,7 @@ var _ = Describe("KubernetesOperator status.enabledFeatures format", Ordered, Co
 
 			Expect(features).To(HaveKeyWithValue("x-kubernetes-preserve-unknown-fields", true))
 			Expect(features).NotTo(HaveKey("type"),
-				"status.enabledFeatures must stay schemaless until UnmarshalJSON is removed; see kubernetesoperator_status_compat.go")
+				"status.enabledFeatures on v1alpha1 must stay schemaless for the life of the kind; see kubernetesoperator_status_compat.go")
 		}
 		Expect(checked).To(BeNumerically(">", 0), "status.enabledFeatures not found in any served version")
 	})

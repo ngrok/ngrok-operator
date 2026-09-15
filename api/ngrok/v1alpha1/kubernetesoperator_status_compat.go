@@ -40,21 +40,22 @@ import (
 // Two-release, same-key type change (see docs/developer-guide/passivity-shims.md).
 // The write-side cleanup has shipped: MarshalJSON is gone and the field
 // marshals as a plain array, which the previous release decodes, so a
-// rollback to it stays safe. The read-side cleanup release deletes
-// UnmarshalJSON and this type, switching the field to plain []string, and
-// only then drops the Schemaless/PreserveUnknownFields markers in
-// kubernetesoperator_types.go so the CRD regenerates as a strict array.
+// rollback to it stays safe.
 //
-// Those markers cannot come out in the same release as MarshalJSON. The
-// previous release's operator writes the legacy string against whatever CRD
-// is installed, for the length of a rolling upgrade and for an unbounded
-// window when installCRDs=false puts the CRD chart ahead of the operator. A
-// strict `type: array` rejects that write on object creation and on any
-// change to the feature set; validation ratcheting spares only a rewrite of
-// an identical value, and only on k8s >= 1.30. That operator would be unable
-// to record status at all. Deferring the schema by one release is the same
-// race the IngressClass spec.controller flip defers for, though that one
-// defers a rendered manifest value rather than a schema.
+// This decoder and the Schemaless/PreserveUnknownFields markers in
+// kubernetesoperator_types.go now retire with the kind, not on their own.
+// KubernetesOperator moves to ngrok.com/v1, and this v1alpha1 CRD is deleted
+// a release or two later, so there is no reason to tighten the schema of a
+// CRD already scheduled for deletion — v1alpha1 never converges on the array
+// shape. Delete all of it in the group move's cleanup sweep.
+//
+// The canonical ngrok.com/v1 type declares EnabledFeatures as a plain
+// []string with a strict type: array schema and no shim: new storage, no
+// released binary reads it, nothing to be passive about. Do not port this
+// type across. One guard if anything ever copies between the kinds: a
+// v1alpha1 object that has not self-healed still holds the comma string, and
+// copying status unstructured onto the strict v1 CRD is rejected at
+// admission. Cross-kind writes must round-trip through this decoder.
 type KubernetesOperatorEnabledFeatures []string
 
 func (features *KubernetesOperatorEnabledFeatures) UnmarshalJSON(data []byte) error {

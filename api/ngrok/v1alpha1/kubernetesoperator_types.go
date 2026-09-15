@@ -79,14 +79,12 @@ type KubernetesOperatorStatus struct {
 	// +kubebuilder:validation:MaxItems=8
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// LEGACY-enabledfeatures-format (read-side cleanup): keeps the CRD schema
-	// loose enough to accept the comma-separated string the PREVIOUS release's
-	// operator still writes — during a rolling upgrade, and for an unbounded
-	// window when installCRDs=false upgrades the CRD chart ahead of the
-	// operator. Deliberately outlives the MarshalJSON removal by one release;
-	// see kubernetesoperator_status_compat.go. Delete these markers only
-	// together with UnmarshalJSON, and controller-gen regenerates the strict
-	// array schema.
+	// LEGACY-enabledfeatures-format: keeps the CRD schema loose enough to
+	// accept the comma-separated string the PREVIOUS release's operator still
+	// writes. These markers are not waiting on a tightening — this kind is
+	// being replaced by ngrok.com/v1 and deleted, so it never converges on the
+	// array shape. Delete them with the kind, alongside UnmarshalJSON in
+	// kubernetesoperator_status_compat.go.
 
 	// EnabledFeatures are the features enabled for this Kubernetes Operator, as
 	// reported by the ngrok API
