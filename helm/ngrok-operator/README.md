@@ -6,9 +6,8 @@ This is the Helm chart to install official the ngrok Kubernetes Operator
 
 ## Prerequisites
 
-The cluster Must be setup with a secret named `ngrok-operator-credentials` with the following keys:
-* AUTHTOKEN
-* API\_KEY
+The cluster Must be setup with a secret named `ngrok-operator-credentials` with the following key:
+* PAT
 
 ## Installation
 
@@ -138,8 +137,7 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | Name                      | Description                                                                                                        | Value |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----- |
 | `credentials.secret.name` | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name. | `""`  |
-| `credentials.apiKey`      | Your ngrok API key. If provided, it will be written to the secret and the authtoken must be provided as well.      | `""`  |
-| `credentials.authtoken`   | Your ngrok authtoken. If provided, it will be written to the secret and the apiKey must be provided as well.       | `""`  |
+| `credentials.pat`         | Your ngrok personal access token. If provided, it will be written to the secret.                                   | `""`  |
 
 ### Kubernetes Ingress feature configuration
 

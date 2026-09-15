@@ -16,7 +16,7 @@ The CRD chart can be installed automatically via `installCRDs: true` (default) o
 ```yaml
 global:              # Shared k8s deployment defaults (deep-merged into each component)
 ngrok:               # ngrok platform connection config (shared by all components)
-credentials:         # Secret for API key + authtoken
+credentials:         # Secret for the personal access token
 features:            # Feature flags and feature-specific config (single source of truth)
 apiManager:          # K8s deployment settings + app config for api-manager
 agent:               # K8s deployment settings + app config for agent
@@ -83,8 +83,7 @@ Platform connection config shared by all components. Rendered into a common Conf
 | Parameter                  | Description                                    | Default |
 |----------------------------|------------------------------------------------|---------|
 | `credentials.secret.name`  | Secret name (auto-generated if empty)          | `""`    |
-| `credentials.apiKey`       | ngrok API key                                  | `""`    |
-| `credentials.authtoken`    | ngrok auth token                               | `""`    |
+| `credentials.pat`          | ngrok personal access token                    | `""`    |
 
 See [authentication.md](../authentication.md) for details on credential management.
 

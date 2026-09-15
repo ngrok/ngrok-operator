@@ -75,8 +75,7 @@ spec:
                  \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values-operator-a.yaml \
-                --set credentials.apiKey=${NGROK_API_KEY} \
-                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --set credentials.pat=${NGROK_PAT} \
                 --wait --timeout 2m
 
     - name: deploy operator-b (watches namespace-b, ingress class ngrok-b)
@@ -89,8 +88,7 @@ spec:
                  \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values-operator-b.yaml \
-                --set credentials.apiKey=${NGROK_API_KEY} \
-                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --set credentials.pat=${NGROK_PAT} \
                 --wait --timeout 2m
 
     - name: wait for both KubernetesOperators to be registered

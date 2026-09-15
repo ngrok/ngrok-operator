@@ -72,10 +72,10 @@ Should match all-options snapshot:
               command:
                 - /ngrok-operator
               env:
-                - name: NGROK_API_KEY
+                - name: NGROK_PAT
                   valueFrom:
                     secretKeyRef:
-                      key: API_KEY
+                      key: PAT
                       name: RELEASE-NAME-ngrok-operator-credentials
                 - name: POD_NAMESPACE
                   valueFrom:
@@ -634,10 +634,10 @@ Should match default snapshot:
               command:
                 - /ngrok-operator
               env:
-                - name: NGROK_API_KEY
+                - name: NGROK_PAT
                   valueFrom:
                     secretKeyRef:
-                      key: API_KEY
+                      key: PAT
                       name: RELEASE-NAME-ngrok-operator-credentials
                 - name: POD_NAMESPACE
                   valueFrom:

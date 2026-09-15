@@ -51,8 +51,7 @@ spec:
                 --create-namespace \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values.yaml \
-                --set credentials.apiKey=${NGROK_API_KEY} \
-                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --set credentials.pat=${NGROK_PAT} \
                 --wait \
                 --timeout 2m
 
