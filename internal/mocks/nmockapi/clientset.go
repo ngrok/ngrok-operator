@@ -27,6 +27,14 @@ func (m *Clientset) Domains() ngrokapi.DomainClient {
 	return m.domainsClient
 }
 
+// DomainsMock returns the concrete mock domain client, for tests that need to
+// seed reservations or inspect the filter that was sent. Domains() returns the
+// narrower ngrokapi.DomainClient interface, which would otherwise force a type
+// assertion at every call site.
+func (m *Clientset) DomainsMock() *DomainClient {
+	return m.domainsClient
+}
+
 func (m *Clientset) Endpoints() ngrokapi.EndpointsClient {
 	return m.endpointsClient
 }

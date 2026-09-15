@@ -842,6 +842,74 @@ var _ = Describe("ServiceController", func() {
 						g.Expect(hostname).NotTo(Equal(customDomain), "hostname should NOT be the custom domain directly")
 					}, timeout, interval).Should(Succeed())
 				})
+
+				// A Domain whose reservation the Domain reconciler skipped in favor
+				// of a wildcard parent has an empty status.id, and the reconciler
+				// mirrors the wildcard's CNAME target onto it. The Service
+				// controller keys off domainRef rather than status.id, so LB status
+				// must still populate.
+				It("should still populate service hostname for a wildcard-covered Domain", func() {
+					By("waiting for cloud endpoint to be created")
+					Eventually(func(g Gomega) {
+						cleps, err := getCloudEndpoints(k8sClient, namespace)
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(cleps.Items).To(HaveLen(1))
+					}, timeout, interval).Should(Succeed())
+
+					By("creating a Domain CRD covered by a wildcard parent")
+					domainName := strings.ReplaceAll(customDomain, ".", "-")
+					domain := &ingressv1alpha1.Domain{
+						Name:      domainName,
+						Namespace: namespace,
+						Spec: ingressv1alpha1.DomainSpec{
+							Domain: customDomain,
+						},
+					}
+					Expect(k8sClient.Create(ctx, domain)).To(Succeed())
+
+					By("updating the Domain status as wildcard-covered with no reservation of its own")
+					Eventually(func(_ Gomega) error {
+						fetchedDomain := &ingressv1alpha1.Domain{}
+						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), fetchedDomain); err != nil {
+							return err
+						}
+						// The wildcard's CNAME target is what actually resolves this
+						// hostname, so the reconciler mirrors it here.
+						fetchedDomain.Status.CNAMETarget = ptr.To(cnameTarget)
+						fetchedDomain.Status.Domain = customDomain
+						fetchedDomain.Status.ID = ""
+						fetchedDomain.Status.CoveredByWildcardDomain = "*.custom-domain.xyz"
+						return k8sClient.Status().Update(ctx, fetchedDomain)
+					}, timeout, interval).Should(Succeed())
+
+					By("updating the CloudEndpoint status with domainRef")
+					Eventually(func(_ Gomega) error {
+						cleps, err := getCloudEndpoints(k8sClient, namespace)
+						if err != nil {
+							return err
+						}
+						if len(cleps.Items) != 1 {
+							return fmt.Errorf("expected 1 CloudEndpoint, got %d", len(cleps.Items))
+						}
+						fetchedClep := &cleps.Items[0]
+						fetchedClep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
+							Name:      domainName,
+							Namespace: new(namespace),
+						}
+						return k8sClient.Status().Update(ctx, fetchedClep)
+					}, timeout, interval).Should(Succeed())
+
+					By("checking the service status is populated despite the empty domain ID")
+					Eventually(func(g Gomega) {
+						fetched := &corev1.Service{}
+						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)
+						g.Expect(err).NotTo(HaveOccurred())
+
+						g.Expect(fetched.Status.LoadBalancer.Ingress).NotTo(BeEmpty(),
+							"an empty status.id must not stop LB status from populating")
+						g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(Equal(cnameTarget))
+					}, timeout, interval).Should(Succeed())
+				})
 			})
 
 			When("service has a traffic policy annotation", func() {

@@ -158,6 +158,11 @@ The `domainRef` field on CloudEndpoint/AgentEndpoint status is critical for TLS 
 | TCP (`tcp://`) | No | Hostname from computed-url directly |
 | TLS (`tls://`) | Yes | Wait for domainRef, then use Domain's cnameTarget or domain |
 
+The Service controller keys off `domainRef`, not `status.id`, so a Domain whose
+reservation was skipped in favor of a wildcard parent still populates
+LoadBalancer status normally: its `status.cnameTarget` mirrors the wildcard's.
+See [domain.md](domain.md#wildcard-domain-coverage).
+
 The Service controller watches for status changes on owned CloudEndpoint/AgentEndpoint resources. When the endpoint controller sets `status.domainRef`, the Service controller re-reconciles and populates the Service status with the correct hostname.
 
 ### Special Cases
