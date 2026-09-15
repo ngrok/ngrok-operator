@@ -63,11 +63,6 @@ Should match snapshot:
               command:
                 - /ngrok-operator
               env:
-                - name: NGROK_AUTHTOKEN
-                  valueFrom:
-                    secretKeyRef:
-                      key: AUTHTOKEN
-                      name: RELEASE-NAME-ngrok-operator-credentials
                 - name: POD_NAMESPACE
                   valueFrom:
                     fieldRef:

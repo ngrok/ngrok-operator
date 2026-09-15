@@ -53,7 +53,6 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ngrok/ngrok-api-go/v9"
-	"github.com/ngrok/ngrok-api-go/v9/api_keys"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
@@ -129,8 +128,7 @@ type apiManagerOpts struct {
 	}
 
 	// env vars
-	namespace   string
-	ngrokAPIKey string
+	namespace string
 
 	region string
 
@@ -300,7 +298,7 @@ func runOneClickDemoMode(ctx context.Context, mgr ctrl.Manager) error {
 			case <-ticker.C:
 				setupLog.Error(errors.New("Running in one-click-demo mode"), "Ready even if required fields are missing!")
 				setupLog.Info("The ngrok-operator is running in one-click-demo mode which means the operator is not actually reconciling resources.")
-				setupLog.Info("Please provide ngrok API key and ngrok Authtoken in your Helm values to run the operator for real.")
+				setupLog.Info("Please provide an ngrok personal access token in your Helm values to run the operator for real.")
 				setupLog.Info("Please set `oneClickDemoMode: false` in your Helm values to run the operator for real.")
 			}
 		}
@@ -332,9 +330,13 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		return err
 	}
 
-	ngrokClientset, err := loadNgrokClientset(ctx, opts)
+	ngrokClientset, err := loadNgrokClientset(opts)
 	if err != nil {
 		return fmt.Errorf("Unable to load ngrokClientSet: %w", err)
+	}
+
+	if err := preflightNgrokAPIAccess(ctx, ngrokClientset); err != nil {
+		return err
 	}
 
 	// Create drain orchestrator - handles the complete drain workflow.
@@ -473,19 +475,23 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 	return mgr, nil
 }
 
+// ngrokAPIPreflightTimeout bounds the startup credential checks as a whole. The
+// manager's health probe is not bound until after they run, so an unbounded
+// wait here is indistinguishable from a crashed pod.
+const ngrokAPIPreflightTimeout = 30 * time.Second
+
 // loadNgrokClientset loads the ngrok API clientset from the environment and managerOpts
-func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clientset, error) {
-	var ok bool
-	opts.ngrokAPIKey, ok = os.LookupEnv("NGROK_API_KEY")
+func loadNgrokClientset(opts apiManagerOpts) (ngrokapi.Clientset, error) {
+	pat, ok := os.LookupEnv("NGROK_PAT")
 	if !ok {
-		return nil, errors.New("NGROK_API_KEY environment variable should be set, but was not")
+		return nil, errors.New("NGROK_PAT environment variable should be set, but was not")
 	}
 
 	clientConfigOpts := []ngrok.ClientConfigOption{
 		ngrok.WithUserAgent(version.GetUserAgent()),
 	}
 
-	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
+	ngrokClientConfig := ngrok.NewClientConfig(pat, clientConfigOpts...)
 	if opts.apiURL != "" {
 		u, err := url.Parse(opts.apiURL)
 		if err != nil {
@@ -495,18 +501,62 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 	}
 	setupLog.Info("configured API client", "base_url", ngrokClientConfig.BaseURL)
 
-	// validate the API key and Authtoken works with ngrok API
-	// by making a dummy request to list API keys
-	// and checking for errors
-	cApiKeys := api_keys.NewClient(ngrokClientConfig)
-	cIter := cApiKeys.List(&ngrok.FilteredPaging{Limit: new("1")})
-	cIter.Next(ctx)
-	if cIter.Err() != nil {
-		return nil, fmt.Errorf("Unable to verify API Key: %w", cIter.Err())
+	return ngrokapi.NewClientSet(ngrokClientConfig), nil
+}
+
+// preflightNgrokAPIAccess verifies the personal access token against the ngrok
+// API before the manager starts.
+//
+// Listing endpoints is treated as the credential check: the operator cannot do
+// anything useful without endpoint access, so failing there is fatal and is
+// reported once, clearly, instead of as an unexplained reconcile failure later.
+// The remaining resources are only logged, because a token deliberately scoped
+// to a subset of the operator's features is a valid configuration and the
+// controllers that need a missing resource surface their own errors.
+//
+// Note that every probe is a read. A token holding read but not write access
+// passes all of them and still fails on the first reconcile, so the log says
+// "read ok" rather than anything stronger. kubernetes-operators has no probe at
+// all: listing it is scope-exempt, so a successful list would prove nothing,
+// and the registration that would exercise kubernetes-operators:write happens
+// asynchronously in KubernetesOperatorReconciler after mgr.Start.
+func preflightNgrokAPIAccess(ctx context.Context, clientset ngrokapi.Clientset) error {
+	// The parent context has no deadline, and the ngrok client uses
+	// http.DefaultClient, which has no timeout of its own. Without this an
+	// unresponsive API hangs the pod before the health probe is even bound.
+	ctx, cancel := context.WithTimeout(ctx, ngrokAPIPreflightTimeout)
+	defer cancel()
+
+	epIter := clientset.Endpoints().List(&ngrok.Paging{Limit: new("1")})
+	epIter.Next(ctx)
+	if err := epIter.Err(); err != nil {
+		return fmt.Errorf("unable to verify ngrok personal access token: %w", err)
+	}
+	setupLog.Info("ngrok API read ok", "resource", "endpoints")
+
+	check := func(resource string, err error) {
+		if err != nil {
+			setupLog.Error(err, "ngrok API read failed", "resource", resource)
+			return
+		}
+		setupLog.Info("ngrok API read ok", "resource", resource)
 	}
 
-	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
-	return ngrokClientset, nil
+	domainIter := clientset.Domains().List(&ngrok.FilteredPaging{Limit: new("1")})
+	domainIter.Next(ctx)
+	check("domains", domainIter.Err())
+
+	tcpAddrIter := clientset.TCPAddresses().List(&ngrok.FilteredPaging{Limit: new("1")})
+	tcpAddrIter.Next(ctx)
+	check("tcp-addrs", tcpAddrIter.Err())
+
+	// IP policies have no List on the clientset, but IP policy rules are gated by
+	// the same ip-policies scopes, so listing them covers both.
+	ipPolicyRuleIter := clientset.IPPolicyRules().List(&ngrok.FilteredPaging{Limit: new("1")})
+	ipPolicyRuleIter.Next(ctx)
+	check("ip-policies", ipPolicyRuleIter.Err())
+
+	return nil
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
