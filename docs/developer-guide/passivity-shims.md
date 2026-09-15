@@ -887,6 +887,20 @@ object before starting the old binary.
     (`ko.Status.EnabledFeatures = ngrokKo.EnabledFeatures`) is unaware of
     the wire format; the shim type's `MarshalJSON`/`UnmarshalJSON` handle
     it transparently.
+  - **Rollback floor moves at R2.** R1 is the oldest release a cluster
+    running R2 can roll back to. `docs/upgrading-to-0.24.md` tells users to
+    roll back to 0.23, which is correct for 0.24 and wrong for anything
+    later: the pre-R1 binary has a plain `string` field and dies with
+    `unable to create KubernetesOperator: json: cannot unmarshal array
+    into Go struct field ... of type string`. With any AgentEndpoint
+    present the agent-manager wedges too — `drain.StateChecker.IsDraining`
+    does a cached Get that blocks on a KO informer that can never sync, so
+    the AgentEndpoint is never reconciled. Whatever release ships R2 needs
+    its own upgrade guide saying so. Remediation is order-sensitive:
+    complete the rollback first, *then* patch status back to the string
+    form. Patching while a newer pod is still Running lets it re-write the
+    array, after which the older manager starts, takes the lease, and sits
+    `Ready=true` with a permanently dead KO reflector.
   - **User-visible side effect of the flip, from R2 onward:** the
     `Enabled Features` printer column
     (`+kubebuilder:printcolumn ... type="string"`) renders the raw value,
@@ -924,8 +938,15 @@ object before starting the old binary.
   least once. Two gaps survive that argument: `ownKOPredicate` narrows
   reconciliation to one name and namespace while the cache is broader, so
   a *second* `KubernetesOperator` in the release namespace is listed and
-  decoded but never reconciled; and anyone who runs R2 with `replicas=0`,
-  or upgrades CRDs only, never reconciles under R2 at all. A legacy string
+  decoded but never reconciled; and the whole class of "api-manager never
+  ran normal mode for the R2 window" leaves the object untouched. That
+  class is wider than it looks: besides `replicas=0` and a CRD-only
+  upgrade, `oneClickDemoMode: true` returns at `cmd/api-manager.go:273`
+  into `runOneClickDemoMode`, which bypasses `runNormalMode` entirely —
+  both `createKubernetesOperator` (`cmd/api-manager.go:354`) and every
+  controller registration. Reproduced on kind: register under R1, run the
+  whole R2 window in demo mode, then turn demo mode off under R3, and
+  api-manager crash-loops on the string it never healed. A legacy string
   surviving into R3 breaks the whole informer's List decode, not just that
   object — the symptom the 0.24 RC already hit. Either gate the R3 upgrade
   on `kubectl get kubernetesoperators -A -o json | jq -r '.items[] |
@@ -977,6 +998,8 @@ Same reasoning as `spec.metadata`: a new field name (e.g.
 `enabledFeatures` was free to take the array shape, trading one migration
 for two; a conversion webhook is a pattern this operator has deliberately
 not adopted anywhere. Unlike `spec.metadata`, there's no user-authored form
-to ever reconcile away — once every operator's next reconcile has run
-against a release with `MarshalJSON` removed, no object anywhere is left
-carrying the string form.
+to ever reconcile away — every object the operator reconciles against a
+release with `MarshalJSON` removed sheds the string form. That is not the
+same as "no object anywhere": an object only self-heals if a reconcile
+actually runs against it, which is the R2 precondition above, not something
+the absence of a user-authored form guarantees.
