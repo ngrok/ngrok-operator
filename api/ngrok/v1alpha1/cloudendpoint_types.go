@@ -76,7 +76,7 @@ type CloudEndpointSpec struct {
 	//
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
+	// +kubebuilder:default:={"owned-by":"ngrok-operator"}
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// Bindings is the list of Binding IDs to associate with the endpoint

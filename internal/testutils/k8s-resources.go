@@ -368,3 +368,18 @@ func NewDomainMap(domains ...*ingressv1alpha1.Domain) map[string]ingressv1alpha1
 	}
 	return result
 }
+
+// LegacyMetadataString builds the deprecated JSON-string form of a CRD
+// `spec.metadata` value.
+//
+// LEGACY-metadata-format: the operator no longer writes this shape — it stays
+// readable on the v1alpha1 CRDs for objects users have not converted yet. Tests
+// use this to keep exercising that read path until the v1alpha1 CRDs are
+// removed; production code must not construct it.
+func LegacyMetadataString(s string) json.RawMessage {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return nil
+	}
+	return b
+}

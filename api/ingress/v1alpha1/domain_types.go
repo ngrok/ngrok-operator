@@ -50,7 +50,7 @@ type DomainSpec struct {
 	//
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
+	// +kubebuilder:default:={"owned-by":"ngrok-operator"}
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// Domain is the domain name to reserve.

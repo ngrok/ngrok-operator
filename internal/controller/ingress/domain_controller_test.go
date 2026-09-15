@@ -11,6 +11,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -309,7 +310,7 @@ var _ = Describe("DomainReconciler", func() {
 				Namespace: namespace,
 				Spec: ingressv1alpha1.DomainSpec{
 					Description: "starting description",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("starting metadata"),
+					Metadata:    testutils.LegacyMetadataString("starting metadata"),
 					Domain:      domainName,
 				},
 			}
@@ -326,7 +327,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		It("updates the domain metadata", func() {
 			patch := client.MergeFrom(domain.DeepCopy())
-			domain.Spec.Metadata = commonv1alpha1.MetadataFromLegacyString("updated metadata")
+			domain.Spec.Metadata = testutils.LegacyMetadataString("updated metadata")
 			Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
 
 			Eventually(func(g Gomega) {

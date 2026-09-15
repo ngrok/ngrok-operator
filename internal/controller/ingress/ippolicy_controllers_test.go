@@ -6,8 +6,8 @@ import (
 	"time"
 
 	ngrok "github.com/ngrok/ngrok-api-go/v9"
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +36,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			Name: "test-ip-policy", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
+				Metadata: testutils.LegacyMetadataString("test"),
 			},
 		}
 		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{
@@ -60,7 +60,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			Name: "test-ip-policy-update", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
+				Metadata: testutils.LegacyMetadataString("test"),
 			},
 		}
 		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{
@@ -96,7 +96,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			Name: "test-ip-policy-del", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
+				Metadata: testutils.LegacyMetadataString("test"),
 			},
 		}
 		ip.Spec.Rules = []ingressv1alpha1.IPPolicyRule{
@@ -134,7 +134,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			Name: "test-existing-policy", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
+				Metadata: testutils.LegacyMetadataString("test"),
 			},
 		}
 		ip.Spec.Description = "test-existing"
@@ -177,7 +177,7 @@ var _ = Describe("IPPolicyReconciler", func() {
 		ip := &ingressv1alpha1.IPPolicy{
 			Name: "test-existing-policy-rules", Namespace: "default",
 			Spec: ingressv1alpha1.IPPolicySpec{
-				Metadata: commonv1alpha1.MetadataFromLegacyString("test"),
+				Metadata: testutils.LegacyMetadataString("test"),
 			},
 		}
 		ip.Spec.Description = "test-with-rules"

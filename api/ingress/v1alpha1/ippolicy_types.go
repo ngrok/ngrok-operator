@@ -42,7 +42,7 @@ type IPPolicyRule struct {
 	//
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
+	// +kubebuilder:default:={"owned-by":"ngrok-operator"}
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 	// CIDR is an IPv4 or IPv6 address range in CIDR notation (e.g. 10.0.0.0/8 or 2001:db8::/32)
 	// Pattern adapted from the standard IPv4/IPv6 validation regex documented at
@@ -67,7 +67,7 @@ type IPPolicySpec struct {
 	//
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
+	// +kubebuilder:default:={"owned-by":"ngrok-operator"}
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 	// Rules is a list of rules that belong to the policy
 	Rules []IPPolicyRule `json:"rules,omitempty"`

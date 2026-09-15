@@ -181,7 +181,7 @@ type KubernetesOperatorSpec struct {
 	//
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
+	// +kubebuilder:default:={"owned-by":"ngrok-operator"}
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// Features enabled for this Kubernetes Operator

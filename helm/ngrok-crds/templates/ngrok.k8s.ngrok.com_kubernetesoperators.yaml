@@ -137,7 +137,8 @@ spec:
                   type: string
                 type: array
               metadata:
-                default: '{"owned-by":"ngrok-operator"}'
+                default:
+                  owned-by: ngrok-operator
                 description: |-
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
