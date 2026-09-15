@@ -6,7 +6,8 @@ shims** — small pieces of read-side and/or write-side compatibility code
 that let an older operator coexist with a newer one during rolling
 upgrades and (where possible) survive a `helm rollback`. User-facing
 instructions belong in release-specific upgrade guides under `docs/`, such as
-[`docs/upgrading-to-0.24.md`](../upgrading-to-0.24.md).
+[`docs/upgrading-to-0.24.md`](../upgrading-to-0.24.md) and
+[`docs/upgrading-to-0.25.md`](../upgrading-to-0.25.md).
 
 ## Why we need shims
 
@@ -897,8 +898,9 @@ object before starting the old binary.
     into Go struct field ... of type string`. With any AgentEndpoint
     present the agent-manager wedges too — `drain.StateChecker.IsDraining`
     does a cached Get that blocks on a KO informer that can never sync, so
-    the AgentEndpoint is never reconciled. Whatever release ships R2 needs
-    its own upgrade guide saying so. Remediation is order-sensitive:
+    the AgentEndpoint is never reconciled. Recorded for users in
+    [`docs/upgrading-to-0.25.md`](../upgrading-to-0.25.md). Remediation is
+    order-sensitive:
     complete the rollback first, *then* patch status back to the string
     form. Patching while a newer pod is still Running lets it re-write the
     array, after which the older manager starts, takes the lease, and sits
