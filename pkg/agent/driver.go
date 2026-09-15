@@ -144,7 +144,7 @@ func NewDriver(driverOpts ...DriverOption) (Driver, error) {
 
 	agentOpts := []ngrok.AgentOption{
 		ngrok.WithClientInfo("ngrok-operator", version.GetVersion(), opts.agentComments...),
-		ngrok.WithAuthtoken(os.Getenv("NGROK_PAT")),
+		ngrok.WithAuthtoken(os.Getenv("NGROK_ACCESS_TOKEN")),
 		ngrok.WithLogger(slog.New(logr.ToSlogHandler(logger))),
 		ngrok.WithRPCHandler(func(_ context.Context, session ngrok.AgentSession, req rpc.Request) ([]byte, error) {
 			switch req.Method() {

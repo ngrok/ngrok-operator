@@ -298,7 +298,7 @@ func runOneClickDemoMode(ctx context.Context, mgr ctrl.Manager) error {
 			case <-ticker.C:
 				setupLog.Error(errors.New("Running in one-click-demo mode"), "Ready even if required fields are missing!")
 				setupLog.Info("The ngrok-operator is running in one-click-demo mode which means the operator is not actually reconciling resources.")
-				setupLog.Info("Please provide an ngrok personal access token in your Helm values to run the operator for real.")
+				setupLog.Info("Please provide an ngrok access token in your Helm values to run the operator for real.")
 				setupLog.Info("Please set `oneClickDemoMode: false` in your Helm values to run the operator for real.")
 			}
 		}
@@ -482,16 +482,16 @@ const ngrokAPIPreflightTimeout = 30 * time.Second
 
 // loadNgrokClientset loads the ngrok API clientset from the environment and managerOpts
 func loadNgrokClientset(opts apiManagerOpts) (ngrokapi.Clientset, error) {
-	pat, ok := os.LookupEnv("NGROK_PAT")
+	accessToken, ok := os.LookupEnv("NGROK_ACCESS_TOKEN")
 	if !ok {
-		return nil, errors.New("NGROK_PAT environment variable should be set, but was not")
+		return nil, errors.New("NGROK_ACCESS_TOKEN environment variable should be set, but was not")
 	}
 
 	clientConfigOpts := []ngrok.ClientConfigOption{
 		ngrok.WithUserAgent(version.GetUserAgent()),
 	}
 
-	ngrokClientConfig := ngrok.NewClientConfig(pat, clientConfigOpts...)
+	ngrokClientConfig := ngrok.NewClientConfig(accessToken, clientConfigOpts...)
 	if opts.apiURL != "" {
 		u, err := url.Parse(opts.apiURL)
 		if err != nil {
@@ -504,8 +504,8 @@ func loadNgrokClientset(opts apiManagerOpts) (ngrokapi.Clientset, error) {
 	return ngrokapi.NewClientSet(ngrokClientConfig), nil
 }
 
-// preflightNgrokAPIAccess verifies the personal access token against the ngrok
-// API before the manager starts.
+// preflightNgrokAPIAccess verifies the access token against the ngrok API
+// before the manager starts.
 //
 // Listing endpoints is treated as the credential check: the operator cannot do
 // anything useful without endpoint access, so failing there is fatal and is
@@ -530,7 +530,7 @@ func preflightNgrokAPIAccess(ctx context.Context, clientset ngrokapi.Clientset) 
 	epIter := clientset.Endpoints().List(&ngrok.Paging{Limit: new("1")})
 	epIter.Next(ctx)
 	if err := epIter.Err(); err != nil {
-		return fmt.Errorf("unable to verify ngrok personal access token: %w", err)
+		return fmt.Errorf("unable to verify ngrok access token: %w", err)
 	}
 	setupLog.Info("ngrok API read ok", "resource", "endpoints")
 

@@ -28,9 +28,9 @@ The ngrok-operator project includes a devcontainer configuration for GitHub Code
 
 The following environment variable secrets are required to develop and test the ngrok-operator in Codespaces:
 
-* NGROK_PAT
+* NGROK_ACCESS_TOKEN
 
-You can create a personal access token [here](https://dashboard.ngrok.com/settings/access-tokens).
+You can create an access token [here](https://dashboard.ngrok.com/settings/access-tokens).
 
 Follow [this guide](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-your-account-specific-secrets-for-github-codespaces) to add these secrets
 to your GitHub Account and allow them to be used with this repo.
@@ -85,7 +85,7 @@ This installs kind (if necessary) and provisions the cluster. Use `make kind-del
 #### Setup
 
 ```sh
-export NGROK_PAT=<YOUR Personal Access Token>
+export NGROK_ACCESS_TOKEN=<YOUR Access Token>
 # kubectl can connect to your cluster and images built locally are available to the cluster
 kubectl create namespace ngrok-operator
 kubectl config set-context --current --namespace=ngrok-operator

@@ -6,10 +6,10 @@ inputs:
     description: "Run e2e tests"
     required: false
     default: "false"
-  ngrok-pat:
-    description: "NGROK_PAT for e2e tests, if enabled"
+  ngrok-access-token:
+    description: "NGROK_ACCESS_TOKEN for e2e tests, if enabled"
     required: false
-    default: "fake-pat"
+    default: "fake-access-token"
 
 runs:
   using: "composite"
@@ -34,7 +34,7 @@ runs:
       env:
         # deploy with 1-click demo mode when not running e2e tests
         DEPLOY_ONE_CLICK_DEMO_MODE: ${{ inputs.run-e2e == 'true' &&  'false' || 'true' }}
-        NGROK_PAT: ${{ inputs.ngrok-pat }}
+        NGROK_ACCESS_TOKEN: ${{ inputs.ngrok-access-token }}
         E2E_BINDING_NAME: k8s/e2e-${{ github.run_id }}
       run: |
         # create some namespaces for bindings tests

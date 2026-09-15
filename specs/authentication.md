@@ -4,17 +4,20 @@
 
 The ngrok-operator authenticates with ngrok using a single credential:
 
-- **Personal Access Token** (`NGROK_PAT`): Used both for ngrok API access to manage resources (domains, endpoints, IP policies, etc.) and for ngrok agent authentication to establish tunnels.
+- **Access Token** (`NGROK_ACCESS_TOKEN`): Used both for ngrok API access to manage resources (domains, endpoints, IP policies, etc.) and for ngrok agent authentication to establish tunnels.
 
 Earlier versions used a separate API key and auth token. Those are no longer supported.
 
 ## Credential Storage
 
-The credential is stored in a Kubernetes Secret in the operator's namespace. The Secret contains one key:
+The credential is stored in a Kubernetes Secret in the operator's namespace. Each component reads its own key, so that one component's token can be rotated without touching the other:
 
-| Secret Key | Description                     |
-|------------|---------------------------------|
-| `PAT`      | ngrok personal access token     |
+| Secret Key | Read by | Description |
+|---|---|---|
+| `AGENT_ACCESS_TOKEN` | agent-manager | ngrok access token for the tunnel session |
+| `API_MANAGER_ACCESS_TOKEN` | api-manager | ngrok access token for the ngrok API |
+
+Both keys hold the same value unless a per-component token is configured.
 
 ## Providing Credentials
 
@@ -24,8 +27,27 @@ When installing via Helm, the token can be provided directly:
 
 ```yaml
 credentials:
-  pat: "<your-personal-access-token>"
+  accessToken: "<your-access-token>"
 ```
+
+One token for every component is the simple path, and the one the dashboard's
+operator token template is built for. To give each component only the
+permissions it needs, set a token per component instead. Each falls back to
+`credentials.accessToken` when empty:
+
+```yaml
+credentials:
+  agent:
+    accessToken: "<token that can start tunnels>"
+  apiManager:
+    accessToken: "<token with ngrok API permissions>"
+```
+
+The agent-manager only establishes tunnel sessions, so its token needs nothing
+more than permission to start tunnels. The api-manager never starts tunnels; it
+needs the API permissions for the resources it reconciles. Setting a token for
+one component but not the other fails the render, rather than leaving the other
+pod unable to start.
 
 When the value is provided, the Helm chart creates a Secret with the generated name `<release-name>-ngrok-operator-credentials` (or the name specified in `credentials.secret.name`).
 
@@ -41,7 +63,7 @@ metadata:
   namespace: <operator-namespace>
 type: Opaque
 data:
-  PAT: <base64-encoded-personal-access-token>
+  ACCESS_TOKEN: <base64-encoded-access-token>
 ```
 
 Then reference it in Helm values:
@@ -52,16 +74,16 @@ credentials:
     name: my-ngrok-credentials
 ```
 
-When `credentials.pat` is empty, the Helm chart does not create a Secret and expects the named Secret to already exist.
+When `credentials.accessToken` is empty, the Helm chart does not create a Secret and expects the named Secret to already exist.
 
 ## Credential Consumption
 
-The two pods that need the credential mount it as `NGROK_PAT`:
+The two pods that need the credential mount their own key as `NGROK_ACCESS_TOKEN`:
 
 - The **api-manager** (main controller) uses it for all ngrok API operations.
 - The **agent-manager** uses it for establishing agent tunnels.
 
-The **bindings-forwarder** does not receive it. Its data path authenticates with the mTLS client certificate described below. It becomes a credential consumer when its egress moves to private dial, which is PAT-only; the credential gets plumbed in as part of that work.
+The **bindings-forwarder** does not receive it. Its data path authenticates with the mTLS client certificate described below. It becomes a credential consumer when its egress moves to private dial, which is access token-only; the credential gets plumbed in as part of that work.
 
 A single token with the permissions all three need is the simple path. Per-component tokens with narrower permissions are not wired up yet.
 
@@ -71,4 +93,4 @@ When the bindings feature is enabled, the operator generates a self-signed TLS c
 
 ## One-Click Demo Mode
 
-When `oneClickDemoMode: true` is set, the operator does not connect to the ngrok API or reconcile resources; it reports as Ready and waits. The api-manager pod still mounts `NGROK_PAT` from the Secret unconditionally, so the Secret and its `PAT` key must exist for the pod to start even in this mode.
+When `oneClickDemoMode: true` is set, the operator does not connect to the ngrok API or reconcile resources; it reports as Ready and waits. The api-manager pod still mounts `NGROK_ACCESS_TOKEN` from the Secret unconditionally, so the Secret and its `ACCESS_TOKEN` key must exist for the pod to start even in this mode.

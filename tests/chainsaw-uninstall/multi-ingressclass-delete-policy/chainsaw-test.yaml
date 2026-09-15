@@ -72,7 +72,7 @@ spec:
                 --namespace namespace-a \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values-operator-a.yaml \
-                --set credentials.pat=${NGROK_PAT} \
+                --set credentials.accessToken=${NGROK_ACCESS_TOKEN} \
                 --wait --timeout 2m
 
     - name: deploy operator-b (watches namespace-b, ingress class ngrok-b)
@@ -85,7 +85,7 @@ spec:
                 --namespace namespace-b \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values-operator-b.yaml \
-                --set credentials.pat=${NGROK_PAT} \
+                --set credentials.accessToken=${NGROK_ACCESS_TOKEN} \
                 --wait --timeout 2m
 
     - name: wait for both KubernetesOperators to be registered
