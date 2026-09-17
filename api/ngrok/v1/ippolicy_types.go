@@ -22,16 +22,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package v1alpha1
+package v1
 
 import (
 	"encoding/json"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 )
 
+// IPPolicyRule mirrors ingress.k8s.ngrok.com/v1alpha1 IPPolicyRule field for
+// field so the two kinds stay byte-compatible; see the IPPolicy doc comment
+// below for why that matters.
 type IPPolicyRule struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
 	// +kubebuilder:default:=`Created by ngrok-operator`
@@ -57,7 +58,10 @@ type IPPolicyRule struct {
 	Action string `json:"action,omitempty"`
 }
 
-// IPPolicySpec defines the desired state of IPPolicy
+// IPPolicySpec defines the desired state of IPPolicy.
+//
+// The spec is compatible with the deprecated
+// ingress.k8s.ngrok.com/v1alpha1 IPPolicySpec, with only a change to metadata type
 type IPPolicySpec struct {
 	// Description is a human-readable description of the object in the ngrok API/Dashboard
 	// +kubebuilder:default:=`Created by ngrok-operator`
@@ -70,12 +74,12 @@ type IPPolicySpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 	// Rules is a list of rules that belong to the policy
 	Rules []IPPolicyRule `json:"rules,omitempty"`
 }
 
-// IPPolicyStatus defines the observed state of IPPolicy
+// IPPolicyStatus defines the observed state of IPPolicy.
 type IPPolicyStatus struct {
 	// ObservedGeneration is the most recent metadata.generation observed by the
 	// controller. When it matches metadata.generation, the status reflects the
@@ -94,23 +98,28 @@ type IPPolicyStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:categories=ngrok
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="IPPolicy ID"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`,description="IPPolicy Ready"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].reason`,description="Ready Reason",priority=1
 // +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].message`,description="Ready Message",priority=1
 
-// IPPolicy is the Schema for the ippolicies API.
+// IPPolicy is the Schema for the ippolicies API in the canonical ngrok.com/v1
+// group. It replaces the deprecated ingress.k8s.ngrok.com/v1alpha1 IPPolicy.
 //
-// Deprecated: superseded by the canonical ngrok.com/v1 IPPolicy. This kind
-// stays fully operable and readable for the whole migration window — see
+// LEGACY-ippolicy-kind: this is the canonical half of a dual-CRD passive
+// migration, following the same pattern used for
+// ngrok.com/v1 TrafficPolicy (see
 // docs/superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md
-// and docs/developer-guide/passivity-shims.md §"Per-shim catalog: TrafficPolicy
-// CRD kind + group rename" for the pattern this follows
-// (LEGACY-ippolicy-kind). Everything that reconciles, resolves, or watches an
-// IPPolicy should be written against internal/ippolicy.IPPolicyResource so it
-// serves both kinds from one implementation, rather than duplicating logic
-// per kind.
+// and docs/developer-guide/passivity-shims.md
+// §"Per-shim catalog: TrafficPolicy CRD kind + group rename"). The deprecated
+// ingress.k8s.ngrok.com/v1alpha1 IPPolicy stays fully operable and readable
+// for the whole migration window; nothing about it changes here beyond
+// documentation and the addition of the shared ippolicy.IPPolicyResource
+// accessors. Everything that reconciles, resolves, or watches an IPPolicy
+// should be written against internal/ippolicy.IPPolicyResource so it serves
+// both kinds from one implementation, rather than duplicating logic per kind.
 type IPPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -119,33 +128,19 @@ type IPPolicy struct {
 	Status IPPolicyStatus `json:"status,omitempty"`
 }
 
-// SetObservedGeneration records the generation the controller reconciled.
-func (p *IPPolicy) SetObservedGeneration(generation int64) {
-	p.Status.ObservedGeneration = generation
-}
-
-// The accessors below satisfy internal/ippolicy.IPPolicyResource so this
-// legacy kind can be driven by the same generic code as the canonical
-// ngrok.com/v1 IPPolicy.
-//
-// LEGACY-ippolicy-kind: these accessors go away when this type is deleted at
-// cleanup; the interface and its generic consumers stay.
-
 // GetDescription returns the human-readable description from the spec.
 func (p *IPPolicy) GetDescription() string {
 	return p.Spec.Description
 }
 
-// GetMetadata returns the spec metadata parsed into a map[string]string,
-// handling both the canonical object form and the deprecated legacy string
-// form.
+// GetMetadata returns the metadata map from the spec.
 func (p *IPPolicy) GetMetadata() map[string]string {
-	return common.MetadataToMap(p.Spec.Metadata)
+	return p.Spec.Metadata
 }
 
 // GetRulesJSON returns the spec rules re-encoded as JSON so kind-agnostic
-// callers can consume them without depending on this package's IPPolicyRule
-// type.
+// callers can consume them without depending on the concrete IPPolicyRule
+// type of whichever kind (canonical or legacy) supplied them.
 func (p *IPPolicy) GetRulesJSON() (json.RawMessage, error) {
 	return json.Marshal(p.Spec.Rules)
 }
@@ -171,9 +166,14 @@ func (p *IPPolicy) GetObservedGeneration() int64 {
 	return p.Status.ObservedGeneration
 }
 
+// SetObservedGeneration records the generation the controller reconciled.
+func (p *IPPolicy) SetObservedGeneration(generation int64) {
+	p.Status.ObservedGeneration = generation
+}
+
 // +kubebuilder:object:root=true
 
-// IPPolicyList contains a list of IPPolicy
+// IPPolicyList contains a list of IPPolicy.
 type IPPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
