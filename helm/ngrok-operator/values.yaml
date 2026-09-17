@@ -258,7 +258,7 @@ credentials:
 ##
 ingress:
   enabled: true # enabled by default
-  controllerName: "ngrok.com/ingress-controller"
+  controllerName: "k8s.ngrok.com/ingress-controller"
   watchNamespace: "" # default all
   ingressClass:
     name: ngrok
