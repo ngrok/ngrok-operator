@@ -153,8 +153,8 @@ func (c ControllerLabelValues) HasLabels(obj client.Object) bool {
 	return HasControllerLabels(obj, c.Namespace, c.Name)
 }
 
-// EnsureLabels dual-writes the new-prefix and legacy-prefix controller labels.
-// Returns true if any label changed.
+// EnsureLabels writes the controller labels and removes the legacy-prefix pair
+// left behind by a pre-migration operator. Returns true if any label changed.
 func (c ControllerLabelValues) EnsureLabels(obj client.Object) bool {
 	return EnsureControllerLabels(obj, c.Namespace, c.Name)
 }

@@ -255,6 +255,19 @@ func TestAddFinalizer(t *testing.T) {
 			wantLegacyPresent: false,
 			wantNewPresent:    true,
 		},
+		{
+			// Reachable by rolling back to R1 (which re-adds the legacy key to an
+			// object R2 already stamped) and then rolling forward again. Nothing is
+			// added here, so the legacy removal alone has to drive the return value —
+			// RegisterAndSyncFinalizer skips its Patch when this is false.
+			name: "both present after a rollback to R1 and forward again",
+			obj: &netv1.Ingress{
+				Finalizers: []string{FinalizerName, LegacyFinalizerName},
+			},
+			wantAdded:         true,
+			wantLegacyPresent: false,
+			wantNewPresent:    true,
+		},
 	}
 
 	for _, tt := range tests {

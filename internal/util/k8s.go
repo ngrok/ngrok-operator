@@ -28,8 +28,8 @@ func HasFinalizer(o client.Object) bool {
 }
 
 // AddFinalizer adds the canonical ngrok finalizer and removes the legacy one
-// left behind by a pre-migration (R1) operator. Returns true if the finalizer
-// was added.
+// left behind by a pre-migration (R1) operator. Returns true if either
+// happened, so callers know the object still needs persisting.
 func AddFinalizer(o client.Object) bool {
 	added := controllerutil.AddFinalizer(o, FinalizerName)
 	// LEGACY-PREFIX-MIGRATION: drop this removal in R3; a rollback to R1 is
