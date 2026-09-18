@@ -70,6 +70,41 @@ func allStringValues(m map[string]json.RawMessage) bool {
 	return true
 }
 
+// MetadataToMap parses a raw CRD metadata value into a map[string]string:
+//
+//   - object form -> the decoded key/value pairs
+//   - legacy string form -> the string, itself parsed as an object (the
+//     deprecated wire form was JSON-encoded twice: a JSON string containing a
+//     JSON object)
+//   - unset/null / anything that doesn't decode into a flat string map -> nil
+//
+// LEGACY-metadata-format (read-side cleanup): drop the string-unwrapping
+// branch once the string form is removed; the value will always be object
+// form.
+func MetadataToMap(raw json.RawMessage) map[string]string {
+	t := bytes.TrimSpace(raw)
+	if len(t) == 0 || string(t) == "null" {
+		return nil
+	}
+
+	if t[0] == '"' {
+		var s string
+		if err := json.Unmarshal(t, &s); err != nil {
+			return nil
+		}
+		t = bytes.TrimSpace([]byte(s))
+		if len(t) == 0 {
+			return nil
+		}
+	}
+
+	var m map[string]string
+	if err := json.Unmarshal(t, &m); err != nil {
+		return nil
+	}
+	return m
+}
+
 // MetadataFromMap builds a canonical (object-form) metadata value. json.Marshal
 // emits map keys in sorted order, so the encoding is stable. An empty map
 // returns nil so the field is omitted and the CRD default applies.
