@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
@@ -16,12 +16,12 @@ import (
 // implementation. It is used for testing purposes only and should not be used in production
 // environments.
 type DomainClient struct {
-	baseClient[*ngrok.ReservedDomain]
+	baseClient[*ngrok.ReservedDomain, ngrok.FilteredPaging]
 }
 
 func NewDomainClient() *DomainClient {
 	return &DomainClient{
-		baseClient: newBase[*ngrok.ReservedDomain](
+		baseClient: newBase[*ngrok.ReservedDomain, ngrok.FilteredPaging](
 			"rd",
 		),
 	}

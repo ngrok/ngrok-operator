@@ -6,10 +6,10 @@ metadata:
   name: ngrok-operator-agent
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
@@ -22,10 +22,10 @@ metadata:
   name: ngrok-operator
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
@@ -290,6 +290,9 @@ spec:
                     uri:
                       description: a uri for locating a resource
                       type: string
+                  required:
+                  - id
+                  - uri
                   type: object
                 type: array
               endpointsSummary:
@@ -423,8 +426,20 @@ spec:
                   in the ngrok API/Dashboard
                 type: string
               domain:
-                description: Domain is the domain name to reserve
+                description: |-
+                  Domain is the domain name to reserve.
+
+                  Immutable: reserved domains cannot be renamed via the ngrok API, so
+                  changing this field would require releasing the existing reservation and
+                  reserving a new one. To reserve a different domain, create a new Domain
+                  resource for it — this one does not need to be deleted. Deleting it is a
+                  separate, optional step; spec.reclaimPolicy controls only what that
+                  delete does to the reservation in ngrok.
                 type: string
+                x-kubernetes-validations:
+                - message: spec.domain is immutable. Reserved domains cannot be renamed
+                    via the ngrok API; create a new Domain resource instead
+                  rule: self == oldSelf
               metadata:
                 default: '{"owned-by":"ngrok-operator"}'
                 description: |-
@@ -441,21 +456,6 @@ spec:
                 - Delete
                 - Retain
                 type: string
-              resolves_to:
-                description: 'Deprecated: use resolvesTo instead. Will be removed
-                  in a future release.'
-                items:
-                  description: DomainResolvesToEntry contains a resolving target for
-                    this domain
-                  properties:
-                    value:
-                      description: Value is a point-of-presence alias, an IP address
-                        (coming soon), or an IP group alias (coming soon)
-                      type: string
-                  required:
-                  - value
-                  type: object
-                type: array
               resolvesTo:
                 description: ResolvesTo is the list of resolving targets for the domain
                 items:
@@ -814,6 +814,159 @@ spec:
                 x-kubernetes-list-type: map
               id:
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+
+---
+# Source: ngrok-operator/charts/ngrok-crds/templates/ngrok.com_trafficpolicies.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: trafficpolicies.ngrok.com
+spec:
+  group: ngrok.com
+  names:
+    categories:
+    - ngrok
+    kind: TrafficPolicy
+    listKind: TrafficPolicyList
+    plural: trafficpolicies
+    singular: trafficpolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].reason
+      name: Reason
+      priority: 1
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          TrafficPolicy is the Schema for the trafficpolicies API in the canonical
+          ngrok.com/v1 group. It replaces the deprecated
+          ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              TrafficPolicySpec defines the desired state of TrafficPolicy.
+
+              The spec is byte-compatible with the deprecated
+              ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicySpec so a manual migration is
+              a manifest re-stamp (change kind + apiVersion, re-apply, delete the legacy
+              object).
+            properties:
+              policy:
+                description: |-
+                  The raw json encoded policy that was applied to the ngrok API.
+                  Intentionally schemaless: the traffic policy language is defined and
+                  versioned by the ngrok API, so validating its shape here would break
+                  whenever new phases, actions, or fields ship server-side. The policy is
+                  parsed at reconcile time and the result is reported via the Ready/Valid
+                  conditions.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+            type: object
+          status:
+            description: TrafficPolicyStatus defines the observed state of TrafficPolicy.
+            properties:
+              conditions:
+                description: Conditions describe the current conditions of the TrafficPolicy.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                maxItems: 8
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
               observedGeneration:
                 description: |-
                   ObservedGeneration is the most recent metadata.generation observed by the
@@ -1764,11 +1917,19 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    deprecated: true
+    deprecationWarning: ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy is deprecated;
+      use ngrok.com/v1 TrafficPolicy instead. Re-stamp the manifest's kind and apiVersion,
+      apply it, then delete the NgrokTrafficPolicy object.
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies
-          API
+        description: |-
+          NgrokTrafficPolicy is the Schema for the ngroktrafficpolicies API.
+
+          Deprecated: use the canonical ngrok.com/v1 TrafficPolicy. This kind is
+          still served and resolved for one migration release; see
+          docs/developer-guide/passivity-shims.md.
         properties:
           apiVersion:
             description: |-
@@ -1788,7 +1949,9 @@ spec:
           metadata:
             type: object
           spec:
-            description: NgrokTrafficPolicySpec defines the desired state of NgrokTrafficPolicy
+            description: |-
+              This spec is deprecated in favor of the canonical ngrok.com/v1
+              TrafficPolicySpec.
             properties:
               policy:
                 description: |-
@@ -1951,10 +2114,22 @@ rules:
 # namespace, independent of `watchNamespace`. The agent reads it for drain
 # state via a release-namespace-pinned cache scope; its rules live in
 # release-namespace-role.yaml.
+
+# LEGACY-trafficpolicy-kind: BEGIN — drop this rule block at cleanup.
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - ngroktrafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
+# LEGACY-trafficpolicy-kind: END
+# Canonical ngrok.com/v1 TrafficPolicy rule
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies
   verbs:
   - get
   - list
@@ -2034,6 +2209,7 @@ rules:
   - patch
   - update
   - watch
+
 ---
 # Source: ngrok-operator/templates/api-manager/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2358,6 +2534,8 @@ rules:
 # CR is the api-manager's own state singleton and always lives in the release
 # namespace, independent of `watchNamespace`. Its rules live in
 # release-namespace-role.yaml.
+
+# LEGACY-trafficpolicy-kind: BEGIN — drop these two rule blocks at cleanup.
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -2370,6 +2548,39 @@ rules:
   - ngrok.k8s.ngrok.com
   resources:
   - ngroktrafficpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+# LEGACY-trafficpolicy-kind: END
+# --- ngrok.com ---
+# Canonical ngrok.com/v1 TrafficPolicy rules. These mirror the legacy
+# ngroktrafficpolicies pair above: read verbs on the resource itself, write
+# verbs only on the status subresource. The api-manager reads traffic policies
+# and reports conditions on them; it never creates or deletes them.
+#
+# list/watch are load-bearing — TrafficPolicyReconciler does For(&TrafficPolicy{}),
+# both endpoint controllers Watches() it, and driver.Seed lists it. Without them
+# the informer cache cannot start and the canonical kind silently stops working
+# while the deprecated kind keeps going.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies/status
   verbs:
   - get
   - patch
@@ -2427,10 +2638,10 @@ metadata:
   name: ngrok-operator-agentendpoint-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2461,10 +2672,10 @@ metadata:
   name: ngrok-operator-agentendpoint-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2491,10 +2702,10 @@ metadata:
   name: ngrok-operator-boundendpoint-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2525,10 +2736,10 @@ metadata:
   name: ngrok-operator-boundendpoint-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2555,10 +2766,10 @@ metadata:
   name: ngrok-operator-cloudendpoint-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2589,10 +2800,10 @@ metadata:
   name: ngrok-operator-cloudendpoint-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2619,10 +2830,10 @@ metadata:
   name: ngrok-operator-domain-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2653,10 +2864,10 @@ metadata:
   name: ngrok-operator-domain-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2683,10 +2894,10 @@ metadata:
   name: ngrok-operator-ippolicy-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2717,10 +2928,10 @@ metadata:
   name: ngrok-operator-ippolicy-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2747,10 +2958,10 @@ metadata:
   name: ngrok-operator-kubernetesoperator-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2781,10 +2992,10 @@ metadata:
   name: ngrok-operator-kubernetesoperator-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2811,10 +3022,10 @@ metadata:
   name: ngrok-operator-ngroktrafficpolicy-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2845,10 +3056,10 @@ metadata:
   name: ngrok-operator-ngroktrafficpolicy-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2864,6 +3075,70 @@ rules:
   - ngrok.k8s.ngrok.com
   resources:
   - ngroktrafficpolicies/status
+  verbs:
+  - get
+
+---
+# Source: ngrok-operator/templates/rbac/crd-access/trafficpolicy-editor.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-trafficpolicy-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.24.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.22.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies/status
+  verbs:
+  - get
+
+---
+# Source: ngrok-operator/templates/rbac/crd-access/trafficpolicy-viewer.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-trafficpolicy-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.24.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.22.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - trafficpolicies/status
   verbs:
   - get
 
@@ -2934,6 +3209,7 @@ rules:
   - get
   - list
   - watch
+
 ---
 # Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2973,6 +3249,7 @@ rules:
   verbs:
   - create
   - patch
+
 ---
 # Source: ngrok-operator/templates/api-manager/release-namespace-role.yaml
 # Operator-state RBAC: rules the api-manager needs that are tied to the
@@ -3035,6 +3312,7 @@ rules:
   - get
   - patch
   - update
+
 ---
 # Source: ngrok-operator/templates/agent/release-namespace-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3089,17 +3367,17 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: agent
   name: ngrok-operator-agent
   namespace: ngrok-operator
   annotations:
-    checksum/rbac: 73ae2719b31e64e50841b665bdd7334f4c809be84fa8e759f6b2ae62eae98092
+    checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
 spec:
   replicas: 1
   strategy:
@@ -3115,7 +3393,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/rbac: 73ae2719b31e64e50841b665bdd7334f4c809be84fa8e759f6b2ae62eae98092
+        checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator
@@ -3141,7 +3419,7 @@ spec:
       serviceAccountName: ngrok-operator-agent
       containers:
       - name: agent
-        image: docker.io/ngrok/ngrok-operator:0.22.0-rc.2
+        image: docker.io/ngrok/ngrok-operator:0.22.0
         imagePullPolicy: IfNotPresent
         command:
         - /ngrok-operator
@@ -3195,17 +3473,17 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: a5feb00a9d952701b7df9be2e793e7fad0b3b9fc71a1dab956d3637b293da537
+    checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -3220,7 +3498,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: a5feb00a9d952701b7df9be2e793e7fad0b3b9fc71a1dab956d3637b293da537
+        checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
@@ -3248,7 +3526,7 @@ spec:
       serviceAccountName: ngrok-operator
       containers:
       - name: ngrok-operator
-        image: docker.io/ngrok/ngrok-operator:0.22.0-rc.2
+        image: docker.io/ngrok/ngrok-operator:0.22.0
         imagePullPolicy: IfNotPresent
         command:
         - /ngrok-operator
@@ -3306,10 +3584,10 @@ apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
@@ -3324,16 +3602,17 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3342,10 +3621,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
@@ -3362,6 +3641,7 @@ rules:
       - list
       - watch
       - delete
+
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3370,10 +3650,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
@@ -3397,10 +3677,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.0-rc.2
+    helm.sh/chart: ngrok-operator-0.24.0
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.0-rc.2"
+    app.kubernetes.io/version: "0.22.0"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:

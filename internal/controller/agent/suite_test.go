@@ -6,6 +6,7 @@ import (
 	"time"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -13,7 +14,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -70,6 +70,9 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	err = ngrokv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = ngrokv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = ingressv1alpha1.AddToScheme(scheme.Scheme)
@@ -130,9 +133,7 @@ var _ = BeforeSuite(func() {
 	// Create namespaces for namespace filtering tests
 	for _, ns := range []string{watchedNamespace, unwatchedNamespace} {
 		namespace := &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: ns,
-			},
+			Name: ns,
 		}
 		err = k8sClient.Create(context.Background(), namespace)
 		if err != nil {

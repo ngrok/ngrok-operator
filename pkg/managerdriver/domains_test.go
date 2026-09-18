@@ -155,10 +155,8 @@ func TestGatewayToDomains_SkipsExistingDomains(t *testing.T) {
 
 func TestIngressToDomains_SkipsEmptyHost(t *testing.T) {
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-ingress",
-			Namespace: "test-namespace",
-		},
+		Name:      "test-ingress",
+		Namespace: "test-namespace",
 		Spec: netv1.IngressSpec{
 			Rules: []netv1.IngressRule{
 				{Host: ""},
@@ -176,10 +174,8 @@ func TestIngressToDomains_SkipsEmptyHost(t *testing.T) {
 
 func TestGatewayToDomains_SkipsNilHostname(t *testing.T) {
 	gateway := &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-gateway",
-			Namespace: "test-namespace",
-		},
+		Name:      "test-gateway",
+		Namespace: "test-namespace",
 		Spec: gatewayv1.GatewaySpec{
 			Listeners: []gatewayv1.Listener{
 				{Name: "no-hostname", Hostname: nil},

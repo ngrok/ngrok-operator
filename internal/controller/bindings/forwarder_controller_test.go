@@ -17,7 +17,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -74,11 +73,9 @@ func TestLoadTLSCertificate(t *testing.T) {
 	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tls-secret",
-			Namespace: "default",
-		},
-		Type: v1.SecretTypeTLS,
+		Name:      "tls-secret",
+		Namespace: "default",
+		Type:      v1.SecretTypeTLS,
 		Data: map[string][]byte{
 			"tls.crt": certPEM,
 			"tls.key": keyPEM,
@@ -125,12 +122,10 @@ func generateTestTLSMaterial() (certPEM, keyPEM []byte, err error) {
 var _ = Describe("podIdentityFromPod", func() {
 	var (
 		pod *v1.Pod = &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				UID:         "uid123",
-				Name:        "pod1",
-				Namespace:   "default",
-				Annotations: map[string]string{},
-			},
+			UID:         "uid123",
+			Name:        "pod1",
+			Namespace:   "default",
+			Annotations: map[string]string{},
 		}
 	)
 
@@ -172,13 +167,13 @@ var _ = Describe("ForwarderReconciler field indexer integration", func() {
 	It("registers the pod IP field indexer in SetupWithManager and lists pods by IP", func() {
 		// create namespace and pod via mgr client so the manager's cache can observe them
 		ns := &v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-namespace-" + utilrand.String(6)},
+			Name: "test-namespace-" + utilrand.String(6),
 		}
 		Expect(k8sManager.GetClient().Create(ctx, ns)).To(Succeed())
 
 		pod := &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-pod-" + utilrand.String(6), Namespace: ns.Name},
-			Spec:       v1.PodSpec{Containers: []v1.Container{{Name: "test-container", Image: "nginx"}}},
+			Name: "test-pod-" + utilrand.String(6), Namespace: ns.Name,
+			Spec: v1.PodSpec{Containers: []v1.Container{{Name: "test-container", Image: "nginx"}}},
 		}
 		Expect(k8sManager.GetClient().Create(ctx, pod)).To(Succeed())
 

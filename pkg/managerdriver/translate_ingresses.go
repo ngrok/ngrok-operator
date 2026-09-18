@@ -278,20 +278,30 @@ func (t *translator) ingressPathsToIR(ingress *netv1.Ingress, ruleHostname strin
 func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.IngressBackend, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream) (*ir.IRDestination, error) {
 	// First check if we are supplying a traffic policy as the backend
 	if resourceRef := backend.Resource; resourceRef != nil {
-		if strings.ToLower(resourceRef.Kind) != "ngroktrafficpolicy" {
-			return nil, fmt.Errorf("ingress backend resource reference to unsupported kind: %q. currently only NgrokTrafficPolicy is supported for resource backends", resourceRef.Kind)
+		kindLower := strings.ToLower(resourceRef.Kind)
+		// LEGACY-trafficpolicy-kind: at cleanup this narrows to
+		// `kindLower != "trafficpolicy"` and the group check narrows to
+		// only accept `ngrok.com`. The error messages lose their
+		// "(deprecated)" call-outs.
+		if kindLower != "trafficpolicy" && kindLower != "ngroktrafficpolicy" {
+			return nil, fmt.Errorf("ingress backend resource reference to unsupported kind: %q. supported kinds: TrafficPolicy (ngrok.com), NgrokTrafficPolicy (ngrok.k8s.ngrok.com, deprecated)", resourceRef.Kind)
 		}
 
-		if resourceRef.APIGroup != nil && *resourceRef.APIGroup != "ngrok.k8s.ngrok.com" {
-			return nil, fmt.Errorf("ingress backend resource to invalid group: %q. currently only NgrokTrafficPolicy is supported for resource backends with API Group \"ngrok.k8s.ngrok.com\"", *resourceRef.APIGroup)
+		if resourceRef.APIGroup != nil && *resourceRef.APIGroup != "ngrok.com" && *resourceRef.APIGroup != "ngrok.k8s.ngrok.com" {
+			return nil, fmt.Errorf("ingress backend resource to invalid group: %q. supported groups: \"ngrok.com\" (canonical), \"ngrok.k8s.ngrok.com\" (deprecated)", *resourceRef.APIGroup)
 		}
 
-		routePolicyCfg, err := t.store.GetNgrokTrafficPolicyV1(resourceRef.Name, ingress.Namespace)
+		lookup, err := t.store.ResolveTrafficPolicy(resourceRef.Name, ingress.Namespace)
 		if err != nil {
 			return nil, fmt.Errorf("unable to resolve traffic policy backend for ingress rule: %w", err)
 		}
+		// LEGACY-trafficpolicy-kind (read-side cleanup): drop this log branch.
+		if lookup.LegacyKind {
+			t.log.Info("resolved TrafficPolicy backend via deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy; migrate to ngrok.com/v1 TrafficPolicy",
+				"ingress", ingress.Name, "namespace", ingress.Namespace, "trafficPolicy", resourceRef.Name)
+		}
 
-		routeTrafficPolicy, err := trafficpolicy.NewTrafficPolicyFromJSON(routePolicyCfg.Spec.Policy)
+		routeTrafficPolicy, err := trafficpolicy.NewTrafficPolicyFromJSON(lookup.Policy)
 		if err != nil {
 			return nil, err
 		}
@@ -389,7 +399,7 @@ func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *tra
 		)
 	}
 
-	tpObj, err := store.GetNgrokTrafficPolicyV1(tpName, obj.GetNamespace())
+	lookup, err := store.ResolveTrafficPolicy(tpName, obj.GetNamespace())
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to load traffic policy for %s %q from annotations: %w",
 			obj.GetObjectKind().GroupVersionKind().Kind,
@@ -398,7 +408,7 @@ func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *tra
 		)
 	}
 
-	trafficPolicyCfg, err := trafficpolicy.NewTrafficPolicyFromJSON(tpObj.Spec.Policy)
+	trafficPolicyCfg, err := trafficpolicy.NewTrafficPolicyFromJSON(lookup.Policy)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse traffic policy for %s %q: %w",
 			obj.GetObjectKind().GroupVersionKind().Kind,
@@ -406,9 +416,20 @@ func trafficPolicyFromAnnotation(store store.Storer, obj client.Object) (tp *tra
 			err,
 		)
 	}
+	// OwningResource.Kind is the canonical kind ("TrafficPolicy") when the
+	// canonical CR served the lookup, and stays "NgrokTrafficPolicy" for the
+	// legacy fallback so downstream event/log surfaces name what the user has
+	// actually installed.
+	//
+	// LEGACY-trafficpolicy-kind: at cleanup this collapses to a constant
+	// "TrafficPolicy" Kind — the LegacyKind branch goes away.
+	owningKind := "TrafficPolicy"
+	if lookup.LegacyKind {
+		owningKind = "NgrokTrafficPolicy"
+	}
 	return trafficPolicyCfg, &ir.OwningResource{
-		Kind:      "NgrokTrafficPolicy",
-		Name:      tpObj.Name,
-		Namespace: tpObj.Namespace,
+		Kind:      owningKind,
+		Name:      lookup.Object.GetName(),
+		Namespace: lookup.Object.GetNamespace(),
 	}, nil
 }

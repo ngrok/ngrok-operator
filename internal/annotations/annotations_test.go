@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	networking "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
@@ -86,11 +85,9 @@ func TestExtractNgrokTrafficPolicyFromAnnotations(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := &networking.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-ingress",
-					Namespace:   "default",
-					Annotations: tc.annotations,
-				},
+				Name:        "test-ingress",
+				Namespace:   "default",
+				Annotations: tc.annotations,
 			}
 
 			policy, err := annotations.ExtractNgrokTrafficPolicyFromAnnotations(obj)
@@ -173,11 +170,9 @@ func TestExtractUseEndpointPooling(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := &networking.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-ingress",
-					Namespace:   "default",
-					Annotations: tc.annotations,
-				},
+				Name:        "test-ingress",
+				Namespace:   "default",
+				Annotations: tc.annotations,
 			}
 
 			useEndpoints, err := annotations.ExtractUseEndpointPooling(obj)
@@ -262,11 +257,9 @@ func TestExtractUseBindings(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := &networking.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-ingress",
-					Namespace:   "default",
-					Annotations: tc.annotations,
-				},
+				Name:        "test-ingress",
+				Namespace:   "default",
+				Annotations: tc.annotations,
 			}
 
 			binding, err := annotations.ExtractUseBindings(obj)
@@ -318,11 +311,9 @@ func TestExtractURL(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := &networking.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-ingress",
-					Namespace:   "default",
-					Annotations: tc.annotations,
-				},
+				Name:        "test-ingress",
+				Namespace:   "default",
+				Annotations: tc.annotations,
 			}
 
 			got, err := annotations.ExtractURL(obj)
@@ -399,11 +390,9 @@ func TestExtractComputedURL(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := &networking.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-ingress",
-					Namespace:   "default",
-					Annotations: tc.annotations,
-				},
+				Name:        "test-ingress",
+				Namespace:   "default",
+				Annotations: tc.annotations,
 			}
 
 			got, err := annotations.ExtractComputedURL(obj)
@@ -458,11 +447,9 @@ func TestExtractMetadata(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := &networking.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-ingress",
-					Namespace:   "default",
-					Annotations: tc.annotations,
-				},
+				Name:        "test-ingress",
+				Namespace:   "default",
+				Annotations: tc.annotations,
 			}
 			got, err := annotations.ExtractMetadata(obj)
 			require.NoError(t, err)
@@ -510,11 +497,9 @@ func TestExtractDescription(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			obj := &networking.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-ingress",
-					Namespace:   "default",
-					Annotations: tc.annotations,
-				},
+				Name:        "test-ingress",
+				Namespace:   "default",
+				Annotations: tc.annotations,
 			}
 			got, err := annotations.ExtractDescription(obj)
 			require.NoError(t, err)

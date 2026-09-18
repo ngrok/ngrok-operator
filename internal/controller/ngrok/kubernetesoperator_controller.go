@@ -41,7 +41,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -50,12 +49,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 var featureMap = map[string]string{
@@ -216,7 +216,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		}
 
 		createParams.Binding = &ngrok.KubernetesOperatorBindingCreate{
-			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
+			EndpointSelectors: util.NilIfEmpty(ko.Spec.Binding.EndpointSelectors),
 			CSR:               string(tlsSecret.Data["tls.csr"]),
 		}
 	}
@@ -316,8 +316,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 	if err != nil {
 		errMessage = err.Error()
 
-		var ngrokErr *ngrok.Error
-		if errors.As(err, &ngrokErr) {
+		if ngrokErr, ok := errors.AsType[*ngrok.Error](err); ok {
 			if ngrokErr.Msg != "" {
 				errMessage = ngrokErr.Msg
 			}
@@ -403,7 +402,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		}
 
 		updateParams.Binding = &ngrok.KubernetesOperatorBindingUpdate{
-			EndpointSelectors: ko.Spec.Binding.EndpointSelectors,
+			EndpointSelectors: util.NilIfEmpty(ko.Spec.Binding.EndpointSelectors),
 			CSR:               new(string(tlsSecret.Data["tls.csr"])),
 		}
 	}
@@ -479,7 +478,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 }
 
 func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
-	features := []string{}
+	var features []string
 
 	for _, f := range ko.Spec.EnabledFeatures {
 		if v, ok := featureMap[f]; ok {
@@ -530,11 +529,9 @@ func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context
 	}
 
 	secret = &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      ko.Spec.Binding.TlsSecretName,
-			Namespace: r.K8sOpNamespace,
-		},
-		Type: v1.SecretTypeTLS,
+		Name:      ko.Spec.Binding.TlsSecretName,
+		Namespace: r.K8sOpNamespace,
+		Type:      v1.SecretTypeTLS,
 	}
 
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {

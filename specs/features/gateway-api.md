@@ -74,8 +74,6 @@ listeners:
 
 Keys without the prefix are ignored. Supplying a reserved suffix fails translation for the Gateway.
 
-During the `k8s.ngrok.com/` → `ngrok.com/` migration window the operator also reads the legacy `k8s.ngrok.com/terminate-tls.` prefix; when both prefixes define the same option suffix, the `ngrok.com/` key wins. Legacy support is removed in 1.0 — see [`docs/v1-migration-guide.md`](../../docs/v1-migration-guide.md).
-
 ## ReferenceGrants
 
 By default, cross-namespace references require a `ReferenceGrant` in the target namespace. This can be disabled via `gateway.disableReferenceGrants: true`, which allows cross-namespace references without explicit grants.

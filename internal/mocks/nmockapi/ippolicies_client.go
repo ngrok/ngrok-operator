@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 )
 
 type IPPolicyClient struct {
-	baseClient[*ngrok.IPPolicy]
+	baseClient[*ngrok.IPPolicy, ngrok.FilteredPaging]
 }
 
 func NewIPPolicyClient() *IPPolicyClient {
 	return &IPPolicyClient{
-		baseClient: newBase[*ngrok.IPPolicy](
+		baseClient: newBase[*ngrok.IPPolicy, ngrok.FilteredPaging](
 			"ipp",
 		),
 	}

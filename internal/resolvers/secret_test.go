@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -23,10 +22,8 @@ func TestDefaultSecretResolver(t *testing.T) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "namespace",
-			Name:      "name",
-		},
+		Namespace: "namespace",
+		Name:      "name",
 		Data: map[string][]byte{
 			"key": []byte("secret-value"),
 		},

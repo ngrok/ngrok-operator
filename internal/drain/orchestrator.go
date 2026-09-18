@@ -122,7 +122,11 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 	}
 
 	log.Info("Drain started, sleeping to allow other controllers to observe drain state")
-	time.Sleep(2 * time.Second)
+	select {
+	case <-ctx.Done():
+		return OutcomeRetry, ctx.Err()
+	case <-time.After(2 * time.Second):
+	}
 
 	log.Info("Running drain process")
 	o.recorder.Eventf(ko, nil, v1.EventTypeNormal, "DrainStarted", "Drain", "Starting drain of all managed resources")

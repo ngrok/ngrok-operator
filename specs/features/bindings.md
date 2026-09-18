@@ -52,8 +52,6 @@ When a workload connects through a projected bound-endpoint Service, the binding
 | Key form        | `ngrok.com/<anything>` — free-form, user-defined       |
 | Consumed by     | ngrok traffic-policy expressions on the bound endpoint |
 
-During the `k8s.ngrok.com/` → `ngrok.com/` migration window the forwarder forwards pod annotations under either prefix, verbatim — policy expressions matching `k8s.ngrok.com/*` key names keep working until the pod annotations themselves are renamed. Legacy-prefix forwarding is removed in 1.0 — see [`docs/v1-migration-guide.md`](../../docs/v1-migration-guide.md).
-
 ## Related Specs
 
 - [BoundEndpoint CRD](../crds/boundendpoint.md)

@@ -3,17 +3,21 @@ package ngrok
 import (
 	"fmt"
 
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
+	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
+// Shared TrafficPolicy condition vocabulary, written identically for the
+// canonical ngrok.com/v1 TrafficPolicy and the deprecated
+// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy so users see the same
+// condition types and reasons regardless of which kind they applied.
 const (
-	// condition types for NgrokTrafficPolicy
+	// Condition types.
 	ConditionTrafficPolicyReady = "Ready"
 	ConditionTrafficPolicyValid = "Valid"
 
-	// condition reasons for NgrokTrafficPolicy
+	// Condition reasons.
 	ReasonTrafficPolicyValid       = "TrafficPolicyValid"
 	ReasonTrafficPolicyParseFailed = "TrafficPolicyParseFailed"
 	ReasonLegacyPolicyFormat       = "LegacyPolicyFormat"
@@ -23,7 +27,11 @@ const (
 // setTrafficPolicyConditions sets the Valid and Ready conditions from the
 // result of parsing spec.policy. Both conditions share the same reason so
 // deprecation warnings surface in the Ready-based printer columns.
-func setTrafficPolicyConditions(tp *ngrokv1alpha1.NgrokTrafficPolicy, parsed util.TrafficPolicy, parseErr error) {
+//
+// It takes the kind-agnostic TrafficPolicyResource interface rather than a
+// concrete type, so both served kinds get byte-identical condition handling
+// from a single implementation.
+func setTrafficPolicyConditions(tp trafficpolicypkg.TrafficPolicyResource, parsed util.TrafficPolicy, parseErr error) {
 	valid := parseErr == nil
 	reason := ReasonTrafficPolicyValid
 	message := "Traffic policy is valid"
@@ -40,6 +48,6 @@ func setTrafficPolicyConditions(tp *ngrokv1alpha1.NgrokTrafficPolicy, parsed uti
 		message = "Traffic policy has 'enabled' set. This is a legacy option that will stop being supported soon."
 	}
 
-	conditions.Set(&tp.Status.Conditions, tp.Generation, ConditionTrafficPolicyValid, valid, reason, message)
-	conditions.Set(&tp.Status.Conditions, tp.Generation, ConditionTrafficPolicyReady, valid, reason, message)
+	conditions.Set(tp.GetConditions(), tp.GetGeneration(), ConditionTrafficPolicyValid, valid, reason, message)
+	conditions.Set(tp.GetConditions(), tp.GetGeneration(), ConditionTrafficPolicyReady, valid, reason, message)
 }

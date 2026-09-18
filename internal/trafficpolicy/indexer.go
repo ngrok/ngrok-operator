@@ -32,9 +32,14 @@ import (
 )
 
 // RefIndex is the canonical field-indexer name used by endpoint controllers
-// that watch NgrokTrafficPolicy. Each controller registers an index with this
+// that watch TrafficPolicy. Each controller registers an index with this
 // name on its endpoint type so the watch mapper can list endpoints by the
 // composite namespace/name of their referenced TrafficPolicy.
+//
+// The index is keyed by namespace/name only, with no kind component, so a
+// single index serves both the canonical ngrok.com/v1 TrafficPolicy and the
+// deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy — an update to
+// either kind re-enqueues the same endpoints.
 const RefIndex = ".spec.trafficPolicy.targetRef"
 
 // IndexKey returns the composite "<namespace>/<name>" key for the endpoint's

@@ -93,14 +93,9 @@ Most CRDs that correspond to ngrok API resources include:
 | `description` | `"Created by the ngrok-operator"`     |
 | `metadata`    | `{"owned-by": "ngrok-operator"}`      |
 
-> The `metadata` default shows the logical key/value content. During the
-> migration window (0.24) it is written in the **JSON-string** form
-> (`'{"owned-by":"ngrok-operator"}'`) for rollback safety; it flips to the object
-> form at the cleanup release. See [`metadata` format](#metadata-format) below.
-
 ### `metadata` format
 
-**End goal:** `metadata` is a map of string key/value pairs
+`metadata` is a map of string key/value pairs
 (`map[string]string`) on every ngrok-backed CRD (`Domain`, `IPPolicy` and its
 `rules[]`, `KubernetesOperator`, `CloudEndpoint`, `AgentEndpoint`). Users express
 metadata as native YAML:
@@ -126,12 +121,6 @@ against the string ngrok has stored to decide whether an update is needed
 `json.Marshal` emits map keys in sorted order, so the same map always serializes
 to the same bytes — without a stable order the comparison would flap and the
 operator would issue redundant API updates on every reconcile.
-
-A value that is neither a string nor a **flat** `string → string` object (for
-example an object with nested values) is passed through to the ngrok API
-verbatim rather than re-serialized, since the sorting normalization only applies
-to flat maps. Nested metadata is outside the intended contract but is not
-rejected.
 
 #### Sources and precedence
 
@@ -169,29 +158,6 @@ operator injects keys in two places:
   it back to detect cluster identity. See
   [KubernetesOperator: Cluster Identity and Deduplication](../controllers/kubernetesoperator.md#cluster-identity-and-deduplication)
   and [multi-install](../features/multi-install.md).
-
-#### Backward compatibility (migration window)
-
-For backward compatibility the field currently also accepts a raw JSON string —
-the form the operator previously required, where the object was hand-rolled into
-a string (`metadata: '{"owned-by":"ngrok-operator"}'`). The string form is
-**deprecated** and documented for removal at the cleanup release. Both forms
-carry the same key/value data, so switching a manifest from the JSON-object
-string to the equivalent map is semantically equivalent — though because the map
-form is sent with sorted keys, a legacy string with unsorted keys may trigger one
-normalization update against the API.
-
-During the migration window the CRD field is schemaless
-(`x-kubernetes-preserve-unknown-fields`) so the API server accepts either shape;
-the operator normalizes both to the same ngrok API string. The default value is still written in the
-**string** form so objects that take the default remain readable by a rolled-back
-prior release. In the cleanup release the field collapses to a real
-`map[string]string` (`additionalProperties: {type: string}`) and the default
-flips to the object form — the CRD default is preserved across the change, only
-its representation changes. See
-[`docs/developer-guide/passivity-shims.md`](../../docs/developer-guide/passivity-shims.md)
-for the migration mechanics and [`docs/v1-migration-guide.md`](../../docs/v1-migration-guide.md)
-for the user-facing timeline.
 
 ## Shared Types
 

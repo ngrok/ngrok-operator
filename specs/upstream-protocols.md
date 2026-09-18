@@ -46,7 +46,3 @@ spec:
 | Default         | (unset — HTTP/1)                                       |
 
 Unrecognized values are ignored (logged at debug level). Each port has exactly one `appProtocol` value.
-
-## Migration note
-
-During the `k8s.ngrok.com/` → `ngrok.com/` migration window the operator also reads the legacy `k8s.ngrok.com/app-protocols` annotation key (the `ngrok.com/` key wins if both are present) and the legacy `k8s.ngrok.com/http2` appProtocol value. Legacy support is removed in 1.0. Because backend Services are read in translation rather than reconciled directly, legacy use here surfaces in the operator logs, not as Kubernetes events. See [`docs/v1-migration-guide.md`](../docs/v1-migration-guide.md).

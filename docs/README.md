@@ -13,6 +13,10 @@
 
 For how to use the ngrok Operator, see the [User Guide on the ngrok Docs site](https://ngrok.com/docs/k8s/user-guide/).
 
+## Upgrading
+
+- [Upgrade from Helm chart 0.23 to 0.24](./upgrading-to-0.24.md)
+
 # Contributing
 
 See our [Developer Guide](./developer-guide/README.md) for more information on how to contribute to the project.

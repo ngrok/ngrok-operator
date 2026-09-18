@@ -387,9 +387,7 @@ var _ = Describe("secretReferencedByGateway", func() {
 		namespace := "test-ns-" + rand.String(5)
 
 		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-			},
+			Name: namespace,
 		}
 		Expect(k8sClient.Create(ctx, ns)).To(Succeed())
 
@@ -419,11 +417,9 @@ var _ = Describe("secretReferencedByGateway", func() {
 		Expect(k8sClient.Create(ctx, &gw)).To(Succeed())
 
 		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      secretName,
-				Namespace: namespace,
-			},
-			Type: corev1.SecretTypeTLS,
+			Name:      secretName,
+			Namespace: namespace,
+			Type:      corev1.SecretTypeTLS,
 			Data: map[string][]byte{
 				"tls.crt": []byte("cert"),
 				"tls.key": []byte("key"),

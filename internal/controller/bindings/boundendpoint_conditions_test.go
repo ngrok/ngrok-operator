@@ -12,11 +12,9 @@ import (
 
 func createTestBoundEndpoint(name, namespace string) *bindingsv1alpha1.BoundEndpoint {
 	return &bindingsv1alpha1.BoundEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       name,
-			Namespace:  namespace,
-			Generation: 1,
-		},
+		Name:       name,
+		Namespace:  namespace,
+		Generation: 1,
 		Status: bindingsv1alpha1.BoundEndpointStatus{
 			Conditions: []metav1.Condition{},
 		},

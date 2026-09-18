@@ -15,7 +15,7 @@
 |-----------------|-------------------------|----------|-------------------------------------------------------|------------------------------|
 | `description`   | string                  | No       | `"Created by the ngrok-operator"`                      |                              |
 | `metadata`      | map[string]string       | No       | `{"owned-by": "ngrok-operator"}`                       |                              |
-| `domain`        | string                  | Yes      |                                                       |                              |
+| `domain`        | string                  | Yes      |                                                       | Immutable (CEL: `self == oldSelf`) |
 | `resolvesTo`    | []DomainResolvesToEntry| No       |                                                       |                              |
 | `reclaimPolicy` | DomainReclaimPolicy     | No       | `"Delete"`                                            | Enum: `Delete`, `Retain`     |
 
@@ -75,8 +75,30 @@ The default can be overridden globally via the Helm value `defaultDomainReclaimP
 
 The Domain CRD does not consume user-facing annotations.
 
+## Immutability
+
+`spec.domain` is immutable and enforced at admission by a CEL transition rule. Reserved
+domains cannot be renamed via the ngrok API — `ReservedDomainUpdate` accepts only
+`description`, `metadata`, `certificate`, and `resolvesTo` — so honoring a rename would
+mean releasing the existing reservation and reserving a new one, which risks losing the
+domain to another account in the gap.
+
+To reserve a different domain, create a new Domain resource for it. The existing Domain
+does not need to be deleted — it keeps its reservation until you decide otherwise.
+Deleting it is a separate, optional step: `spec.reclaimPolicy` governs only what that
+delete does on the ngrok side (release the reservation, or leave it reserved).
+
+The other reservation fields (`description`, `metadata`, and `resolvesTo`) remain mutable
+and are reconciled onto the existing reservation. `reclaimPolicy` is set only at creation
+and controls that resource's own deletion behavior — it is not reconciled onto the
+reservation.
+
 ## Notes
 
 - Domain CRs are typically created automatically by endpoint controllers (AgentEndpoint, CloudEndpoint, Ingress, Gateway routes) rather than by users directly.
+- Operator-created Domain CRs are named after the domain itself, via
+  `HyphenatedDomainNameFromURL` (dots become dashes, `*` becomes `wildcard`). A different
+  hostname therefore yields a different object, so the controllers create a new Domain
+  rather than mutating an existing one.
 - For custom domains, the `status.cnameTarget` field contains the CNAME that users must configure in their DNS provider.
 - Internal domains (URLs ending in `.internal`) skip ngrok API calls entirely.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ngrok/ngrok-api-go/v7"
+	"github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
@@ -71,10 +71,8 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 
 	It("should register successfully with ingress feature enabled", func(ctx SpecContext) {
 		ko := &ngrokv1alpha1.KubernetesOperator{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      k8sOpName,
-				Namespace: controllerNamespace,
-			},
+			Name:      k8sOpName,
+			Namespace: controllerNamespace,
 			Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 				Description:     "test operator",
 				Metadata:        commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"test"}`),
@@ -139,10 +137,8 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 
 	It("should report and recover from an invalid bindings configuration", func(ctx SpecContext) {
 		ko := &ngrokv1alpha1.KubernetesOperator{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      k8sOpName,
-				Namespace: controllerNamespace,
-			},
+			Name:      k8sOpName,
+			Namespace: controllerNamespace,
 			Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 				Description:     "test operator with nil binding",
 				Metadata:        commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"test"}`),
@@ -211,10 +207,8 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		const holdFinalizer = "test.ngrok.com/hold"
 
 		ko := &ngrokv1alpha1.KubernetesOperator{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      k8sOpName,
-				Namespace: controllerNamespace,
-			},
+			Name:      k8sOpName,
+			Namespace: controllerNamespace,
 			Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 				Description:     "drain lifecycle envtest",
 				Metadata:        commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"test"}`),
@@ -226,11 +220,9 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 			},
 		}
 		service := &v1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:       "drain-lifecycle",
-				Namespace:  controllerNamespace,
-				Finalizers: []string{util.LegacyFinalizerName},
-			},
+			Name:       "drain-lifecycle",
+			Namespace:  controllerNamespace,
+			Finalizers: []string{util.LegacyFinalizerName},
 			Spec: v1.ServiceSpec{
 				Ports: []v1.ServicePort{{Port: 80}},
 			},

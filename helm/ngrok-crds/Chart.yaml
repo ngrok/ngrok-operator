@@ -1,8 +1,8 @@
 apiVersion: v2
 name: ngrok-crds
 description: ngrok Custom Resource Definitions for Kubernetes.
-version: 0.4.0-rc.2
-appVersion: 0.4.0-rc.2
+version: 0.4.0
+appVersion: 0.4.0
 keywords:
   - ngrok
   - networking

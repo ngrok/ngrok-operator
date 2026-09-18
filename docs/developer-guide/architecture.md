@@ -37,7 +37,7 @@ Internally, the ngrok Kubernetes Operator is made up of multiple controllers wor
 The following controllers for the most part manage a single resource and reflect those changes in the ngrok API.
 - [IP Policy Controller](../../internal/controller/ingress/ippolicy_controller.go): It simply watches these CRDs and reflects the changes in the ngrok API.
 - [Domain Controller](../../internal/controller/ingress/domain_controller.go): It will watch for domain CRDs and reflect those changes in the ngrok API. It will also update the domain CRD objects' status fields with the current state of the domain in the ngrok API, such as a CNAME target if it's a white label domain.
-- [Cloud Endpoint Controller](../../internal/controller/ngrok/cloudendpoint_controller.go): Manages a single ngrok Endpoint resource (type=cloud). It ensures the URL's domain exists (via DomainManager), attaches a TrafficPolicy (inline JSON or a `spec.trafficPolicy.targetRef` reference, resolved through the shared [`internal/trafficpolicy`](../../internal/trafficpolicy) manager that AgentEndpoint also uses), sets Bindings and Pooling, and updates status. It does not create per-route resources; all routing, modules, and TLS are encoded in the TrafficPolicy. The controller maintains a composite traffic-policy index covering both the canonical `spec.trafficPolicy.targetRef` and the legacy `spec.trafficPolicyName` fallback, and re-reconciles CloudEndpoints when the referenced NgrokTrafficPolicy changes.
+- [Cloud Endpoint Controller](../../internal/controller/ngrok/cloudendpoint_controller.go): Manages a single ngrok Endpoint resource (type=cloud). It ensures the URL's domain exists (via DomainManager), attaches a TrafficPolicy (inline JSON or a `spec.trafficPolicy.targetRef` reference, resolved through the shared [`internal/trafficpolicy`](../../internal/trafficpolicy) manager that AgentEndpoint also uses), sets Bindings and Pooling, and updates status. It does not create per-route resources; all routing, modules, and TLS are encoded in the TrafficPolicy. The controller maintains a composite traffic-policy index covering both the canonical `spec.trafficPolicy.targetRef` and the legacy `spec.trafficPolicyName` fallback, and re-reconciles CloudEndpoints when the referenced TrafficPolicy changes — under either the canonical `ngrok.com/v1 TrafficPolicy` kind or the deprecated `ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy` kind, since the index key is namespace/name only.
 
 The following controllers are more complex and manage multiple resources and reflect those changes in the ngrok API.
 
@@ -81,7 +81,8 @@ The API manager is a leader elected manager that runs the following controllers 
 * Domain Controller
 * IP Policy Controller
 * CloudEndpoint Controller
-* NgrokTrafficPolicy Controller
+* TrafficPolicy Controller (canonical `ngrok.com/v1`)
+* NgrokTrafficPolicy Controller (deprecated `ngrok.k8s.ngrok.com/v1alpha1`)
 * KubernetesOperator Controller
 
 ### Bindings

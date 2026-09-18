@@ -53,21 +53,20 @@ type DomainSpec struct {
 	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 
-	// Domain is the domain name to reserve
+	// Domain is the domain name to reserve.
+	//
+	// Immutable: reserved domains cannot be renamed via the ngrok API, so
+	// changing this field would require releasing the existing reservation and
+	// reserving a new one. To reserve a different domain, create a new Domain
+	// resource for it — this one does not need to be deleted. Deleting it is a
+	// separate, optional step; spec.reclaimPolicy controls only what that
+	// delete does to the reservation in ngrok.
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.domain is immutable. Reserved domains cannot be renamed via the ngrok API; create a new Domain resource instead"
 	Domain string `json:"domain"`
 
 	// ResolvesTo is the list of resolving targets for the domain
 	ResolvesTo []DomainResolvesToEntry `json:"resolvesTo,omitempty"`
-
-	// LEGACY-FIELD-MIGRATION: BEGIN — delete the ResolvesToLegacy field in the
-	// cleanup release once users have migrated resolves_to -> resolvesTo. The
-	// blank line below keeps this marker out of the generated CRD description.
-
-	// Deprecated: use resolvesTo instead. Will be removed in a future release.
-	// +kubebuilder:validation:Optional
-	ResolvesToLegacy *[]DomainResolvesToEntry `json:"resolves_to,omitempty"`
-	// LEGACY-FIELD-MIGRATION: END
 
 	// DomainReclaimPolicy is the policy to use when the domain is deleted
 	// +kubebuilder:validation:Enum=Delete;Retain
@@ -75,18 +74,9 @@ type DomainSpec struct {
 	ReclaimPolicy DomainReclaimPolicy `json:"reclaimPolicy,omitempty"`
 }
 
-// GetResolvesTo returns ResolvesTo if set, falling back to the deprecated
-// ResolvesToLegacy (resolves_to) field.
+// GetResolvesTo returns ResolvesTo
 func (s *DomainSpec) GetResolvesTo() []DomainResolvesToEntry {
-	if s.ResolvesTo != nil {
-		return s.ResolvesTo
-	}
-	// LEGACY-FIELD-MIGRATION (read-side cleanup): drop this fallback and the
-	// deprecated ResolvesToLegacy field; collapse to `return s.ResolvesTo`.
-	if s.ResolvesToLegacy != nil {
-		return *s.ResolvesToLegacy
-	}
-	return nil
+	return s.ResolvesTo
 }
 
 // DomainStatus defines the observed state of Domain
