@@ -208,11 +208,11 @@ func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, d
 	}
 
 	// Clone-and-probe: EnsureLabels reports whether it would change anything.
-	// Running it against a copy tells us whether every label the operator wants
-	// (during the migration window, both the new and legacy pairs) is already
-	// present with the correct value, without mutating domainObj. When
-	// EnsureLabels later stops dual-writing the legacy pair, this probe collapses
-	// along with it — there is no migration-specific code to clean up here.
+	// Running it against a copy tells us whether domainObj already carries every
+	// label the operator wants — and, during the migration window, that no
+	// legacy-prefix pair is left to strip — without mutating it. The probe
+	// tracks whatever EnsureLabels does, so there is no migration-specific code
+	// to clean up here.
 	if !m.controllerLabels.EnsureLabels(domainObj.DeepCopy()) {
 		return nil
 	}

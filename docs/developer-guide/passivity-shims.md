@@ -159,6 +159,16 @@ git grep '// LEGACY-'
 then narrow by tag (e.g. `git grep 'LEGACY-trafficpolicy-name'`). For each
 hit, delete the block between `BEGIN` / `END` or delete the marked line.
 
+`BEGIN` / `END` means *everything between the two markers goes*. Never wrap
+a region that contains a line the cleanup has to keep. When the lines to
+remove are interleaved with lines that survive — a legacy read near the top
+of a function and a legacy `delete` near the bottom, say — use a separate
+line marker on each piece instead, and have each marker name what it covers
+(`setComputedURLAnnotation` in
+`internal/controller/service/controller.go` is the worked example). One
+marker whose text describes lines further down is the failure mode to avoid:
+the sweep deletes what sits under the marker and silently leaves the rest.
+
 Markers say what *kind* of cleanup they are: a `(write-side cleanup)`
 marker stops dual-writing the legacy key, a `(read-side cleanup)` marker
 stops reading it. That distinction is the load-bearing part — write-side
@@ -274,13 +284,21 @@ and the precise code touched at each step.
   - `setComputedURLAnnotation`: drop the legacy write and the legacy
     comparison; add
     `delete(a, annotations.LegacyComputedURLAnnotation)` so existing
-    Services shed the legacy key on next reconcile.
+    Services shed the legacy key on next reconcile. The early return also
+    gains a `hadLegacy` guard — without it a Service whose new-prefix value
+    is already correct returns before reaching the delete and keeps its
+    legacy key forever.
   - **Keep** the legacy fallback read in `ExtractComputedURL`.
   - **Keep** the legacy delete in `clearComputedURLAnnotation` (no harm).
 - **R3 — read-side cleanup:** drop the
   `LegacyComputedURLAnnotation` const, the legacy fallback branch in
-  `ExtractComputedURL`, and the legacy delete in
-  `clearComputedURLAnnotation`.
+  `ExtractComputedURL`, the legacy delete in
+  `clearComputedURLAnnotation`, and — in `setComputedURLAnnotation` — the
+  `hadLegacy` read, the `&& !hadLegacy` clause, and the R2-added delete.
+  Those three sit in one function but are not contiguous (the lines between
+  them survive), so they carry two separate line markers rather than one
+  `BEGIN` / `END` block; see the note on non-contiguous regions under
+  [`LEGACY-*` sentinels](#legacy--sentinels).
 
 ### Bindings labels on Services owned by BoundEndpoint (operator-written)
 
