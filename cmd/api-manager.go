@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -475,9 +476,10 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 	return mgr, nil
 }
 
-// ngrokAPIPreflightTimeout bounds the startup credential checks as a whole. The
-// manager's health probe is not bound until after they run, so an unbounded
-// wait here is indistinguishable from a crashed pod.
+// ngrokAPIPreflightTimeout bounds the startup credential checks as a whole.
+// They run concurrently, so this is the budget for all of them rather than for
+// each. The manager's health probe is not bound until after they run, so an
+// unbounded wait here is indistinguishable from a crashed pod.
 const ngrokAPIPreflightTimeout = 30 * time.Second
 
 // loadNgrokClientset loads the ngrok API clientset from the environment and managerOpts
@@ -502,6 +504,78 @@ func loadNgrokClientset(opts apiManagerOpts) (ngrokapi.Clientset, error) {
 	setupLog.Info("configured API client", "base_url", ngrokClientConfig.BaseURL)
 
 	return ngrokapi.NewClientSet(ngrokClientConfig), nil
+}
+
+// ngrokAPIPreflightProbe is a single read against the ngrok API, used to
+// verify the access token before the manager starts.
+type ngrokAPIPreflightProbe struct {
+	resource string
+	// required marks a probe whose failure stops the manager from starting.
+	required bool
+	read     func(context.Context) error
+}
+
+// ngrokAPIPreflightProbes are the reads the operator uses to verify its access
+// token. Each one lists a single item; the contents are irrelevant, only
+// whether the call is allowed.
+func ngrokAPIPreflightProbes(clientset ngrokapi.Clientset) []ngrokAPIPreflightProbe {
+	return []ngrokAPIPreflightProbe{
+		{
+			resource: "endpoints",
+			required: true,
+			read: func(ctx context.Context) error {
+				iter := clientset.Endpoints().List(&ngrok.Paging{Limit: new("1")})
+				iter.Next(ctx)
+				return iter.Err()
+			},
+		},
+		{
+			resource: "domains",
+			read: func(ctx context.Context) error {
+				iter := clientset.Domains().List(&ngrok.FilteredPaging{Limit: new("1")})
+				iter.Next(ctx)
+				return iter.Err()
+			},
+		},
+		{
+			resource: "tcp-addrs",
+			read: func(ctx context.Context) error {
+				iter := clientset.TCPAddresses().List(&ngrok.FilteredPaging{Limit: new("1")})
+				iter.Next(ctx)
+				return iter.Err()
+			},
+		},
+		{
+			// IP policies have no List on the clientset, but IP policy rules are gated by
+			// the same ip-policies scopes, so listing them covers both.
+			resource: "ip-policies",
+			read: func(ctx context.Context) error {
+				iter := clientset.IPPolicyRules().List(&ngrok.FilteredPaging{Limit: new("1")})
+				iter.Next(ctx)
+				return iter.Err()
+			},
+		},
+	}
+}
+
+// runNgrokAPIPreflightProbes runs every probe concurrently and returns their
+// errors, indexed to match probes. The probes are independent reads against
+// different endpoints, so running them in sequence would pay each round trip
+// in turn without producing any more signal.
+func runNgrokAPIPreflightProbes(ctx context.Context, probes []ngrokAPIPreflightProbe) []error {
+	errs := make([]error, len(probes))
+
+	var wg sync.WaitGroup
+	for i, probe := range probes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = probe.read(ctx)
+		}()
+	}
+	wg.Wait()
+
+	return errs
 }
 
 // preflightNgrokAPIAccess verifies the access token against the ngrok API
@@ -531,36 +605,24 @@ func preflightNgrokAPIAccess(ctx context.Context, clientset ngrokapi.Clientset) 
 	ctx, cancel := context.WithTimeout(ctx, ngrokAPIPreflightTimeout)
 	defer cancel()
 
-	epIter := clientset.Endpoints().List(&ngrok.Paging{Limit: new("1")})
-	epIter.Next(ctx)
-	if err := epIter.Err(); err != nil {
-		return fmt.Errorf("unable to verify ngrok access token: %w", err)
-	}
-	setupLog.Info("ngrok API read ok", "resource", "endpoints")
+	probes := ngrokAPIPreflightProbes(clientset)
+	errs := runNgrokAPIPreflightProbes(ctx, probes)
 
-	check := func(resource string, err error) {
-		if err != nil {
-			setupLog.Error(err, "ngrok API read failed", "resource", resource)
-			return
+	// Reported in probe order rather than completion order, so that the startup
+	// logs read the same way every time.
+	var required error
+	for i, probe := range probes {
+		switch {
+		case errs[i] == nil:
+			setupLog.Info("ngrok API read ok", "resource", probe.resource)
+		case probe.required:
+			required = fmt.Errorf("unable to verify ngrok access token: %w", errs[i])
+		default:
+			setupLog.Error(errs[i], "ngrok API read failed", "resource", probe.resource)
 		}
-		setupLog.Info("ngrok API read ok", "resource", resource)
 	}
 
-	domainIter := clientset.Domains().List(&ngrok.FilteredPaging{Limit: new("1")})
-	domainIter.Next(ctx)
-	check("domains", domainIter.Err())
-
-	tcpAddrIter := clientset.TCPAddresses().List(&ngrok.FilteredPaging{Limit: new("1")})
-	tcpAddrIter.Next(ctx)
-	check("tcp-addrs", tcpAddrIter.Err())
-
-	// IP policies have no List on the clientset, but IP policy rules are gated by
-	// the same ip-policies scopes, so listing them covers both.
-	ipPolicyRuleIter := clientset.IPPolicyRules().List(&ngrok.FilteredPaging{Limit: new("1")})
-	ipPolicyRuleIter.Next(ctx)
-	check("ip-policies", ipPolicyRuleIter.Err())
-
-	return nil
+	return required
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
