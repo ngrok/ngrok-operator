@@ -44,9 +44,13 @@ Create a default name for the credentials secret name using the helm release
 {{/*
 The secret key a component reads its access token from.
 
-Each component gets its own key so that an override can be rotated without
-touching the others. The key holds the component's own token when one is set,
-and the shared credentials.accessToken otherwise.
+Each component gets its own key so that a component can be given a token
+carrying only the permissions it needs, once ngrok access tokens support
+scoping. The key holds the component's own token when one is set, and the
+shared credentials.accessToken otherwise.
+
+Note that both deployments annotate the same checksum over the whole rendered
+secret, so changing any token restarts every component that holds one.
 
 Usage: include "ngrok-operator.accessTokenSecretKey" "agent"
 */}}

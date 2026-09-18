@@ -311,7 +311,7 @@
                     "properties": {
                         "accessToken": {
                             "type": "string",
-                            "description": "Optional access token for the agent-manager only. Falls back to credentials.accessToken. Only needs permission to start tunnels.",
+                            "description": "Optional access token for the agent-manager only. Falls back to credentials.accessToken.",
                             "default": ""
                         }
                     }
@@ -321,7 +321,7 @@
                     "properties": {
                         "accessToken": {
                             "type": "string",
-                            "description": "Optional access token for the api-manager only. Falls back to credentials.accessToken. Only needs ngrok API permissions.",
+                            "description": "Optional access token for the api-manager only. Falls back to credentials.accessToken.",
                             "default": ""
                         }
                     }

@@ -40,20 +40,17 @@ jobs:
       run: helm repo add ngrok https://charts.ngrok.com
     #
     - name: Install helm chart
-      env:
-        # This job installs an ALREADY-RELEASED chart, so it must keep using the
-        # credential values that release understands. Switch these to
-        # credentials.accessToken once a chart version containing that value has shipped.
-        NGROK_AUTHTOKEN: "SOME_AUTHTOKEN" # For now, these don't matter, mainly testing that it pulls the image and can get the CRDs
-        NGROK_API_KEY: "SOME_API_KEY"
+      # No credentials are passed. This job only checks that the chart installs,
+      # pulls its image and installs its CRDs, and it already expects the operator
+      # to crashloop without credentials. Passing none keeps it working against any
+      # chart version, including 0.25+, where credentials.apiKey and
+      # credentials.authtoken were removed and now fail the render.
       timeout-minutes: 10
       # TODO(operator-rename): Change this to ngrok/ngrok-operator when we are ready to release the helm chart
       run: |
         helm install ngrok-operator ngrok/ngrok-operator \
           --namespace $NAMESPACE \
           --create-namespace \
-          --set credentials.apiKey=$NGROK_API_KEY \
-          --set credentials.authtoken=$NGROK_AUTHTOKEN \
           --version ${{ inputs.chart_version }}
     - name: Sleep for 30 seconds for startup
       run: sleep 30

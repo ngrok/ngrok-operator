@@ -30,24 +30,26 @@ credentials:
   accessToken: "<your-access-token>"
 ```
 
-One token for every component is the simple path, and the one the dashboard's
-operator token template is built for. To give each component only the
-permissions it needs, set a token per component instead. Each falls back to
-`credentials.accessToken` when empty:
+One token for every component is the simple path. A token can also be set per
+component, each falling back to `credentials.accessToken` when empty:
 
 ```yaml
 credentials:
   agent:
-    accessToken: "<token that can start tunnels>"
+    accessToken: "<agent-manager token>"
   apiManager:
-    accessToken: "<token with ngrok API permissions>"
+    accessToken: "<api-manager token>"
 ```
 
-The agent-manager only establishes tunnel sessions, so its token needs nothing
-more than permission to start tunnels. The api-manager never starts tunnels; it
-needs the API permissions for the resources it reconciles. Setting a token for
-one component but not the other fails the render, rather than leaving the other
-pod unable to start.
+The split exists so that each component can be given a token carrying only the
+permissions it needs — the agent-manager only establishes tunnel sessions, and
+the api-manager only calls the ngrok API. That is not yet possible: an access
+token carries the full permissions of the account membership that created it,
+so today both tokens must be equally privileged and the split buys nothing.
+Wire it up now and narrowing becomes a values change later.
+
+Setting a token for one component but not the other fails the render, rather
+than leaving the other pod unable to start.
 
 When the value is provided, the Helm chart creates a Secret with the generated name `<release-name>-ngrok-operator-credentials` (or the name specified in `credentials.secret.name`).
 
@@ -63,8 +65,11 @@ metadata:
   namespace: <operator-namespace>
 type: Opaque
 data:
-  ACCESS_TOKEN: <base64-encoded-access-token>
+  AGENT_ACCESS_TOKEN: <base64-encoded-access-token>
+  API_MANAGER_ACCESS_TOKEN: <base64-encoded-access-token>
 ```
+
+Both keys are required, and may hold the same token.
 
 Then reference it in Helm values:
 
@@ -85,7 +90,6 @@ The two pods that need the credential mount their own key as `NGROK_ACCESS_TOKEN
 
 The **bindings-forwarder** does not receive it. Its data path authenticates with the mTLS client certificate described below. It becomes a credential consumer when its egress moves to private dial, which is access token-only; the credential gets plumbed in as part of that work.
 
-A single token with the permissions all three need is the simple path. Per-component tokens with narrower permissions are not wired up yet.
 
 ## mTLS for Bindings
 
@@ -93,4 +97,4 @@ When the bindings feature is enabled, the operator generates a self-signed TLS c
 
 ## One-Click Demo Mode
 
-When `oneClickDemoMode: true` is set, the operator does not connect to the ngrok API or reconcile resources; it reports as Ready and waits. The api-manager pod still mounts `NGROK_ACCESS_TOKEN` from the Secret unconditionally, so the Secret and its `ACCESS_TOKEN` key must exist for the pod to start even in this mode.
+When `oneClickDemoMode: true` is set, the operator does not connect to the ngrok API or reconcile resources; it reports as Ready and waits. The api-manager pod does not mount the credential in this mode, so no Secret is required for it to start.

@@ -83,7 +83,7 @@ Platform connection config shared by all components. Rendered into a common Conf
 | Parameter                  | Description                                    | Default |
 |----------------------------|------------------------------------------------|---------|
 | `credentials.secret.name`  | Secret name (auto-generated if empty)          | `""`    |
-| `credentials.accessToken`          | ngrok access token                    | `""`    |
+| `credentials.accessToken`  | ngrok access token                             | `""`    |
 
 See [authentication.md](../authentication.md) for details on credential management.
 

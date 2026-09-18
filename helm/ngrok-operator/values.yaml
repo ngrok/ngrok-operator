@@ -233,15 +233,18 @@ log:
 ##
 ## @param credentials.secret.name The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.
 ## @param credentials.accessToken Your ngrok access token. Used by every component that needs one, unless overridden below.
-## @param credentials.agent.accessToken Optional access token for the agent-manager only. Falls back to credentials.accessToken. Only needs permission to start tunnels.
-## @param credentials.apiManager.accessToken Optional access token for the api-manager only. Falls back to credentials.accessToken. Only needs ngrok API permissions.
+## @param credentials.agent.accessToken Optional access token for the agent-manager only. Falls back to credentials.accessToken.
+## @param credentials.apiManager.accessToken Optional access token for the api-manager only. Falls back to credentials.accessToken.
 ##
 credentials:
   secret:
     name: ""
   accessToken: ""
-  ## One token for everything is the simple path. To give each component only the
-  ## permissions it needs, set these instead of (or alongside) credentials.accessToken.
+  ## One token for everything is the simple path. The per-component values exist so
+  ## that each component can be given a token carrying only the permissions it needs,
+  ## once ngrok access tokens support scoping them that way. Today an access token
+  ## carries the full permissions of the account membership that created it, so
+  ## setting these does not narrow anything yet.
   agent:
     accessToken: ""
   apiManager:

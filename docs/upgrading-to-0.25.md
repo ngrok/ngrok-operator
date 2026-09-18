@@ -64,10 +64,14 @@ helm upgrade "$RELEASE" ngrok/ngrok-operator \
 Passing either removed value now fails the render:
 
 ```
-Error: execution error at (ngrok-operator/templates/credentials-secret.yaml):
+Error: UPGRADE FAILED: execution error at (ngrok-operator/templates/api-manager/deployment.yaml:30:28):
 credentials.apiKey and credentials.authtoken have been replaced by a single
 credentials.accessToken (an ngrok access token).
 ```
+
+The error names the api-manager deployment because it is the first template to
+pull in the credentials Secret, for its checksum annotation. The removed values
+are what it is complaining about.
 
 This includes values carried forward implicitly. If you upgrade with
 `--reuse-values`, the old keys come along from the previous release and the
@@ -76,16 +80,15 @@ upgrade fails until you remove them.
 ### Update a pre-existing Secret
 
 If you manage the credentials Secret yourself and point at it with
-`credentials.secret.name`, change its keys. The chart now reads a single key:
+`credentials.secret.name`, change its keys. The chart now reads one key per
+component:
 
 | Before | After |
 | --- | --- |
 | `API_KEY` | `API_MANAGER_ACCESS_TOKEN` |
 | `AUTHTOKEN` | `AGENT_ACCESS_TOKEN` |
 
-Both keys may hold the same token. They are separate so that a deployment
-giving each component its own narrowly-permissioned token can rotate one
-without touching the other.
+Both keys hold the same token unless you set one per component, below.
 
 ```yaml
 apiVersion: v1
@@ -142,20 +145,38 @@ A token the operator cannot use at all stops startup with a single clear error:
 unable to verify ngrok access token: HTTP 403: ... [ERR_NGROK_203]
 ```
 
-A `ngrok API read failed` line names the resource whose permissions the token is
-missing. These checks are reads only: a token with read but not write access
-logs `read ok` for every resource and still fails when the operator reconciles.
+The agent-manager has no equivalent preflight, so check that it established its
+tunnel session:
+
+```bash
+kubectl logs --namespace "$NAMESPACE" deploy/"$RELEASE"-agent | grep heartbeat
+```
+
+```
+drivers.agent  ngrok agent heartbeat received  {"latency": "19.225797ms"}
+```
+
+A `ngrok API read failed` line names a resource the token could not read. An
+access token currently carries the full permissions of the account membership
+that created it, so in practice these either all pass or all fail; the
+per-resource detail matters once access tokens can be scoped. These checks are
+reads only, so a token with read but not write access logs `read ok` for every
+resource and still fails when the operator reconciles.
 
 ## Optional: one token per component
 
 The operator runs its credentials in two pods split by capability. The
 agent-manager establishes tunnel sessions and makes no API calls; the
 api-manager reconciles resources against the ngrok API and never starts
-tunnels. A single token collapses that boundary — the agent-manager pod ends up
-holding a credential that can also reach the management API.
+tunnels.
 
-To keep the split, create two tokens and set them per component instead of
-setting `credentials.accessToken`:
+The chart can take a token per component so that each one can eventually carry
+only the permissions it needs. That narrowing is not available yet: an access
+token carries the full permissions of the account membership that created it,
+so two tokens set this way are just as privileged as one. Setting them now
+means narrowing later is a values change rather than a migration.
+
+To set them, use these instead of `credentials.accessToken`:
 
 ```yaml
 credentials:
@@ -169,27 +190,30 @@ Either may be set on its own alongside `credentials.accessToken`, which the
 other falls back to. Setting one without a fallback for the other fails the
 render rather than leaving a pod unable to start.
 
-## Clean up the old Secret keys
+Both deployments annotate a checksum over the whole rendered Secret, so
+changing either token restarts both pods.
 
-Helm does not remove keys from a Secret it already manages, so after upgrading,
-the Secret still carries the `API_KEY` and `AUTHTOKEN` values from 0.24. Nothing
-reads them, but they remain readable in the cluster. Confirm what is there:
+## The old Secret keys
+
+If the chart manages the Secret, Helm removes `API_KEY` and `AUTHTOKEN` as part
+of the upgrade — they are gone from the live Secret once it completes, with no
+cleanup step needed. Confirm:
 
 ```bash
-kubectl get secret "$RELEASE-credentials" --namespace "$NAMESPACE" \
+kubectl get secret "$RELEASE-ngrok-operator-credentials" --namespace "$NAMESPACE" \
   -o go-template='{{range $k, $v := .data}}{{$k}}{{"\n"}}{{end}}'
 ```
 
-Once the rollout is healthy, remove the stale keys and revoke the credentials
-themselves in the dashboard:
-
-```bash
-kubectl patch secret "$RELEASE-credentials" --namespace "$NAMESPACE" \
-  --type=json \
-  -p='[{"op":"remove","path":"/data/API_KEY"},{"op":"remove","path":"/data/AUTHTOKEN"}]'
+```
+AGENT_ACCESS_TOKEN
+API_MANAGER_ACCESS_TOKEN
 ```
 
-Do this only after you are committed to 0.25 — see rolling back, below.
+If you manage the Secret yourself, remove the two old keys when you add the new
+ones.
+
+Revoking the old API key and authtoken in the dashboard is a separate step, and
+one to take only after you are committed to 0.25 — see rolling back, below.
 
 ## Rotating the token
 
@@ -204,6 +228,17 @@ helm upgrade "$RELEASE" ngrok/ngrok-operator \
 ```
 
 Revoke the old token in the dashboard once the rollout completes.
+
+This works because the checksum is taken over the Secret the chart renders. If
+you manage the Secret yourself with `credentials.secret.name`, the chart renders
+nothing, the checksum never changes, and neither pod restarts — the token is
+read from the environment once at startup, so both keep using the old value.
+Restart them yourself after rotating, before revoking the old token:
+
+```bash
+kubectl rollout restart --namespace "$NAMESPACE" \
+  deploy/"$RELEASE" deploy/"$RELEASE"-agent
+```
 
 ## Rolling back
 

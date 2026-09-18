@@ -254,7 +254,7 @@ case "${1:-help}" in
         echo "  k8sop absent <id>                 Assert KubernetesOperator is gone from ngrok API"
         echo ""
         echo "Environment:"
-        echo "  NGROK_ACCESS_TOKEN              Required for ngrok API access"
+        echo "  NGROK_ACCESS_TOKEN     Required for ngrok API access"
         echo "  MAX_RETRIES            Max retry attempts (default: 10)"
         echo "  RETRY_DELAY            Base seconds for backoff (default: 3)"
         echo "  MAX_RETRY_DELAY        Max backoff delay cap (default: 30)"

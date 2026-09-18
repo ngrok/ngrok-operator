@@ -510,16 +510,20 @@ func loadNgrokClientset(opts apiManagerOpts) (ngrokapi.Clientset, error) {
 // Listing endpoints is treated as the credential check: the operator cannot do
 // anything useful without endpoint access, so failing there is fatal and is
 // reported once, clearly, instead of as an unexplained reconcile failure later.
-// The remaining resources are only logged, because a token deliberately scoped
-// to a subset of the operator's features is a valid configuration and the
-// controllers that need a missing resource surface their own errors.
+// The remaining resources are only logged, so that one unreadable resource
+// names itself rather than taking down startup; the controller that needs it
+// surfaces its own error.
+//
+// An access token currently carries the full permissions of the account
+// membership that created it, so in practice these probes all pass or all
+// fail together. The per-resource split is here for when access tokens can be
+// scoped more narrowly.
 //
 // Note that every probe is a read. A token holding read but not write access
 // passes all of them and still fails on the first reconcile, so the log says
-// "read ok" rather than anything stronger. kubernetes-operators has no probe at
-// all: listing it is scope-exempt, so a successful list would prove nothing,
-// and the registration that would exercise kubernetes-operators:write happens
-// asynchronously in KubernetesOperatorReconciler after mgr.Start.
+// "read ok" rather than anything stronger. kubernetes-operators has no probe:
+// the registration that exercises it happens asynchronously in
+// KubernetesOperatorReconciler after mgr.Start.
 func preflightNgrokAPIAccess(ctx context.Context, clientset ngrokapi.Clientset) error {
 	// The parent context has no deadline, and the ngrok client uses
 	// http.DefaultClient, which has no timeout of its own. Without this an
