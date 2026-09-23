@@ -280,8 +280,13 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 			}, nil
 		}
 	}
-	if ok && !oldEPF.PoolingEnabled() {
-		// If pooling is not enabled, we have to stop the old endpoint before starting a new one.
+	// TODO(stacks): This may end up being configurable on a per-endpoint basis in the future
+	poolingEnabled := true
+
+	// Old and new endpoints can only share the URL while both are pooled. If
+	// either is not, ngrok misroutes traffic during the overlap (it all goes to
+	// one of them, or fails with ERR_NGROK_6030), so stop the old one first.
+	if ok && (!oldEPF.PoolingEnabled() || !poolingEnabled) {
 		log.Info("Stopping existing agent endpoint", "id", oldEPF.ID())
 		if err := oldEPF.CloseWithContext(ctx); err != nil {
 			return &EndpointResult{Ready: false}, err
@@ -294,8 +299,7 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 		ngrok.WithURL(spec.URL),
 		ngrok.WithBindings(spec.Bindings...),
 		ngrok.WithMetadata(commonv1alpha1.MetadataAPIString(spec.Metadata)),
-		// TODO(stacks): This may end up being configurable on a per-endpoint basis in the future
-		ngrok.WithPoolingEnabled(true),
+		ngrok.WithPoolingEnabled(poolingEnabled),
 		ngrok.WithDescription(spec.Description),
 	}
 
