@@ -23,6 +23,9 @@ Set these to match your installation:
 ```bash
 RELEASE=ngrok-operator
 NAMESPACE=ngrok-operator
+# The chart's resource name prefix: $RELEASE if the release name contains
+# "ngrok-operator", otherwise "$RELEASE-ngrok-operator".
+FULLNAME=ngrok-operator
 
 helm get values "$RELEASE" --namespace "$NAMESPACE" --all \
   > ngrok-operator-0.24-values.yaml
@@ -30,7 +33,8 @@ helm get manifest "$RELEASE" --namespace "$NAMESPACE" \
   > ngrok-operator-0.24-manifest.yaml
 ```
 
-Keep these backups until the upgrade and its rollback window have closed. Do
+Both files contain your current credentials, so store them somewhere only you
+can read. Keep them until the upgrade and its rollback window have closed. Do
 not use the output of `helm get values --all` as a new long-term values file;
 it contains defaults from the old chart.
 
@@ -63,6 +67,7 @@ one:
 
 ```bash
 helm upgrade "$RELEASE" ngrok/ngrok-operator \
+  --namespace "$NAMESPACE" \
   --set credentials.accessToken="$NGROK_ACCESS_TOKEN"
 ```
 
@@ -146,11 +151,11 @@ The agent-manager has no equivalent check, so confirm that it established its
 tunnel session:
 
 ```bash
-kubectl logs --namespace "$NAMESPACE" deploy/"$RELEASE"-agent | grep heartbeat
+kubectl logs --namespace "$NAMESPACE" deploy/"$FULLNAME"-agent | grep "agent connected"
 ```
 
 ```
-drivers.agent  ngrok agent heartbeat received  {"latency": "19.225797ms"}
+drivers.agent  ngrok agent connected
 ```
 
 ## Optional: one token per component
@@ -190,7 +195,7 @@ of the upgrade — they are gone from the live Secret once it completes, with no
 cleanup step needed. Confirm:
 
 ```bash
-kubectl get secret "$RELEASE-ngrok-operator-credentials" --namespace "$NAMESPACE" \
+kubectl get secret "$FULLNAME-credentials" --namespace "$NAMESPACE" \
   -o go-template='{{range $k, $v := .data}}{{$k}}{{"\n"}}{{end}}'
 ```
 
@@ -227,7 +232,7 @@ Restart them yourself after rotating, before revoking the old token:
 
 ```bash
 kubectl rollout restart --namespace "$NAMESPACE" \
-  deploy/"$RELEASE" deploy/"$RELEASE"-agent
+  deploy/"$FULLNAME"-manager deploy/"$FULLNAME"-agent
 ```
 
 ## Rolling back
