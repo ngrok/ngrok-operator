@@ -30,7 +30,7 @@ The following environment variable secrets are required to develop and test the 
 
 * NGROK_ACCESS_TOKEN
 
-You can create an access token [here](https://dashboard.ngrok.com/settings/access-tokens).
+You can create an access token [here](https://dashboard.ngrok.com/access-tokens).
 
 Follow [this guide](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-your-account-specific-secrets-for-github-codespaces) to add these secrets
 to your GitHub Account and allow them to be used with this repo.

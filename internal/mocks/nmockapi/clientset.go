@@ -11,7 +11,6 @@ type Clientset struct {
 	ipPoliciesClient          *IPPolicyClient
 	ipPolicyRulesClient       *IPPolicyRuleClient
 	kubernetesOperatorsClient *KubernetesOperatorsClient
-	tcpAddressesClient        *TCPAddressesClient
 }
 
 func NewClientset() *Clientset {
@@ -21,7 +20,6 @@ func NewClientset() *Clientset {
 		ipPoliciesClient:          NewIPPolicyClient(),
 		ipPolicyRulesClient:       NewIPPolicyRuleClient(NewIPPolicyClient()),
 		kubernetesOperatorsClient: NewKubernetesOperatorsClient(),
-		tcpAddressesClient:        NewTCPAddressClient(),
 	}
 }
 
@@ -46,5 +44,5 @@ func (m *Clientset) KubernetesOperators() ngrokapi.KubernetesOperatorsClient {
 }
 
 func (m *Clientset) TCPAddresses() ngrokapi.TCPAddressesClient {
-	return m.tcpAddressesClient
+	return nil
 }

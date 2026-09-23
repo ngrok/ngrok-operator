@@ -7,7 +7,7 @@ This is the Helm chart to install official the ngrok Kubernetes Operator
 ## Prerequisites
 
 The cluster must be set up with a secret named `ngrok-operator-credentials` holding an ngrok
-[access token](https://dashboard.ngrok.com/settings/access-tokens) under both of these keys:
+[access token](https://dashboard.ngrok.com/access-tokens) under both of these keys:
 * AGENT_ACCESS_TOKEN
 * API_MANAGER_ACCESS_TOKEN
 

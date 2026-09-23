@@ -4,10 +4,15 @@ This guide covers upgrading an existing ngrok Kubernetes Operator installation
 from Helm chart `0.24.x` to `0.25.x`.
 
 The 0.25 chart replaces the operator's two ngrok credentials with a single
-[access token](https://dashboard.ngrok.com/settings/access-tokens).
+[access token](https://dashboard.ngrok.com/access-tokens).
 This is a breaking change: `credentials.apiKey` and `credentials.authtoken` are
 removed, and an upgrade that still passes them fails with an explicit error
 rather than starting a release with no credentials.
+
+One token can serve both components, or you can set a separate token for each.
+Setting one per component prepares for scoped access tokens, which will let each
+token carry only the permissions its component needs. See
+[one token per component](#optional-one-token-per-component).
 
 ## Before upgrading
 
@@ -37,7 +42,7 @@ both: starting tunnels, and reading and writing endpoints, domains, reserved TCP
 addresses, IP policies, and the Kubernetes operator registration.
 
 Create the token at
-[dashboard.ngrok.com/settings/access-tokens](https://dashboard.ngrok.com/settings/access-tokens).
+[dashboard.ngrok.com/access-tokens](https://dashboard.ngrok.com/access-tokens).
 A token inherits the permissions of the account membership that created it, so
 create it from a membership that can perform the operations above.
 
@@ -130,22 +135,14 @@ Confirm that the workloads rolled out:
 kubectl get deployments,pods --namespace "$NAMESPACE"
 ```
 
-The api-manager logs one line per ngrok API resource it can read at startup:
+At startup the api-manager verifies the token by listing endpoints. A token it
+cannot use stops startup with an error:
 
 ```
-ngrok API read ok {"resource": "endpoints"}
-ngrok API read ok {"resource": "domains"}
-ngrok API read ok {"resource": "tcp-addrs"}
-ngrok API read ok {"resource": "ip-policies"}
+Unable to verify access token: HTTP 403: ... [ERR_NGROK_203]
 ```
 
-A token the operator cannot use at all stops startup with a single clear error:
-
-```
-unable to verify ngrok access token: HTTP 403: ... [ERR_NGROK_203]
-```
-
-The agent-manager has no equivalent preflight, so check that it established its
+The agent-manager has no equivalent check, so confirm that it established its
 tunnel session:
 
 ```bash
@@ -155,13 +152,6 @@ kubectl logs --namespace "$NAMESPACE" deploy/"$RELEASE"-agent | grep heartbeat
 ```
 drivers.agent  ngrok agent heartbeat received  {"latency": "19.225797ms"}
 ```
-
-A `ngrok API read failed` line names a resource the token could not read. An
-access token currently carries the full permissions of the account membership
-that created it, so in practice these either all pass or all fail; the
-per-resource detail matters once access tokens can be scoped. These checks are
-reads only, so a token with read but not write access logs `read ok` for every
-resource and still fails when the operator reconciles.
 
 ## Optional: one token per component
 

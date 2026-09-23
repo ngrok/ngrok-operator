@@ -70,7 +70,7 @@ helm install ngrok-operator ngrok/ngrok-operator \
   --set credentials.accessToken=$NGROK_ACCESS_TOKEN
 ```
 
-> ** Note ** You can create an access token in your [ngrok dashboard](https://dashboard.ngrok.com/settings/access-tokens). The ngrok Kubernetes Operator uses it to authenticate with ngrok and configure and run your network ingress traffic at the edge.
+> ** Note ** You can create an access token in your [ngrok dashboard](https://dashboard.ngrok.com/access-tokens). The ngrok Kubernetes Operator uses it to authenticate with ngrok and configure and run your network ingress traffic at the edge.
 
 For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 
