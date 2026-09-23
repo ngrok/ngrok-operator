@@ -28,7 +28,7 @@ SOFTWARE.
 // ngrok.k8s.ngrok.com/v1alpha1 group is being deprecated in a passive
 // migration: components read this group first and fall back to v1alpha1 when
 // no v1 object is present, emitting a deprecation warning on the fallback
-// path. See docs/superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md.
+// path. See docs/developer-guide/passivity-shims.md.
 //
 // +kubebuilder:object:generate=true
 // +groupName=ngrok.com

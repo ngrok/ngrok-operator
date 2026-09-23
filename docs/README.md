@@ -16,6 +16,7 @@ For how to use the ngrok Operator, see the [User Guide on the ngrok Docs site](h
 ## Upgrading
 
 - [Upgrade from Helm chart 0.23 to 0.24](./upgrading-to-0.24.md)
+- [Upgrade from Helm chart 0.24 to 0.25](./upgrading-to-0.25.md)
 
 # Contributing
 
