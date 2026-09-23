@@ -303,19 +303,15 @@ func (s Store) ListIngressClassesV1() []*netv1.IngressClass {
 	return genericListSorted[netv1.IngressClass](s.log, s.stores.IngressClassV1)
 }
 
-const defaultIngressControllerName = "ngrok.com/ingress-controller"
+const defaultIngressControllerName = "k8s.ngrok.com/ingress-controller"
 
-// LEGACY-PREFIX-MIGRATION: BEGIN
-// legacyDefaultIngressControllerName is matched as a one-release migration
-// affordance whenever the operator is running on either well-known stock
-// default — we cannot distinguish "default" from "explicitly set to the
-// default value", and nobody sets the legacy default explicitly to mean
-// "exact-match legacy only", so treating both stock defaults symmetrically
-// is the least surprising behavior. Delete this const and the dual-match
-// branch in ListNgrokIngressClassesV1 in the release immediately before 1.0.
-const legacyDefaultIngressControllerName = "k8s.ngrok.com/ingress-controller"
-
-// LEGACY-PREFIX-MIGRATION: END
+// aliasIngressControllerName is a permanent alias for the stock default.
+// Every other user-facing ngrok key uses the ngrok.com/ prefix, so this is
+// the value users naturally write on a hand-authored IngressClass. It also
+// covers IngressClasses created under the 0.24 upgrade guide, which advised
+// switching to it before the default move was abandoned (IngressClass
+// spec.controller is immutable, so the chart can't change it in place).
+const aliasIngressControllerName = "ngrok.com/ingress-controller"
 
 // ListNgrokIngressClassesV1 returns IngressClasses whose spec.controller
 // matches the configured controller name. Custom controller names get
@@ -323,10 +319,9 @@ const legacyDefaultIngressControllerName = "k8s.ngrok.com/ingress-controller"
 // IngressClasses, which would break multi-instance isolation.
 func (s Store) ListNgrokIngressClassesV1() []*netv1.IngressClass {
 	accepted := map[string]bool{s.controllerName: true}
-	// LEGACY-PREFIX-MIGRATION: drop this branch in 1.0
-	if s.controllerName == defaultIngressControllerName || s.controllerName == legacyDefaultIngressControllerName {
+	if s.controllerName == defaultIngressControllerName || s.controllerName == aliasIngressControllerName {
 		accepted[defaultIngressControllerName] = true
-		accepted[legacyDefaultIngressControllerName] = true
+		accepted[aliasIngressControllerName] = true
 	}
 
 	filteredClasses := []*netv1.IngressClass{}
