@@ -6,16 +6,19 @@ The api-manager is the primary operator component responsible for reconciling CR
 
 ## K8s Deployment Settings
 
-All settings below override global defaults. See [common.md](common.md) for override semantics.
+All settings below override the shared pod settings in `defaults`. See [common.md](common.md) for override semantics.
 
 | Parameter                                      | Description                                          | Default         |
-|------------------------------------------------|------------------------------------------------------|-----------------|
+|------------------------------------------------|--------------------------------------------------------|-----------------|
 | `apiManager.replicaCount`                      | Number of api-manager replicas                       | `1`             |
-| `apiManager.podAnnotations`                    | Pod annotations (merged with global)                 | `{}`            |
-| `apiManager.podLabels`                         | Pod labels (merged with global)                      | `{}`            |
+| `apiManager.podAnnotations`                    | Pod annotations (merged with `defaults`)              | `{}`            |
+| `apiManager.podLabels`                         | Pod labels (merged with `defaults`)                   | `{}`            |
 | `apiManager.nodeSelector`                      | Node labels for pod assignment                       | `{}`            |
 | `apiManager.tolerations`                       | Pod tolerations                                      | `[]`            |
 | `apiManager.affinity`                          | Affinity rules                                       | `{}`            |
+| `apiManager.podAffinityPreset`                 | Pod affinity preset                                  | `""`            |
+| `apiManager.podAntiAffinityPreset`             | Pod anti-affinity preset                             | `soft`          |
+| `apiManager.nodeAffinityPreset`                | Node affinity preset                                 | `{}`            |
 | `apiManager.topologySpreadConstraints`         | Topology spread constraints                          | `[]`            |
 | `apiManager.priorityClassName`                 | Pod priority class                                   | `""`            |
 | `apiManager.resources`                         | Container resource requests/limits                   | `{}`            |
@@ -31,12 +34,21 @@ All settings below override global defaults. See [common.md](common.md) for over
 | `apiManager.serviceAccount.create`             | Create a ServiceAccount                              | `true`          |
 | `apiManager.serviceAccount.name`               | ServiceAccount name (auto-generated if empty)        | `""`            |
 | `apiManager.serviceAccount.annotations`        | ServiceAccount annotations                           | `{}`            |
-| `apiManager.clusterRole.annotations`           | Annotations for all ClusterRoles                     | `{}`            |
 
 ## App Config
 
-Component-specific app config rendered into the api-manager ConfigMap. Overrides values from the common ConfigMap (`ngrok.*`).
+App config keys sit directly under `apiManager`, alongside the pod settings above, and are rendered into the api-manager's own ConfigMap (see [common.md](common.md#config-delivery)). Everything the api-manager needs beyond this comes from the shared `ngrok.*`, `log.*`, and `features.*` sections.
 
-| Parameter                                        | Description                                   | Default  |
-|--------------------------------------------------|-----------------------------------------------|----------|
-| `apiManager.config.oneClickDemoMode`             | Start without credentials for demo purposes   | `false`  |
+| Parameter                                  | Description                                                    | Default  |
+|----------------------------------------------|------------------------------------------------------------------|----------|
+| `apiManager.oneClickDemoMode`              | Start without credentials for demo purposes                     | `false`  |
+| `apiManager.log.level`                     | Overrides the shared `log.level` for the api-manager only       | (unset)  |
+| `apiManager.log.format`                    | Overrides the shared `log.format` for the api-manager only      | (unset)  |
+| `apiManager.log.stacktraceLevel`           | Overrides the shared `log.stacktraceLevel` for the api-manager only | (unset) |
+
+`oneClickDemoMode` reaches beyond the api-manager despite living under
+`apiManager`: when it is true the agent and bindings-forwarder
+Deployments do not render at all. Those pods have no authtoken on a
+credential-less install and would only crashloop.
+
+<!-- TODO(alex): audit which other shared app config keys should be overridable per component. -->

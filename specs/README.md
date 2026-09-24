@@ -25,6 +25,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 
 ### Top-Level Specs
 
+- [configuration.md](configuration.md) — How configuration reaches each component: precedence, where defaults live, merge rules
 - [authentication.md](authentication.md) — Credentials, secrets, API key/authtoken management
 - [annotations.md](annotations.md) — Central reference for all `ngrok.com/` annotations
 - [upstream-protocols.md](upstream-protocols.md) — How the transport and application protocol to backend Services is selected (`app-protocols` annotation, `appProtocol` field values)
@@ -40,7 +41,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 
 ### [helm/](helm/) — Helm Chart Configuration
 
-- [common.md](helm/common.md) — Top-level structure, global defaults, ngrok config, credentials, config file system
+- [common.md](helm/common.md) — Top-level structure, shared defaults, ngrok config, credentials, config delivery
 - [operator.md](helm/operator.md) — API manager (`apiManager`) deployment values
 - [agent.md](helm/agent.md) — Agent deployment values
 - [bindings-forwarder.md](helm/bindings-forwarder.md) — Bindings forwarder (`bindingsForwarder`) deployment values

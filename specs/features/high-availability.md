@@ -12,7 +12,7 @@ The ngrok-operator supports running multiple replicas for high availability. Onl
 | Agent              | `agent.replicaCount`                  | `1`     | 2+ in production (see note below) |
 | Bindings Forwarder | `bindingsForwarder.replicaCount`      | `1`     | 2+ in production (see note below) |
 
-> **Agent and Bindings Forwarder**: Unlike the API Manager, these components do not use leader election — all replicas are active simultaneously. Running 2+ replicas provides redundancy: if one pod is lost, active connections are re-established through the remaining replicas. This comes at the cost of additional ngrok agent connections (one per replica), which may affect account limits. Set `podDisruptionBudget.create: true` to protect replicas during cluster maintenance.
+> **Agent and Bindings Forwarder**: Unlike the API Manager, these components do not use leader election — all replicas are active simultaneously. Running 2+ replicas provides redundancy: if one pod is lost, active connections are re-established through the remaining replicas. This comes at the cost of additional ngrok agent connections (one per replica), which may affect account limits. Neither component has a PodDisruptionBudget (see below), so there is no chart setting to protect their replicas during cluster maintenance.
 
 ## Leader Election
 
@@ -29,28 +29,29 @@ Leader election ensures only one operator replica actively reconciles at a time.
 
 ## Pod Disruption Budget
 
-Each component has independent PDB configuration. See the component Helm specs for per-component values.
+Only the api-manager has a PodDisruptionBudget. The agent and bindings-forwarder do not — there is no `agent.podDisruptionBudget` or `bindingsForwarder.podDisruptionBudget`; setting either is rejected by the chart's schema.
 
-| Helm Value                                           | Description                                    | Default |
-|------------------------------------------------------|------------------------------------------------|---------|
-| `apiManager.podDisruptionBudget.create`              | Enable PDB for api-manager                     | `false` |
-| `apiManager.podDisruptionBudget.maxUnavailable`      | Max unavailable pods                           | `"1"`   |
-| `apiManager.podDisruptionBudget.minAvailable`        | Min available pods                             | (unset) |
-| `agent.podDisruptionBudget.create`                   | Enable PDB for agent                           | `false` |
-| `agent.podDisruptionBudget.maxUnavailable`           | Max unavailable pods                           | `"1"`   |
-| `agent.podDisruptionBudget.minAvailable`             | Min available pods                             | (unset) |
-| `bindingsForwarder.podDisruptionBudget.create`       | Enable PDB for bindings-forwarder              | `false` |
-| `bindingsForwarder.podDisruptionBudget.maxUnavailable` | Max unavailable pods                         | `"1"`   |
-| `bindingsForwarder.podDisruptionBudget.minAvailable` | Min available pods                             | (unset) |
+| Helm Value                                      | Description                                                       | Default |
+|--------------------------------------------------|---------------------------------------------------------------------|---------|
+| `apiManager.podDisruptionBudget.create`          | Enable PDB for api-manager                                          | `false` |
+| `apiManager.podDisruptionBudget.maxUnavailable`  | Max unavailable pods                                                 | `"1"`   |
+| `apiManager.podDisruptionBudget.minAvailable`    | Min available pods. Set this instead of `maxUnavailable`, not alongside it | (unset) |
 
 ## Anti-Affinity
 
-Anti-affinity is configured via the standard `affinity` field on each component (or `global.affinity` for all components). There are no preset helpers — write affinity rules directly.
+Affinity is `defaults.*`, applied to all three components (api-manager, agent, bindings-forwarder), with `<component>.*` overriding it for one. There is no `global.affinity`: `global` is a passthrough for the chart's subcharts, not a value this chart reads, so setting it renders nothing and is silently accepted rather than rejected — set `defaults.affinity` instead.
 
-| Helm Value                | Description                                    | Default |
-|---------------------------|------------------------------------------------|---------|
-| `global.affinity`         | Affinity rules for all components              | `{}`    |
-| `apiManager.affinity`     | Affinity rules for the api-manager (overrides global) | `{}`    |
+Preset helpers exist and are the normal way to set anti-affinity, not raw affinity rules: `podAffinityPreset`, `podAntiAffinityPreset`, and `nodeAffinityPreset.{type,key,values}`, each `""`/unset by default except `podAntiAffinityPreset`, which defaults to `soft`. Setting `affinity` directly overrides the presets for that component.
+
+| Helm Value                             | Description                                                              | Default  |
+|------------------------------------------|---------------------------------------------------------------------------|----------|
+| `defaults.affinity`                      | Affinity rules for every component's pods. Overrides the presets below when set | `{}`     |
+| `defaults.podAffinityPreset`             | Pod affinity preset. Ignored if `affinity` is set. `""`, `soft` or `hard`  | `""`     |
+| `defaults.podAntiAffinityPreset`         | Pod anti-affinity preset. Ignored if `affinity` is set. `""`, `soft` or `hard` | `soft`   |
+| `defaults.nodeAffinityPreset.type`       | Node affinity preset type. Ignored if `affinity` is set. `""`, `soft` or `hard` | `""`     |
+| `defaults.nodeAffinityPreset.key`        | Node label key to match. Ignored if `affinity` is set                     | `""`     |
+| `defaults.nodeAffinityPreset.values`     | Node label values to match. Ignored if `affinity` is set                  | `[]`     |
+| `apiManager.affinity` (and the presets above, per-component) | Same keys, override the shared value for the api-manager alone | `{}`     |
 
 ## Leader Election Scope
 

@@ -2,12 +2,14 @@
 
 Features are configured at the top level under `features:`. This is the **single source of truth** for what is enabled and how each feature is configured. Components do not duplicate feature flags.
 
+Two kinds of default appear in the tables below. `features.*.enabled` and the `ingressClass.*` keys are real chart values, because the chart itself acts on them — they decide whether a Deployment or an IngressClass renders. Everything else is `null` in `values.yaml` and its default lives in the operator binary (`internal/config.Default`); the value shown is that built-in default. See [configuration.md](../configuration.md) for why.
+
 ## Ingress
 
 | Parameter                              | Description                                      | Default                          |
 |----------------------------------------|--------------------------------------------------|----------------------------------|
 | `features.ingress.enabled`             | Enable the Kubernetes Ingress controller         | `true`                           |
-| `features.ingress.controllerName`      | Controller name for IngressClass matching        | `ngrok.com/ingress-controller`   |
+| `features.ingress.controllerName`      | Controller name for IngressClass matching        | `k8s.ngrok.com/ingress-controller` |
 | `features.ingress.watchNamespace`      | Namespace to watch (empty = all namespaces)      | `""`                             |
 | `features.ingress.ingressClass.name`   | IngressClass resource name                       | `ngrok`                          |
 | `features.ingress.ingressClass.create` | Create the IngressClass resource                 | `true`                           |

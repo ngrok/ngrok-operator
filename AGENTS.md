@@ -102,3 +102,11 @@ make undeploy               # Remove from cluster
   stage: binaries are cross-compiled on the host by `scripts/build.sh` into
   `bin/ngrok-operator-<os>-<arch>` and `COPY`d into distroless. Don't reintroduce
   a `golang:` base image — that is what created the version drift this replaced.
+- **Never bump `helm/ngrok-operator/Chart.yaml` or `helm/ngrok-crds/Chart.yaml`
+  in a feature PR.** `.github/workflows/helm_release.yaml` triggers on a push to
+  `main` that touches either file, so a bump *is* the release. Feature work that
+  is part of an upcoming version still leaves the chart version alone; the
+  release PR bumps it, writes the changelog, and regenerates
+  `manifest-bundle.yaml` (which carries the version in 26 labels) in one go. The
+  same applies to `helm/ngrok-operator/CHANGELOG.md` — changelogs are written at
+  release time, not per feature.
