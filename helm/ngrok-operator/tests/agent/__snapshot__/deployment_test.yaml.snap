@@ -27,6 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
+            checksum/config: 7f2fc0bc3afd1a6b27ad433eaf633ec5089087fb3c68049f7d4955251eb1ef7a
             checksum/rbac: 3642c0583266da84cc3b7a0a0aa44e09f7a7799db2f7ee4b6609169cac392bcc
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -52,18 +53,11 @@ Should match snapshot:
           containers:
             - args:
                 - agent-manager
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description=The official ngrok Kubernetes Operator.
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
+                - --config=/etc/ngrok-operator/agent.yaml
+                - --release-name=RELEASE-NAME
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --manager-name=RELEASE-NAME-ngrok-operator-agent-manager
-                - --release-name=RELEASE-NAME
-                - --default-domain-reclaim-policy=Delete
               command:
                 - /ngrok-operator
               env:
@@ -98,8 +92,16 @@ Should match snapshot:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
+              volumeMounts:
+                - mountPath: /etc/ngrok-operator
+                  name: operator-config
+                  readOnly: true
           serviceAccountName: RELEASE-NAME-ngrok-operator-agent
           terminationGracePeriodSeconds: 30
+          volumes:
+            - configMap:
+                name: RELEASE-NAME-ngrok-operator-config
+              name: operator-config
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
@@ -182,3 +184,48 @@ Should match snapshot:
           - get
           - list
           - watch
+  3: |
+    apiVersion: v1
+    data:
+      agent.yaml: |
+        features:
+          bindings:
+            enabled: false
+          gateway:
+            disableReferenceGrants: false
+            enabled: true
+          ingress:
+            controllerName: k8s.ngrok.com/ingress-controller
+            enabled: true
+      apiManager.yaml: |
+        features:
+          bindings:
+            enabled: false
+          gateway:
+            disableReferenceGrants: false
+            enabled: true
+          ingress:
+            controllerName: k8s.ngrok.com/ingress-controller
+            enabled: true
+        oneClickDemoMode: false
+      bindingsForwarder.yaml: |
+        features:
+          bindings:
+            enabled: false
+          gateway:
+            disableReferenceGrants: false
+            enabled: true
+          ingress:
+            controllerName: k8s.ngrok.com/ingress-controller
+            enabled: true
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.22.0
+        helm.sh/chart: ngrok-operator-0.24.0
+      name: RELEASE-NAME-ngrok-operator-config
+      namespace: NAMESPACE

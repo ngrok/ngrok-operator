@@ -2,25 +2,27 @@ suite: test bindings forwarder deployment
 templates:
 - bindings-forwarder/deployment.yaml
 - bindings-forwarder/role.yaml
+- configmap.yaml
 set:
-  bindings.enabled: true
+  features:
+    bindings:
+      enabled: true
 tests:
 - it: Should match snapshot
   template: bindings-forwarder/deployment.yaml
   asserts:
   - matchSnapshot: {}
-- it: Should set default forwarder.updateStrategy.type to RollingUpdate in values.yaml
+- it: Should set default bindingsForwarder.updateStrategy.type to RollingUpdate in values.yaml
   set:
-    bindings:
-      forwarder:
-        updateStrategy:
-          type: RollingUpdate
+    bindingsForwarder:
+      updateStrategy:
+        type: RollingUpdate
   template: bindings-forwarder/deployment.yaml
   asserts:
   - equal:
       path: spec.strategy.type
       value: RollingUpdate
-- it: should create a deployment if bindings.enabled is true
+- it: should create a deployment if features.bindings.enabled is true
   template: bindings-forwarder/deployment.yaml
   asserts:
   - isKind:
@@ -30,11 +32,27 @@ tests:
   - equal:
       path: metadata.name
       value: RELEASE-NAME-ngrok-operator-bindings-forwarder
-- it: Adds .Values.podLabels to the controller deployment podspec
+- it: Defaults to having "soft" pod anti-affinity
+  template: bindings-forwarder/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.affinity.podAntiAffinity
+      value:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: bindings-forwarder
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: ngrok-operator
+            topologyKey: kubernetes.io/hostname
+          weight: 1
+- it: Adds .Values.defaults.podLabels to the forwarder deployment podspec
   set:
-    podLabels:
-      labelKey1: labelValue1
-      labelKey2: labelValue2
+    defaults:
+      podLabels:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
   template: bindings-forwarder/deployment.yaml
   asserts:
   - isSubset:
@@ -42,11 +60,12 @@ tests:
       content:
         labelKey1: labelValue1
         labelKey2: labelValue2
-- it: Does not add .Values.podLabels to the controller deployment's selector
+- it: Does not add .Values.defaults.podLabels to the forwarder deployment's selector
   set:
-    podLabels:
-      labelKey1: labelValue1
-      labelKey2: labelValue2
+    defaults:
+      podLabels:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
   template: bindings-forwarder/deployment.yaml
   asserts:
   - isNotSubset:
@@ -56,10 +75,9 @@ tests:
         labelKey2: labelValue2
 - it: Supports selecting which nodes the bindings forwarders should run on with node selectors
   set:
-    bindings:
-      forwarder:
-        nodeSelector: &nodeSelector
-          disktype: ssd
+    bindingsForwarder:
+      nodeSelector: &nodeSelector
+        disktype: ssd
   template: bindings-forwarder/deployment.yaml
   asserts:
   - equal:
@@ -67,14 +85,13 @@ tests:
       value: *nodeSelector
 - it: Supports setting tolerations on the bindings forwarder pods
   set:
-    bindings:
-      forwarder:
-        tolerations:
-        - &toleration
-          key: "key1"
-          operator: "Equal"
-          value: "value1"
-          effect: "NoSchedule"
+    bindingsForwarder:
+      tolerations:
+      - &toleration
+        key: "key1"
+        operator: "Equal"
+        value: "value1"
+        effect: "NoSchedule"
   template: bindings-forwarder/deployment.yaml
   asserts:
   - contains:
@@ -82,18 +99,17 @@ tests:
       content: *toleration
 - it: Supports setting topologySpreadConstraints on the bindings forwarder pods
   set:
-    bindings:
-      forwarder:
-        topologySpreadConstraints:
-        - &tsc
-          maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
-          labelSelector:
-            matchLabels:
-              app: foo
-          matchLabelKeys:
-            - pod-template-hash
+    bindingsForwarder:
+      topologySpreadConstraints:
+      - &tsc
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: foo
+        matchLabelKeys:
+          - pod-template-hash
   template: bindings-forwarder/deployment.yaml
   asserts:
   - contains:
@@ -101,15 +117,14 @@ tests:
       content: *tsc
 - it: Supports setting resources on the bindings forwarder pods
   set:
-    bindings:
-      forwarder:
-        resources: &resources
-          requests:
-            memory: "64Mi"
-            cpu: "250m"
-          limits:
-            memory: "128Mi"
-            cpu: "500m"
+    bindingsForwarder:
+      resources: &resources
+        requests:
+          memory: "64Mi"
+          cpu: "250m"
+        limits:
+          memory: "128Mi"
+          cpu: "500m"
   template: bindings-forwarder/deployment.yaml
   asserts:
   - equal:
@@ -123,12 +138,76 @@ tests:
       value: 30
 - it: Allows overriding terminationGracePeriodSeconds for the bindings forwarder
   set:
-    bindings:
-      enabled: true
-      forwarder:
-        terminationGracePeriodSeconds: 75
+    bindingsForwarder:
+      terminationGracePeriodSeconds: 75
   template: bindings-forwarder/deployment.yaml
   asserts:
   - equal:
       path: spec.template.spec.terminationGracePeriodSeconds
       value: 75
+- it: passes only identity args and the config file
+  template: bindings-forwarder/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --config=/etc/ngrok-operator/bindingsForwarder.yaml
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].args[*]
+      pattern: '^--region='
+- it: mounts the operator config
+  template: bindings-forwarder/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: operator-config
+        configMap:
+          name: RELEASE-NAME-ngrok-operator-config
+- it: deep-merges defaults into the component, with the component winning
+  template: bindings-forwarder/deployment.yaml
+  set:
+    defaults:
+      podAnnotations:
+        shared: "from-defaults"
+        overridden: "from-defaults"
+      tolerations:
+        - key: shared-toleration
+    bindingsForwarder:
+      podAnnotations:
+        overridden: "from-forwarder"
+        forwarderOnly: "from-forwarder"
+      tolerations:
+        - key: forwarder-toleration
+  asserts:
+    # map keys merge, component wins on collision
+    - equal:
+        path: spec.template.metadata.annotations.shared
+        value: from-defaults
+    - equal:
+        path: spec.template.metadata.annotations.overridden
+        value: from-forwarder
+    - equal:
+        path: spec.template.metadata.annotations.forwarderOnly
+        value: from-forwarder
+    # arrays replace wholesale rather than appending
+    - equal:
+        path: spec.template.spec.tolerations
+        value:
+          - key: forwarder-toleration
+- it: rolls only this component when its own config changes
+  template: bindings-forwarder/deployment.yaml
+  set:
+    bindingsForwarder:
+      log:
+        level: debug
+  asserts:
+    - exists:
+        path: spec.template.metadata.annotations["checksum/config"]
+- it: does not render in one-click demo mode, which has no authtoken for the forwarder
+  template: bindings-forwarder/deployment.yaml
+  set:
+    apiManager:
+      oneClickDemoMode: true
+  asserts:
+    - hasDocuments:
+        count: 0

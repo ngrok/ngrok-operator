@@ -1,0 +1,24 @@
+{{- /*
+The operator's configuration: one ConfigMap, one key per component, each
+holding that component's fully resolved config. The shared-to-component merge
+happens here, at render time, so no binary has to know what a component is.
+
+Only values the user set are rendered. Anything absent falls back to the
+operator binary's built-in default, so a value never has two defaults.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{- range $name := list "apiManager" "agent" "bindingsForwarder" }}
+  {{ $name }}.yaml: |
+    {{- include "ngrok-operator.componentConfig" (dict "context" $ "component" $name) | nindent 4 }}
+  {{- end }}

@@ -1,0 +1,101 @@
+suite: operator config ConfigMap
+templates:
+  - configmap.yaml
+tests:
+  - it: renders one key per component
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-ngrok-operator-config
+      - exists:
+          path: data["apiManager.yaml"]
+      - exists:
+          path: data["agent.yaml"]
+      - exists:
+          path: data["bindingsForwarder.yaml"]
+
+  - it: gives every component the shared config
+    set:
+      ngrok.region: eu
+      log.level: warn
+    asserts:
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "region: eu"
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "region: eu"
+      - matchRegex:
+          path: data["bindingsForwarder.yaml"]
+          pattern: "level: warn"
+
+  - it: lets a component override a shared value for itself alone
+    set:
+      log.level: info
+      agent.log.level: debug
+    asserts:
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "level: debug"
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "level: info"
+
+  - it: puts a component's own keys at the top level of its document
+    set:
+      apiManager.oneClickDemoMode: true
+      agent.watchNamespace: ngrok-operator
+    asserts:
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "oneClickDemoMode: true"
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "watchNamespace: ngrok-operator"
+
+  - it: keeps pod settings out of the config documents
+    set:
+      apiManager.replicaCount: 3
+      apiManager.resources.limits.cpu: 500m
+      defaults.podAnnotations.team: k8s
+    asserts:
+      - notMatchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "replicaCount"
+      - notMatchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "resources"
+      - notMatchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "podAnnotations"
+
+  - it: omits keys the user did not set, so the binary default wins
+    asserts:
+      - notMatchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "rootCAs"
+      - notMatchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "region"
+
+  - it: falls the agent's watchNamespace back to the shared ingress watchNamespace
+    set:
+      features.ingress.watchNamespace: ns-a
+    asserts:
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "(?m)^watchNamespace: ns-a$"
+
+  - it: lets an explicit agent.watchNamespace win over the shared fallback
+    set:
+      features.ingress.watchNamespace: ns-a
+      agent.watchNamespace: ns-b
+    asserts:
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "(?m)^watchNamespace: ns-b$"
+      - notMatchRegex:
+          path: data["agent.yaml"]
+          pattern: "(?m)^watchNamespace: ns-a$"

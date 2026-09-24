@@ -1,0 +1,23 @@
+suite: template helpers
+templates:
+  - configmap.yaml
+tests:
+  - it: renders shared config and component sections
+    set:
+      ngrok:
+        region: eu
+      apiManager:
+        oneClickDemoMode: true
+    asserts:
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: 'region: eu'
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: 'oneClickDemoMode: true'
+
+  - it: omits unset app config so binary defaults win
+    asserts:
+      - notMatchRegex:
+          path: data["apiManager.yaml"]
+          pattern: 'rootCAs'

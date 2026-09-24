@@ -24,7 +24,7 @@ tests:
 - it: should render Role in namespaced mode
   template: agent/role.yaml
   set:
-    ingress.watchNamespace: test-ns
+    features.ingress.watchNamespace: test-ns
   asserts:
   - hasDocuments:
       count: 1
@@ -36,7 +36,7 @@ tests:
 - it: should render RoleBinding in namespaced mode
   template: agent/rolebinding.yaml
   set:
-    ingress.watchNamespace: test-ns
+    features.ingress.watchNamespace: test-ns
   asserts:
   - hasDocuments:
       count: 1
@@ -67,7 +67,7 @@ tests:
 - it: should render release-namespace Role + RoleBinding in namespaced mode
   template: agent/release-namespace-role.yaml
   set:
-    ingress.watchNamespace: test-ns
+    features.ingress.watchNamespace: test-ns
   asserts:
   - hasDocuments:
       count: 2
@@ -81,7 +81,7 @@ tests:
 - it: release-namespace role should not render when ingress is disabled
   template: agent/release-namespace-role.yaml
   set:
-    ingress.enabled: false
+    features.ingress.enabled: false
   asserts:
   - hasDocuments:
       count: 0
@@ -90,6 +90,6 @@ tests:
   - matchSnapshot: {}
 - it: should match snapshot in namespaced mode
   set:
-    ingress.watchNamespace: test-ns
+    features.ingress.watchNamespace: test-ns
   asserts:
   - matchSnapshot: {}

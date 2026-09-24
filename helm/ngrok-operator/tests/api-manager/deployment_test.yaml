@@ -9,66 +9,28 @@ templates:
 - api-manager/role.yaml
 - api-manager/leader-election-role.yaml
 - credentials-secret.yaml
+- configmap.yaml
 tests:
 - it: Should match default snapshot
   asserts:
   - matchSnapshot: {}
 - it: Should match all-options snapshot
   set:
-    extraEnv:
-      TEST_ENV_VAR: test
-      SECRET_ENV_VAR:
-        secretKeyRef:
-          key: test-key
-        value: test-value
-    extraVolumes:
-    - name: test-volume
-      emptyDir: {}
-    extraVolumeMounts:
-    - name: test-volume
-      mountPath: /test-volume
+    defaults:
+      extraEnv:
+        TEST_ENV_VAR: test
+        SECRET_ENV_VAR:
+          secretKeyRef:
+            key: test-key
+          value: test-value
+      extraVolumes:
+      - name: test-volume
+        emptyDir: {}
+      extraVolumeMounts:
+      - name: test-volume
+        mountPath: /test-volume
   asserts:
   - matchSnapshot: {}
-- it: Uses the new gateway.enabled value
-  set:
-    gateway.enabled: true
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=true
-- it: Disables ReferenceGrants with GatewayAPI
-  set:
-    gateway.enabled: true
-    gateway.disableReferenceGrants: true
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=true
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --disable-reference-grants=true
-- it: Disables the gateway feature when gateway.enabled is false
-  set:
-    gateway.enabled: false
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --enable-feature-gateway=false
-- it: Should use the specified cluster domain name
-  set:
-    clusterDomain: svc.example.com
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --cluster-domain=svc.example.com
 - it: Should use the specified secret name for the credentials secret
   set:
     credentials.secret.name: test-secret-name
@@ -78,202 +40,29 @@ tests:
   - matchRegex:
       path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
       pattern: test-secret-name
-- it: Sets --ingress-watch-namespace
-  set:
-    ingress.enabled: true
-    ingress.watchNamespace: test-namespace
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ingress-watch-namespace=test-namespace
-- it: Sets --ingress-watch-namespace when the old value is set
-  set:
-    watchNamespace: "test-namespace"
-    ingress.watchNamespace: "" # unset on purpose
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ingress-watch-namespace=test-namespace
-- it: Sets --ingress-controller-name
-  set:
-    ingress.enabled: true
-    ingress.controllerName: "my-controller"
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ingress-controller-name=my-controller
-- it: Sets --ingress-controller-name when the old value is set
-  set:
-    controllerName: "my-controller"
-    ingress.controllerName: "" # unset on purpose
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ingress-controller-name=my-controller
-- it: Should pass the region via container args to the controller if specified
-  set:
-    region: eu
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --region=eu
-- it: Should not pass the region via container args to the controller if not specified
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - notContains:
-      path: spec.template.spec.containers[0].args
-      content: --region=eu
-- it: Should pass description
-  set:
-    description: "test description"
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --description=test description
-- it: Should pass description when description has special characters
-  set:
-    description: 'lets-go: with spaces'
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: '--description=lets-go: with spaces'
-- it: Should support deprecated metaData to the deployment
-  set:
-    metaData:
-      metaDataKey1: metaDataValue1
-      metaDataKey2: metaDataValue2
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ngrokMetadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
-- it: Should pass extra ngrokMetadata to the deployment
-  set:
-    ngrokMetadata:
-      metaDataKey1: metaDataValue1
-      metaDataKey2: metaDataValue2
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --ngrokMetadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
-- it: Should pass bindings.serviceAnnotations and bindings.serviceLabels to the controller
-  set:
-    bindings:
-      enabled: true
-      serviceAnnotations:
-        serviceAnnotationKey1: serviceAnnotationValue1
-        serviceAnnotationKey2: serviceAnnotationValue2
-      serviceLabels:
-        serviceLabelKey1: serviceLabelValue1
-        serviceLabelKey2: serviceLabelValue2
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --bindings-service-annotations=serviceAnnotationKey1=serviceAnnotationValue1,serviceAnnotationKey2=serviceAnnotationValue2
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --bindings-service-labels=serviceLabelKey1=serviceLabelValue1,serviceLabelKey2=serviceLabelValue2
 - it: Should pass through extra volumes and extra volume mounts
   set:
-    extraVolumes:
-    - name: test-volume
-      emptyDir: {}
-    extraVolumeMounts:
-    - name: test-volume
-      mountPath: /test-volume
+    defaults:
+      extraVolumes:
+      - name: test-volume
+        emptyDir: {}
+      extraVolumeMounts:
+      - name: test-volume
+        mountPath: /test-volume
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: test-volume
+        emptyDir: {}
   - matchRegex:
-      path: spec.template.spec.volumes[0].name
+      path: spec.template.spec.containers[0].volumeMounts[1].name
       pattern: test-volume
   - matchRegex:
-      path: spec.template.spec.containers[0].volumeMounts[0].name
-      pattern: test-volume
-  - matchRegex:
-      path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+      path: spec.template.spec.containers[0].volumeMounts[1].mountPath
       pattern: /test-volume
-- it: Should pass log level argument if set
-  set:
-    log:
-      level: error
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --zap-log-level=error
-- it: Should pass endpoint selectors if set
-  set:
-    bindings:
-      enabled: true
-      endpointSelectors:
-      - "true"
-      - "false"
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --bindings-endpoint-selectors=true,false
-- it: Should pass one-click-demo mode if set
-  set:
-    oneClickDemoMode: true
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --one-click-demo-mode
-- it: Should pass log format argument if set
-  set:
-    log:
-      format: console
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --zap-encoder=console
-- it: Should pass stacktrace log level argument if set
-  set:
-    log:
-      stacktraceLevel: error
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --zap-stacktrace-level=error
-- it: Should set the default domain reclaim policy arg
-  set:
-    defaultDomainReclaimPolicy: "Retain"
-  template: api-manager/deployment.yaml
-  documentIndex: 0 # Document 0 is the deployment since its the first template
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --default-domain-reclaim-policy=Retain
 - it: Defaults to having "soft" pod anti-affinity
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
@@ -294,7 +83,8 @@ tests:
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    podAntiAffinityPreset: "hard"
+    defaults:
+      podAntiAffinityPreset: "hard"
   asserts:
   - equal:
       path: spec.template.spec.affinity.podAntiAffinity
@@ -310,24 +100,25 @@ tests:
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-          - matchExpressions:
-            - key: topology.kubernetes.io/zone
-              operator: In
-              values:
-              - antarctica-east1
-              - antarctica-west1
-        preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 1
-          preference:
-            matchExpressions:
-            - key: another-node-label-key
-              operator: In
-              values:
-              - another-node-label-value
+    defaults:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: topology.kubernetes.io/zone
+                operator: In
+                values:
+                - antarctica-east1
+                - antarctica-west1
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: another-node-label-key
+                operator: In
+                values:
+                - another-node-label-value
   asserts:
   - equal:
       path: spec.template.spec.affinity
@@ -359,7 +150,8 @@ tests:
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    priorityClassName: "high-priority"
+    apiManager:
+      priorityClassName: "high-priority"
   asserts:
   - equal:
       path: spec.template.spec.priorityClassName
@@ -375,16 +167,18 @@ tests:
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    terminationGracePeriodSeconds: 120
+    apiManager:
+      terminationGracePeriodSeconds: 120
   asserts:
   - equal:
       path: spec.template.spec.terminationGracePeriodSeconds
       value: 120
-- it: Adds .Values.podLabels to the controller deployment podspec
+- it: Adds .Values.defaults.podLabels to the controller deployment podspec
   set:
-    podLabels:
-      labelKey1: labelValue1
-      labelKey2: labelValue2
+    defaults:
+      podLabels:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
@@ -393,11 +187,12 @@ tests:
       content:
         labelKey1: labelValue1
         labelKey2: labelValue2
-- it: Does not add .Values.podLabels to the controller deployment's selector
+- it: Does not add .Values.defaults.podLabels to the controller deployment's selector
   set:
-    podLabels:
-      labelKey1: labelValue1
-      labelKey2: labelValue2
+    defaults:
+      podLabels:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
@@ -408,8 +203,9 @@ tests:
         labelKey2: labelValue2
 - it: Supports selecting which nodes the manager should run on with node selectors
   set:
-    nodeSelector: &nodeSelector
-      disktype: ssd
+    apiManager:
+      nodeSelector: &nodeSelector
+        disktype: ssd
   template: api-manager/deployment.yaml
   asserts:
   - equal:
@@ -417,12 +213,13 @@ tests:
       value: *nodeSelector
 - it: Supports setting tolerations on the manager pods
   set:
-    tolerations:
-    - &toleration
-      key: "key1"
-      operator: "Equal"
-      value: "value1"
-      effect: "NoSchedule"
+    apiManager:
+      tolerations:
+      - &toleration
+        key: "key1"
+        operator: "Equal"
+        value: "value1"
+        effect: "NoSchedule"
   template: api-manager/deployment.yaml
   asserts:
   - contains:
@@ -430,18 +227,91 @@ tests:
       content: *toleration
 - it: Supports setting topologySpreadConstraints on the manager pods
   set:
-    topologySpreadConstraints:
-    - &tsc
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: DoNotSchedule
-      labelSelector:
-        matchLabels:
-          app: foo
-      matchLabelKeys:
-        - pod-template-hash
+    apiManager:
+      topologySpreadConstraints:
+      - &tsc
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: foo
+        matchLabelKeys:
+          - pod-template-hash
   template: api-manager/deployment.yaml
   asserts:
   - contains:
       path: spec.template.spec.topologySpreadConstraints
       content: *tsc
+- it: passes only identity args and the config file
+  template: api-manager/deployment.yaml
+  documentIndex: 0
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: --config=/etc/ngrok-operator/apiManager.yaml
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].args[*]
+      pattern: '^--region='
+- it: mounts the operator config
+  template: api-manager/deployment.yaml
+  documentIndex: 0
+  asserts:
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: operator-config
+        configMap:
+          name: RELEASE-NAME-ngrok-operator-config
+- it: deep-merges defaults into the component, with the component winning
+  template: api-manager/deployment.yaml
+  documentIndex: 0
+  set:
+    defaults:
+      podAnnotations:
+        shared: "from-defaults"
+        overridden: "from-defaults"
+      tolerations:
+        - key: shared-toleration
+    apiManager:
+      podAnnotations:
+        overridden: "from-apiManager"
+        apiManagerOnly: "from-apiManager"
+      tolerations:
+        - key: apiManager-toleration
+  asserts:
+    # map keys merge, component wins on collision
+    - equal:
+        path: spec.template.metadata.annotations.shared
+        value: from-defaults
+    - equal:
+        path: spec.template.metadata.annotations.overridden
+        value: from-apiManager
+    - equal:
+        path: spec.template.metadata.annotations.apiManagerOnly
+        value: from-apiManager
+    # arrays replace wholesale rather than appending
+    - equal:
+        path: spec.template.spec.tolerations
+        value:
+          - key: apiManager-toleration
+- it: rolls only this component when its own config changes
+  template: api-manager/deployment.yaml
+  documentIndex: 0
+  set:
+    apiManager:
+      log:
+        level: debug
+  asserts:
+    - exists:
+        path: spec.template.metadata.annotations["checksum/config"]
+- it: renders apiManager.updateStrategy as the Deployment strategy
+  template: api-manager/deployment.yaml
+  set:
+    apiManager:
+      updateStrategy:
+        type: Recreate
+  asserts:
+    - equal:
+        path: spec.strategy.type
+        value: Recreate

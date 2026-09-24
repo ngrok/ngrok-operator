@@ -2,9 +2,11 @@ suite: test agent deployment
 templates:
 - agent/deployment.yaml
 - agent/role.yaml
+- configmap.yaml
 set:
-  ingress:
-    enabled: true
+  features:
+    ingress:
+      enabled: true
 tests:
 - it: Should match snapshot
   asserts:
@@ -19,11 +21,27 @@ tests:
   - equal:
       path: spec.strategy.type
       value: RollingUpdate
-- it: Adds .Values.podLabels to the controller deployment podspec
+- it: Defaults to having "soft" pod anti-affinity
+  template: agent/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.affinity.podAntiAffinity
+      value:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: agent
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: ngrok-operator
+            topologyKey: kubernetes.io/hostname
+          weight: 1
+- it: Adds .Values.defaults.podLabels to the agent deployment podspec
   set:
-    podLabels:
-      labelKey1: labelValue1
-      labelKey2: labelValue2
+    defaults:
+      podLabels:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
   template: agent/deployment.yaml
   asserts:
   - isSubset:
@@ -31,11 +49,12 @@ tests:
       content:
         labelKey1: labelValue1
         labelKey2: labelValue2
-- it: Does not add .Values.podLabels to the controller deployment's selector
+- it: Does not add .Values.defaults.podLabels to the agent deployment's selector
   set:
-    podLabels:
-      labelKey1: labelValue1
-      labelKey2: labelValue2
+    defaults:
+      podLabels:
+        labelKey1: labelValue1
+        labelKey2: labelValue2
   template: agent/deployment.yaml
   asserts:
   - isNotSubset:
@@ -115,41 +134,35 @@ tests:
   - equal:
       path: spec.template.spec.terminationGracePeriodSeconds
       value: 45
-- it: Should set the default domain reclaim policy arg
+- it: Falls back to defaults.podAnnotations when agent.podAnnotations is not set
   set:
-    defaultDomainReclaimPolicy: "Retain"
-  template: agent/deployment.yaml
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --default-domain-reclaim-policy=Retain
-- it: Falls back to global podAnnotations when agent.podAnnotations is not set
-  set:
-    podAnnotations:
-      global-annotation: global-value
+    defaults:
+      podAnnotations:
+        global-annotation: global-value
   template: agent/deployment.yaml
   asserts:
   - isSubset:
       path: spec.template.metadata.annotations
       content:
         global-annotation: global-value
-- it: Uses agent.podAnnotations when set instead of global podAnnotations
+- it: Deep-merges defaults.podAnnotations with agent.podAnnotations, agent winning on collision
   set:
-    podAnnotations:
-      global-annotation: global-value
+    defaults:
+      podAnnotations:
+        global-annotation: global-value
+        overridden: from-defaults
     agent:
       podAnnotations:
         agent-annotation: agent-value
+        overridden: from-agent
   template: agent/deployment.yaml
   asserts:
   - isSubset:
       path: spec.template.metadata.annotations
       content:
-        agent-annotation: agent-value
-  - isNotSubset:
-      path: spec.template.metadata.annotations
-      content:
         global-annotation: global-value
+        agent-annotation: agent-value
+        overridden: from-agent
 - it: Supports Datadog autodiscovery annotations on agent pods
   set:
     agent:
@@ -161,39 +174,69 @@ tests:
       path: spec.template.metadata.annotations
       content:
         ad.datadoghq.com/agent.logs: '[{"service":"ngrok-agent","source":"ngrok-agent"}]'
-- it: Should pass --watch-namespace flag when ingress.watchNamespace is set
-  set:
-    ingress:
-      watchNamespace: my-namespace
+- it: passes only identity args and the config file
   template: agent/deployment.yaml
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
-      content: --watch-namespace=my-namespace
-- it: Should pass --watch-namespace flag when watchNamespace is set
-  set:
-    watchNamespace: my-namespace
+      content: --config=/etc/ngrok-operator/agent.yaml
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].args[*]
+      pattern: '^--watch-namespace='
+- it: mounts the operator config
   template: agent/deployment.yaml
   asserts:
   - contains:
-      path: spec.template.spec.containers[0].args
-      content: --watch-namespace=my-namespace
-- it: Should prefer watchNamespace over ingress.watchNamespace
-  set:
-    watchNamespace: preferred-namespace
-    ingress:
-      watchNamespace: fallback-namespace
+      path: spec.template.spec.volumes
+      content:
+        name: operator-config
+        configMap:
+          name: RELEASE-NAME-ngrok-operator-config
+- it: deep-merges defaults into the component, with the component winning
   template: agent/deployment.yaml
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --watch-namespace=preferred-namespace
-- it: Should not include --watch-namespace flag when not set
   set:
-    ingress:
-      watchNamespace: ""
-  template: agent/deployment.yaml
+    defaults:
+      podAnnotations:
+        shared: "from-defaults"
+        overridden: "from-defaults"
+      tolerations:
+        - key: shared-toleration
+    agent:
+      podAnnotations:
+        overridden: "from-agent"
+        agentOnly: "from-agent"
+      tolerations:
+        - key: agent-toleration
   asserts:
-  - notContains:
-      path: spec.template.spec.containers[0].args
-      content: --watch-namespace=
+    # map keys merge, component wins on collision
+    - equal:
+        path: spec.template.metadata.annotations.shared
+        value: from-defaults
+    - equal:
+        path: spec.template.metadata.annotations.overridden
+        value: from-agent
+    - equal:
+        path: spec.template.metadata.annotations.agentOnly
+        value: from-agent
+    # arrays replace wholesale rather than appending
+    - equal:
+        path: spec.template.spec.tolerations
+        value:
+          - key: agent-toleration
+- it: rolls only this component when its own config changes
+  template: agent/deployment.yaml
+  set:
+    agent:
+      log:
+        level: debug
+  asserts:
+    - exists:
+        path: spec.template.metadata.annotations["checksum/config"]
+- it: does not render in one-click demo mode, which has no authtoken for the agent
+  template: agent/deployment.yaml
+  set:
+    apiManager:
+      oneClickDemoMode: true
+  asserts:
+    - hasDocuments:
+        count: 0

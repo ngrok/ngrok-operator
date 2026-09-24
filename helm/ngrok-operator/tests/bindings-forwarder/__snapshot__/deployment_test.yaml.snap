@@ -27,6 +27,7 @@ Should match snapshot:
       template:
         metadata:
           annotations:
+            checksum/config: a0a3b6ffc02d33b48a3e22f0376b9aea14cc805b632dacdaa9e7bd9a27186e96
             checksum/rbac: 2b5a37e7ad063bb138ca1acc4a11ca0da8991d66311c333da4b2bba7584535fe
             prometheus.io/path: /metrics
             prometheus.io/port: "8080"
@@ -52,11 +53,8 @@ Should match snapshot:
           containers:
             - args:
                 - bindings-forwarder-manager
+                - --config=/etc/ngrok-operator/bindingsForwarder.yaml
                 - --release-name=RELEASE-NAME
-                - --description=The official ngrok Kubernetes Operator.
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --manager-name=RELEASE-NAME-ngrok-operator-bindings-forwarder
@@ -94,5 +92,13 @@ Should match snapshot:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
+              volumeMounts:
+                - mountPath: /etc/ngrok-operator
+                  name: operator-config
+                  readOnly: true
           serviceAccountName: RELEASE-NAME-ngrok-operator-bindings-forwarder
           terminationGracePeriodSeconds: 30
+          volumes:
+            - configMap:
+                name: RELEASE-NAME-ngrok-operator-config
+              name: operator-config
