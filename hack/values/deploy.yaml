@@ -1,0 +1,13 @@
+# Values for `make deploy`. Settings a developer wants at a terminal rather
+# than in a log pipeline. Credentials and the image are passed as --set,
+# because they come from the environment.
+log:
+  format: console
+  level: debug
+  stacktraceLevel: panic
+ngrok:
+  metadata:
+    env: local
+    from: makefile
+features:
+  drainPolicy: Delete

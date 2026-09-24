@@ -1,12 +1,12 @@
 ##@ Deploying
 
 ifneq ($(CODESPACE_NAME),)
-HELM_DESCRIPTION_FLAG = --set-string description="codespace: $(CODESPACE_NAME)"
+HELM_DESCRIPTION_FLAG = --set-string ngrok.description="codespace: $(CODESPACE_NAME)"
 endif
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/api/main.go
+	go run . api-manager
 
 
 .PHONY: deploy
@@ -14,17 +14,13 @@ deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-imag
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
+		-f hack/values/deploy.yaml \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
-		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
-		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
+		--set-string defaults.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
+		--set defaults.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
-		--set log.format=console \
-		--set-string log.level="8" \
-		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile \
-		--set drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: deploy_gateway
@@ -32,18 +28,14 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
+		-f hack/values/deploy.yaml \
+		-f hack/values/deploy-gateway.yaml \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
-		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
-		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
+		--set-string defaults.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
+		--set defaults.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
-		--set log.format=console \
-		--set-string log.level="8" \
-		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile \
-		--set gateway.enabled=true \
-		--set drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: deploy_with_bindings
@@ -51,18 +43,14 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup 
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
+		-f hack/values/deploy.yaml \
+		-f hack/values/deploy-bindings.yaml \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
-		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
-		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
+		--set-string defaults.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
+		--set defaults.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
-		--set log.format=console \
-		--set log.level=debug \
-		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=true \
-		--set drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: deploy_for_e2e
@@ -70,23 +58,17 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
-		--set oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
+		-f hack/values/deploy.yaml \
+		-f hack/values/deploy-bindings.yaml \
+		-f hack/values/deploy-e2e.yaml \
+		--set apiManager.oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set image.pullPolicy="Never" \
-		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
-		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
+		--set-string defaults.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
+		--set defaults.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
-		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
-		--set log.format=console \
-		--set log.level=debug \
-		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile \
-		--set bindings.enabled=true \
-		--set bindings.serviceAnnotations.annotation1="val1" \
-		--set bindings.serviceAnnotations.annotation2="val2" \
-		--set bindings.serviceLabels.label1="val1" \
-		--set drainPolicy="Delete"
+		--set credentials.authtoken=$(NGROK_AUTHTOKEN)
 
 .PHONY: deploy_multi_namespace
 ## 1. We want to install the CRDs only once at the beginning
@@ -105,16 +87,15 @@ deploy_multi_namespace: _deploy-check-env-vars docker-build manifests _helm_setu
 		--set installCRDs=false \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
-		--set ingress.controllerName="k8s.ngrok.com/ingress-controller-a" \
-		--set ingress.ingressClass.name="ngrok-a" \
-		--set ingress.watchNamespace="namespace-a" \
-		--set watchNamespace=namespace-a \
+		--set features.ingress.controllerName="k8s.ngrok.com/ingress-controller-a" \
+		--set features.ingress.ingressClass.name="ngrok-a" \
+		--set features.ingress.watchNamespace="namespace-a" \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
 		--set log.format=console \
-		--set-string log.level="8" \
+		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile \
+		--set ngrok.metadata.env=local,ngrok.metadata.from=makefile \
 		$(HELM_DESCRIPTION_FLAG)
 
 	helm upgrade ngrok-operator-b $(HELM_CHART_DIR) --install \
@@ -122,18 +103,17 @@ deploy_multi_namespace: _deploy-check-env-vars docker-build manifests _helm_setu
 		--namespace namespace-b \
 		--create-namespace \
 		--set installCRDs=false \
-		--set ingress.controllerName="k8s.ngrok.com/ingress-controller-b" \
-		--set ingress.ingressClass.name="ngrok-b" \
-		--set ingress.watchNamespace="namespace-b" \
+		--set features.ingress.controllerName="k8s.ngrok.com/ingress-controller-b" \
+		--set features.ingress.ingressClass.name="ngrok-b" \
+		--set features.ingress.watchNamespace="namespace-b" \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
-		--set watchNamespace=namespace-b \
 		--set credentials.apiKey=$(NGROK_API_KEY) \
 		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
 		--set log.format=console \
-		--set-string log.level="8" \
+		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
-		--set metaData.env=local,metaData.from=makefile \
+		--set ngrok.metadata.env=local,ngrok.metadata.from=makefile \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: kind-load-image
@@ -153,3 +133,14 @@ endif
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	helm uninstall ngrok-operator --namespace $(KUBE_NAMESPACE)
+
+.PHONY: run-api-manager
+run-api-manager: _run-api-manager-check-env-vars ## Run the api-manager locally with go run against the current kubecontext.
+	NGROK_API_KEY=$(NGROK_API_KEY) POD_NAMESPACE=$(or $(POD_NAMESPACE),default) \
+		go run . api-manager --config=./hack/config.yaml
+
+.PHONY: _run-api-manager-check-env-vars
+_run-api-manager-check-env-vars:
+ifndef NGROK_API_KEY
+	$(error An NGROK_API_KEY must be set)
+endif

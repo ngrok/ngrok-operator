@@ -1,0 +1,10 @@
+# Extra values for `make deploy_for_e2e`, layered on top of deploy.yaml and
+# deploy-bindings.yaml. Only the settings that differ from a plain bindings
+# deploy live here.
+features:
+  bindings:
+    serviceAnnotations:
+      annotation1: val1
+      annotation2: val2
+    serviceLabels:
+      label1: val1

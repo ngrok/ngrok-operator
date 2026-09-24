@@ -1,0 +1,21 @@
+# Optional local-development config for `go run`. The baseline needs no file:
+#
+#   NGROK_API_KEY=... go run . api-manager
+#
+# This file only adjusts what a human at a terminal wants differently from a
+# log pipeline, plus gateway.enabled, which departs from the binary default so
+# a local cluster without the Gateway API CRDs does not log about them.
+#
+#   NGROK_API_KEY=... go run . api-manager --config=./hack/config.yaml
+#
+# Credentials are read from the environment, never from this file.
+log:
+  level: debug
+  format: console
+features:
+  ingress:
+    enabled: true
+  gateway:
+    enabled: false
+  bindings:
+    enabled: false

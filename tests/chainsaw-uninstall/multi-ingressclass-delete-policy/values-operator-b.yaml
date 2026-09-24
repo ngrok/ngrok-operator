@@ -6,16 +6,17 @@
 # each other's driver-generated CRDs, causing conflicts and undefined behavior.
 #
 # The only supported multi-operator configuration is:
-#   - Each operator watches a DIFFERENT namespace (watchNamespace)
+#   - Each operator watches a DIFFERENT namespace (features.ingress.watchNamespace)
 #   - Each operator uses a DIFFERENT ingress class (optional, but recommended)
 
-drainPolicy: Delete
+agent: {}
+apiManager: {}
+features:
+  drainPolicy: Delete
+  ingress:
+    controllerName: k8s.ngrok.com/ingress-controller-b
+    ingressClass:
+      name: ngrok-b
+    # REQUIRED for multi-operator: Each operator MUST watch only its own namespace
+    watchNamespace: namespace-b
 installCRDs: false
-
-# REQUIRED for multi-operator: Each operator MUST watch only its own namespace
-watchNamespace: namespace-b
-
-ingress:
-  controllerName: k8s.ngrok.com/ingress-controller-b
-  ingressClass:
-    name: ngrok-b
