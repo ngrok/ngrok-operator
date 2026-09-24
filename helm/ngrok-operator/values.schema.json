@@ -1,0 +1,1095 @@
+{
+    "title": "Chart Values",
+    "type": "object",
+    "properties": {
+        "nameOverride": {
+            "type": "string",
+            "description": "Partially override the generated resource names",
+            "default": ""
+        },
+        "fullnameOverride": {
+            "type": "string",
+            "description": "Fully override the generated resource names",
+            "default": ""
+        },
+        "commonLabels": {
+            "type": "object",
+            "description": "Labels added to all resources created by this chart",
+            "default": {}
+        },
+        "commonAnnotations": {
+            "type": "object",
+            "description": "Annotations added to all resources created by this chart",
+            "default": {}
+        },
+        "image": {
+            "type": "object",
+            "properties": {
+                "registry": {
+                    "type": "string",
+                    "description": "The ngrok operator image registry.",
+                    "default": "docker.io"
+                },
+                "repository": {
+                    "type": "string",
+                    "description": "The ngrok operator image repository.",
+                    "default": "ngrok/ngrok-operator"
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "The ngrok operator image tag. Defaults to the chart's appVersion if not specified",
+                    "default": ""
+                },
+                "pullPolicy": {
+                    "type": "string",
+                    "description": "The ngrok operator image pull policy.",
+                    "default": "IfNotPresent"
+                },
+                "pullSecrets": {
+                    "type": "array",
+                    "description": "An array of imagePullSecrets to be used when pulling the image.",
+                    "default": [],
+                    "items": {}
+                }
+            },
+            "additionalProperties": false
+        },
+        "defaults": {
+            "type": "object",
+            "properties": {
+                "podAnnotations": {
+                    "type": "object",
+                    "description": "Pod annotations for every component",
+                    "default": {}
+                },
+                "podLabels": {
+                    "type": "object",
+                    "description": "Pod labels for every component",
+                    "default": {}
+                },
+                "nodeSelector": {
+                    "type": "object",
+                    "description": "Node labels for pod assignment",
+                    "default": {}
+                },
+                "tolerations": {
+                    "type": "array",
+                    "description": "Tolerations for every component's pods",
+                    "default": [],
+                    "items": {}
+                },
+                "affinity": {
+                    "type": "object",
+                    "description": "Affinity rules for every component's pods. Overrides the presets below when set.",
+                    "default": {}
+                },
+                "podAffinityPreset": {
+                    "type": "string",
+                    "description": "Pod affinity preset. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                    "default": ""
+                },
+                "podAntiAffinityPreset": {
+                    "type": "string",
+                    "description": "Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                    "default": "soft"
+                },
+                "nodeAffinityPreset": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Node affinity preset type. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                            "default": ""
+                        },
+                        "key": {
+                            "type": "string",
+                            "description": "Node label key to match. Ignored if `affinity` is set.",
+                            "default": ""
+                        },
+                        "values": {
+                            "type": "array",
+                            "description": "Node label values to match. Ignored if `affinity` is set.",
+                            "default": [],
+                            "items": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "topologySpreadConstraints": {
+                    "type": "array",
+                    "description": "Topology spread constraints",
+                    "default": [],
+                    "items": {}
+                },
+                "priorityClassName": {
+                    "type": "string",
+                    "description": "Priority class for pod scheduling",
+                    "default": ""
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "limits": {
+                            "type": "object",
+                            "description": "Resource limits for every component",
+                            "default": {}
+                        },
+                        "requests": {
+                            "type": "object",
+                            "description": "Resource requests for every component",
+                            "default": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "extraVolumes": {
+                    "type": "array",
+                    "description": "Additional volumes",
+                    "default": [],
+                    "items": {}
+                },
+                "extraVolumeMounts": {
+                    "type": "array",
+                    "description": "Additional volume mounts",
+                    "default": [],
+                    "items": {}
+                },
+                "extraEnv": {
+                    "type": "object",
+                    "description": "Additional environment variables",
+                    "default": {}
+                },
+                "lifecycle": {
+                    "type": "object",
+                    "description": "Container lifecycle hooks",
+                    "default": {}
+                },
+                "terminationGracePeriodSeconds": {
+                    "type": "number",
+                    "description": "Graceful shutdown period",
+                    "default": 30
+                }
+            },
+            "additionalProperties": false
+        },
+        "ngrok": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Description attached to the ngrok API resources the operator creates. Default: `The official ngrok Kubernetes Operator.`",
+                    "default": null
+                },
+                "region": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "ngrok region to use. Unset means the account default",
+                    "default": null
+                },
+                "serverAddr": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Address of the ngrok server to use for tunnels. Unset means the ngrok default",
+                    "default": null
+                },
+                "apiURL": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Base URL for the ngrok API. Unset means the ngrok default",
+                    "default": null
+                },
+                "rootCAs": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Root CAs to use: `trusted` for the ngrok CA, `host` for the host's CA bundle. Default: `trusted`",
+                    "default": null
+                },
+                "clusterDomain": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`",
+                    "default": null
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Key/value pairs added as metadata to the ngrok API resources the operator creates",
+                    "default": {}
+                }
+            },
+            "additionalProperties": false
+        },
+        "log": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Log level: `debug`, `info`, `warn`, `error`, `dpanic`, `panic` or `fatal`. Default: `info`",
+                    "default": null
+                },
+                "format": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Log format: `json` or `console`. Default: `json`",
+                    "default": null
+                },
+                "stacktraceLevel": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Level at which to emit stacktraces: `debug`, `info`, `warn`, `error`, `dpanic`, `panic` or `fatal`. Default: `error`",
+                    "default": null
+                }
+            },
+            "additionalProperties": false
+        },
+        "features": {
+            "type": "object",
+            "properties": {
+                "ingress": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable the Kubernetes Ingress controller",
+                            "default": true
+                        },
+                        "controllerName": {
+                            "type": "string",
+                            "description": "Controller name for IngressClass matching. Must match the operator's own `--ingress-controller-name`",
+                            "default": "k8s.ngrok.com/ingress-controller"
+                        },
+                        "watchNamespace": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Namespace to watch for Ingress resources. Unset watches all namespaces",
+                            "default": null
+                        },
+                        "ingressClass": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "IngressClass resource name",
+                                    "default": "ngrok"
+                                },
+                                "create": {
+                                    "type": "boolean",
+                                    "description": "Create the IngressClass resource",
+                                    "default": true
+                                },
+                                "default": {
+                                    "type": "boolean",
+                                    "description": "Set as the default IngressClass",
+                                    "default": false
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "gateway": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable Gateway API support, if the CRDs are detected",
+                            "default": true
+                        },
+                        "disableReferenceGrants": {
+                            "type": "boolean",
+                            "description": "Disable the ReferenceGrant requirement for cross-namespace references",
+                            "default": false
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "bindings": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable the Endpoint Bindings feature",
+                            "default": false
+                        },
+                        "endpointSelectors": {
+                            "type": [
+                                "array",
+                                "null"
+                            ],
+                            "description": "CEL expressions filtering which endpoints to project. Default: `[\"true\"]`",
+                            "default": null,
+                            "items": {}
+                        },
+                        "serviceAnnotations": {
+                            "type": "object",
+                            "description": "Annotations applied to projected services",
+                            "default": {}
+                        },
+                        "serviceLabels": {
+                            "type": "object",
+                            "description": "Labels applied to projected services",
+                            "default": {}
+                        },
+                        "ingressEndpoint": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`",
+                            "default": null
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "defaultDomainReclaimPolicy": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Default reclaim policy for Domains: `Delete` or `Retain`. Default: `Delete`",
+                    "default": null
+                },
+                "drainPolicy": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Drain policy on uninstall: `Delete` or `Retain`. Default: `Retain`",
+                    "default": null
+                }
+            },
+            "additionalProperties": false
+        },
+        "credentials": {
+            "type": "object",
+            "properties": {
+                "secret": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.",
+                            "default": ""
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "apiKey": {
+                    "type": "string",
+                    "description": "Your ngrok API key. If provided, the authtoken must be provided as well.",
+                    "default": ""
+                },
+                "authtoken": {
+                    "type": "string",
+                    "description": "Your ngrok authtoken. If provided, the apiKey must be provided as well.",
+                    "default": ""
+                }
+            },
+            "additionalProperties": false
+        },
+        "apiManager": {
+            "type": "object",
+            "properties": {
+                "replicaCount": {
+                    "type": "number",
+                    "description": "The number of api-manager replicas to run",
+                    "default": 1
+                },
+                "podDisruptionBudget": {
+                    "type": "object",
+                    "properties": {
+                        "create": {
+                            "type": "boolean",
+                            "description": "Whether to create a PodDisruptionBudget",
+                            "default": false
+                        },
+                        "maxUnavailable": {
+                            "type": "string",
+                            "description": "Maximum unavailable pods",
+                            "default": "1"
+                        },
+                        "minAvailable": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Minimum available pods. Set this instead of `maxUnavailable`, not alongside it",
+                            "default": null
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "serviceAccount": {
+                    "type": "object",
+                    "properties": {
+                        "create": {
+                            "type": "boolean",
+                            "description": "Whether to create a ServiceAccount",
+                            "default": true
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "ServiceAccount name; generated if empty",
+                            "default": ""
+                        },
+                        "annotations": {
+                            "type": "object",
+                            "description": "Additional ServiceAccount annotations",
+                            "default": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "updateStrategy": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Deployment update strategy",
+                            "default": "RollingUpdate"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "oneClickDemoMode": {
+                    "type": "boolean",
+                    "description": "Start the api-manager without credentials, for demo installs. Also stops the agent and bindings-forwarder Deployments from rendering.",
+                    "default": false
+                },
+                "log": {
+                    "type": "object",
+                    "properties": {
+                        "level": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Overrides `log.level` for the api-manager only",
+                            "default": null
+                        },
+                        "format": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Overrides `log.format` for the api-manager only",
+                            "default": null
+                        },
+                        "stacktraceLevel": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Overrides `log.stacktraceLevel` for the api-manager only",
+                            "default": null
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "podAnnotations": {
+                    "type": "object",
+                    "description": "Pod annotations for every component",
+                    "default": {}
+                },
+                "podLabels": {
+                    "type": "object",
+                    "description": "Pod labels for every component",
+                    "default": {}
+                },
+                "nodeSelector": {
+                    "type": "object",
+                    "description": "Node labels for pod assignment",
+                    "default": {}
+                },
+                "tolerations": {
+                    "type": "array",
+                    "description": "Tolerations for every component's pods",
+                    "default": [],
+                    "items": {}
+                },
+                "affinity": {
+                    "type": "object",
+                    "description": "Affinity rules for every component's pods. Overrides the presets below when set.",
+                    "default": {}
+                },
+                "podAffinityPreset": {
+                    "type": "string",
+                    "description": "Pod affinity preset. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                    "default": ""
+                },
+                "podAntiAffinityPreset": {
+                    "type": "string",
+                    "description": "Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                    "default": "soft"
+                },
+                "nodeAffinityPreset": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Node affinity preset type. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                            "default": ""
+                        },
+                        "key": {
+                            "type": "string",
+                            "description": "Node label key to match. Ignored if `affinity` is set.",
+                            "default": ""
+                        },
+                        "values": {
+                            "type": "array",
+                            "description": "Node label values to match. Ignored if `affinity` is set.",
+                            "default": [],
+                            "items": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "topologySpreadConstraints": {
+                    "type": "array",
+                    "description": "Topology spread constraints",
+                    "default": [],
+                    "items": {}
+                },
+                "priorityClassName": {
+                    "type": "string",
+                    "description": "Priority class for pod scheduling",
+                    "default": ""
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "limits": {
+                            "type": "object",
+                            "description": "Resource limits for every component",
+                            "default": {}
+                        },
+                        "requests": {
+                            "type": "object",
+                            "description": "Resource requests for every component",
+                            "default": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "extraVolumes": {
+                    "type": "array",
+                    "description": "Additional volumes",
+                    "default": [],
+                    "items": {}
+                },
+                "extraVolumeMounts": {
+                    "type": "array",
+                    "description": "Additional volume mounts",
+                    "default": [],
+                    "items": {}
+                },
+                "extraEnv": {
+                    "type": "object",
+                    "description": "Additional environment variables",
+                    "default": {}
+                },
+                "lifecycle": {
+                    "type": "object",
+                    "description": "Container lifecycle hooks",
+                    "default": {}
+                },
+                "terminationGracePeriodSeconds": {
+                    "type": "number",
+                    "description": "Graceful shutdown period",
+                    "default": 30
+                }
+            },
+            "additionalProperties": false
+        },
+        "agent": {
+            "type": "object",
+            "properties": {
+                "replicaCount": {
+                    "type": "number",
+                    "description": "The number of agent replicas to run",
+                    "default": 1
+                },
+                "serviceAccount": {
+                    "type": "object",
+                    "properties": {
+                        "create": {
+                            "type": "boolean",
+                            "description": "Whether to create a ServiceAccount",
+                            "default": true
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "ServiceAccount name; generated if empty",
+                            "default": ""
+                        },
+                        "annotations": {
+                            "type": "object",
+                            "description": "Additional ServiceAccount annotations",
+                            "default": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "updateStrategy": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Deployment update strategy",
+                            "default": "RollingUpdate"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "watchNamespace": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Namespace to watch for AgentEndpoint resources. Unset watches all namespaces.",
+                    "default": null
+                },
+                "log": {
+                    "type": "object",
+                    "properties": {
+                        "level": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Overrides `log.level` for the agent only",
+                            "default": null
+                        },
+                        "format": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Overrides `log.format` for the agent only",
+                            "default": null
+                        },
+                        "stacktraceLevel": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Overrides `log.stacktraceLevel` for the agent only",
+                            "default": null
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "podAnnotations": {
+                    "type": "object",
+                    "description": "Pod annotations for every component",
+                    "default": {}
+                },
+                "podLabels": {
+                    "type": "object",
+                    "description": "Pod labels for every component",
+                    "default": {}
+                },
+                "nodeSelector": {
+                    "type": "object",
+                    "description": "Node labels for pod assignment",
+                    "default": {}
+                },
+                "tolerations": {
+                    "type": "array",
+                    "description": "Tolerations for every component's pods",
+                    "default": [],
+                    "items": {}
+                },
+                "affinity": {
+                    "type": "object",
+                    "description": "Affinity rules for every component's pods. Overrides the presets below when set.",
+                    "default": {}
+                },
+                "podAffinityPreset": {
+                    "type": "string",
+                    "description": "Pod affinity preset. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                    "default": ""
+                },
+                "podAntiAffinityPreset": {
+                    "type": "string",
+                    "description": "Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                    "default": "soft"
+                },
+                "nodeAffinityPreset": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Node affinity preset type. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                            "default": ""
+                        },
+                        "key": {
+                            "type": "string",
+                            "description": "Node label key to match. Ignored if `affinity` is set.",
+                            "default": ""
+                        },
+                        "values": {
+                            "type": "array",
+                            "description": "Node label values to match. Ignored if `affinity` is set.",
+                            "default": [],
+                            "items": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "topologySpreadConstraints": {
+                    "type": "array",
+                    "description": "Topology spread constraints",
+                    "default": [],
+                    "items": {}
+                },
+                "priorityClassName": {
+                    "type": "string",
+                    "description": "Priority class for pod scheduling",
+                    "default": ""
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "limits": {
+                            "type": "object",
+                            "description": "Resource limits for every component",
+                            "default": {}
+                        },
+                        "requests": {
+                            "type": "object",
+                            "description": "Resource requests for every component",
+                            "default": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "extraVolumes": {
+                    "type": "array",
+                    "description": "Additional volumes",
+                    "default": [],
+                    "items": {}
+                },
+                "extraVolumeMounts": {
+                    "type": "array",
+                    "description": "Additional volume mounts",
+                    "default": [],
+                    "items": {}
+                },
+                "extraEnv": {
+                    "type": "object",
+                    "description": "Additional environment variables",
+                    "default": {}
+                },
+                "lifecycle": {
+                    "type": "object",
+                    "description": "Container lifecycle hooks",
+                    "default": {}
+                },
+                "terminationGracePeriodSeconds": {
+                    "type": "number",
+                    "description": "Graceful shutdown period",
+                    "default": 30
+                }
+            },
+            "additionalProperties": false
+        },
+        "bindingsForwarder": {
+            "type": "object",
+            "properties": {
+                "replicaCount": {
+                    "type": "number",
+                    "description": "The number of bindings-forwarder replicas to run",
+                    "default": 1
+                },
+                "serviceAccount": {
+                    "type": "object",
+                    "properties": {
+                        "create": {
+                            "type": "boolean",
+                            "description": "Whether to create a ServiceAccount",
+                            "default": true
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "ServiceAccount name; generated if empty",
+                            "default": ""
+                        },
+                        "annotations": {
+                            "type": "object",
+                            "description": "Additional ServiceAccount annotations",
+                            "default": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "updateStrategy": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Deployment update strategy",
+                            "default": "RollingUpdate"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "log": {
+                    "type": "object",
+                    "properties": {
+                        "level": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Overrides `log.level` for the bindings-forwarder only",
+                            "default": null
+                        },
+                        "format": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Overrides `log.format` for the bindings-forwarder only",
+                            "default": null
+                        },
+                        "stacktraceLevel": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "description": "Overrides `log.stacktraceLevel` for the bindings-forwarder only",
+                            "default": null
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "podAnnotations": {
+                    "type": "object",
+                    "description": "Pod annotations for every component",
+                    "default": {}
+                },
+                "podLabels": {
+                    "type": "object",
+                    "description": "Pod labels for every component",
+                    "default": {}
+                },
+                "nodeSelector": {
+                    "type": "object",
+                    "description": "Node labels for pod assignment",
+                    "default": {}
+                },
+                "tolerations": {
+                    "type": "array",
+                    "description": "Tolerations for every component's pods",
+                    "default": [],
+                    "items": {}
+                },
+                "affinity": {
+                    "type": "object",
+                    "description": "Affinity rules for every component's pods. Overrides the presets below when set.",
+                    "default": {}
+                },
+                "podAffinityPreset": {
+                    "type": "string",
+                    "description": "Pod affinity preset. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                    "default": ""
+                },
+                "podAntiAffinityPreset": {
+                    "type": "string",
+                    "description": "Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                    "default": "soft"
+                },
+                "nodeAffinityPreset": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Node affinity preset type. Ignored if `affinity` is set. Allowed values: \"\" (none), \"soft\" or \"hard\"",
+                            "default": ""
+                        },
+                        "key": {
+                            "type": "string",
+                            "description": "Node label key to match. Ignored if `affinity` is set.",
+                            "default": ""
+                        },
+                        "values": {
+                            "type": "array",
+                            "description": "Node label values to match. Ignored if `affinity` is set.",
+                            "default": [],
+                            "items": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "topologySpreadConstraints": {
+                    "type": "array",
+                    "description": "Topology spread constraints",
+                    "default": [],
+                    "items": {}
+                },
+                "priorityClassName": {
+                    "type": "string",
+                    "description": "Priority class for pod scheduling",
+                    "default": ""
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "limits": {
+                            "type": "object",
+                            "description": "Resource limits for every component",
+                            "default": {}
+                        },
+                        "requests": {
+                            "type": "object",
+                            "description": "Resource requests for every component",
+                            "default": {}
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "extraVolumes": {
+                    "type": "array",
+                    "description": "Additional volumes",
+                    "default": [],
+                    "items": {}
+                },
+                "extraVolumeMounts": {
+                    "type": "array",
+                    "description": "Additional volume mounts",
+                    "default": [],
+                    "items": {}
+                },
+                "extraEnv": {
+                    "type": "object",
+                    "description": "Additional environment variables",
+                    "default": {}
+                },
+                "lifecycle": {
+                    "type": "object",
+                    "description": "Container lifecycle hooks",
+                    "default": {}
+                },
+                "terminationGracePeriodSeconds": {
+                    "type": "number",
+                    "description": "Graceful shutdown period",
+                    "default": 30
+                }
+            },
+            "additionalProperties": false
+        },
+        "crdAccessRoles": {
+            "type": "object",
+            "properties": {
+                "create": {
+                    "type": "boolean",
+                    "description": "Whether to create editor/viewer ClusterRoles for CRDs",
+                    "default": true
+                },
+                "annotations": {
+                    "type": "object",
+                    "description": "Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)",
+                    "default": {}
+                }
+            },
+            "additionalProperties": false
+        },
+        "installCRDs": {
+            "type": "boolean",
+            "description": "When true, the ngrok CRDs will be installed alongside the operator",
+            "default": true
+        },
+        "cleanupHook": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the pre-delete cleanup hook that drains resources before uninstall",
+                    "default": true
+                },
+                "timeout": {
+                    "type": "number",
+                    "description": "Timeout in seconds for the cleanup process",
+                    "default": 300
+                },
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "repository": {
+                            "type": "string",
+                            "description": "The repository for the kubectl image used by the cleanup hook",
+                            "default": "bitnami/kubectl"
+                        },
+                        "tag": {
+                            "type": "string",
+                            "description": "The tag for the kubectl image",
+                            "default": "latest"
+                        },
+                        "pullPolicy": {
+                            "type": "string",
+                            "description": "The pull policy for the cleanup hook image",
+                            "default": "IfNotPresent"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "limits": {
+                            "type": "object",
+                            "description": "The resources limits for the cleanup hook container",
+                            "default": {}
+                        },
+                        "requests": {
+                            "type": "object",
+                            "description": "The requested resources for the cleanup hook container",
+                            "default": {}
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "global": {
+            "type": "object",
+            "description": "Umbrella-chart globals. Helm copies a parent chart's `global` into every subchart's values, so this must be accepted for the chart to render as a dependency. Reserved for bitnamicharts/common passthrough; the operator reads nothing from it.",
+            "default": {}
+        },
+        "common": {
+            "type": "object",
+            "description": "Values passed through to the bitnamicharts/common dependency.",
+            "default": {}
+        },
+        "ngrok-crds": {
+            "type": "object",
+            "description": "Values passed through to the ngrok-crds subchart.",
+            "default": {}
+        }
+    },
+    "additionalProperties": false
+}

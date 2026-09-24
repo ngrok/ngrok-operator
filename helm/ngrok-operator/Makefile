@@ -23,5 +23,6 @@ update-snapshots: ## Update helm unittest snapshots
 	helm unittest -f 'tests/**/*_test.yaml' --update-snapshot .
 
 .PHONY: update-readme
-update-readme: ## Updates the README.md file with the chart values
+update-readme: ## Regenerate README.md and values.schema.json from values.yaml
 	readme-generator --values "values.yaml" --readme "README.md" --schema "values.schema.json"
+	python3 hack/schema-postprocess.py values.schema.json
