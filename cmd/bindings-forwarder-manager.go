@@ -19,7 +19,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 
@@ -46,6 +45,7 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/config"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -64,20 +64,27 @@ func init() {
 }
 
 type bindingsForwarderManagerOpts struct {
-	// flags
+	// deployment identity, supplied by the chart as literal args
 	releaseName string
 	metricsAddr string
 	probeAddr   string
-	description string
 	managerName string
-	zapOpts     *zap.Options
+
+	// configPaths are the --config files, loaded before flags are registered.
+	configPaths []string
+
+	// cfg holds every app config value. Flags are registered against its
+	// fields with its loaded values as their defaults, so an explicit flag
+	// overrides the file and the file overrides the built-in default.
+	cfg *config.Config
 
 	// env vars
 	namespace string
 }
 
 func bindingsForwarderCmd() *cobra.Command {
-	var opts bindingsForwarderManagerOpts
+	opts := bindingsForwarderManagerOpts{}
+
 	c := &cobra.Command{
 		Use: "bindings-forwarder-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
@@ -85,22 +92,49 @@ func bindingsForwarderCmd() *cobra.Command {
 		},
 	}
 
+	// Config must load before the remaining flags are registered so its values
+	// can be used as their defaults. See config.PreParseConfigPaths.
+	opts.configPaths = config.PreParseConfigPaths(os.Args[1:])
+
+	// Registered before the load so that a malformed config file reports the
+	// parse error instead of "unknown flag: --config".
+	c.Flags().StringArrayVar(&opts.configPaths, config.ConfigFlag, opts.configPaths,
+		"Path to a YAML config file. May be repeated; later files override earlier ones.")
+
+	cfg, err := config.Load(opts.configPaths)
+	if err != nil {
+		// The rest of the flags are never registered, and the Deployment passes
+		// several of them, so without this cobra fails on the first one it does
+		// not know and the config error is never reached.
+		c.FParseErrWhitelist.UnknownFlags = true
+		// Reported through RunE so cobra prints it like any other failure.
+		c.RunE = func(*cobra.Command, []string) error { return err }
+		return c
+	}
+	opts.cfg = cfg
+
 	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
 
-	opts.zapOpts = &zap.Options{}
-	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
-	opts.zapOpts.BindFlags(goFlagSet)
-	c.Flags().AddGoFlagSet(goFlagSet)
+	config.RegisterLogFlags(c.Flags(), cfg)
+	config.RegisterNgrokFlags(c.Flags(), cfg)
+	config.RegisterFeatureFlags(c.Flags(), cfg)
+
+	c.PreRunE = func(c *cobra.Command, _ []string) error {
+		return config.ApplyEnv(c.Flags())
+	}
 
 	return c
 }
 
 func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+	zapOpts, err := config.ZapOptions(opts.cfg.Log)
+	if err != nil {
+		return err
+	}
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zapOpts)))
 
 	buildInfo := version.Get()
 	setupLog.Info("starting bindings-forwarder-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)

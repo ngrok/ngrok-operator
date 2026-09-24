@@ -19,7 +19,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"net/url"
 	"os"
@@ -56,10 +55,10 @@ import (
 	"github.com/ngrok/ngrok-api-go/v9/api_keys"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
-	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/config"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	gatewaycontroller "github.com/ngrok/ngrok-operator/internal/controller/gateway"
@@ -69,7 +68,6 @@ import (
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
-	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -91,101 +89,88 @@ func init() {
 }
 
 type apiManagerOpts struct {
-	// flags
-	releaseName           string
-	metricsAddr           string
-	electionID            string
-	probeAddr             string
-	serverAddr            string
-	apiURL                string
-	ingressControllerName string
-	ingressWatchNamespace string
-	ngrokMetadata         string
-	description           string
-	managerName           string
-	zapOpts               *zap.Options
-	clusterDomain         string
+	// deployment identity, supplied by the chart as literal args
+	releaseName string
+	metricsAddr string
+	probeAddr   string
+	electionID  string
+	managerName string
 
-	// when true, ngrok-op will allow required fields to be optional
-	// then it will go Ready and log errors about registration state due to missing required fields
-	// this is useful for marketplace installations where our users do not have a chance to add their required configuration
-	// yet we still want a 1-click install to work
-	//
-	// when false, ngrok-op will require all required fields to be present before going Ready
-	// and will log errors about missing required fields
-	oneClickDemoMode bool
+	// configPaths are the --config files, loaded before flags are registered.
+	configPaths []string
 
-	// feature flags
-	enableFeatureIngress          bool
-	enableFeatureGateway          bool
-	enableFeatureBindings         bool
-	disableGatewayReferenceGrants bool
-
-	bindings struct {
-		endpointSelectors  []string
-		serviceAnnotations string
-		serviceLabels      string
-		ingressEndpoint    string
-	}
+	// cfg holds every app config value. Flags are registered against its
+	// fields with its loaded values as their defaults, so an explicit flag
+	// overrides the file and the file overrides the built-in default.
+	cfg *config.Config
 
 	// env vars
 	namespace   string
 	ngrokAPIKey string
-
-	region string
-
-	defaultDomainReclaimPolicy string
-	drainPolicy                ngrokv1alpha1.DrainPolicy
 }
 
 func apiCmd() *cobra.Command {
-	var opts apiManagerOpts
+	opts := apiManagerOpts{}
+
 	c := &cobra.Command{
 		Use: "api-manager",
-		RunE: func(c *cobra.Command, _ []string) error {
+		RunE: func(c *cobra.Command, args []string) error {
 			return startOperator(c.Context(), opts)
 		},
 	}
 
+	// Config must load before the remaining flags are registered so its values
+	// can be used as their defaults. See config.PreParseConfigPaths.
+	opts.configPaths = config.PreParseConfigPaths(os.Args[1:])
+
+	// Registered before the load so that a malformed config file reports the
+	// parse error instead of "unknown flag: --config".
+	c.Flags().StringArrayVar(&opts.configPaths, config.ConfigFlag, opts.configPaths,
+		"Path to a YAML config file. May be repeated; later files override earlier ones.")
+
+	cfg, err := config.Load(opts.configPaths)
+	if err != nil {
+		// The rest of the flags are never registered, and the Deployment passes
+		// several of them, so without this cobra fails on the first one it does
+		// not know and the config error is never reached.
+		c.FParseErrWhitelist.UnknownFlags = true
+		// Reported through RunE so cobra prints it like any other failure.
+		c.RunE = func(*cobra.Command, []string) error { return err }
+		return c
+	}
+	opts.cfg = cfg
+
+	// Deployment identity. Not user configuration, never in the ConfigMap.
 	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
-	c.Flags().StringVar(&opts.ngrokMetadata, "ngrokMetadata", "", "A comma separated list of key=value pairs such as 'key1=value1,key2=value2' to be added to ngrok api resources as labels")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
-	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
-	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
-	c.Flags().StringVar(&opts.apiURL, "api-url", "", "The base URL to use for the ngrok api")
-	c.Flags().StringVar(&opts.ingressControllerName, "ingress-controller-name", "ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
-	c.Flags().StringVar(&opts.ingressWatchNamespace, "ingress-watch-namespace", "", "Namespace to watch for Kubernetes Ingress resources. Defaults to all namespaces.")
-	// TODO(operator-rename): Same as above, but for the manager name.
+	// TODO(operator-rename): Same as ingress-controller-name, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
-	c.Flags().StringVar(&opts.clusterDomain, "cluster-domain", common.DefaultClusterDomain, "Cluster domain used in the cluster")
-	c.Flags().BoolVar(&opts.oneClickDemoMode, "one-click-demo-mode", false, "Run the operator in one-click-demo mode (Ready, but not running)")
 
-	// feature flags
-	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
-	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
-	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
-	c.Flags().StringSliceVar(&opts.bindings.endpointSelectors, "bindings-endpoint-selectors", []string{"true"}, "Endpoint Selectors for Endpoint Bindings")
-	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
-	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
-	c.Flags().StringVar(&opts.bindings.ingressEndpoint, "bindings-ingress-endpoint", "", "The endpoint the bindings forwarder connects to")
-	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
-	c.Flags().StringVar((*string)(&opts.drainPolicy), "drain-policy", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
+	// App config. Defaults come from the loaded config, so an explicitly
+	// passed flag beats the file.
+	config.RegisterLogFlags(c.Flags(), cfg)
+	config.RegisterNgrokFlags(c.Flags(), cfg)
+	config.RegisterFeatureFlags(c.Flags(), cfg)
 
-	opts.zapOpts = &zap.Options{}
-	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
-	opts.zapOpts.BindFlags(goFlagSet)
-	c.Flags().AddGoFlagSet(goFlagSet)
+	// Owned by this component alone.
+	c.Flags().BoolVar(&cfg.OneClickDemoMode, "one-click-demo-mode", cfg.OneClickDemoMode, "Run the operator in one-click-demo mode (Ready, but not running)")
+
+	c.PreRunE = func(c *cobra.Command, _ []string) error {
+		return config.ApplyEnv(c.Flags())
+	}
 
 	return c
 }
 
 // startOperator starts the ngrok-op
 func startOperator(ctx context.Context, opts apiManagerOpts) error {
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+	zapOpts, err := config.ZapOptions(opts.cfg.Log)
+	if err != nil {
+		return err
+	}
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zapOpts)))
 
 	buildInfo := version.Get()
 	setupLog.Info("starting api-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
@@ -200,7 +185,7 @@ func startOperator(ctx context.Context, opts apiManagerOpts) error {
 	tlsRouteCRDInstalled := false
 	tcpRouteCRDInstalled := false
 	// Unless we are fully opting-out of GWAPI support, check if the CRDs are installed. If not, disable GWAPI support
-	if opts.enableFeatureGateway {
+	if opts.cfg.Features.Gateway.Enabled {
 		discoveryClient, err := discovery.NewDiscoveryClientForConfig(k8sConfig)
 		if err != nil {
 			return fmt.Errorf("unable to create discovery client: %w", err)
@@ -220,7 +205,7 @@ func startOperator(ctx context.Context, opts apiManagerOpts) error {
 		}
 		if !gatewayAPIGroupInstalled {
 			setupLog.Info("Gateway API CRDs not detected, Gateway feature set will be disabled")
-			opts.enableFeatureGateway = false
+			opts.cfg.Features.Gateway.Enabled = false
 		} else {
 			// Check for optional TLSRoute/TCPRoute CRDs. They are in the experimental channel but not the standard channel, so depending on
 			// which set of the Gateway API CRDs the user installed, we may or may not need to enable support for them.
@@ -270,7 +255,7 @@ func startOperator(ctx context.Context, opts apiManagerOpts) error {
 		return fmt.Errorf("unable to load manager: %w", err)
 	}
 
-	if opts.oneClickDemoMode {
+	if opts.cfg.OneClickDemoMode {
 		return runOneClickDemoMode(ctx, mgr)
 	}
 
@@ -319,15 +304,15 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	// Warn if watchNamespace doesn't match the operator's installed namespace.
 	// The operator should be installed in the same namespace it watches to ensure
 	// the KubernetesOperator CR can be reconciled (the cache only watches the watchNamespace).
-	if opts.ingressWatchNamespace != "" && opts.ingressWatchNamespace != opts.namespace {
+	if opts.cfg.Features.Ingress.WatchNamespace != "" && opts.cfg.Features.Ingress.WatchNamespace != opts.namespace {
 		setupLog.Info("WARNING: watchNamespace does not match the operator's installed namespace. "+
 			"The operator should be installed in the same namespace it watches. "+
 			"KubernetesOperator reconciliation may not work correctly.",
-			"watchNamespace", opts.ingressWatchNamespace,
+			"watchNamespace", opts.cfg.Features.Ingress.WatchNamespace,
 			"operatorNamespace", opts.namespace)
 	}
 
-	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
+	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.cfg.Features.DefaultDomainReclaimPolicy)
 	if err != nil {
 		return err
 	}
@@ -358,7 +343,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	// k8sResourceDriver is the driver that will be used to interact with the k8s resources for all controllers
 	// but primarily for kinds Ingress, Gateway, and ngrok CRDs
 	var k8sResourceDriver *managerdriver.Driver
-	if opts.enableFeatureIngress || opts.enableFeatureGateway {
+	if opts.cfg.Features.Ingress.Enabled || opts.cfg.Features.Gateway.Enabled {
 		// we only need a driver if these features are enabled
 		k8sResourceDriver, err = getK8sResourceDriver(ctx, mgr, opts, tcpRouteCRDInstalled, tlsRouteCRDInstalled, *defaultDomainReclaimPolicy, drainState)
 		if err != nil {
@@ -366,7 +351,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		}
 	}
 
-	if opts.enableFeatureIngress {
+	if opts.cfg.Features.Ingress.Enabled {
 		setupLog.Info("Ingress feature set enabled")
 		if err := enableIngressFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, *defaultDomainReclaimPolicy, drainState); err != nil {
 			return fmt.Errorf("unable to enable Ingress feature set: %w", err)
@@ -375,13 +360,13 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		setupLog.Info("Ingress feature set disabled")
 	}
 
-	if opts.enableFeatureGateway {
+	if opts.cfg.Features.Gateway.Enabled {
 		setupLog.Info("Gateway feature set enabled")
 		if err := enableGatewayFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, tcpRouteCRDInstalled, tlsRouteCRDInstalled, drainState); err != nil {
 			return fmt.Errorf("unable to enable Gateway feature set: %w", err)
 		}
 
-		if opts.disableGatewayReferenceGrants {
+		if opts.cfg.Features.Gateway.DisableReferenceGrants {
 			setupLog.Info("Opting out of requiring ReferenceGrants in Gateway API config for cross namespace references")
 		} else {
 			setupLog.Info("ReferenceGrants will be required for cross namespace references in GatewayAPI Config")
@@ -390,7 +375,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		setupLog.Info("Gateway feature set disabled")
 	}
 
-	if opts.enableFeatureBindings {
+	if opts.cfg.Features.Bindings.Enabled {
 		setupLog.Info("Endpoint Bindings feature set enabled")
 		if err := enableBindingsFeatureSet(ctx, opts, mgr, k8sResourceDriver, ngrokClientset, drainState); err != nil {
 			return fmt.Errorf("unable to enable Bindings feature set: %w", err)
@@ -459,9 +444,9 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 				},
 			},
 		}}
-	if opts.ingressWatchNamespace != "" {
+	if opts.cfg.Features.Ingress.WatchNamespace != "" {
 		options.Cache.DefaultNamespaces = map[string]cache.Config{
-			opts.ingressWatchNamespace: {},
+			opts.cfg.Features.Ingress.WatchNamespace: {},
 		}
 	}
 
@@ -486,8 +471,8 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 	}
 
 	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
-	if opts.apiURL != "" {
-		u, err := url.Parse(opts.apiURL)
+	if opts.cfg.Ngrok.APIURL != "" {
+		u, err := url.Parse(opts.cfg.Ngrok.APIURL)
 		if err != nil {
 			setupLog.Error(err, "api-url must be a valid ngrok API URL")
 		}
@@ -514,10 +499,10 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 	logger := mgr.GetLogger().WithName("cache-store-driver")
 
 	driverOpts := []managerdriver.DriverOpt{
-		managerdriver.WithGatewayEnabled(options.enableFeatureGateway),
+		managerdriver.WithGatewayEnabled(options.cfg.Features.Gateway.Enabled),
 		managerdriver.WithGatewayControllerName(string(gatewaycontroller.ControllerName)),
-		managerdriver.WithClusterDomain(options.clusterDomain),
-		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
+		managerdriver.WithClusterDomain(options.cfg.Ngrok.ClusterDomain),
+		managerdriver.WithDisableGatewayReferenceGrants(options.cfg.Features.Gateway.DisableReferenceGrants),
 		managerdriver.WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),
 		managerdriver.WithEventRecorder(mgr.GetEventRecorder("k8s-resource-driver")),
 		managerdriver.WithDrainState(drainState),
@@ -534,24 +519,20 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 	d := managerdriver.NewDriver(
 		logger,
 		mgr.GetScheme(),
-		options.ingressControllerName,
+		options.cfg.Features.Ingress.ControllerName,
 		types.NamespacedName{
 			Namespace: options.namespace,
 			Name:      options.managerName,
 		},
 		driverOpts...,
 	)
-	if options.ngrokMetadata != "" {
-		customMetadata, err := util.ParseHelmDictionary(options.ngrokMetadata)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse ngrokMetadata: %w", err)
-		}
-		d.WithNgrokMetadata(customMetadata)
+	if len(options.cfg.Ngrok.Metadata) > 0 {
+		d.WithNgrokMetadata(options.cfg.Ngrok.Metadata)
 	}
 
 	var seedOpts []client.ListOption
-	if options.ingressWatchNamespace != "" {
-		seedOpts = append(seedOpts, client.InNamespace(options.ingressWatchNamespace))
+	if options.cfg.Features.Ingress.WatchNamespace != "" {
+		seedOpts = append(seedOpts, client.InNamespace(options.cfg.Features.Ingress.WatchNamespace))
 	}
 	if err := d.Seed(ctx, mgr.GetAPIReader(), seedOpts...); err != nil {
 		return nil, fmt.Errorf("unable to seed cache store: %w", err)
@@ -584,7 +565,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		Scheme:           mgr.GetScheme(),
 		Recorder:         mgr.GetEventRecorder("service-controller"),
 		ControllerLabels: controllerLabels,
-		ClusterDomain:    opts.clusterDomain,
+		ClusterDomain:    opts.cfg.Ngrok.ClusterDomain,
 		// TODO(stacks): Once we have a way to support unqualified tcp addresses(i.e. 'tcp://') in the Cloud & Agent Endpoint CRs,
 		// we can remove this. It feels weird to have this here since the ServiceReconciler should only be performing translations
 		// and not dependent on the ngrok API.
@@ -744,7 +725,7 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 	}
 
 	// Start a controller for ReferenceGrants unless they are disabled
-	if !opts.disableGatewayReferenceGrants {
+	if !opts.cfg.Features.Gateway.DisableReferenceGrants {
 		if err := (&gatewaycontroller.ReferenceGrantReconciler{
 			Client:   mgr.GetClient(),
 			Log:      ctrl.Log.WithName("controllers").WithName("Gateway"),
@@ -762,17 +743,8 @@ func enableGatewayFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 
 // enableBindingsFeatureSet enables the Bindings feature set for the operator
 func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, _ *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, drainState drain.State) error {
-	targetServiceAnnotations, err := util.ParseHelmDictionary(opts.bindings.serviceAnnotations)
-	if err != nil {
-		setupLog.WithValues("serviceAnnotations", opts.bindings.serviceAnnotations).Error(err, "unable to parse service annotations")
-		targetServiceAnnotations = make(map[string]string)
-	}
-
-	targetServiceLabels, err := util.ParseHelmDictionary(opts.bindings.serviceLabels)
-	if err != nil {
-		setupLog.WithValues("serviceLabels", opts.bindings.serviceLabels).Error(err, "unable to parse service labels")
-		targetServiceLabels = make(map[string]string)
-	}
+	targetServiceAnnotations := opts.cfg.Features.Bindings.ServiceAnnotations
+	targetServiceLabels := opts.cfg.Features.Bindings.ServiceLabels
 
 	// BoundEndpoints
 	if err := (&bindingscontroller.BoundEndpointReconciler{
@@ -780,7 +752,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 		Scheme:        mgr.GetScheme(),
 		Log:           ctrl.Log.WithName("controllers").WithName("BoundEndpoint"),
 		Recorder:      mgr.GetEventRecorder("bindings-controller"),
-		ClusterDomain: opts.clusterDomain,
+		ClusterDomain: opts.cfg.Ngrok.ClusterDomain,
 		UpstreamServiceLabelSelector: map[string]string{
 			"app.kubernetes.io/component": "bindings-forwarder",
 		},
@@ -818,35 +790,35 @@ func createKubernetesOperator(ctx context.Context, client client.Client, opts ap
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
-			Description: opts.description,
+			Description: opts.cfg.Ngrok.Description,
 			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
 				Name:      opts.releaseName,
 				Namespace: opts.namespace,
 				Version:   version.GetVersion(),
 			},
-			Region: opts.region,
+			Region: opts.cfg.Ngrok.Region,
 			Drain: &ngrokv1alpha1.DrainConfig{
-				Policy: opts.drainPolicy,
+				Policy: ngrokv1alpha1.DrainPolicy(opts.cfg.Features.DrainPolicy),
 			},
 		}
 
 		features := []string{}
-		if opts.enableFeatureIngress {
+		if opts.cfg.Features.Ingress.Enabled {
 			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureIngress)
 		}
 
-		if opts.enableFeatureGateway {
+		if opts.cfg.Features.Gateway.Enabled {
 			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureGateway)
 		}
 
-		if opts.enableFeatureBindings {
+		if opts.cfg.Features.Bindings.Enabled {
 			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
 			k8sOperator.Spec.Binding = &ngrokv1alpha1.KubernetesOperatorBinding{
 				TlsSecretName:     "ngrok-operator-default-tls",
-				EndpointSelectors: opts.bindings.endpointSelectors,
+				EndpointSelectors: opts.cfg.Features.Bindings.EndpointSelectors,
 			}
-			if opts.bindings.ingressEndpoint != "" {
-				k8sOperator.Spec.Binding.IngressEndpoint = &opts.bindings.ingressEndpoint
+			if opts.cfg.Features.Bindings.IngressEndpoint != "" {
+				k8sOperator.Spec.Binding.IngressEndpoint = &opts.cfg.Features.Bindings.IngressEndpoint
 			}
 		}
 		k8sOperator.Spec.EnabledFeatures = features
