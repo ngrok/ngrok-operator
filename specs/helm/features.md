@@ -7,7 +7,7 @@ Features are configured at the top level under `features:`. This is the **single
 | Parameter                              | Description                                      | Default                          |
 |----------------------------------------|--------------------------------------------------|----------------------------------|
 | `features.ingress.enabled`             | Enable the Kubernetes Ingress controller         | `true`                           |
-| `features.ingress.controllerName`      | Controller name for IngressClass matching        | `ngrok.com/ingress-controller`   |
+| `features.ingress.controllerName`      | Controller name for IngressClass matching        | `k8s.ngrok.com/ingress-controller` |
 | `features.ingress.watchNamespace`      | Namespace to watch (empty = all namespaces)      | `""`                             |
 | `features.ingress.ingressClass.name`   | IngressClass resource name                       | `ngrok`                          |
 | `features.ingress.ingressClass.create` | Create the IngressClass resource                 | `true`                           |

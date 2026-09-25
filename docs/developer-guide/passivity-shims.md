@@ -13,8 +13,8 @@ instructions belong in release-specific upgrade guides under `docs/`, such as
 A `helm upgrade` (and a rolling `kubectl apply`) does not atomically swap
 the operator. For a window of seconds to minutes:
 
-1. The new manifest (with a new IngressClass `spec.controller`, new label
-   selectors expected on AEPs/CEPs, etc.) has been applied.
+1. The new manifest (with new label selectors expected on AEPs/CEPs,
+   etc.) has been applied.
 2. The **old** operator pod is still running, watching, and reconciling.
 3. The new operator pod is starting up.
 
@@ -127,15 +127,6 @@ unlike the default pattern above, R1 here single-writes the *legacy* key.
 
 Used for: the operator finalizer (`ngrok.com/finalizer`).
 
-## Deferral for rollout races
-
-Some changes are safe to ship in the operator binary but unsafe to ship in
-the rendered helm chart at the same time, because the rendered manifest
-takes effect mid-upgrade while the old operator pod is still running.
-The IngressClass `spec.controller` flip is the only example so far. The
-operator binary gains dual-match in R1; the rendered manifest stays on the
-legacy value until R2.
-
 ## `LEGACY-*` sentinels
 
 Every code site that exists *only* to support a legacy form during a
@@ -176,7 +167,7 @@ cleanup must ship a release before read-side cleanup, or a rollback to the
 previous release can no longer find legacy-stamped objects. This guide
 prefers the cleanup-kind label over a release number in the marker text,
 since the target version may still change; a few earlier markers (the
-finalizer and IngressClass shims) instead embed a specific release like
+finalizer shim) instead embed a specific release like
 `drop ... in 1.0`, and the `LEGACY-trafficpolicy-*` tags embed `drop in
 cleanup release`. Either form is a valid `git grep` target. The sentinel
 exists so each cleanup release is a single, auditable sweep rather than
@@ -356,29 +347,6 @@ A few alternatives were considered and rejected:
 If you find yourself adding a new finalizer rename, follow the
 three-release pattern above; there is no two-release shortcut that
 preserves rollback safety.
-
-### IngressClass `spec.controller` (rollout-race deferral)
-
-- **Pattern:** Helm-rendered manifest deferred to cleanup release.
-- **R1 (0.24):**
-  - Operator binary: `internal/store/store.go::ListNgrokIngressClassesV1`
-    dual-matches whenever `controllerName` equals either stock default
-    (legacy `k8s.ngrok.com/ingress-controller` or new
-    `ngrok.com/ingress-controller`). Custom controller names retain
-    exact-match for multi-instance isolation. The Go code cannot
-    distinguish "default" from "explicitly set to the default value",
-    so both stock defaults are treated symmetrically; nobody sets the
-    legacy default explicitly to mean "exact-match legacy only".
-  - CLI flag default in `cmd/api-manager.go` flips to the new prefix.
-  - Helm chart **stays on legacy**: `helm/ngrok-operator/values.yaml`
-    `ingress.controllerName` remains `k8s.ngrok.com/ingress-controller`;
-    `values.schema.json` default matches; `README.md` table matches;
-    `tests/__snapshot__/ingress-class_test.yaml.snap` shows the legacy
-    controller. The helm `CHANGELOG.md` notes that the *default will
-    change in 0.25*, not that it does now.
-- **R2 (0.25):** flip the helm-rendered IngressClass to the new prefix.
-  At this point no pre-migration operator pod can observe the change.
-- **R3 cleanup:** drop the dual-match branch in `store.go`.
 
 ## Per-shim catalog: CloudEndpoint traffic policy field renames
 
