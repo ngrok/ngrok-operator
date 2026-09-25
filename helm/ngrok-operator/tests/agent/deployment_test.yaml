@@ -2,6 +2,9 @@ suite: test agent deployment
 templates:
 - agent/deployment.yaml
 - agent/role.yaml
+# Included because the deployment carries a checksum/secret annotation over it;
+# helm unittest will not load a template unless the suite declares it.
+- credentials-secret.yaml
 set:
   ingress:
     enabled: true

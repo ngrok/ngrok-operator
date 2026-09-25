@@ -42,6 +42,40 @@ Create a default name for the credentials secret name using the helm release
 {{- end -}}
 
 {{/*
+The secret key a component reads its access token from.
+
+Each component gets its own key so that a component can be given a token
+carrying only the permissions it needs, once ngrok access tokens support
+scoping. The key holds the component's own token when one is set, and the
+shared credentials.accessToken otherwise.
+
+Note that both deployments annotate the same checksum over the whole rendered
+secret, so changing any token restarts every component that holds one.
+
+Usage: include "ngrok-operator.accessTokenSecretKey" "agent"
+*/}}
+{{- define "ngrok-operator.accessTokenSecretKey" -}}
+{{- if eq . "agent" -}}
+AGENT_ACCESS_TOKEN
+{{- else if eq . "apiManager" -}}
+API_MANAGER_ACCESS_TOKEN
+{{- else -}}
+{{- fail (printf "unknown component %q for accessTokenSecretKey" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+The access token a component actually uses: its own override, else the shared one.
+
+Usage: include "ngrok-operator.accessTokenFor" (dict "root" $ "component" "agent")
+*/}}
+{{- define "ngrok-operator.accessTokenFor" -}}
+{{- $credentials := .root.Values.credentials -}}
+{{- $override := (get $credentials .component | default dict).accessToken -}}
+{{- $override | default $credentials.accessToken -}}
+{{- end -}}
+
+{{/*
 Common labels
 */}}
 {{- define "ngrok-operator.labels" -}}

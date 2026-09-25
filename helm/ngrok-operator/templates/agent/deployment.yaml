@@ -35,6 +35,7 @@ spec:
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
         checksum/rbac: {{ $rbacChecksum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
       labels:
         {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
         {{- if .Values.podLabels }}
@@ -108,10 +109,10 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
         env:
-        - name: NGROK_AUTHTOKEN
+        - name: NGROK_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
-              key: AUTHTOKEN
+              key: {{ include "ngrok-operator.accessTokenSecretKey" "agent" }}
               name: {{ include "ngrok-operator.credentialsSecretName" . }}
         - name: POD_NAMESPACE
           valueFrom:

@@ -92,11 +92,6 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
         env:
-        - name: NGROK_AUTHTOKEN
-          valueFrom:
-            secretKeyRef:
-              key: AUTHTOKEN
-              name: {{ include "ngrok-operator.credentialsSecretName" . }}
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

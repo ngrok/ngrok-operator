@@ -53,7 +53,6 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ngrok/ngrok-api-go/v9"
-	"github.com/ngrok/ngrok-api-go/v9/api_keys"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
@@ -129,8 +128,7 @@ type apiManagerOpts struct {
 	}
 
 	// env vars
-	namespace   string
-	ngrokAPIKey string
+	namespace string
 
 	region string
 
@@ -300,7 +298,7 @@ func runOneClickDemoMode(ctx context.Context, mgr ctrl.Manager) error {
 			case <-ticker.C:
 				setupLog.Error(errors.New("Running in one-click-demo mode"), "Ready even if required fields are missing!")
 				setupLog.Info("The ngrok-operator is running in one-click-demo mode which means the operator is not actually reconciling resources.")
-				setupLog.Info("Please provide ngrok API key and ngrok Authtoken in your Helm values to run the operator for real.")
+				setupLog.Info("Please provide an ngrok access token in your Helm values to run the operator for real.")
 				setupLog.Info("Please set `oneClickDemoMode: false` in your Helm values to run the operator for real.")
 			}
 		}
@@ -475,17 +473,16 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 
 // loadNgrokClientset loads the ngrok API clientset from the environment and managerOpts
 func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clientset, error) {
-	var ok bool
-	opts.ngrokAPIKey, ok = os.LookupEnv("NGROK_API_KEY")
+	accessToken, ok := os.LookupEnv("NGROK_ACCESS_TOKEN")
 	if !ok {
-		return nil, errors.New("NGROK_API_KEY environment variable should be set, but was not")
+		return nil, errors.New("NGROK_ACCESS_TOKEN environment variable should be set, but was not")
 	}
 
 	clientConfigOpts := []ngrok.ClientConfigOption{
 		ngrok.WithUserAgent(version.GetUserAgent()),
 	}
 
-	ngrokClientConfig := ngrok.NewClientConfig(opts.ngrokAPIKey, clientConfigOpts...)
+	ngrokClientConfig := ngrok.NewClientConfig(accessToken, clientConfigOpts...)
 	if opts.apiURL != "" {
 		u, err := url.Parse(opts.apiURL)
 		if err != nil {
@@ -495,17 +492,17 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 	}
 	setupLog.Info("configured API client", "base_url", ngrokClientConfig.BaseURL)
 
-	// validate the API key and Authtoken works with ngrok API
-	// by making a dummy request to list API keys
+	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
+
+	// validate the access token works with the ngrok API
+	// by making a dummy request to list endpoints
 	// and checking for errors
-	cApiKeys := api_keys.NewClient(ngrokClientConfig)
-	cIter := cApiKeys.List(&ngrok.FilteredPaging{Limit: new("1")})
-	cIter.Next(ctx)
-	if cIter.Err() != nil {
-		return nil, fmt.Errorf("Unable to verify API Key: %w", cIter.Err())
+	iter := ngrokClientset.Endpoints().List(&ngrok.Paging{Limit: new("1")})
+	iter.Next(ctx)
+	if iter.Err() != nil {
+		return nil, fmt.Errorf("Unable to verify access token: %w", iter.Err())
 	}
 
-	ngrokClientset := ngrokapi.NewClientSet(ngrokClientConfig)
 	return ngrokClientset, nil
 }
 
