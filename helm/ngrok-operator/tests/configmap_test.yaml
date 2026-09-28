@@ -1,0 +1,120 @@
+suite: operator config ConfigMap
+templates:
+  - configmap.yaml
+tests:
+  - it: renders one key per component
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-ngrok-operator-config
+      - exists:
+          path: data["apiManager.yaml"]
+      - exists:
+          path: data["agent.yaml"]
+      - exists:
+          path: data["bindingsForwarder.yaml"]
+
+  - it: omits empty values, so the operator's built-in default applies
+    asserts:
+      - equal:
+          path: data["agent.yaml"]
+          value: |
+            features:
+              bindings:
+                enabled: false
+              gateway:
+                disableReferenceGrants: false
+                enabled: true
+              ingress:
+                controllerName: k8s.ngrok.com/ingress-controller
+                enabled: true
+
+  - it: gives every component the shared config
+    set:
+      ngrok.region: eu
+      log.level: info
+    asserts:
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "region: eu"
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "region: eu"
+      - matchRegex:
+          path: data["bindingsForwarder.yaml"]
+          pattern: "level: info"
+
+  - it: lets a component override a shared value for itself alone
+    set:
+      log.level: info
+      agent.config.log.level: debug
+      agent.config.features.gateway.enabled: false
+    asserts:
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "level: debug"
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "(?s)gateway:\\s+disableReferenceGrants: false\\s+enabled: false"
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "level: info"
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "(?s)gateway:\\s+disableReferenceGrants: false\\s+enabled: true"
+
+  - it: treats an empty component value as inherit, not as an override to empty
+    set:
+      ngrok.region: eu
+      agent.config.ngrok.region: ""
+    asserts:
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "region: eu"
+
+  - it: merges maps and replaces lists
+    set:
+      ngrok.metadata.shared: "1"
+      agent.config.ngrok.metadata.agent: "1"
+      features.bindings.endpointSelectors: ["a", "b"]
+      agent.config.features.bindings.endpointSelectors: ["c"]
+    asserts:
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "(?s)metadata:\\s+agent: \"1\"\\s+shared: \"1\""
+      - matchRegex:
+          path: data["agent.yaml"]
+          pattern: "(?s)endpointSelectors:\\s+- c\\n"
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "(?s)endpointSelectors:\\s+- a\\s+- b"
+
+  - it: carries component-only settings in that component's file
+    set:
+      apiManager.config.oneClickDemoMode: true
+    asserts:
+      - matchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "(?m)^oneClickDemoMode: true$"
+      - notMatchRegex:
+          path: data["agent.yaml"]
+          pattern: "oneClickDemoMode"
+
+  - it: keeps pod and chart-only settings out of the config files
+    set:
+      apiManager.replicaCount: 3
+      defaults.podAnnotations.team: k8s
+    asserts:
+      - notMatchRegex:
+          path: data["apiManager.yaml"]
+          pattern: "replicaCount|podAnnotations|ingressClass"
+
+  - it: fails on values from the pre-0.25 layout
+    set:
+      region: eu
+      ingress.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "(?s)ingress -> features.ingress.*region -> ngrok.region"

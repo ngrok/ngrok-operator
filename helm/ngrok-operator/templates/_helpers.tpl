@@ -99,35 +99,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
-Ngrok Operator manager cli feature flags
-*/}}
-{{- define "ngrok-operator.manager.cliFeatureFlags" -}}
-{{- if .Values.ingress.enabled -}}
-- --enable-feature-ingress={{ .Values.ingress.enabled }}
-{{- end }}
-{{- if .Values.gateway.enabled }}
-- --enable-feature-gateway=true
-{{- else }}
-- --enable-feature-gateway=false
-{{- end }}
-{{- if .Values.gateway.disableReferenceGrants }}
-- --disable-reference-grants=true
-{{- else }}
-- --disable-reference-grants=false
-{{- end }}
-{{- if .Values.bindings.enabled }}
-- --enable-feature-bindings={{ .Values.bindings.enabled }}
-{{- end }}
-{{- end -}}
-
-{{/*
 Create the name of the controller service account to use
 */}}
 {{- define "ngrok-operator.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-    {{ default (include "ngrok-operator.fullname" .) .Values.serviceAccount.name }}
+{{- if .Values.apiManager.serviceAccount.create -}}
+    {{ default (include "ngrok-operator.fullname" .) .Values.apiManager.serviceAccount.name }}
 {{- else -}}
-    {{ default "default" .Values.serviceAccount.name }}
+    {{ default "default" .Values.apiManager.serviceAccount.name }}
 {{- end -}}
 {{- end -}}
 
@@ -146,10 +124,10 @@ Create the name of the agent service account to use
 Create the name of the bindings-forwarder service account to use
 */}}
 {{- define "ngrok-operator.bindings.forwarder.serviceAccountName" -}}
-{{- if .Values.bindings.forwarder.serviceAccount.create -}}
-    {{ default (printf "%s-bindings-forwarder" (include "ngrok-operator.fullname" .)) .Values.bindings.forwarder.serviceAccount.name }}
+{{- if .Values.bindingsForwarder.serviceAccount.create -}}
+    {{ default (printf "%s-bindings-forwarder" (include "ngrok-operator.fullname" .)) .Values.bindingsForwarder.serviceAccount.name }}
 {{- else -}}
-    {{ default "default" .Values.bindings.forwarder.serviceAccount.name }}
+    {{ default "default" .Values.bindingsForwarder.serviceAccount.name }}
 {{- end -}}
 {{- end -}}
 
@@ -165,19 +143,126 @@ Return the ngrok operator image name
 
 {{/*
 Whether RBAC should use namespace-scoped Roles instead of ClusterRoles.
-True when watchNamespace is set (either via deprecated top-level or ingress.watchNamespace).
+True when features.ingress.watchNamespace is set.
 */}}
 {{- define "ngrok-operator.isNamespaced" -}}
-{{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) -}}
+{{- if .Values.features.ingress.watchNamespace -}}
 true
 {{- end -}}
 {{- end -}}
 
 {{/*
-The namespace to watch. Returns the watchNamespace value (deprecated top-level takes precedence).
+The namespace to watch.
 */}}
 {{- define "ngrok-operator.watchNamespace" -}}
-{{- .Values.watchNamespace | default .Values.ingress.watchNamespace -}}
+{{- .Values.features.ingress.watchNamespace -}}
+{{- end -}}
+
+{{/*
+Fail the render when values from the pre-0.25 layout are present, so they are
+never silently ignored.
+*/}}
+{{- define "ngrok-operator.validateValues" -}}
+{{- $moved := dict
+  "description" "ngrok.description"
+  "region" "ngrok.region"
+  "rootCAs" "ngrok.rootCAs"
+  "serverAddr" "ngrok.serverAddr"
+  "apiURL" "ngrok.apiURL"
+  "ngrokMetadata" "ngrok.metadata"
+  "metaData" "ngrok.metadata"
+  "clusterDomain" "ngrok.clusterDomain"
+  "ingress" "features.ingress"
+  "ingressClass" "features.ingress.ingressClass"
+  "controllerName" "features.ingress.controllerName"
+  "watchNamespace" "features.ingress.watchNamespace"
+  "gateway" "features.gateway"
+  "bindings" "features.bindings (forwarder pod settings: bindingsForwarder)"
+  "defaultDomainReclaimPolicy" "features.defaultDomainReclaimPolicy"
+  "drainPolicy" "features.drainPolicy"
+  "oneClickDemoMode" "apiManager.config.oneClickDemoMode"
+  "podAnnotations" "defaults.podAnnotations"
+  "podLabels" "defaults.podLabels"
+  "nodeSelector" "defaults.nodeSelector"
+  "tolerations" "defaults.tolerations"
+  "affinity" "defaults.affinity"
+  "podAffinityPreset" "defaults.podAffinityPreset"
+  "podAntiAffinityPreset" "defaults.podAntiAffinityPreset"
+  "nodeAffinityPreset" "defaults.nodeAffinityPreset"
+  "topologySpreadConstraints" "defaults.topologySpreadConstraints"
+  "priorityClassName" "defaults.priorityClassName"
+  "extraEnv" "defaults.extraEnv"
+  "replicaCount" "apiManager.replicaCount"
+  "resources" "apiManager.resources"
+  "lifecycle" "apiManager.lifecycle"
+  "terminationGracePeriodSeconds" "apiManager.terminationGracePeriodSeconds"
+  "extraVolumes" "apiManager.extraVolumes"
+  "extraVolumeMounts" "apiManager.extraVolumeMounts"
+  "podDisruptionBudget" "apiManager.podDisruptionBudget"
+  "serviceAccount" "apiManager.serviceAccount"
+-}}
+{{- $found := list -}}
+{{- range $old, $new := $moved -}}
+{{- if hasKey $.Values $old }}{{ $found = append $found (printf "  %s -> %s" $old $new) }}{{ end -}}
+{{- end -}}
+{{- if $found -}}
+{{- fail (printf "\n\nThese Helm values moved in 0.25 and are no longer read at their old location:\n\n%s\n\nSee the 0.25 upgrade guide for the full mapping." (join "\n" (sortAlpha $found))) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+A component's pod settings: `defaults` with the component's own keys merged on
+top. Maps merge with the component winning per key; lists replace.
+
+Usage: fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "agent"))
+*/}}
+{{- define "ngrok-operator.componentValues" -}}
+{{- $component := omit (index .context.Values .component) "config" -}}
+{{- mergeOverwrite (deepCopy .context.Values.defaults) (deepCopy $component) | toYaml -}}
+{{- end -}}
+
+{{/*
+The operator config file for one component: the shared `ngrok`, `log` and
+`features` values with `<component>.config` merged on top. Maps merge with the
+component winning per key; lists replace.
+
+Empty values are dropped from both sides first, so an unset value falls back
+to the shared value and then to the operator's built-in default.
+*/}}
+{{- define "ngrok-operator.componentConfig" -}}
+{{- $features := deepCopy .context.Values.features -}}
+{{- $_ := unset $features.ingress "ingressClass" -}}
+{{- $shared := dict "ngrok" (deepCopy .context.Values.ngrok) "log" (deepCopy .context.Values.log) "features" $features -}}
+{{- $component := deepCopy ((index .context.Values .component).config | default dict) -}}
+{{- include "ngrok-operator.dropEmpty" $shared -}}
+{{- include "ngrok-operator.dropEmpty" $component -}}
+{{- mergeOverwrite $shared $component | toYaml -}}
+{{- end -}}
+
+{{/*
+Removes empty strings, lists and maps from a map in place, recursing into
+nested maps. Booleans are kept, since false is a real value.
+*/}}
+{{- define "ngrok-operator.dropEmpty" -}}
+{{- $m := . -}}
+{{- range $key, $val := $m -}}
+{{- if kindIs "map" $val -}}
+{{- include "ngrok-operator.dropEmpty" $val -}}
+{{- end -}}
+{{- if and (not (kindIs "bool" $val)) (empty $val) -}}
+{{- $_ := unset $m $key -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+"true" when one-click demo mode is on. The agent and bindings-forwarder need
+credentials to do anything but crashloop, so they are not rendered then.
+*/}}
+{{- define "ngrok-operator.oneClickDemoMode" -}}
+{{- if .Values.apiManager.config.oneClickDemoMode -}}
+true
+{{- end -}}
 {{- end -}}
 
 {{/*

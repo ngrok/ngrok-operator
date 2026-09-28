@@ -23,9 +23,12 @@ Should match all-options snapshot:
           app.kubernetes.io/component: controller
           app.kubernetes.io/instance: RELEASE-NAME
           app.kubernetes.io/name: ngrok-operator
+      strategy:
+        type: RollingUpdate
       template:
         metadata:
           annotations:
+            checksum/config: 27397e5c6112d63d548fd84fed59c996877eecd67f20b5c6f8abbcb8251f0a5c
             checksum/controller-role: 130c037f16a9498d8d1f7a93d6da0cd09a602e8d5c9064e622c37ca4b10894a3
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
@@ -53,22 +56,12 @@ Should match all-options snapshot:
           containers:
             - args:
                 - api-manager
+                - --config=/etc/ngrok-operator/apiManager.yaml
                 - --release-name=RELEASE-NAME
-                - --drain-policy=Retain
-                - --default-domain-reclaim-policy=Delete
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description=The official ngrok Kubernetes Operator.
-                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --election-id=RELEASE-NAME-ngrok-operator-leader
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
-                - --cluster-domain=svc.cluster.local
               command:
                 - /ngrok-operator
               env:
@@ -111,11 +104,17 @@ Should match all-options snapshot:
               securityContext:
                 allowPrivilegeEscalation: false
               volumeMounts:
+                - mountPath: /etc/ngrok-operator
+                  name: operator-config
+                  readOnly: true
                 - mountPath: /test-volume
                   name: test-volume
           serviceAccountName: RELEASE-NAME-ngrok-operator
           terminationGracePeriodSeconds: 30
           volumes:
+            - configMap:
+                name: RELEASE-NAME-ngrok-operator-config
+              name: operator-config
             - emptyDir: {}
               name: test-volume
   2: |
@@ -560,6 +559,51 @@ Should match all-options snapshot:
         verbs:
           - patch
           - update
+  5: |
+    apiVersion: v1
+    data:
+      agent.yaml: |
+        features:
+          bindings:
+            enabled: false
+          gateway:
+            disableReferenceGrants: false
+            enabled: true
+          ingress:
+            controllerName: k8s.ngrok.com/ingress-controller
+            enabled: true
+      apiManager.yaml: |
+        features:
+          bindings:
+            enabled: false
+          gateway:
+            disableReferenceGrants: false
+            enabled: true
+          ingress:
+            controllerName: k8s.ngrok.com/ingress-controller
+            enabled: true
+        oneClickDemoMode: false
+      bindingsForwarder.yaml: |
+        features:
+          bindings:
+            enabled: false
+          gateway:
+            disableReferenceGrants: false
+            enabled: true
+          ingress:
+            controllerName: k8s.ngrok.com/ingress-controller
+            enabled: true
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.22.0
+        helm.sh/chart: ngrok-operator-0.24.0
+      name: RELEASE-NAME-ngrok-operator-config
+      namespace: NAMESPACE
 Should match default snapshot:
   1: |
     apiVersion: apps/v1
@@ -585,9 +629,12 @@ Should match default snapshot:
           app.kubernetes.io/component: controller
           app.kubernetes.io/instance: RELEASE-NAME
           app.kubernetes.io/name: ngrok-operator
+      strategy:
+        type: RollingUpdate
       template:
         metadata:
           annotations:
+            checksum/config: 27397e5c6112d63d548fd84fed59c996877eecd67f20b5c6f8abbcb8251f0a5c
             checksum/controller-role: 130c037f16a9498d8d1f7a93d6da0cd09a602e8d5c9064e622c37ca4b10894a3
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
@@ -615,22 +662,12 @@ Should match default snapshot:
           containers:
             - args:
                 - api-manager
+                - --config=/etc/ngrok-operator/apiManager.yaml
                 - --release-name=RELEASE-NAME
-                - --drain-policy=Retain
-                - --default-domain-reclaim-policy=Delete
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description=The official ngrok Kubernetes Operator.
-                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --election-id=RELEASE-NAME-ngrok-operator-leader
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
-                - --cluster-domain=svc.cluster.local
               command:
                 - /ngrok-operator
               env:
@@ -665,8 +702,16 @@ Should match default snapshot:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
+              volumeMounts:
+                - mountPath: /etc/ngrok-operator
+                  name: operator-config
+                  readOnly: true
           serviceAccountName: RELEASE-NAME-ngrok-operator
           terminationGracePeriodSeconds: 30
+          volumes:
+            - configMap:
+                name: RELEASE-NAME-ngrok-operator-config
+              name: operator-config
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role
@@ -1109,3 +1154,48 @@ Should match default snapshot:
         verbs:
           - patch
           - update
+  5: |
+    apiVersion: v1
+    data:
+      agent.yaml: |
+        features:
+          bindings:
+            enabled: false
+          gateway:
+            disableReferenceGrants: false
+            enabled: true
+          ingress:
+            controllerName: k8s.ngrok.com/ingress-controller
+            enabled: true
+      apiManager.yaml: |
+        features:
+          bindings:
+            enabled: false
+          gateway:
+            disableReferenceGrants: false
+            enabled: true
+          ingress:
+            controllerName: k8s.ngrok.com/ingress-controller
+            enabled: true
+        oneClickDemoMode: false
+      bindingsForwarder.yaml: |
+        features:
+          bindings:
+            enabled: false
+          gateway:
+            disableReferenceGrants: false
+            enabled: true
+          ingress:
+            controllerName: k8s.ngrok.com/ingress-controller
+            enabled: true
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.22.0
+        helm.sh/chart: ngrok-operator-0.24.0
+      name: RELEASE-NAME-ngrok-operator-config
+      namespace: NAMESPACE

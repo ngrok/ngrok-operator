@@ -1,0 +1,21 @@
+{{- include "ngrok-operator.validateValues" . -}}
+{{- /*
+One key per component, each holding that component's config file. See
+ngrok-operator.componentConfig.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{- range $name := list "apiManager" "agent" "bindingsForwarder" }}
+  {{ $name }}.yaml: |
+    {{- include "ngrok-operator.componentConfig" (dict "context" $ "component" $name) | nindent 4 }}
+  {{- end }}
