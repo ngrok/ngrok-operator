@@ -53,18 +53,10 @@ Should match snapshot:
           containers:
             - args:
                 - agent-manager
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description=The official ngrok Kubernetes Operator.
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
+                - --release-name=RELEASE-NAME
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --manager-name=RELEASE-NAME-ngrok-operator-agent-manager
-                - --release-name=RELEASE-NAME
-                - --default-domain-reclaim-policy=Delete
               command:
                 - /ngrok-operator
               env:
@@ -79,6 +71,8 @@ Should match snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: NGROK_OPERATOR_FEATURES
+                  value: '{"bindings":{"enabled":false},"gateway":{"disableReferenceGrants":false,"enabled":true},"ingress":{"controllerName":"k8s.ngrok.com/ingress-controller","enabled":true}}'
               image: docker.io/ngrok/ngrok-operator:0.22.0
               imagePullPolicy: IfNotPresent
               livenessProbe:

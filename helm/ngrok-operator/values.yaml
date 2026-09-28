@@ -3,21 +3,13 @@
 ##
 ## @param nameOverride String to partially override generated resource names
 ## @param fullnameOverride String to fully override generated resource names
-## @param description ngrok-operator description that will appear in the ngrok dashboard
 ## @param commonLabels Labels to add to all deployed objects
 ## @param commonAnnotations Annotations to add to all deployed objects
-## @param oneClickDemoMode If true, then the operator will startup without required fields or API registration, become Ready, but not actually be running
+##
 nameOverride: ""
 fullnameOverride: ""
-description: "The official ngrok Kubernetes Operator."
 commonLabels: {}
 commonAnnotations: {}
-oneClickDemoMode: false
-
-## @param podAnnotations Custom pod annotations to apply to all pods.
-## @param podLabels Custom pod labels to apply to all pods.
-podAnnotations: {}
-podLabels: {}
 
 ##
 ## @section Image configuration
@@ -40,193 +32,116 @@ image:
   pullSecrets: []
 
 ##
-## @section ngrok configuration
+## @section Shared pod settings
 ##
-## @param region ngrok region to create tunnels in. Defaults to connect to the closest geographical region.
+## Applied to the pods of every component. Any key here can also be set on a
+## component (for example `agent.tolerations`) to override it for that
+## component alone. Maps merge with the component winning per key; lists
+## replace.
 ##
-region: "" # empty means global or all regions
-
-## @param rootCAs Set to "trusted" for the ngrok agent CA or "host" to trust the host's CA. Defaults to "trusted".
+## @param defaults.podAnnotations Pod annotations
+## @param defaults.podLabels Pod labels
+## @param defaults.nodeSelector Node labels for pod assignment
+## @param defaults.tolerations Tolerations for pod assignment
+## @param defaults.affinity Affinity rules. Overrides the presets below when set
+## @param defaults.podAffinityPreset Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param defaults.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param defaults.nodeAffinityPreset.type Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param defaults.nodeAffinityPreset.key Node label key to match. Ignored if `affinity` is set.
+## @param defaults.nodeAffinityPreset.values Node label values to match. Ignored if `affinity` is set.
+## @param defaults.topologySpreadConstraints Topology spread constraints for pod assignment
+## @param defaults.priorityClassName Priority class for pod scheduling
+## @param defaults.extraEnv Additional environment variables, as a map of name to value
 ##
-rootCAs: ""
-
-## @param serverAddr  This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address.
-##
-serverAddr: ""
-
-## @param apiURL  This is the URL of the ngrok API. You should set this if you are using a custom API URL.
-##
-apiURL: "" # default to ngrok-api-go SDK's default
-
-## @extra metaData DEPRECATED: Use ngrokMetadata instead
-## @param ngrokMetadata Map of key=value,key=value pairs added as metadata to the ngrok API resources the operator generates from Ingress and Gateway API resources. It does NOT apply to resources you create directly via CRDs (Domain, IPPolicy, CloudEndpoint, AgentEndpoint, KubernetesOperator) — set `spec.metadata` on those objects instead.
-##
-ngrokMetadata: {}
-
-## @param clusterDomain Configure the default cluster base domain for your kubernetes cluster DNS resolution
-##
-clusterDomain: svc.cluster.local
-
-##
-## @section Operator Manager parameters
-##
-
-## @param replicaCount The number of controllers to run.
-## A minimum of 2 is recommended in production for HA.
-##
-replicaCount: 1
-
-## @param affinity Affinity for the controller pod assignment
-## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
-## Note: podAffinityPreset, podAntiAffinityPreset, and  nodeAffinityPreset will be ignored when it's set
-##
-affinity: {}
-## @param podAffinityPreset Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
-## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
-##
-podAffinityPreset: ""
-## @param podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
-## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
-##
-podAntiAffinityPreset: soft
-## Node affinity preset
-## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
-##
-nodeAffinityPreset:
-  ## @param nodeAffinityPreset.type Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
-  ##
-  type: ""
-  ## @param nodeAffinityPreset.key Node label key to match. Ignored if `affinity` is set.
-  ## E.g.
-  ## key: "kubernetes.io/e2e-az-name"
-  ##
-  key: ""
-  ## @param nodeAffinityPreset.values Node label values to match. Ignored if `affinity` is set.
-  ## E.g.
-  ## values:
-  ##   - e2e-az1
-  ##   - e2e-az2
-  ##
-  values: []
-
-## @param nodeSelector Node labels for manager pod(s)
-## @param tolerations Tolerations for manager pod(s)
-## @param topologySpreadConstraints Topology Spread Constraints for manager pod(s)
-nodeSelector: {}
-tolerations: []
-topologySpreadConstraints: []
-
-## @param priorityClassName Priority class for pod scheduling
-## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#priorityclass
-##
-priorityClassName: ""
-
-## @param terminationGracePeriodSeconds The amount of time to wait for the pod to gracefully terminate
-## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
-## Increase this value to give the operator more time to clean up finalizers during shutdown
-##
-terminationGracePeriodSeconds: 30
-
-## @param lifecycle an object containing lifecycle configuration
-## ref: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/
-##
-lifecycle: {}
-
-## Pod Disruption Budget configuration
-## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
-## @param podDisruptionBudget.create Enable a Pod Disruption Budget creation
-## @param podDisruptionBudget.maxUnavailable [string] Maximum number/percentage of pods that may be made unavailable
-## @param podDisruptionBudget.minAvailable [string] Minimum number/percentage of pods that should remain scheduled
-##
-podDisruptionBudget:
-  create: false
-  maxUnavailable: "1"
-  # minAvailable:
-
-## Controller container resource requests and limits
-## ref: https://kubernetes.io/docs/user-guide/compute-resources/
-## We usually recommend not to specify default resources and to leave this as a conscious
-## choice for the user. This also increases chances charts run on environments with little
-## resources, such as Minikube. If you do want to specify resources, uncomment the following
-## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-## @param resources.limits The resources limits for the container
-## @param resources.requests The requested resources for the container
-##
-resources:
-  ## Example:
-  ## limits:
-  ##    cpu: 100m
-  ##    memory: 128Mi
-  ##
-  limits: {}
-  ## Examples:
-  ## requests:
-  ##    cpu: 100m
-  ##    memory: 128Mi
-  ##
-  requests: {}
-
-## @param extraVolumes An array of extra volumes to add to the controller.
-##
-extraVolumes: []
-## @param extraVolumeMounts An array of extra volume mounts to add to the controller.
-##
-extraVolumeMounts: []
-##
-## Example:
-##
-## extraVolumes:
-## - name: test-volume
-##   emptyDir: {}
-## extraVolumeMounts:
-## - name: test-volume
-##   mountPath: /test-volume
-
-## @param extraEnv an object of extra environment variables to add to the controller.
-##
-extraEnv: {}
-## Example:
-##   MY_VAR: test
-##   MY_SECRET_VAR:
-##     secretKeyRef:
-##       key: test-key
-##       value: test-value
-##   NGROK_OPERATOR_RESTART_ON_CERT_CHANGE: "false"
-
-## Controller Service Account Settings
-## @param serviceAccount.create Specifies whether a ServiceAccount should be created
-## @param serviceAccount.name The name of the ServiceAccount to use.
-## If not set and create is true, a name is generated using the fullname template
-## @param serviceAccount.annotations Additional annotations to add to the ServiceAccount
-##
-serviceAccount:
-  create: true
-  name: ""
-  annotations: {}
-
-## CRD Access Role Settings
-## @param crdAccessRoles.create Whether to create editor/viewer ClusterRoles for CRDs
-## @param crdAccessRoles.annotations Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)
-## Commonly used for RBAC role aggregation (e.g., aggregate into the built-in admin/edit roles).
-##
-crdAccessRoles:
-  create: true
-  annotations: {}
-
-## @param defaultDomainReclaimPolicy The default domain reclaim policy to use for domains created by the operator. Valid values are "Delete" and "Retain". The default is "Delete".
-defaultDomainReclaimPolicy: "Delete"
+defaults:
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAffinityPreset: ""
+  podAntiAffinityPreset: soft
+  nodeAffinityPreset:
+    type: ""
+    key: ""
+    values: []
+  topologySpreadConstraints: []
+  priorityClassName: ""
+  extraEnv: {}
 
 ##
-## @section Logging configuration
+## @section Operator configuration
 ##
-## @param log.level The level to log at. One of 'debug', 'info', or 'error'.
-## @param log.stacktraceLevel The level to report stacktrace logs one of 'info' or 'error'.
-## @param log.format The log format to use. One of console, json.
+## Set once for every component: which component reads a setting is an
+## implementation detail. `log` is the exception and can be overridden for one
+## component under `<component>.config.log` (for example
+## `agent.config.log.level`).
+##
+## An empty value means "not set": the operator's built-in default applies.
+## Those defaults live in the operator binary and are listed here for reference.
+##
+## @param ngrok.description Description of this installation in the ngrok dashboard. Default: `The official ngrok Kubernetes Operator.`
+## @param ngrok.region ngrok region to use. Default: the account's default region
+## @param ngrok.serverAddr Address of the ngrok server to use for tunnels. Default: the ngrok default
+## @param ngrok.apiURL Base URL for the ngrok API. Default: the ngrok default
+## @param ngrok.rootCAs Root CAs to trust: `trusted` for the ngrok CA, `host` for the host's CA bundle. Default: `trusted`
+## @param ngrok.clusterDomain Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`
+## @param ngrok.metadata Key/value pairs added as metadata to the ngrok API resources the operator creates
+##
+ngrok:
+  description: ""
+  region: ""
+  serverAddr: ""
+  apiURL: ""
+  rootCAs: ""
+  clusterDomain: ""
+  metadata: {}
+
+## @param log.level Log level: `debug`, `info`, `error`, `panic`, or an integer for more verbose debug levels. Default: `info`
+## @param log.format Log format: `json` or `console`. Default: `json`
+## @param log.stacktraceLevel Level at and above which stacktraces are captured: `info`, `error` or `panic`. Default: `error`
 ##
 log:
-  format: json
-  level: info
-  stacktraceLevel: error
+  level: ""
+  format: ""
+  stacktraceLevel: ""
+
+## @param features.ingress.enabled Enable the Kubernetes Ingress controller
+## @param features.ingress.controllerName Controller name matched by IngressClasses, and set on the IngressClass this chart creates
+## @param features.ingress.watchNamespace Namespace to watch for Ingress and AgentEndpoint resources. Default: all namespaces
+## @param features.ingress.ingressClass.name IngressClass resource name
+## @param features.ingress.ingressClass.create Create the IngressClass resource
+## @param features.ingress.ingressClass.default Set the IngressClass as the cluster default
+## @param features.gateway.enabled Enable Gateway API support, if the Gateway API CRDs are detected
+## @param features.gateway.disableReferenceGrants Disable the ReferenceGrant requirement for cross-namespace references
+## @param features.bindings.enabled Enable the Endpoint Bindings feature, including the bindings-forwarder
+## @param features.bindings.endpointSelectors CEL expressions filtering which endpoints are projected into this cluster. Default: `["true"]`
+## @param features.bindings.serviceAnnotations Annotations applied to projected services
+## @param features.bindings.serviceLabels Labels applied to projected services
+## @param features.bindings.ingressEndpoint Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`
+## @param features.defaultDomainReclaimPolicy Default reclaim policy for Domains: `Delete` or `Retain`. Default: `Delete`
+## @param features.drainPolicy What to do with ngrok API resources on uninstall: `Delete` or `Retain`. Default: `Retain`
+##
+features:
+  ingress:
+    enabled: true
+    controllerName: k8s.ngrok.com/ingress-controller
+    watchNamespace: ""
+    ingressClass:
+      name: ngrok
+      create: true
+      default: false
+  gateway:
+    enabled: true
+    disableReferenceGrants: false
+  bindings:
+    enabled: false
+    endpointSelectors: []
+    serviceAnnotations: {}
+    serviceLabels: {}
+    ingressEndpoint: ""
+  defaultDomainReclaimPolicy: ""
+  drainPolicy: ""
 
 ##
 ## @section Credentials configuration
@@ -249,213 +164,151 @@ credentials:
     accessToken: ""
 
 ##
-## @section Kubernetes Ingress feature configuration
+## @section API Manager
 ##
-## @extra ingressClass.name DEPRECATED: Use ingress.ingressClass.name instead
-## @extra ingressClass.create DEPRECATED: Use ingress.ingressClass.create instead
-## @extra ingressClass.default DEPRECATED: Use ingress.ingressClass.default instead
-## @extra watchNamespace DEPRECATED: Use ingress.watchNamespace instead
-## @extra controllerName DEPRECATED: Use ingress.controllerName instead
-## @param ingress.enabled When true, enable the Ingress controller features
-## @param ingress.ingressClass.name The name of the ingress class to use.
-## @param ingress.ingressClass.create Whether to create the ingress class.
-## @param ingress.ingressClass.default Whether to set the ingress class as default.
-## @param ingress.watchNamespace The namespace to watch for ingress resources (default all)
-## @param ingress.controllerName The name of the controller to look for matching ingress classes
+## Any key from `defaults` can also be set here to override it for the
+## api-manager alone.
 ##
-ingress:
-  enabled: true # enabled by default
-  controllerName: "k8s.ngrok.com/ingress-controller"
-  watchNamespace: "" # default all
-  ingressClass:
-    name: ngrok
-    create: true
-    default: false
-
+## @param apiManager.replicaCount The number of api-manager replicas to run
+## @param apiManager.resources.limits Resource limits
+## @param apiManager.resources.requests Resource requests
+## @param apiManager.lifecycle Container lifecycle hooks
+## @param apiManager.terminationGracePeriodSeconds Graceful shutdown period
+## @param apiManager.extraVolumes Additional volumes
+## @param apiManager.extraVolumeMounts Additional volume mounts
+## @param apiManager.podDisruptionBudget.create Whether to create a PodDisruptionBudget
+## @param apiManager.podDisruptionBudget.maxUnavailable Maximum unavailable pods
+## @param apiManager.podDisruptionBudget.minAvailable Minimum available pods. Set this instead of `maxUnavailable`, not alongside it
+## @param apiManager.serviceAccount.create Whether to create a ServiceAccount
+## @param apiManager.serviceAccount.name ServiceAccount name. Generated if empty
+## @param apiManager.serviceAccount.annotations ServiceAccount annotations
+## @param apiManager.updateStrategy.type Deployment update strategy
+## @param apiManager.config.oneClickDemoMode Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder
 ##
-## @section Agent configuration
-##
-## @param agent.podAnnotations Custom pod annotations to apply to agent pods. If not set, falls back to podAnnotations.
-## @param agent.priorityClassName Priority class for pod scheduling.
-## @param agent.replicaCount The number of agents to run.
-## @param agent.serviceAccount.create Specifies whether a ServiceAccount should be created for the agent.
-## @param agent.serviceAccount.name The name of the ServiceAccount to use for the agent.
-## If not set and create is true, a name is generated using the fullname template
-## @param agent.serviceAccount.annotations Additional annotations to add to the agent ServiceAccount
-agent:
-  podAnnotations: {}
-  priorityClassName: ""
-
+apiManager:
   replicaCount: 1
-
-  ## Agent container resource requests and limits
-  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
-  ## We usually recommend not to specify default resources and to leave this as a conscious
-  ## choice for the user. This also increases chances charts run on environments with little
-  ## resources, such as Minikube. If you do want to specify resources, uncomment the following
-  ## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  ## @param agent.resources.limits The resources limits for the container
-  ## @param agent.resources.requests The requested resources for the container
-  ##
   resources:
-    ## Example:
-    ## limits:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    ##
     limits: {}
-    ## Examples:
-    ## requests:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    ##
     requests: {}
-
+  lifecycle: {}
+  terminationGracePeriodSeconds: 30
+  extraVolumes: []
+  extraVolumeMounts: []
+  podDisruptionBudget:
+    create: false
+    maxUnavailable: "1"
+    minAvailable: ""
   serviceAccount:
     create: true
     name: ""
     annotations: {}
-
-  ## @param agent.updateStrategy.type Agent update strategy
-  ## @skip agent.updateStrategy.rollingUpdate
-  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
-  ##
   updateStrategy:
-    ## StrategyType
-    ## Can be set to RollingUpdate, OnDelete (statefulset), Recreate (deployment)
-    ##
     type: RollingUpdate
+  ## Settings only the api-manager has, and `log` overrides for it.
+  config:
+    oneClickDemoMode: false
 
-  ## @param agent.terminationGracePeriodSeconds The amount of time to wait for the agent pod to gracefully terminate
-  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
-  ## Increase this value to give the operator more time to clean up finalizers during shutdown
-  ##
+##
+## @section Agent
+##
+## Any key from `defaults` can also be set here to override it for the agent
+## alone.
+##
+## @param agent.replicaCount The number of agent replicas to run
+## @param agent.resources.limits Resource limits
+## @param agent.resources.requests Resource requests
+## @param agent.lifecycle Container lifecycle hooks
+## @param agent.terminationGracePeriodSeconds Graceful shutdown period
+## @param agent.extraVolumes Additional volumes
+## @param agent.extraVolumeMounts Additional volume mounts
+## @param agent.serviceAccount.create Whether to create a ServiceAccount
+## @param agent.serviceAccount.name ServiceAccount name. Generated if empty
+## @param agent.serviceAccount.annotations ServiceAccount annotations
+## @param agent.updateStrategy.type Deployment update strategy
+## @param agent.config Settings only the agent has (none yet), and `log` overrides for it
+##
+agent:
+  replicaCount: 1
+  resources:
+    limits: {}
+    requests: {}
+  lifecycle: {}
   terminationGracePeriodSeconds: 30
-
-  ## @param agent.tolerations Tolerations for the agent pod(s)
-  tolerations: []
-
-  ## @param agent.nodeSelector Node labels for the agent pod(s)
-  nodeSelector: {}
-
-  ## @param agent.topologySpreadConstraints Topology Spread Constraints for the agent pod(s)
-  topologySpreadConstraints: []
-
-##
-## @section Kubernetes Gateway feature configuration
-##
-## @param gateway.enabled When true, Gateway API support will be enabled if the CRDs are detected. When false, Gateway API support will never be enabled
-## @param gateway.disableReferenceGrants When true, disables required ReferenceGrants for cross-namespace references. Does nothing when gateway.enabled is false
-##
-gateway:
-  enabled: true # Enabled by default if the Gateway API CRDs are detected
-  disableReferenceGrants: false
+  extraVolumes: []
+  extraVolumeMounts: []
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  updateStrategy:
+    type: RollingUpdate
+  config: {}
 
 ##
-## @section Kubernetes Bindings feature configuration
+## @section Bindings Forwarder
 ##
-## @param bindings.enabled Whether to enable the Endpoint Bindings feature
-## @param bindings.endpointSelectors List of cel expressions used to filter which kubernetes-bound endpoints should be projected into this cluster
-## @param bindings.serviceAnnotations Annotations to add to projected services bound to an endpoint
-## @param bindings.serviceLabels Labels to add to projected services bound to an endpoint
-## @param bindings.ingressEndpoint The hostname of the ingress endpoint for the bindings
+## Rendered only when `features.bindings.enabled` is true. Any key from
+## `defaults` can also be set here to override it for the bindings-forwarder
+## alone.
 ##
-bindings:
-  enabled: false # in-development
-  endpointSelectors:
-  - "true"
-  serviceAnnotations: {}
-  serviceLabels: {}
-  ingressEndpoint: "kubernetes-binding-ingress.ngrok.io:443"
+## @param bindingsForwarder.replicaCount The number of bindings-forwarder replicas to run
+## @param bindingsForwarder.resources.limits Resource limits
+## @param bindingsForwarder.resources.requests Resource requests
+## @param bindingsForwarder.lifecycle Container lifecycle hooks
+## @param bindingsForwarder.terminationGracePeriodSeconds Graceful shutdown period
+## @param bindingsForwarder.extraVolumes Additional volumes
+## @param bindingsForwarder.extraVolumeMounts Additional volume mounts
+## @param bindingsForwarder.serviceAccount.create Whether to create a ServiceAccount
+## @param bindingsForwarder.serviceAccount.name ServiceAccount name. Generated if empty
+## @param bindingsForwarder.serviceAccount.annotations ServiceAccount annotations
+## @param bindingsForwarder.updateStrategy.type Deployment update strategy
+## @param bindingsForwarder.config Settings only the bindings-forwarder has (none yet), and `log` overrides for it
+##
+bindingsForwarder:
+  replicaCount: 1
+  resources:
+    limits: {}
+    requests: {}
+  lifecycle: {}
+  terminationGracePeriodSeconds: 30
+  extraVolumes: []
+  extraVolumeMounts: []
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  updateStrategy:
+    type: RollingUpdate
+  config: {}
 
-  forwarder:
-    ## @param bindings.forwarder.replicaCount The number of bindings forwarders to run.
-    ##
-    replicaCount: 1
+##
+## @section RBAC
+##
+## @param crdAccessRoles.create Whether to create editor/viewer ClusterRoles for CRDs
+## @param crdAccessRoles.annotations Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)
+##
+crdAccessRoles:
+  create: true
+  annotations: {}
 
-    ## Bindings Forwarder container resource requests and limits
-    ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
-    ## We usually recommend not to specify default resources and to leave this as a conscious
-    ## choice for the user. This also increases chances charts run on environments with little
-    ## resources, such as Minikube. If you do want to specify resources, uncomment the following
-    ## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    ## @param bindings.forwarder.resources.limits The resources limits for the container
-    ## @param bindings.forwarder.resources.requests The requested resources for the container
-    resources:
-      ## Example:
-      ## limits:
-      ##    cpu: 100m
-      ##    memory: 128Mi
-      ##
-      limits: {}
-      ## Examples:
-      ## requests:
-      ##    cpu: 100m
-      ##    memory: 128Mi
-      ##
-      requests: {}
-
-
-    ## @param bindings.forwarder.serviceAccount.create Specifies whether a ServiceAccount should be created for the bindings forwarder pod(s).
-    ## @param bindings.forwarder.serviceAccount.name The name of the ServiceAccount to use for the bindings forwarder pod(s).
-    ## If not set and create is true, a name is generated using the fullname template
-    ## @param bindings.forwarder.serviceAccount.annotations Additional annotations to add to the bindings-forwarder ServiceAccount
-    ##
-    serviceAccount:
-      create: true
-      name: ""
-      annotations: {}
-
-    ## @param bindings.forwarder.updateStrategy.type Bindings Forwarder update strategy type
-    ## @skip bindings.forwarder.updateStrategy.rollingUpdate
-    ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
-    ##
-    updateStrategy:
-      ## StrategyType
-      ## Can be set to RollingUpdate, OnDelete (statefulset), Recreate (deployment)
-      ##
-      type: RollingUpdate
-
-    ## @param bindings.forwarder.terminationGracePeriodSeconds The amount of time to wait for the bindings forwarder pod to gracefully terminate
-    ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
-    ## Increase this value to give the operator more time to clean up finalizers during shutdown
-    ##
-    terminationGracePeriodSeconds: 30
-
-    ## @param bindings.forwarder.tolerations Tolerations for the bindings forwarder pod(s)
-    tolerations: []
-
-    ## @param bindings.forwarder.nodeSelector Node labels for the bindings forwarder pod(s)
-    nodeSelector: {}
-
-    ## @param bindings.forwarder.topologySpreadConstraints Topology Spread Constraints for the bindings forwarder pod(s)
-    topologySpreadConstraints: []
-
+##
 ## @section Custom Resource Definitions installation
 ##
-
 ## @param installCRDs When true, the ngrok CRDs will be installed alongside the operator
+##
 installCRDs: true
 
 ##
 ## @section Cleanup Hook configuration
 ##
-## @param drainPolicy Policy for what to do with ngrok API resources while draining during an Uninstall. "Delete" removes ngrok API resources, "Retain" preserves them
 ## @param cleanupHook.enabled Enable the pre-delete cleanup hook that drains resources before uninstall
 ## @param cleanupHook.timeout Timeout in seconds for the cleanup process
 ## @param cleanupHook.image.repository The repository for the kubectl image used by the cleanup hook
 ## @param cleanupHook.image.tag The tag for the kubectl image
 ## @param cleanupHook.image.pullPolicy The pull policy for the cleanup hook image
-## ref: https://kubernetes.io/docs/user-guide/compute-resources/
-## We usually recommend not to specify default resources and to leave this as a conscious
-## choice for the user. This also increases chances charts run on environments with little
-## resources, such as Minikube. If you do want to specify resources, uncomment the following
-## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
 ## @param cleanupHook.resources.limits The resources limits for the cleanup hook container
 ## @param cleanupHook.resources.requests The requested resources for the cleanup hook container
 ##
-drainPolicy: "Retain"  # "Delete" or "Retain"
-
 cleanupHook:
   enabled: true
   timeout: 300
@@ -464,15 +317,5 @@ cleanupHook:
     tag: latest
     pullPolicy: IfNotPresent
   resources:
-    ## Example:
-    ## limits:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    ##
     limits: {}
-    ## Examples:
-    ## requests:
-    ##    cpu: 50m
-    ##    memory: 64Mi
-    ##
     requests: {}

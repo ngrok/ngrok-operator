@@ -1,0 +1,140 @@
+suite: operator configuration env
+templates:
+  - api-manager/deployment.yaml
+  - agent/deployment.yaml
+  # Included for the Deployments' checksum annotations; helm unittest loads
+  # only the templates a suite declares.
+  - api-manager/role.yaml
+  - api-manager/leader-election-role.yaml
+  - agent/role.yaml
+  - credentials-secret.yaml
+set:
+  credentials.accessToken: x
+tests:
+  - it: renders one variable per section, leaving out empty values
+    template: agent/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_FEATURES
+            value: '{"bindings":{"enabled":false},"gateway":{"disableReferenceGrants":false,"enabled":true},"ingress":{"controllerName":"k8s.ngrok.com/ingress-controller","enabled":true}}'
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_NGROK
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_LOG
+          any: true
+
+  - it: gives every component the shared settings
+    set:
+      ngrok.region: eu
+      ngrok.metadata:
+        example.com/team: k8s
+    asserts:
+      - template: api-manager/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_NGROK
+            value: '{"metadata":{"example.com/team":"k8s"},"region":"eu"}'
+      - template: agent/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_NGROK
+            value: '{"metadata":{"example.com/team":"k8s"},"region":"eu"}'
+
+  - it: lets a component override the shared log settings for itself alone
+    set:
+      log.level: info
+      log.format: json
+      agent.config.log.level: debug
+    asserts:
+      - template: agent/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_LOG
+            value: '{"format":"json","level":"debug"}'
+      - template: api-manager/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_LOG
+            value: '{"format":"json","level":"info"}'
+
+  - it: treats an empty component value as inherit, not as an override to empty
+    template: agent/deployment.yaml
+    set:
+      log.level: info
+      agent.config.log.level: ""
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_LOG
+            value: '{"level":"info"}'
+
+  - it: keeps quotes and commas in list values intact
+    template: api-manager/deployment.yaml
+    set:
+      features.bindings.endpointSelectors: ["a == 'x,y'"]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_FEATURES
+            value: '{"bindings":{"enabled":false,"endpointSelectors":["a == ''x,y''"]},"gateway":{"disableReferenceGrants":false,"enabled":true},"ingress":{"controllerName":"k8s.ngrok.com/ingress-controller","enabled":true}}'
+
+  - it: writes component-only settings to that component's section
+    set:
+      apiManager.config.oneClickDemoMode: true
+    asserts:
+      - template: api-manager/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_API_MANAGER
+            value: '{"oneClickDemoMode":true}'
+
+  - it: lets extraEnv override a section, since it is listed after it
+    template: agent/deployment.yaml
+    set:
+      agent.extraEnv:
+        NGROK_OPERATOR_LOG_LEVEL: debug
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[-1]
+          value:
+            name: NGROK_OPERATOR_LOG_LEVEL
+            value: debug
+
+  - it: rejects a per-component features override
+    template: agent/deployment.yaml
+    set:
+      agent.config.features.gateway.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "agent.config.features is not supported"
+
+  - it: rejects a per-component ngrok override
+    template: api-manager/deployment.yaml
+    set:
+      apiManager.config.ngrok.region: eu
+    asserts:
+      - failedTemplate:
+          errorPattern: "apiManager.config.ngrok is not supported"
+
+  - it: fails on values from the pre-0.25 layout
+    template: api-manager/deployment.yaml
+    set:
+      region: eu
+      ingress.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "(?s)ingress -> features.ingress.*region -> ngrok.region"

@@ -23,6 +23,8 @@ Should match all-options snapshot:
           app.kubernetes.io/component: controller
           app.kubernetes.io/instance: RELEASE-NAME
           app.kubernetes.io/name: ngrok-operator
+      strategy:
+        type: RollingUpdate
       template:
         metadata:
           annotations:
@@ -54,21 +56,10 @@ Should match all-options snapshot:
             - args:
                 - api-manager
                 - --release-name=RELEASE-NAME
-                - --drain-policy=Retain
-                - --default-domain-reclaim-policy=Delete
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description=The official ngrok Kubernetes Operator.
-                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --election-id=RELEASE-NAME-ngrok-operator-leader
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
-                - --cluster-domain=svc.cluster.local
               command:
                 - /ngrok-operator
               env:
@@ -83,6 +74,10 @@ Should match all-options snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: NGROK_OPERATOR_API_MANAGER
+                  value: '{"oneClickDemoMode":false}'
+                - name: NGROK_OPERATOR_FEATURES
+                  value: '{"bindings":{"enabled":false},"gateway":{"disableReferenceGrants":false,"enabled":true},"ingress":{"controllerName":"k8s.ngrok.com/ingress-controller","enabled":true}}'
                 - name: SECRET_ENV_VAR
                   value:
                     secretKeyRef:
@@ -585,6 +580,8 @@ Should match default snapshot:
           app.kubernetes.io/component: controller
           app.kubernetes.io/instance: RELEASE-NAME
           app.kubernetes.io/name: ngrok-operator
+      strategy:
+        type: RollingUpdate
       template:
         metadata:
           annotations:
@@ -616,21 +613,10 @@ Should match default snapshot:
             - args:
                 - api-manager
                 - --release-name=RELEASE-NAME
-                - --drain-policy=Retain
-                - --default-domain-reclaim-policy=Delete
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description=The official ngrok Kubernetes Operator.
-                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --election-id=RELEASE-NAME-ngrok-operator-leader
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
-                - --cluster-domain=svc.cluster.local
               command:
                 - /ngrok-operator
               env:
@@ -645,6 +631,10 @@ Should match default snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: NGROK_OPERATOR_API_MANAGER
+                  value: '{"oneClickDemoMode":false}'
+                - name: NGROK_OPERATOR_FEATURES
+                  value: '{"bindings":{"enabled":false},"gateway":{"disableReferenceGrants":false,"enabled":true},"ingress":{"controllerName":"k8s.ngrok.com/ingress-controller","enabled":true}}'
               image: docker.io/ngrok/ngrok-operator:0.22.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
