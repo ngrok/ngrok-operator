@@ -6,6 +6,8 @@ How app configuration reaches the operator's components and where its defaults l
 
 `internal/config.Default()` is the only place an app config default is written. Every component decodes the same `config.Config` struct and ignores the fields it does not use.
 
+Each component registers flags only for the settings it reads (`config.RegisterAPIManagerFlags`, `RegisterAgentFlags`, `RegisterBindingsForwarderFlags`), so its `--help` is accurate and a setting it would ignore is rejected on the command line. Settings that belong to one component alone live in that component's section of the struct, such as `apiManager.oneClickDemoMode`.
+
 Logging is the exception: the `log` section feeds controller-runtime's own `--zap-*` flags, so its defaults are zap's.
 
 ## Precedence
@@ -46,4 +48,4 @@ No flags or files are required. Override individual settings with `NGROK_OPERATO
 ## Adding a configuration value
 
 1. Add the field to `internal/config.Config`, and its default to `Default()`.
-2. Register its flag in `config.RegisterFlags`. The environment variable follows automatically.
+2. Register its flag in the `Register*Flags` function of every component that reads it. The environment variable follows automatically.

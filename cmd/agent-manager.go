@@ -97,7 +97,7 @@ func agentCmd() *cobra.Command {
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
 
-	opts.cfg, opts.zapOpts = bindConfig(c)
+	opts.cfg, opts.zapOpts = bindConfig(c, config.RegisterAgentFlags)
 
 	return c
 }

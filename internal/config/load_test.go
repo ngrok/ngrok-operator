@@ -40,10 +40,10 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
-			name:  "top-level keys and numeric log levels decode",
+			name:  "component sections and numeric log levels decode",
 			files: []string{"demo.yaml"},
 			assert: func(t *testing.T, cfg *Config) {
-				assert.True(t, cfg.OneClickDemoMode)
+				assert.True(t, cfg.APIManager.OneClickDemoMode)
 				assert.Equal(t, FlagString("8"), cfg.Log.Level)
 			},
 		},

@@ -13,12 +13,20 @@ import (
 )
 
 // Config is the full operator configuration. Every component decodes the same
-// struct and ignores the fields it does not use.
+// struct, registers flags only for the fields it reads, and ignores the rest.
 type Config struct {
 	Log      LogConfig      `json:"log"`
 	Ngrok    NgrokConfig    `json:"ngrok"`
 	Features FeaturesConfig `json:"features"`
 
+	// Settings that belong to one component alone.
+	APIManager APIManagerConfig `json:"apiManager"`
+}
+
+type APIManagerConfig struct {
+	// OneClickDemoMode starts the api-manager without credentials: it becomes
+	// Ready and logs what is missing instead of reconciling. For marketplace
+	// installs, where users cannot supply configuration before the first start.
 	OneClickDemoMode bool `json:"oneClickDemoMode"`
 }
 

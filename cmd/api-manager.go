@@ -118,16 +118,7 @@ func apiCmd() *cobra.Command {
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
 
-	opts.cfg, opts.zapOpts = bindConfig(c)
-
-	// when true, ngrok-op will allow required fields to be optional
-	// then it will go Ready and log errors about registration state due to missing required fields
-	// this is useful for marketplace installations where our users do not have a chance to add their required configuration
-	// yet we still want a 1-click install to work
-	//
-	// when false, ngrok-op will require all required fields to be present before going Ready
-	// and will log errors about missing required fields
-	c.Flags().BoolVar(&opts.cfg.OneClickDemoMode, "one-click-demo-mode", opts.cfg.OneClickDemoMode, "Run the operator in one-click-demo mode (Ready, but not running)")
+	opts.cfg, opts.zapOpts = bindConfig(c, config.RegisterAPIManagerFlags)
 
 	return c
 }
@@ -219,7 +210,7 @@ func startOperator(ctx context.Context, opts apiManagerOpts) error {
 		return fmt.Errorf("unable to load manager: %w", err)
 	}
 
-	if opts.cfg.OneClickDemoMode {
+	if opts.cfg.APIManager.OneClickDemoMode {
 		return runOneClickDemoMode(ctx, mgr)
 	}
 

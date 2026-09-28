@@ -1,3 +1,4 @@
-oneClickDemoMode: true
+apiManager:
+  oneClickDemoMode: true
 log:
   level: 8

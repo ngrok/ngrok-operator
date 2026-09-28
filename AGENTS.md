@@ -99,7 +99,8 @@ make undeploy               # Remove from cluster
 - Requeue on transient ngrok API errors (return `ctrl.Result{Requeue: true}`)
 - Prefer `BaseController` helpers over raw client operations
 - App config defaults live only in `internal/config.Default()`. Add a new
-  setting there and register its flag in `config.RegisterFlags`; see
+  setting there and register its flag in the `config.Register*Flags` function of each
+  component that reads it; see
   [specs/configuration.md](specs/configuration.md).
 - The Go version lives only in `flake.nix`. The `Dockerfile` has no builder
   stage: binaries are cross-compiled on the host by `scripts/build.sh` into

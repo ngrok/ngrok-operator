@@ -33,7 +33,6 @@ func parse(t *testing.T, newCmd func() *cobra.Command, args []string) (*cobra.Co
 func TestChartArgsParse(t *testing.T) {
 	sharedArgs := []string{
 		"--release-name=t",
-		"--description=The official ngrok Kubernetes Operator.",
 		"--zap-log-level=8",
 		"--zap-stacktrace-level=error",
 		"--zap-encoder=json",
@@ -51,6 +50,7 @@ func TestChartArgsParse(t *testing.T) {
 			name: "api-manager",
 			cmd:  apiCmd,
 			args: []string{
+				"--description=The official ngrok Kubernetes Operator.",
 				"--drain-policy=Retain",
 				"--default-domain-reclaim-policy=Delete",
 				"--enable-feature-ingress=true",
@@ -63,8 +63,6 @@ func TestChartArgsParse(t *testing.T) {
 				"--bindings-ingress-endpoint=kubernetes-binding-ingress.ngrok.io:443",
 				"--region=eu",
 				"--api-url=https://api.example",
-				"--root-cas=host",
-				"--server-addr=x.example:443",
 				"--ngrok-metadata=e=f",
 				"--ingress-controller-name=k8s.ngrok.com/ingress-controller",
 				"--ingress-watch-namespace=ns",
@@ -78,11 +76,7 @@ func TestChartArgsParse(t *testing.T) {
 			name: "agent-manager",
 			cmd:  agentCmd,
 			args: []string{
-				"--enable-feature-ingress=true",
 				"--enable-feature-gateway=true",
-				"--disable-reference-grants=true",
-				"--enable-feature-bindings=true",
-				"--region=eu",
 				"--root-cas=host",
 				"--server-addr=x.example:443",
 				"--manager-name=t-ngrok-operator-agent-manager",
@@ -151,7 +145,7 @@ func TestPrecedence(t *testing.T) {
 				t.Setenv(k, v)
 			}
 
-			c, err := parse(t, agentCmd, tt.args)
+			c, err := parse(t, apiCmd, tt.args)
 			require.NoError(t, err)
 
 			region, err := c.Flags().GetString("region")

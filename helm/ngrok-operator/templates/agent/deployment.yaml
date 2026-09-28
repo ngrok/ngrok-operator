@@ -82,13 +82,7 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
-        {{- if .Values.description }}
-        - {{ printf "--description=%s" .Values.description | quote }}
-        {{- end }}
-        {{- if .Values.region }}
-        - --region={{ .Values.region }}
-        {{- end }}
+        - --enable-feature-gateway={{ .Values.gateway.enabled }}
         {{- if .Values.rootCAs }}
         - --root-cas={{ .Values.rootCAs }}
         {{- end }}

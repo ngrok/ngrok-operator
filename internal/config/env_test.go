@@ -102,7 +102,7 @@ func TestApplyEnv(t *testing.T) {
 			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 			var paths []string
 			fs.StringArrayVar(&paths, ConfigFlag, nil, "")
-			_, err := RegisterFlags(fs, cfg)
+			_, err := RegisterAPIManagerFlags(fs, cfg)
 			require.NoError(t, err)
 			require.NoError(t, fs.Parse(tt.args))
 

@@ -30,7 +30,7 @@ func TestDefault(t *testing.T) {
 
 	assert.Equal(t, "Delete", cfg.Features.DefaultDomainReclaimPolicy)
 	assert.Equal(t, "Retain", cfg.Features.DrainPolicy)
-	assert.False(t, cfg.OneClickDemoMode)
+	assert.False(t, cfg.APIManager.OneClickDemoMode)
 }
 
 func TestDefaultIsNotShared(t *testing.T) {

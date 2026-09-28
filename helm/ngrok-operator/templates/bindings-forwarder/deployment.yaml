@@ -80,9 +80,6 @@ spec:
         args:
         - bindings-forwarder-manager
         - --release-name={{ .Release.Name }}
-        {{- if .Values.description }}
-        - {{ printf "--description=%s" .Values.description | quote }}
-        {{- end }}
         - --zap-log-level={{ .Values.log.level }}
         - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
         - --zap-encoder={{ .Values.log.format }}

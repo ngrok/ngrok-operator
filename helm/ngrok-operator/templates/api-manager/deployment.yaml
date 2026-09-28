@@ -108,12 +108,6 @@ spec:
         {{- if .Values.apiURL }}
         - --api-url={{ .Values.apiURL}}
         {{- end }}
-        {{- if .Values.rootCAs }}
-        - --root-cas={{ .Values.rootCAs}}
-        {{- end }}
-        {{- if .Values.serverAddr }}
-        - --server-addr={{ .Values.serverAddr}}
-        {{- end }}
         {{- /* backwards compatibility for .metaData -> .ngrokMetadata */}}
         {{- $ngrokMetadata := (.Values.metaData) | default .Values.ngrokMetadata }}
         {{- if $ngrokMetadata }}

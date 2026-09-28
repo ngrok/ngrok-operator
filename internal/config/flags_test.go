@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 // TestRegisterFlagsDefaultsComeFromConfig is the property the design rests
@@ -17,7 +18,7 @@ func TestRegisterFlagsDefaultsComeFromConfig(t *testing.T) {
 	cfg.Features.Bindings.IngressEndpoint = "example.test:443"
 
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-	_, err := RegisterFlags(fs, cfg)
+	_, err := RegisterAPIManagerFlags(fs, cfg)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -26,7 +27,7 @@ func TestRegisterFlagsDefaultsComeFromConfig(t *testing.T) {
 	}{
 		{"region", "eu"},
 		{"bindings-ingress-endpoint", "example.test:443"},
-		{"root-cas", Default().Ngrok.RootCAs},
+		{"cluster-domain", Default().Ngrok.ClusterDomain},
 	}
 
 	for _, tt := range tests {
@@ -67,7 +68,7 @@ func TestRegisterFlagsWriteThrough(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Default()
 			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			_, err := RegisterFlags(fs, cfg)
+			_, err := RegisterAPIManagerFlags(fs, cfg)
 			require.NoError(t, err)
 
 			require.NoError(t, fs.Parse(tt.args))
@@ -117,7 +118,7 @@ func TestRegisterFlagsLogSeedsZapFlags(t *testing.T) {
 			cfg.Log = tt.log
 
 			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			zapOpts, err := RegisterFlags(fs, cfg)
+			zapOpts, err := RegisterBindingsForwarderFlags(fs, cfg)
 			require.NotNil(t, zapOpts)
 			require.NotNil(t, fs.Lookup("zap-log-level"), "zap flags must be registered even on error")
 
@@ -131,6 +132,51 @@ func TestRegisterFlagsLogSeedsZapFlags(t *testing.T) {
 
 			for name, want := range tt.want {
 				assert.Equal(t, want, fs.Lookup(name).Value.String(), name)
+			}
+		})
+	}
+}
+
+// Each component registers only the flags for settings it reads, so a flag it
+// would silently ignore is rejected instead.
+func TestComponentFlagSets(t *testing.T) {
+	tests := []struct {
+		name     string
+		register func(*pflag.FlagSet, *Config) (*zap.Options, error)
+		has      []string
+		lacks    []string
+	}{
+		{
+			name:     "api-manager",
+			register: RegisterAPIManagerFlags,
+			has:      []string{"region", "api-url", "enable-feature-bindings", "one-click-demo-mode", "zap-log-level"},
+			lacks:    []string{"server-addr", "root-cas"},
+		},
+		{
+			name:     "agent-manager",
+			register: RegisterAgentFlags,
+			has:      []string{"server-addr", "root-cas", "ingress-watch-namespace", "enable-feature-gateway", "default-domain-reclaim-policy", "zap-log-level"},
+			lacks:    []string{"region", "api-url", "description", "enable-feature-bindings", "one-click-demo-mode"},
+		},
+		{
+			name:     "bindings-forwarder-manager",
+			register: RegisterBindingsForwarderFlags,
+			has:      []string{"zap-log-level"},
+			lacks:    []string{"description", "region", "enable-feature-bindings"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			_, err := tt.register(fs, Default())
+			require.NoError(t, err)
+
+			for _, name := range tt.has {
+				assert.NotNil(t, fs.Lookup(name), "missing --%s", name)
+			}
+			for _, name := range tt.lacks {
+				assert.Nil(t, fs.Lookup(name), "unexpected --%s", name)
 			}
 		})
 	}
