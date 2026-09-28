@@ -35,7 +35,7 @@ SCRIPT_DIR = ./scripts
 
 CONTROLLER_GEN_PATHS = {./api/..., ./internal/controller/..., ./internal/drain/...}
 
-# when true, deploy with --set oneClickDemoMode=true
+# when true, deploy with --set apiManager.config.oneClickDemoMode=true
 DEPLOY_ONE_CLICK_DEMO_MODE ?= false
 
 # Timestamp used to force pod rollouts via annotations on each deploy.
