@@ -17,6 +17,11 @@ import (
 // fakeAgent stands in for the ngrok agent and the server side of its session:
 // the session holds at most limit tunnels, and a tunnel's slot is freed only
 // by a successful unbind.
+//
+// It embeds ngrok.Agent (https://github.com/ngrok/ngrok-go/blob/main/agent.go#L21)
+// to satisfy the interface and overrides only Forward, the one method the
+// driver calls when creating endpoints. Any other method panics on the nil
+// embedded interface, which flags new driver dependencies on the agent.
 type fakeAgent struct {
 	ngrok.Agent
 	limit      int
@@ -39,7 +44,7 @@ func (a *fakeAgent) Forward(context.Context, *ngrok.Upstream, ...ngrok.EndpointO
 		return nil, fmt.Errorf("Your account may not run more than %d tunnels over a single ngrok agent session. ERR_NGROK_324", a.limit)
 	}
 	a.nextID++
-	f := &fakeForwarder{id: fmt.Sprintf("tn_%d", a.nextID), agent: a, pooled: true, done: make(chan struct{})}
+	f := &fakeForwarder{id: fmt.Sprintf("tn_%d", a.nextID), agent: a, done: make(chan struct{})}
 	a.tunnels[f.id] = f
 	a.peak = max(a.peak, len(a.tunnels))
 	return f, nil
@@ -54,13 +59,12 @@ type fakeForwarder struct {
 	ngrok.EndpointForwarder
 	id     string
 	agent  *fakeAgent
-	pooled bool
 	closed bool // Close was called
 	done   chan struct{}
 }
 
 func (f *fakeForwarder) ID() string                             { return f.id }
-func (f *fakeForwarder) PoolingEnabled() bool                   { return f.pooled }
+func (f *fakeForwarder) PoolingEnabled() bool                   { return true }
 func (f *fakeForwarder) URL() *url.URL                          { return &url.URL{Scheme: "https", Host: "example.ngrok.app"} }
 func (f *fakeForwarder) Bindings() []string                     { return nil }
 func (f *fakeForwarder) TrafficPolicy() string                  { return "" }
@@ -254,36 +258,6 @@ func TestCreateAgentEndpointSkipsUnchangedRebind(t *testing.T) {
 			create(in)
 
 			assert.Equal(t, tc.wantRebind, current(t, d, "ep") != first, "rebind")
-			assert.Len(t, a.tunnels, 1)
-		})
-	}
-}
-
-// Only pooled endpoints can share a URL during an update. With a non-pooled
-// endpoint, ngrok misroutes traffic while both are up, so the driver must stop
-// the old one before binding its replacement.
-func TestCreateAgentEndpointNonPooledStopsBeforeRebind(t *testing.T) {
-	tests := []struct {
-		name      string
-		oldPooled bool
-		wantPeak  int
-	}{
-		{name: "pooled: new tunnel binds before the old one closes", oldPooled: true, wantPeak: 2},
-		{name: "non-pooled: old tunnel closes first", oldPooled: false, wantPeak: 1},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			a := newFakeAgent(10)
-			d := newTestDriver(a)
-			require.NoError(t, apply(d, "ep", "old"))
-			old := current(t, d, "ep")
-			old.pooled = tc.oldPooled
-
-			require.NoError(t, apply(d, "ep", "new"))
-
-			assert.Equal(t, tc.wantPeak, a.peak, "most tunnels held at once")
-			assert.True(t, old.closed)
 			assert.Len(t, a.tunnels, 1)
 		})
 	}
