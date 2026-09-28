@@ -55,7 +55,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: boundendpoints.bindings.k8s.ngrok.com
 spec:
   group: bindings.k8s.ngrok.com
@@ -290,6 +290,9 @@ spec:
                     uri:
                       description: a uri for locating a resource
                       type: string
+                  required:
+                  - id
+                  - uri
                   type: object
                 type: array
               endpointsSummary:
@@ -345,7 +348,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: domains.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -636,7 +639,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: ippolicies.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -831,7 +834,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: trafficpolicies.ngrok.com
 spec:
   group: ngrok.com
@@ -984,7 +987,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: agentendpoints.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1354,7 +1357,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: cloudendpoints.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1613,7 +1616,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: kubernetesoperators.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1892,7 +1895,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: ngroktrafficpolicies.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -3413,7 +3416,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator-agent
       containers:
       - name: agent
@@ -3423,18 +3425,10 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
+        - --release-name=ngrok-operator
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name=ngrok-operator-agent-manager
-        - --release-name=ngrok-operator
-        - --default-domain-reclaim-policy=Delete
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -3449,6 +3443,8 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR_FEATURES
+          value: '{"bindings":{"enabled":false},"gateway":{"disableReferenceGrants":false,"enabled":true},"ingress":{"controllerName":"k8s.ngrok.com/ingress-controller","enabled":true}}'
         livenessProbe:
           httpGet:
             path: /healthz
@@ -3485,6 +3481,8 @@ metadata:
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: ngrok-operator
@@ -3520,7 +3518,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator
       containers:
       - name: ngrok-operator
@@ -3531,21 +3528,10 @@ spec:
         args:
         - api-manager
         - --release-name=ngrok-operator
-        - --drain-policy=Retain
-        - --default-domain-reclaim-policy=Delete
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id=ngrok-operator-leader
         - --manager-name=ngrok-operator-manager
-        - --cluster-domain=svc.cluster.local
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -3560,6 +3546,10 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR_API_MANAGER
+          value: '{"oneClickDemoMode":false}'
+        - name: NGROK_OPERATOR_FEATURES
+          value: '{"bindings":{"enabled":false},"gateway":{"disableReferenceGrants":false,"enabled":true},"ingress":{"controllerName":"k8s.ngrok.com/ingress-controller","enabled":true}}'
         livenessProbe:
           httpGet:
             path: /healthz
