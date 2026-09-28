@@ -13,6 +13,7 @@ require (
 	github.com/onsi/gomega v1.41.0
 	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.28.0
@@ -26,6 +27,7 @@ require (
 	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2
 	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/gateway-api v1.5.1
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -77,7 +79,6 @@ require (
 	github.com/prometheus/common v0.68.0 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	go.starlark.net v0.0.0-20230103143115-09991d3a103e // indirect
@@ -107,7 +108,6 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.13.10 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
 tool (
