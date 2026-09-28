@@ -50,6 +50,53 @@ data:
       resourceName: ngrok-operator-leader
 
 ---
+# Source: ngrok-operator/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ngrok-operator-config
+  namespace: ngrok-operator
+  labels:
+    helm.sh/chart: ngrok-operator-0.24.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.22.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+data:
+  apiManager.yaml: |
+    features:
+      bindings:
+        enabled: false
+      gateway:
+        disableReferenceGrants: false
+        enabled: true
+      ingress:
+        controllerName: k8s.ngrok.com/ingress-controller
+        enabled: true
+    oneClickDemoMode: false
+  agent.yaml: |
+    features:
+      bindings:
+        enabled: false
+      gateway:
+        disableReferenceGrants: false
+        enabled: true
+      ingress:
+        controllerName: k8s.ngrok.com/ingress-controller
+        enabled: true
+  bindingsForwarder.yaml: |
+    features:
+      bindings:
+        enabled: false
+      gateway:
+        disableReferenceGrants: false
+        enabled: true
+      ingress:
+        controllerName: k8s.ngrok.com/ingress-controller
+        enabled: true
+
+---
 # Source: ngrok-operator/charts/ngrok-crds/templates/bindings.k8s.ngrok.com_boundendpoints.yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -3393,6 +3440,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
+        checksum/config: 7f2fc0bc3afd1a6b27ad433eaf633ec5089087fb3c68049f7d4955251eb1ef7a
         checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
@@ -3416,7 +3464,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator-agent
       containers:
       - name: agent
@@ -3426,15 +3473,11 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        - --enable-feature-gateway=true
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
+        - --config=/etc/ngrok-operator/agent.yaml
+        - --release-name=ngrok-operator
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name=ngrok-operator-agent-manager
-        - --release-name=ngrok-operator
-        - --default-domain-reclaim-policy=Delete
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -3449,6 +3492,10 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        volumeMounts:
+        - name: operator-config
+          mountPath: /etc/ngrok-operator
+          readOnly: true
         livenessProbe:
           httpGet:
             path: /healthz
@@ -3464,6 +3511,10 @@ spec:
         resources:
           limits: {}
           requests: {}
+      volumes:
+      - name: operator-config
+        configMap:
+          name: ngrok-operator-config
 
 ---
 # Source: ngrok-operator/templates/api-manager/deployment.yaml
@@ -3485,6 +3536,8 @@ metadata:
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: ngrok-operator
@@ -3496,6 +3549,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
+        checksum/config: 27397e5c6112d63d548fd84fed59c996877eecd67f20b5c6f8abbcb8251f0a5c
         checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
@@ -3520,7 +3574,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator
       containers:
       - name: ngrok-operator
@@ -3530,22 +3583,12 @@ spec:
         - /ngrok-operator
         args:
         - api-manager
+        - --config=/etc/ngrok-operator/apiManager.yaml
         - --release-name=ngrok-operator
-        - --drain-policy=Retain
-        - --default-domain-reclaim-policy=Delete
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id=ngrok-operator-leader
         - --manager-name=ngrok-operator-manager
-        - --cluster-domain=svc.cluster.local
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -3560,6 +3603,10 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        volumeMounts:
+        - name: operator-config
+          mountPath: /etc/ngrok-operator
+          readOnly: true
         livenessProbe:
           httpGet:
             path: /healthz
@@ -3575,6 +3622,10 @@ spec:
         resources:
           limits: {}
           requests: {}
+      volumes:
+      - name: operator-config
+        configMap:
+          name: ngrok-operator-config
 
 ---
 # Source: ngrok-operator/templates/ingress-class.yaml
