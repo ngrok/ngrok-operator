@@ -18,8 +18,7 @@ deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-imag
 		--set image.tag="latest" \
 		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
-		--set credentials.apiKey=$(NGROK_API_KEY) \
-		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
@@ -36,8 +35,7 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set image.tag="latest" \
 		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
-		--set credentials.apiKey=$(NGROK_API_KEY) \
-		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
@@ -55,8 +53,7 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup 
 		--set image.tag="latest" \
 		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
-		--set credentials.apiKey=$(NGROK_API_KEY) \
-		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
@@ -76,8 +73,7 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set image.pullPolicy="Never" \
 		--set-string podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
 		--set podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
-		--set credentials.apiKey=$(NGROK_API_KEY) \
-		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
@@ -109,8 +105,7 @@ deploy_multi_namespace: _deploy-check-env-vars docker-build manifests _helm_setu
 		--set ingress.ingressClass.name="ngrok-a" \
 		--set ingress.watchNamespace="namespace-a" \
 		--set watchNamespace=namespace-a \
-		--set credentials.apiKey=$(NGROK_API_KEY) \
-		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
@@ -128,8 +123,7 @@ deploy_multi_namespace: _deploy-check-env-vars docker-build manifests _helm_setu
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set watchNamespace=namespace-b \
-		--set credentials.apiKey=$(NGROK_API_KEY) \
-		--set credentials.authtoken=$(NGROK_AUTHTOKEN) \
+		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
@@ -142,11 +136,8 @@ kind-load-image: ## Load the locally built image into the kind cluster.
 
 .PHONY: _deploy-check-env-vars
 _deploy-check-env-vars:
-ifndef NGROK_API_KEY
-	$(error An NGROK_API_KEY must be set)
-endif
-ifndef NGROK_AUTHTOKEN
-	$(error An NGROK_AUTHTOKEN must be set)
+ifndef NGROK_ACCESS_TOKEN
+	$(error An NGROK_ACCESS_TOKEN must be set)
 endif
 
 

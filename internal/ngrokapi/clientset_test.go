@@ -14,7 +14,7 @@ func TestDefaultClientsetImplementsInterface(t *testing.T) {
 
 func ExampleClientset() {
 	// Create a ngrok client config
-	config := ngrok.NewClientConfig("YOUR_API_KEY")
+	config := ngrok.NewClientConfig("YOUR_PAT")
 	// Create a clientset using the provided ngrok client configuration.
 	cs := NewClientSet(config)
 	// Access a client for the domains API.

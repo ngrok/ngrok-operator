@@ -3394,6 +3394,7 @@ spec:
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
         checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
+        checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator
@@ -3440,10 +3441,10 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
         env:
-        - name: NGROK_AUTHTOKEN
+        - name: NGROK_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
-              key: AUTHTOKEN
+              key: AGENT_ACCESS_TOKEN
               name: ngrok-operator-credentials
         - name: POD_NAMESPACE
           valueFrom:
@@ -3551,10 +3552,10 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
         env:
-        - name: NGROK_API_KEY
+        - name: NGROK_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
-              key: API_KEY
+              key: API_MANAGER_ACCESS_TOKEN
               name: ngrok-operator-credentials
         - name: POD_NAMESPACE
           valueFrom:

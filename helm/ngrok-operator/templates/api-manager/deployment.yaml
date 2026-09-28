@@ -140,11 +140,13 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
         env:
-        - name: NGROK_API_KEY
+        {{- if not .Values.oneClickDemoMode }}
+        - name: NGROK_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
-              key: API_KEY
+              key: {{ include "ngrok-operator.accessTokenSecretKey" "apiManager" }}
               name: {{ include "ngrok-operator.credentialsSecretName" . }}
+        {{- end }}
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

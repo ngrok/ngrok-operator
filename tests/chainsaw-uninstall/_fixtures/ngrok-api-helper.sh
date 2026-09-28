@@ -11,7 +11,7 @@
 #   ngrok-api-helper.sh k8sop absent <id>
 #
 # Environment:
-#   NGROK_API_KEY - Required for ngrok API access
+#   NGROK_ACCESS_TOKEN - Required for ngrok API access
 #
 # Examples:
 #   ngrok-api-helper.sh endpoint exists "my-app.internal"
@@ -50,8 +50,8 @@ log_error() { echo -e "${RED}✗${NC} $1" >&2; }
 log_info() { echo -e "${YELLOW}→${NC} $1"; }
 
 # Check for required env var
-if [[ -z "${NGROK_API_KEY:-}" ]]; then
-    log_error "NGROK_API_KEY environment variable is required"
+if [[ -z "${NGROK_ACCESS_TOKEN:-}" ]]; then
+    log_error "NGROK_ACCESS_TOKEN environment variable is required"
     exit 1
 fi
 
@@ -60,7 +60,7 @@ fi
 # ============================================================
 
 fetch_endpoints() {
-    ngrok api endpoints list --api-key "${NGROK_API_KEY}" 2>/dev/null
+    ngrok api endpoints list --api-key "${NGROK_ACCESS_TOKEN}" 2>/dev/null
 }
 
 get_endpoint_urls() {
@@ -134,7 +134,7 @@ endpoint_delete_matching() {
 
     echo "$MATCHING" | while read -r id url; do
         log_info "Deleting endpoint: $url ($id)"
-        DELETE_OUTPUT=$(ngrok api endpoints delete "$id" --api-key "${NGROK_API_KEY}" 2>&1) || {
+        DELETE_OUTPUT=$(ngrok api endpoints delete "$id" --api-key "${NGROK_ACCESS_TOKEN}" 2>&1) || {
             log_error "Failed to delete $id: $DELETE_OUTPUT"
             echo "1" > "$FAIL_FILE"
         }
@@ -157,7 +157,7 @@ endpoint_delete_matching() {
 k8sop_get() {
     local id="${1:?Missing k8sop ID argument}"
     curl -s -X GET \
-        -H "Authorization: Bearer ${NGROK_API_KEY}" \
+        -H "Authorization: Bearer ${NGROK_ACCESS_TOKEN}" \
         -H "Ngrok-Version: 2" \
         "${NGROK_API_URL}/kubernetes_operators/${id}"
 }
@@ -254,7 +254,7 @@ case "${1:-help}" in
         echo "  k8sop absent <id>                 Assert KubernetesOperator is gone from ngrok API"
         echo ""
         echo "Environment:"
-        echo "  NGROK_API_KEY          Required for ngrok API access"
+        echo "  NGROK_ACCESS_TOKEN     Required for ngrok API access"
         echo "  MAX_RETRIES            Max retry attempts (default: 10)"
         echo "  RETRY_DELAY            Base seconds for backoff (default: 3)"
         echo "  MAX_RETRY_DELAY        Max backoff delay cap (default: 30)"

@@ -62,17 +62,15 @@ Then, install the latest version (setting the appropriate values for your enviro
 
 ```sh
 export NAMESPACE=[YOUR_K8S_NAMESPACE]
-export NGROK_AUTHTOKEN=[AUTHTOKEN]
-export NGROK_API_KEY=[API_KEY]
+export NGROK_ACCESS_TOKEN=[PERSONAL_ACCESS_TOKEN]
 
 helm install ngrok-operator ngrok/ngrok-operator \
   --namespace $NAMESPACE \
   --create-namespace \
-  --set credentials.apiKey=$NGROK_API_KEY \
-  --set credentials.authtoken=$NGROK_AUTHTOKEN
+  --set credentials.accessToken=$NGROK_ACCESS_TOKEN
 ```
 
-> ** Note ** The values for `NGROK_API_KEY` and `NGROK_AUTHTOKEN` can be found in your [ngrok dashboard] (https://dashboard.ngrok.com/get-started/setup). The ngrok Kubernetes Operator uses them to authenticate with ngrok and configure and run your network ingress traffic at the edge.
+> ** Note ** You can create an access token in your [ngrok dashboard](https://dashboard.ngrok.com/access-tokens). The ngrok Kubernetes Operator uses it to authenticate with ngrok and configure and run your network ingress traffic at the edge.
 
 For a more in-depth installation guide follow our step-by-step [Getting Started](https://ngrok.com/docs/using-ngrok-with/k8s/) guide.
 

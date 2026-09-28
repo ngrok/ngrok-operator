@@ -87,7 +87,7 @@ make undeploy               # Remove from cluster
 
 ## Configuration
 
-- **Credentials**: `helm install` requires `credentials.apiKey` and `credentials.authtoken`
+- **Credentials**: `helm install` requires `credentials.accessToken` (a single ngrok access token)
 - **Feature Flags**: `gateway.enabled=true` enables Gateway API support
 
 ## Rules

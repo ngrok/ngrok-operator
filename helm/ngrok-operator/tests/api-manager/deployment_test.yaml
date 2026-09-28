@@ -245,6 +245,34 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --one-click-demo-mode
+- it: Should not mount the access token in one-click-demo mode
+  set:
+    oneClickDemoMode: true
+  template: api-manager/deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  # One-click-demo mode never reaches the ngrok API, and no credentials Secret is
+  # rendered without a token, so a secretKeyRef here would keep the pod from starting.
+  - notContains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_ACCESS_TOKEN
+      any: true
+- it: Should mount the access token when not in one-click-demo mode
+  set:
+    credentials:
+      accessToken: "test-token"
+  template: api-manager/deployment.yaml
+  documentIndex: 0 # Document 0 is the deployment since its the first template
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_ACCESS_TOKEN
+        valueFrom:
+          secretKeyRef:
+            key: API_MANAGER_ACCESS_TOKEN
+            name: RELEASE-NAME-ngrok-operator-credentials
 - it: Should pass log format argument if set
   set:
     log:
