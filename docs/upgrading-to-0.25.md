@@ -10,9 +10,7 @@ removed, and an upgrade that still passes them fails with an explicit error
 rather than starting a release with no credentials.
 
 One token can serve both components, or you can set a separate token for each.
-Setting one per component prepares for scoped access tokens, which will let each
-token carry only the permissions its component needs. See
-[one token per component](#optional-one-token-per-component).
+See [one token per component](#optional-one-token-per-component).
 
 ## Before upgrading
 
@@ -47,8 +45,7 @@ addresses, IP policies, and the Kubernetes operator registration.
 
 Create the token at
 [dashboard.ngrok.com/access-tokens](https://dashboard.ngrok.com/access-tokens).
-A token inherits the permissions of the account membership that created it, so
-create it from a membership that can perform the operations above.
+Give it the permissions for the operations above.
 
 The token is shown once. Store it the way you store the credentials it replaces.
 
@@ -87,11 +84,11 @@ This includes values carried forward implicitly. If you upgrade with
 `--reuse-values`, the old keys come along from the previous release and the
 upgrade fails until you remove them.
 
-### Update a pre-existing Secret
+### Create a new Secret if you manage your own
 
 If you manage the credentials Secret yourself and point at it with
-`credentials.secret.name`, change its keys. The chart now reads one key per
-component:
+`credentials.secret.name`, create a new Secret under a new name rather than
+editing the existing one. The chart now reads one key per component:
 
 | Before | After |
 | --- | --- |
@@ -104,7 +101,7 @@ Both keys hold the same token unless you set one per component, below.
 apiVersion: v1
 kind: Secret
 metadata:
-  name: my-ngrok-credentials
+  name: my-ngrok-credentials-v2
   namespace: ngrok-operator
 type: Opaque
 data:
@@ -112,9 +109,21 @@ data:
   API_MANAGER_ACCESS_TOKEN: <base64-encoded-access-token>
 ```
 
-A Secret that still carries only `API_KEY` and `AUTHTOKEN` leaves both pods
-unable to start. Update the
-Secret before or together with the chart upgrade.
+Then point the upgrade at it:
+
+```yaml
+credentials:
+  secret:
+    name: my-ngrok-credentials-v2
+```
+
+Leaving the old Secret untouched keeps the running 0.24 pods working until the
+upgrade replaces them, and keeps `helm rollback` working afterwards: the
+previous release still names the old Secret, which still holds the keys 0.24
+reads.
+
+A Secret that carries only `API_KEY` and `AUTHTOKEN` leaves both 0.25 pods
+unable to start, so create the new Secret before the chart upgrade.
 
 ## Upgrade
 
@@ -165,11 +174,8 @@ agent-manager establishes tunnel sessions and makes no API calls; the
 api-manager reconciles resources against the ngrok API and never starts
 tunnels.
 
-The chart can take a token per component so that each one can eventually carry
-only the permissions it needs. That narrowing is not available yet: an access
-token carries the full permissions of the account membership that created it,
-so two tokens set this way are just as privileged as one. Setting them now
-means narrowing later is a values change rather than a migration.
+The chart can take a separate token per component, so each token can be scoped
+to only the permissions its component needs.
 
 To set them, use these instead of `credentials.accessToken`:
 
@@ -204,8 +210,8 @@ AGENT_ACCESS_TOKEN
 API_MANAGER_ACCESS_TOKEN
 ```
 
-If you manage the Secret yourself, remove the two old keys when you add the new
-ones.
+If you manage the Secret yourself, delete the old Secret once you are committed
+to 0.25 — see rolling back, below.
 
 Revoking the old API key and authtoken in the dashboard is a separate step, and
 one to take only after you are committed to 0.25 — see rolling back, below.
@@ -242,3 +248,6 @@ restores the previous release's values, including `credentials.apiKey` and
 `credentials.authtoken`, so keep those credentials valid until the rollback
 window has closed. Do not revoke the old API key and authtoken until you are
 committed to 0.25.
+
+If you created a new Secret for 0.25, keep the old one until then as well. The
+rolled-back release reads from it.

@@ -240,11 +240,9 @@ credentials:
   secret:
     name: ""
   accessToken: ""
-  ## One token for everything is the simple path. The per-component values exist so
-  ## that each component can be given a token carrying only the permissions it needs,
-  ## once ngrok access tokens support scoping them that way. Today an access token
-  ## carries the full permissions of the account membership that created it, so
-  ## setting these does not narrow anything yet.
+  ## One token for everything is the simple path. The per-component values set a
+  ## separate token for each component, falling back to accessToken when empty,
+  ## so each token can be scoped to only the permissions its component needs.
   agent:
     accessToken: ""
   apiManager:

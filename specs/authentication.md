@@ -41,12 +41,9 @@ credentials:
     accessToken: "<api-manager token>"
 ```
 
-The split exists so that each component can be given a token carrying only the
-permissions it needs — the agent-manager only establishes tunnel sessions, and
-the api-manager only calls the ngrok API. That is not yet possible: an access
-token carries the full permissions of the account membership that created it,
-so today both tokens must be equally privileged and the split buys nothing.
-Wire it up now and narrowing becomes a values change later.
+The agent-manager only establishes tunnel sessions, and the api-manager only
+calls the ngrok API, so a per-component token can be scoped to only the
+permissions its component needs.
 
 Setting a token for one component but not the other fails the render, rather
 than leaving the other pod unable to start.
