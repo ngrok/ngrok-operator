@@ -36,7 +36,7 @@ Each operator instance maintains independent drain state:
 Each deployment MUST be scoped to watch different namespaces:
 
 - `features.ingress.watchNamespace` for the api-manager
-- `--watch-namespace` for the agent-manager
+- `--ingress-watch-namespace` for the agent-manager (the same value as the api-manager)
 - Scoping prevents resource conflicts between installations
 
 ## Deployment Model

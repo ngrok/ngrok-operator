@@ -15,8 +15,8 @@ The ngrok-operator uses Kubernetes Role-Based Access Control (RBAC) to authorize
 | Deployment          | ServiceAccount                          | Controllers                                                                                                                                                            | Conditional?          |
 |---------------------|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|
 | api-manager         | `ngrok-operator`                        | Ingress, Domain, IPPolicy, CloudEndpoint, TrafficPolicy, KubernetesOperator, BoundEndpoint, Gateway, HTTPRoute, TCPRoute, TLSRoute, GatewayClass, Namespace, ReferenceGrant, Service + Drain | No |
-| agent-manager       | `ngrok-operator-agent`                  | AgentEndpoint                                                                                                                                                          | Yes (`ingress.enabled`) |
-| bindings-forwarder  | `ngrok-operator-bindings-forwarder`     | Forwarder                                                                                                                                                              | Yes (`bindings.enabled`) |
+| agent-manager       | `ngrok-operator-agent`                  | AgentEndpoint                                                                                                                                                          | Yes (`features.ingress.enabled`) |
+| bindings-forwarder  | `ngrok-operator-bindings-forwarder`     | Forwarder                                                                                                                                                              | Yes (`features.bindings.enabled`) |
 
 ### Management approach
 
@@ -28,7 +28,7 @@ The api-manager's permissions split into three categories based on where the und
 
 - **User workloads** (Ingress, Gateway routes, AgentEndpoint, CloudEndpoint, Domain, IPPolicy, TrafficPolicy, Service, etc.) — follow `watchNamespace`. Role in the watched namespace, or ClusterRole when watchNamespace is unset.
 - **Operator state** (KubernetesOperator CR, the operator's own TLS Secret writes) — always in the release namespace. The KubernetesOperator CR is a singleton owned by the operator and the TLS Secret is created in `r.K8sOpNamespace` (= release namespace), so these resources never live in a user-chosen `watchNamespace`.
-- **Bindings** (BoundEndpoint CR, cross-namespace Service writes by the binding poller) — always cluster-wide. The poller creates Services in any namespace based on the BoundEndpoint's top-level domain. Even when `bindings.enabled=false`, the BoundEndpoint CRD is still installed (it ships in the unconditional `ngrok-crds` subchart) and the drain orchestrator unconditionally lists BoundEndpoints during shutdown, so the api-manager always needs these grants.
+- **Bindings** (BoundEndpoint CR, cross-namespace Service writes by the binding poller) — always cluster-wide. The poller creates Services in any namespace based on the BoundEndpoint's top-level domain. Even when `features.bindings.enabled=false`, the BoundEndpoint CRD is still installed (it ships in the unconditional `ngrok-crds` subchart) and the drain orchestrator unconditionally lists BoundEndpoints during shutdown, so the api-manager always needs these grants.
 
 Cluster-scoped K8s resources (namespaces, ingressclasses, gatewayclasses) always require a ClusterRole regardless.
 
@@ -57,7 +57,7 @@ api-manager/        role.yaml (watchNamespace-following Role/ClusterRole)
                     rolebinding.yaml
                     leader-election-role.yaml (always release ns — controller-runtime infra)
                     release-namespace-role.yaml (always release ns — KubernetesOperator CR + secret writes)
-                    bindings-cluster-role.yaml (always cluster-wide and unconditional — BoundEndpoint + cross-ns Services; required even when bindings.enabled=false because drain always lists BoundEndpoints)
+                    bindings-cluster-role.yaml (always cluster-wide and unconditional — BoundEndpoint + cross-ns Services; required even when features.bindings.enabled=false because drain always lists BoundEndpoints)
 agent/              role.yaml (watchNamespace-following Role/ClusterRole)
                     rolebinding.yaml
                     release-namespace-role.yaml (always release ns — KubernetesOperator drain reads)
