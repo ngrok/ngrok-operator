@@ -68,7 +68,6 @@ type bindingsForwarderManagerOpts struct {
 	releaseName string
 	metricsAddr string
 	probeAddr   string
-	description string
 	managerName string
 	zapOpts     *zap.Options
 
@@ -81,6 +80,11 @@ func bindingsForwarderCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use: "bindings-forwarder-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
+			// The forwarder reads only the log settings, which loadConfig
+			// applies to the zap flags.
+			if _, err := loadConfig(c); err != nil {
+				return err
+			}
 			return runController(c.Context(), opts)
 		},
 	}
@@ -88,7 +92,6 @@ func bindingsForwarderCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
 
 	opts.zapOpts = &zap.Options{}
