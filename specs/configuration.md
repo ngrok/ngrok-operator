@@ -37,6 +37,12 @@ features:
 
 Credentials (`NGROK_ACCESS_TOKEN`) and `POD_NAMESPACE` are read from the environment only and are outside this chain.
 
+## In the chart
+
+The chart renders each component's settings into a config file, one key per component in the `{fullname}-config` ConfigMap, and passes `--config` to point at it. It passes no app config flags. See [helm/common.md](helm/common.md#operator-configuration) for the values and their merge rule.
+
+The chart writes only values the user set. An empty value is left out, so `Default()` applies. `TestChartValuesMatchDefault` walks `Default()` and fails if a field is missing from `values.yaml` or holds anything other than empty or the Go default.
+
 ## Local development
 
 ```bash
@@ -49,3 +55,7 @@ No flags or files are required. Override individual settings with `NGROK_OPERATO
 
 1. Add the field to `internal/config.Config`, and its default to `Default()`.
 2. Register its flag in the `Register*Flags` function of every component that reads it. The environment variable follows automatically.
+3. Add the key to `values.yaml` under `ngrok`, `log` or `features` (or `<component>.config` if only that component has the setting), empty unless it is a boolean, with an `@param` line that states the default.
+4. Run `make update-readme` in `helm/ngrok-operator` to regenerate the chart README and schema.
+
+No template changes are needed.

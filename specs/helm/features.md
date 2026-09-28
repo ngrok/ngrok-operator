@@ -1,6 +1,8 @@
 # Helm Chart — Features
 
-Features are configured at the top level under `features:`. This is the **single source of truth** for what is enabled and how each feature is configured. Components do not duplicate feature flags.
+Features are configured at the top level under `features:`, as part of the operator configuration (see [common.md](common.md#operator-configuration)). A component can override a feature setting for itself under `<component>.config.features`, but whether a feature's resources render at all (the IngressClass, the agent and bindings-forwarder Deployments) follows the top-level value.
+
+Defaults below are the operator's built-in defaults. An empty value in `values.yaml` means the default applies.
 
 ## Ingress
 

@@ -159,6 +159,40 @@ reads.
 A Secret that carries only `API_KEY` and `AUTHTOKEN` leaves both 0.25 pods
 unable to start, so create the new Secret before the chart upgrade.
 
+### Move your values to the new layout
+
+The 0.25 chart reorganizes its values. Operator settings move under `ngrok`,
+`features` and per-component `config` sections, and pod settings move under
+`defaults` or a component section. There are no aliases for the old keys: a
+values file that still sets one fails the render and lists each old key with
+its new location.
+
+| 0.24 value | 0.25 value |
+|------------|------------|
+| `description`, `region`, `rootCAs`, `serverAddr`, `apiURL`, `clusterDomain` | `ngrok.<same>` |
+| `ngrokMetadata`, `metaData` | `ngrok.metadata` |
+| `ingress.*` | `features.ingress.*` |
+| `watchNamespace`, `controllerName`, `ingressClass.*` | `features.ingress.watchNamespace`, `features.ingress.controllerName`, `features.ingress.ingressClass.*` |
+| `gateway.*` | `features.gateway.*` |
+| `bindings.enabled`, `bindings.endpointSelectors`, `bindings.serviceAnnotations`, `bindings.serviceLabels`, `bindings.ingressEndpoint` | `features.bindings.<same>` |
+| `bindings.forwarder.*` | `bindingsForwarder.*` |
+| `drainPolicy`, `defaultDomainReclaimPolicy` | `features.<same>` |
+| `oneClickDemoMode` | `apiManager.config.oneClickDemoMode` |
+| `podAnnotations`, `podLabels`, `nodeSelector`, `tolerations`, `affinity`, `podAffinityPreset`, `podAntiAffinityPreset`, `nodeAffinityPreset`, `topologySpreadConstraints`, `priorityClassName`, `extraEnv` | `defaults.<same>` (applies to every component) |
+| `replicaCount`, `resources`, `lifecycle`, `terminationGracePeriodSeconds`, `extraVolumes`, `extraVolumeMounts`, `podDisruptionBudget.*`, `serviceAccount.*` | `apiManager.<same>` |
+| `log.*`, `agent.*`, `credentials.*`, `image.*` | unchanged |
+
+Three behaviors change along with the keys:
+
+- Top-level pod settings such as `podAnnotations` and `tolerations` now apply to
+  the agent and bindings-forwarder as well as the api-manager. To keep a
+  setting on one component only, set it on that component instead, for example
+  `apiManager.tolerations`.
+- Operator settings such as `log.level` can be overridden for one component
+  under `<component>.config`, for example `agent.config.log.level: debug`.
+- An empty operator setting means "use the operator's built-in default". The
+  defaults are listed in the chart README.
+
 ## Required before upgrading
 
 These changes remove compatibility that 0.24 provided. Each one should already
