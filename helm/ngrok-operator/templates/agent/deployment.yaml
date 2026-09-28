@@ -104,7 +104,7 @@ spec:
         - --release-name={{ .Release.Name }}
         - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
         {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
-        - --watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
+        - --ingress-watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
         {{- end }}
         securityContext:
           allowPrivilegeEscalation: false

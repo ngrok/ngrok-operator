@@ -19,7 +19,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 
@@ -68,9 +67,9 @@ type bindingsForwarderManagerOpts struct {
 	releaseName string
 	metricsAddr string
 	probeAddr   string
-	description string
 	managerName string
-	zapOpts     *zap.Options
+
+	zapOpts *zap.Options
 
 	// env vars
 	namespace string
@@ -88,13 +87,9 @@ func bindingsForwarderCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
 
-	opts.zapOpts = &zap.Options{}
-	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
-	opts.zapOpts.BindFlags(goFlagSet)
-	c.Flags().AddGoFlagSet(goFlagSet)
+	_, opts.zapOpts = bindConfig(c)
 
 	return c
 }

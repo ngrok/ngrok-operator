@@ -117,7 +117,7 @@ spec:
         {{- /* backwards compatibility for .metaData -> .ngrokMetadata */}}
         {{- $ngrokMetadata := (.Values.metaData) | default .Values.ngrokMetadata }}
         {{- if $ngrokMetadata }}
-        - --ngrokMetadata={{- $metadataArgs := list -}}
+        - --ngrok-metadata={{- $metadataArgs := list -}}
           {{- range $key, $value := $ngrokMetadata }}
           {{- $metadataArgs = append $metadataArgs (printf "%s=%s" $key $value) -}}
           {{- end }}

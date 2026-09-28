@@ -134,7 +134,7 @@ resource was created:
    `spec.metadata`, so those objects take the default.
 2. **Global operator metadata (`ngrokMetadata`).** The Helm value `ngrokMetadata`
    (a `key=value,key=value` map; deprecated alias: `metaData`) is passed to the
-   operator as the `--ngrokMetadata` flag and applied to the resources the
+   operator as the `--ngrok-metadata` flag and applied to the resources the
    operator **generates from Ingress and Gateway** translation
    (`CloudEndpoint`/`AgentEndpoint`/`Domain`). It does **not** apply to
    user-authored CRs or to the Service-generated or `KubernetesOperator`

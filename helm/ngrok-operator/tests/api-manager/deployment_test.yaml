@@ -162,7 +162,7 @@ tests:
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
-      content: --ngrokMetadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
+      content: --ngrok-metadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
 - it: Should pass extra ngrokMetadata to the deployment
   set:
     ngrokMetadata:
@@ -173,7 +173,7 @@ tests:
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
-      content: --ngrokMetadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
+      content: --ngrok-metadata=metaDataKey1=metaDataValue1,metaDataKey2=metaDataValue2
 - it: Should pass bindings.serviceAnnotations and bindings.serviceLabels to the controller
   set:
     bindings:

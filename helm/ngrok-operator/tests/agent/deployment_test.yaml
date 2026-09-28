@@ -164,7 +164,7 @@ tests:
       path: spec.template.metadata.annotations
       content:
         ad.datadoghq.com/agent.logs: '[{"service":"ngrok-agent","source":"ngrok-agent"}]'
-- it: Should pass --watch-namespace flag when ingress.watchNamespace is set
+- it: Should pass --ingress-watch-namespace flag when ingress.watchNamespace is set
   set:
     ingress:
       watchNamespace: my-namespace
@@ -172,15 +172,15 @@ tests:
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
-      content: --watch-namespace=my-namespace
-- it: Should pass --watch-namespace flag when watchNamespace is set
+      content: --ingress-watch-namespace=my-namespace
+- it: Should pass --ingress-watch-namespace flag when watchNamespace is set
   set:
     watchNamespace: my-namespace
   template: agent/deployment.yaml
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
-      content: --watch-namespace=my-namespace
+      content: --ingress-watch-namespace=my-namespace
 - it: Should prefer watchNamespace over ingress.watchNamespace
   set:
     watchNamespace: preferred-namespace
@@ -190,8 +190,8 @@ tests:
   asserts:
   - contains:
       path: spec.template.spec.containers[0].args
-      content: --watch-namespace=preferred-namespace
-- it: Should not include --watch-namespace flag when not set
+      content: --ingress-watch-namespace=preferred-namespace
+- it: Should not include --ingress-watch-namespace flag when not set
   set:
     ingress:
       watchNamespace: ""
@@ -199,4 +199,4 @@ tests:
   asserts:
   - notContains:
       path: spec.template.spec.containers[0].args
-      content: --watch-namespace=
+      content: --ingress-watch-namespace=

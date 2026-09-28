@@ -19,7 +19,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -47,6 +46,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/config"
 	agentcontroller "github.com/ngrok/ngrok-operator/internal/controller/agent"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/drain"
@@ -70,26 +70,13 @@ func init() {
 
 type agentManagerOpts struct {
 	// flags
-	releaseName    string
-	metricsAddr    string
-	probeAddr      string
-	serverAddr     string
-	description    string
-	managerName    string
-	watchNamespace string
-	zapOpts        *zap.Options
+	releaseName string
+	metricsAddr string
+	probeAddr   string
+	managerName string
 
-	// feature flags
-	enableFeatureIngress          bool
-	enableFeatureGateway          bool
-	enableFeatureBindings         bool
-	disableGatewayReferenceGrants bool
-
-	// agent(tunnel driver) flags
-	region  string
-	rootCAs string
-
-	defaultDomainReclaimPolicy string
+	cfg     *config.Config
+	zapOpts *zap.Options
 
 	// env vars
 	namespace string
@@ -107,28 +94,10 @@ func agentCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
-	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for AgentEndpoint resources. Defaults to all namespaces.")
 
-	// agent(tunnel driver) flags
-	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
-	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
-	c.Flags().StringVar(&opts.rootCAs, "root-cas", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
-
-	// feature flags
-	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
-	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
-	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
-
-	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
-
-	opts.zapOpts = &zap.Options{}
-	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
-	opts.zapOpts.BindFlags(goFlagSet)
-	c.Flags().AddGoFlagSet(goFlagSet)
+	opts.cfg, opts.zapOpts = bindConfig(c)
 
 	return c
 }
@@ -136,7 +105,7 @@ func agentCmd() *cobra.Command {
 func runAgentController(_ context.Context, opts agentManagerOpts) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
 
-	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
+	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.cfg.Features.DefaultDomainReclaimPolicy)
 	if err != nil {
 		return err
 	}
@@ -172,10 +141,10 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 				},
 			},
 		}}
-	if opts.watchNamespace != "" {
-		setupLog.Info("watching namespace", "namespace", opts.watchNamespace)
+	if watchNamespace := opts.cfg.Features.Ingress.WatchNamespace; watchNamespace != "" {
+		setupLog.Info("watching namespace", "namespace", watchNamespace)
 		options.Cache.DefaultNamespaces = map[string]cache.Config{
-			opts.watchNamespace: {},
+			watchNamespace: {},
 		}
 	}
 
@@ -188,18 +157,13 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 
 	// shared features between Ingress and Gateway (tunnels)
 	agentComments := []string{}
-	if opts.enableFeatureGateway {
+	if opts.cfg.Features.Gateway.Enabled {
 		agentComments = append(agentComments, `{"gateway": "gateway-api"}`)
 	}
 
-	rootCAs := "trusted"
-	if opts.rootCAs != "" {
-		rootCAs = opts.rootCAs
-	}
-
 	ad, err := agent.NewDriver(
-		agent.WithAgentConnectURL(opts.serverAddr),
-		agent.WithAgentConnectCAs(rootCAs),
+		agent.WithAgentConnectURL(opts.cfg.Ngrok.ServerAddr),
+		agent.WithAgentConnectCAs(opts.cfg.Ngrok.RootCAs),
 		agent.WithLogger(ctrl.Log.WithName("drivers").WithName("agent")),
 		agent.WithAgentComments(agentComments...),
 	)
