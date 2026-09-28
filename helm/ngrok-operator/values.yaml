@@ -72,9 +72,10 @@ defaults:
 ##
 ## @section Operator configuration
 ##
-## Passed to every component. Any key here can also be set under
-## `<component>.config` (for example `agent.config.log.level`) to override it
-## for that component alone.
+## Set once for every component: which component reads a setting is an
+## implementation detail. `log` is the exception and can be overridden for one
+## component under `<component>.config.log` (for example
+## `agent.config.log.level`).
 ##
 ## An empty value means "not set": the operator's built-in default applies.
 ## Those defaults live in the operator binary and are listed here for reference.
@@ -203,8 +204,7 @@ apiManager:
     annotations: {}
   updateStrategy:
     type: RollingUpdate
-  ## Operator configuration overrides for the api-manager, in the same shape as
-  ## the shared operator configuration above.
+  ## Settings only the api-manager has, and `log` overrides for it.
   config:
     oneClickDemoMode: false
 
@@ -225,7 +225,7 @@ apiManager:
 ## @param agent.serviceAccount.name ServiceAccount name. Generated if empty
 ## @param agent.serviceAccount.annotations ServiceAccount annotations
 ## @param agent.updateStrategy.type Deployment update strategy
-## @param agent.config Operator configuration overrides for the agent, in the same shape as the shared operator configuration above
+## @param agent.config Settings only the agent has (none yet), and `log` overrides for it
 ##
 agent:
   replicaCount: 1
@@ -262,7 +262,7 @@ agent:
 ## @param bindingsForwarder.serviceAccount.name ServiceAccount name. Generated if empty
 ## @param bindingsForwarder.serviceAccount.annotations ServiceAccount annotations
 ## @param bindingsForwarder.updateStrategy.type Deployment update strategy
-## @param bindingsForwarder.config Operator configuration overrides for the bindings-forwarder, in the same shape as the shared operator configuration above
+## @param bindingsForwarder.config Settings only the bindings-forwarder has (none yet), and `log` overrides for it
 ##
 bindingsForwarder:
   replicaCount: 1

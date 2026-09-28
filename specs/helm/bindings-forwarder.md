@@ -23,4 +23,4 @@ Any key from `defaults` (see [common.md](common.md)) can also be set here to ove
 
 ## Operator Configuration
 
-`bindingsForwarder.config` overrides the shared operator configuration for the bindings-forwarder alone. There are no bindings-forwarder-only settings at this time.
+`bindingsForwarder.config.log` overrides the shared `log` settings for the bindings-forwarder alone. There are no bindings-forwarder-only settings at this time.

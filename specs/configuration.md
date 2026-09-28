@@ -6,7 +6,7 @@ How app configuration reaches the operator's components and where its defaults l
 
 `internal/config.Default()` is the only place an app config default is written. Every component decodes the same `config.Config` struct and ignores the fields it does not use.
 
-Each component registers flags only for the settings it reads (`config.RegisterAPIManagerFlags`, `RegisterAgentFlags`, `RegisterBindingsForwarderFlags`), so its `--help` is accurate and a setting it would ignore is rejected on the command line. Settings that belong to one component alone live in that component's section of the struct, such as `apiManager.oneClickDemoMode`.
+Each component registers flags only for the settings it reads (`config.RegisterAPIManagerFlags`, `RegisterAgentFlags`, `RegisterBindingsForwarderFlags`), so its `--help` is accurate and a setting it would ignore is rejected on the command line. Settings that belong to one component alone live in that component's section of the struct, such as `apiManager.oneClickDemoMode`; in the chart they come from `<component>.config`.
 
 Logging is the exception: the `log` section feeds controller-runtime's own `--zap-*` flags, so its defaults are zap's.
 

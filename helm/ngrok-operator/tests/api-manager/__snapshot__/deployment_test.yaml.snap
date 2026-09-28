@@ -28,7 +28,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/config: 27397e5c6112d63d548fd84fed59c996877eecd67f20b5c6f8abbcb8251f0a5c
+            checksum/config: 11ed8a6d944e6032e51815002b8f589f9ae106f73be7445d4edd40e0a41309ee
             checksum/controller-role: 130c037f16a9498d8d1f7a93d6da0cd09a602e8d5c9064e622c37ca4b10894a3
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
@@ -573,6 +573,8 @@ Should match all-options snapshot:
             controllerName: k8s.ngrok.com/ingress-controller
             enabled: true
       apiManager.yaml: |
+        apiManager:
+          oneClickDemoMode: false
         features:
           bindings:
             enabled: false
@@ -582,7 +584,6 @@ Should match all-options snapshot:
           ingress:
             controllerName: k8s.ngrok.com/ingress-controller
             enabled: true
-        oneClickDemoMode: false
       bindingsForwarder.yaml: |
         features:
           bindings:
@@ -634,7 +635,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/config: 27397e5c6112d63d548fd84fed59c996877eecd67f20b5c6f8abbcb8251f0a5c
+            checksum/config: 11ed8a6d944e6032e51815002b8f589f9ae106f73be7445d4edd40e0a41309ee
             checksum/controller-role: 130c037f16a9498d8d1f7a93d6da0cd09a602e8d5c9064e622c37ca4b10894a3
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
@@ -1168,6 +1169,8 @@ Should match default snapshot:
             controllerName: k8s.ngrok.com/ingress-controller
             enabled: true
       apiManager.yaml: |
+        apiManager:
+          oneClickDemoMode: false
         features:
           bindings:
             enabled: false
@@ -1177,7 +1180,6 @@ Should match default snapshot:
           ingress:
             controllerName: k8s.ngrok.com/ingress-controller
             enabled: true
-        oneClickDemoMode: false
       bindingsForwarder.yaml: |
         features:
           bindings:

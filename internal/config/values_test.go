@@ -28,10 +28,11 @@ func TestChartValuesMatchDefault(t *testing.T) {
 
 	for path, want := range leaves(t, Default()) {
 		t.Run(path, func(t *testing.T) {
+			// A component section of the config file comes from that
+			// component's `config` block in values.yaml.
 			valuesPath := path
-			// Settings only the api-manager reads live in its own section.
-			if path == "oneClickDemoMode" {
-				valuesPath = "apiManager.config.oneClickDemoMode"
+			if component, rest, ok := strings.Cut(path, "."); ok && component == "apiManager" {
+				valuesPath = component + ".config." + rest
 			}
 
 			got, found := lookup(values, valuesPath)

@@ -159,37 +159,37 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### Agent
 
-| Name                                  | Description                                                                                                  | Value           |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------- |
-| `agent.replicaCount`                  | The number of agent replicas to run                                                                          | `1`             |
-| `agent.resources.limits`              | Resource limits                                                                                              | `{}`            |
-| `agent.resources.requests`            | Resource requests                                                                                            | `{}`            |
-| `agent.lifecycle`                     | Container lifecycle hooks                                                                                    | `{}`            |
-| `agent.terminationGracePeriodSeconds` | Graceful shutdown period                                                                                     | `30`            |
-| `agent.extraVolumes`                  | Additional volumes                                                                                           | `[]`            |
-| `agent.extraVolumeMounts`             | Additional volume mounts                                                                                     | `[]`            |
-| `agent.serviceAccount.create`         | Whether to create a ServiceAccount                                                                           | `true`          |
-| `agent.serviceAccount.name`           | ServiceAccount name. Generated if empty                                                                      | `""`            |
-| `agent.serviceAccount.annotations`    | ServiceAccount annotations                                                                                   | `{}`            |
-| `agent.updateStrategy.type`           | Deployment update strategy                                                                                   | `RollingUpdate` |
-| `agent.config`                        | Operator configuration overrides for the agent, in the same shape as the shared operator configuration above | `{}`            |
+| Name                                  | Description                                                        | Value           |
+| ------------------------------------- | ------------------------------------------------------------------ | --------------- |
+| `agent.replicaCount`                  | The number of agent replicas to run                                | `1`             |
+| `agent.resources.limits`              | Resource limits                                                    | `{}`            |
+| `agent.resources.requests`            | Resource requests                                                  | `{}`            |
+| `agent.lifecycle`                     | Container lifecycle hooks                                          | `{}`            |
+| `agent.terminationGracePeriodSeconds` | Graceful shutdown period                                           | `30`            |
+| `agent.extraVolumes`                  | Additional volumes                                                 | `[]`            |
+| `agent.extraVolumeMounts`             | Additional volume mounts                                           | `[]`            |
+| `agent.serviceAccount.create`         | Whether to create a ServiceAccount                                 | `true`          |
+| `agent.serviceAccount.name`           | ServiceAccount name. Generated if empty                            | `""`            |
+| `agent.serviceAccount.annotations`    | ServiceAccount annotations                                         | `{}`            |
+| `agent.updateStrategy.type`           | Deployment update strategy                                         | `RollingUpdate` |
+| `agent.config`                        | Settings only the agent has (none yet), and `log` overrides for it | `{}`            |
 
 ### Bindings Forwarder
 
-| Name                                              | Description                                                                                                               | Value           |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| `bindingsForwarder.replicaCount`                  | The number of bindings-forwarder replicas to run                                                                          | `1`             |
-| `bindingsForwarder.resources.limits`              | Resource limits                                                                                                           | `{}`            |
-| `bindingsForwarder.resources.requests`            | Resource requests                                                                                                         | `{}`            |
-| `bindingsForwarder.lifecycle`                     | Container lifecycle hooks                                                                                                 | `{}`            |
-| `bindingsForwarder.terminationGracePeriodSeconds` | Graceful shutdown period                                                                                                  | `30`            |
-| `bindingsForwarder.extraVolumes`                  | Additional volumes                                                                                                        | `[]`            |
-| `bindingsForwarder.extraVolumeMounts`             | Additional volume mounts                                                                                                  | `[]`            |
-| `bindingsForwarder.serviceAccount.create`         | Whether to create a ServiceAccount                                                                                        | `true`          |
-| `bindingsForwarder.serviceAccount.name`           | ServiceAccount name. Generated if empty                                                                                   | `""`            |
-| `bindingsForwarder.serviceAccount.annotations`    | ServiceAccount annotations                                                                                                | `{}`            |
-| `bindingsForwarder.updateStrategy.type`           | Deployment update strategy                                                                                                | `RollingUpdate` |
-| `bindingsForwarder.config`                        | Operator configuration overrides for the bindings-forwarder, in the same shape as the shared operator configuration above | `{}`            |
+| Name                                              | Description                                                                     | Value           |
+| ------------------------------------------------- | ------------------------------------------------------------------------------- | --------------- |
+| `bindingsForwarder.replicaCount`                  | The number of bindings-forwarder replicas to run                                | `1`             |
+| `bindingsForwarder.resources.limits`              | Resource limits                                                                 | `{}`            |
+| `bindingsForwarder.resources.requests`            | Resource requests                                                               | `{}`            |
+| `bindingsForwarder.lifecycle`                     | Container lifecycle hooks                                                       | `{}`            |
+| `bindingsForwarder.terminationGracePeriodSeconds` | Graceful shutdown period                                                        | `30`            |
+| `bindingsForwarder.extraVolumes`                  | Additional volumes                                                              | `[]`            |
+| `bindingsForwarder.extraVolumeMounts`             | Additional volume mounts                                                        | `[]`            |
+| `bindingsForwarder.serviceAccount.create`         | Whether to create a ServiceAccount                                              | `true`          |
+| `bindingsForwarder.serviceAccount.name`           | ServiceAccount name. Generated if empty                                         | `""`            |
+| `bindingsForwarder.serviceAccount.annotations`    | ServiceAccount annotations                                                      | `{}`            |
+| `bindingsForwarder.updateStrategy.type`           | Deployment update strategy                                                      | `RollingUpdate` |
+| `bindingsForwarder.config`                        | Settings only the bindings-forwarder has (none yet), and `log` overrides for it | `{}`            |
 
 ### RBAC
 

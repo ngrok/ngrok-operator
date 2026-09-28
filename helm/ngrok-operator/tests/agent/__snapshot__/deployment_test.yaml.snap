@@ -199,6 +199,8 @@ Should match snapshot:
             controllerName: k8s.ngrok.com/ingress-controller
             enabled: true
       apiManager.yaml: |
+        apiManager:
+          oneClickDemoMode: false
         features:
           bindings:
             enabled: false
@@ -208,7 +210,6 @@ Should match snapshot:
           ingress:
             controllerName: k8s.ngrok.com/ingress-controller
             enabled: true
-        oneClickDemoMode: false
       bindingsForwarder.yaml: |
         features:
           bindings:

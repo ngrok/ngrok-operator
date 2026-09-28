@@ -46,58 +46,61 @@ tests:
           path: data["bindingsForwarder.yaml"]
           pattern: "level: info"
 
-  - it: lets a component override a shared value for itself alone
+  - it: lets a component override the shared log settings for itself alone
     set:
       log.level: info
+      log.format: json
       agent.config.log.level: debug
-      agent.config.features.gateway.enabled: false
     asserts:
       - matchRegex:
           path: data["agent.yaml"]
-          pattern: "level: debug"
-      - matchRegex:
-          path: data["agent.yaml"]
-          pattern: "(?s)gateway:\\s+disableReferenceGrants: false\\s+enabled: false"
+          pattern: "(?s)log:\\s+format: json\\s+level: debug"
       - matchRegex:
           path: data["apiManager.yaml"]
-          pattern: "level: info"
-      - matchRegex:
-          path: data["apiManager.yaml"]
-          pattern: "(?s)gateway:\\s+disableReferenceGrants: false\\s+enabled: true"
+          pattern: "(?s)log:\\s+format: json\\s+level: info"
 
   - it: treats an empty component value as inherit, not as an override to empty
     set:
-      ngrok.region: eu
-      agent.config.ngrok.region: ""
+      log.level: info
+      agent.config.log.level: ""
     asserts:
       - matchRegex:
           path: data["agent.yaml"]
-          pattern: "region: eu"
+          pattern: "level: info"
 
-  - it: merges maps and replaces lists
+  - it: gives every component the same ngrok and features settings
     set:
-      ngrok.metadata.shared: "1"
-      agent.config.ngrok.metadata.agent: "1"
+      ngrok.metadata.team: k8s
       features.bindings.endpointSelectors: ["a", "b"]
-      agent.config.features.bindings.endpointSelectors: ["c"]
     asserts:
       - matchRegex:
           path: data["agent.yaml"]
-          pattern: "(?s)metadata:\\s+agent: \"1\"\\s+shared: \"1\""
-      - matchRegex:
-          path: data["agent.yaml"]
-          pattern: "(?s)endpointSelectors:\\s+- c\\n"
+          pattern: "(?s)endpointSelectors:\\s+- a\\s+- b.*metadata:\\s+team: k8s"
       - matchRegex:
           path: data["apiManager.yaml"]
-          pattern: "(?s)endpointSelectors:\\s+- a\\s+- b"
+          pattern: "(?s)endpointSelectors:\\s+- a\\s+- b.*metadata:\\s+team: k8s"
 
-  - it: carries component-only settings in that component's file
+  - it: rejects a per-component features override
+    set:
+      agent.config.features.gateway.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "agent.config.features is not supported"
+
+  - it: rejects a per-component ngrok override
+    set:
+      apiManager.config.ngrok.region: eu
+    asserts:
+      - failedTemplate:
+          errorPattern: "apiManager.config.ngrok is not supported"
+
+  - it: writes component-only settings under that component's section
     set:
       apiManager.config.oneClickDemoMode: true
     asserts:
       - matchRegex:
           path: data["apiManager.yaml"]
-          pattern: "(?m)^oneClickDemoMode: true$"
+          pattern: "(?m)^apiManager:\\n  oneClickDemoMode: true$"
       - notMatchRegex:
           path: data["agent.yaml"]
           pattern: "oneClickDemoMode"

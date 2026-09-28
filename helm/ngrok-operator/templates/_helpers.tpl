@@ -223,20 +223,38 @@ Usage: fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "com
 
 {{/*
 The operator config file for one component: the shared `ngrok`, `log` and
-`features` values with `<component>.config` merged on top. Maps merge with the
-component winning per key; lists replace.
+`features` values, plus the component's own `config` section.
 
-Empty values are dropped from both sides first, so an unset value falls back
-to the shared value and then to the operator's built-in default.
+`<component>.config.log` overrides the shared `log` for that component; maps
+merge with the component winning per key, lists replace. Every other key under
+`<component>.config` is a setting that only that component has, and is written
+under the component's own section of the file. `ngrok` and `features` are set
+once for every component and cannot be overridden per component.
+
+Empty values are dropped first, so an unset value falls back to the shared
+value and then to the operator's built-in default.
 */}}
 {{- define "ngrok-operator.componentConfig" -}}
+{{- $component := deepCopy ((index .context.Values .component).config | default dict) -}}
+{{- range $key := list "ngrok" "features" -}}
+{{- if hasKey $component $key -}}
+{{- fail (printf "%s.config.%s is not supported: %s settings apply to every component. Set them under the top-level %s instead." $.component $key $key $key) -}}
+{{- end -}}
+{{- end -}}
 {{- $features := deepCopy .context.Values.features -}}
 {{- $_ := unset $features.ingress "ingressClass" -}}
-{{- $shared := dict "ngrok" (deepCopy .context.Values.ngrok) "log" (deepCopy .context.Values.log) "features" $features -}}
-{{- $component := deepCopy ((index .context.Values .component).config | default dict) -}}
-{{- include "ngrok-operator.dropEmpty" $shared -}}
-{{- include "ngrok-operator.dropEmpty" $component -}}
-{{- mergeOverwrite $shared $component | toYaml -}}
+{{- $config := dict "ngrok" (deepCopy .context.Values.ngrok) "log" (deepCopy .context.Values.log) "features" $features -}}
+{{- $log := $component.log | default dict -}}
+{{- $own := omit $component "log" -}}
+{{- include "ngrok-operator.dropEmpty" $config -}}
+{{- include "ngrok-operator.dropEmpty" $log -}}
+{{- include "ngrok-operator.dropEmpty" $own -}}
+{{- $config = mergeOverwrite $config (dict "log" $log) -}}
+{{- if $own -}}
+{{- $_ := set $config .component $own -}}
+{{- end -}}
+{{- include "ngrok-operator.dropEmpty" $config -}}
+{{- $config | toYaml -}}
 {{- end -}}
 
 {{/*

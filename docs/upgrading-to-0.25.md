@@ -188,8 +188,8 @@ Three behaviors change along with the keys:
   the agent and bindings-forwarder as well as the api-manager. To keep a
   setting on one component only, set it on that component instead, for example
   `apiManager.tolerations`.
-- Operator settings such as `log.level` can be overridden for one component
-  under `<component>.config`, for example `agent.config.log.level: debug`.
+- Log settings can be overridden for one component under
+  `<component>.config.log`, for example `agent.config.log.level: debug`.
 - An empty operator setting means "use the operator's built-in default". The
   defaults are listed in the chart README.
 

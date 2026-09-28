@@ -13,7 +13,11 @@ The CRD chart can be installed automatically via `installCRDs: true` (default) o
 
 ## Top-Level Structure
 
-The chart configures two kinds of values: **pod settings**, which become fields of each component's Deployment, and **operator configuration**, which the operator binary reads.
+Values fall into three buckets:
+
+- **Pod settings**: `defaults` holds the Kubernetes settings shared by every component. Each component section overrides them and adds settings of its own, such as `resources`.
+- **Operator configuration**: `ngrok`, `log` and `features` are set once. Users don't need to know which component reads a setting, and that can change without a values change. Only `log` can be overridden per component.
+- **Component-only settings**: `<component>.config` holds settings that exist for one component alone, and its `log` overrides.
 
 ```yaml
 image:               # Operator image, shared by every component
@@ -22,9 +26,9 @@ ngrok:               # Operator configuration: ngrok platform connection
 log:                 # Operator configuration: logging
 features:            # Operator configuration: feature flags and feature settings
 credentials:         # Secret for the access token
-apiManager:          # api-manager pod settings; `config:` for its operator configuration
-agent:               # agent pod settings; `config:` for its operator configuration
-bindingsForwarder:   # bindings-forwarder pod settings; `config:` for its operator configuration
+apiManager:          # api-manager pod settings; `config:` for its own settings and log overrides
+agent:               # agent pod settings; `config:` for its own settings and log overrides
+bindingsForwarder:   # bindings-forwarder pod settings; `config:` for its own settings and log overrides
 nameOverride: ""
 fullnameOverride: ""
 commonLabels: {}
@@ -35,10 +39,10 @@ cleanupHook:         # Pre-delete cleanup job
 
 ## Merge Rule
 
-Shared values and component values combine the same way for both kinds of settings: **maps merge, with the component winning per key; lists replace.**
+Where a shared value has a per-component override, the two combine the same way: **maps merge, with the component winning per key; lists replace.**
 
 - Pod settings: `defaults.<key>` merged with `<component>.<key>`.
-- Operator configuration: `ngrok`, `log` and `features` merged with `<component>.config`.
+- Logging: `log` merged with `<component>.config.log`.
 
 ## `defaults:`
 
@@ -64,7 +68,11 @@ Settings that rarely apply to every component, such as `resources`, live only in
 
 ## Operator Configuration
 
-`ngrok.*`, `log.*` and `features.*` (see [features.md](features.md)) reach every component. Any key can be overridden for one component under `<component>.config`, in the same shape:
+`ngrok.*`, `log.*` and `features.*` (see [features.md](features.md)) reach every component. Each component reads the settings it needs and ignores the rest.
+
+`ngrok` and `features` cannot be overridden per component: two components disagreeing on, say, `features.gateway.enabled` is a misconfiguration. Setting `<component>.config.ngrok` or `<component>.config.features` fails the render.
+
+`log` can be overridden for one component:
 
 ```yaml
 log:
@@ -75,9 +83,11 @@ agent:
       level: debug   # the agent logs at debug; the others at info
 ```
 
+Settings that exist for one component alone go in the rest of `<component>.config`, for example `apiManager.config.oneClickDemoMode`.
+
 **An empty value means "not set"**: the chart leaves it out of the config file and the operator's built-in default applies. The defaults live only in the operator binary (`internal/config.Default()`), so the chart cannot disagree with it. A test asserts that every value in `values.yaml` is either empty or equal to the binary's default. Booleans always render, because Helm cannot tell `false` from unset.
 
-The same rule means a component cannot set a value back to empty: an empty `<component>.config` value inherits the shared value.
+The same rule means a component cannot set a log value back to empty: an empty `<component>.config.log` value inherits the shared value.
 
 ### `ngrok:`
 
@@ -101,7 +111,7 @@ The same rule means a component cannot set a value back to empty: an empty `<com
 
 ## Delivery
 
-One ConfigMap, `{fullname}-config`, holds one key per component (`apiManager.yaml`, `agent.yaml`, `bindingsForwarder.yaml`). Each key is that component's merged operator configuration. Each Deployment mounts the ConfigMap at `/etc/ngrok-operator` and passes `--config=/etc/ngrok-operator/<component>.yaml`.
+One ConfigMap, `{fullname}-config`, holds one key per component (`apiManager.yaml`, `agent.yaml`, `bindingsForwarder.yaml`). Each key holds the shared operator configuration with that component's log overrides applied, and its component-only settings under a section named after it (`apiManager:`). Each Deployment mounts the ConfigMap at `/etc/ngrok-operator` and passes `--config=/etc/ngrok-operator/<component>.yaml`.
 
 Each Deployment's `checksum/config` annotation covers only its own key, so changing one component's configuration rolls only that component.
 

@@ -26,7 +26,7 @@ Any key from `defaults` (see [common.md](common.md)) can also be set here to ove
 
 ## Operator Configuration
 
-`apiManager.config` overrides the shared operator configuration for the api-manager alone. It also holds settings only the api-manager reads:
+`apiManager.config.log` overrides the shared `log` settings for the api-manager alone. The rest of `apiManager.config` holds settings only the api-manager has:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|

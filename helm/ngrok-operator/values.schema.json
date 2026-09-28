@@ -516,7 +516,7 @@
                 },
                 "config": {
                     "type": "object",
-                    "description": "Operator configuration overrides for the agent, in the same shape as the shared operator configuration above",
+                    "description": "Settings only the agent has (none yet), and `log` overrides for it",
                     "default": {}
                 }
             }
@@ -598,7 +598,7 @@
                 },
                 "config": {
                     "type": "object",
-                    "description": "Operator configuration overrides for the bindings-forwarder, in the same shape as the shared operator configuration above",
+                    "description": "Settings only the bindings-forwarder has (none yet), and `log` overrides for it",
                     "default": {}
                 }
             }
