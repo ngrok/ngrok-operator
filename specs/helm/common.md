@@ -49,10 +49,16 @@ The environment variable of a setting is its path under `ngrok`: `ngrok.features
 
 ## Merge Rule
 
-Where a shared value has a per-component override, the two combine the same way: **maps merge, with the component winning per key; lists replace.**
+Pod settings: `components.<component>.<key>` overrides `components.common.<key>`.
 
-- Pod settings: `components.common.<key>` merged with `components.<component>.<key>`.
-- Logging: `ngrok.log` merged with `components.<component>.log`.
+- A key the component leaves unset inherits the common value.
+- A non-empty map merges with the common one, the component winning per key.
+- Any other value replaces it, including an empty `{}`, `[]` or `""`: `components.agent.tolerations: []` drops the common tolerations for the agent alone.
+- Helm removes null values before the chart sees them, so setting one key of a map to null clears the whole map for that component. To drop one common key, clear the map and re-list the keys to keep.
+
+`values.yaml` lists each component's overrides commented out, so they are visible without being set: a key set there would always override the common value. `TestChartComponentOverrides` checks every common key is listed for every component. The cleanup hook does not take `components.common`.
+
+Logging: `ngrok.log` merged with `components.<component>.log`, per key. An empty component log value inherits the shared one.
 
 ## `components.common:`
 
