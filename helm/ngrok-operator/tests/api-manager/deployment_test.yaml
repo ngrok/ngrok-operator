@@ -15,14 +15,14 @@ tests:
   - matchSnapshot: {}
 - it: Should match all-options snapshot
   set:
-    pod:
+    components.common:
       extraEnv:
         TEST_ENV_VAR: test
         SECRET_ENV_VAR:
           secretKeyRef:
             key: test-key
           value: test-value
-    apiManager:
+    components.apiManager:
       extraVolumes:
       - name: test-volume
         emptyDir: {}
@@ -33,7 +33,7 @@ tests:
   - matchSnapshot: {}
 - it: Should use the specified secret name for the credentials secret
   set:
-    credentials.secret.name: test-secret-name
+    ngrok.credentials.secret.name: test-secret-name
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
@@ -42,7 +42,7 @@ tests:
       pattern: test-secret-name
 - it: Should pass through extra volumes and extra volume mounts
   set:
-    apiManager:
+    components.apiManager:
       extraVolumes:
       - name: test-volume
         emptyDir: {}
@@ -83,7 +83,7 @@ tests:
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    pod:
+    components.common:
       podAntiAffinityPreset: "hard"
   asserts:
   - equal:
@@ -100,7 +100,7 @@ tests:
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    pod:
+    components.common:
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -150,7 +150,7 @@ tests:
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    apiManager:
+    components.apiManager:
       priorityClassName: "high-priority"
   asserts:
   - equal:
@@ -167,15 +167,15 @@ tests:
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    apiManager:
+    components.apiManager:
       terminationGracePeriodSeconds: 120
   asserts:
   - equal:
       path: spec.template.spec.terminationGracePeriodSeconds
       value: 120
-- it: Adds .Values.pod.podLabels to the controller deployment podspec
+- it: Adds .Values.components.common.podLabels to the controller deployment podspec
   set:
-    pod:
+    components.common:
       podLabels:
         labelKey1: labelValue1
         labelKey2: labelValue2
@@ -187,9 +187,9 @@ tests:
       content:
         labelKey1: labelValue1
         labelKey2: labelValue2
-- it: Does not add .Values.pod.podLabels to the controller deployment's selector
+- it: Does not add .Values.components.common.podLabels to the controller deployment's selector
   set:
-    pod:
+    components.common:
       podLabels:
         labelKey1: labelValue1
         labelKey2: labelValue2
@@ -203,7 +203,7 @@ tests:
         labelKey2: labelValue2
 - it: Supports selecting which nodes the manager should run on with node selectors
   set:
-    apiManager:
+    components.apiManager:
       nodeSelector: &nodeSelector
         disktype: ssd
   template: api-manager/deployment.yaml
@@ -213,7 +213,7 @@ tests:
       value: *nodeSelector
 - it: Supports setting tolerations on the manager pods
   set:
-    apiManager:
+    components.apiManager:
       tolerations:
       - &toleration
         key: "key1"
@@ -227,7 +227,7 @@ tests:
       content: *toleration
 - it: Supports setting topologySpreadConstraints on the manager pods
   set:
-    apiManager:
+    components.apiManager:
       topologySpreadConstraints:
       - &tsc
         maxSkew: 1
@@ -259,13 +259,13 @@ tests:
   template: api-manager/deployment.yaml
   documentIndex: 0
   set:
-    pod:
+    components.common:
       podAnnotations:
         shared: "from-pod"
         overridden: "from-pod"
       tolerations:
         - key: shared-toleration
-    apiManager:
+    components.apiManager:
       podAnnotations:
         overridden: "from-apiManager"
         apiManagerOnly: "from-apiManager"
@@ -289,7 +289,7 @@ tests:
           - key: apiManager-toleration
 - it: Should not mount the access token in one-click-demo mode
   set:
-    features:
+    ngrok.features:
       oneClickDemoMode:
         enabled: true
   template: api-manager/deployment.yaml
@@ -304,7 +304,7 @@ tests:
       any: true
 - it: Should mount the access token when not in one-click-demo mode
   set:
-    credentials:
+    ngrok.credentials:
       accessToken: "test-token"
   template: api-manager/deployment.yaml
   documentIndex: 0
@@ -317,10 +317,10 @@ tests:
           secretKeyRef:
             key: API_MANAGER_ACCESS_TOKEN
             name: RELEASE-NAME-ngrok-operator-credentials
-- it: renders apiManager.updateStrategy as the Deployment strategy
+- it: renders components.apiManager.updateStrategy as the Deployment strategy
   template: api-manager/deployment.yaml
   set:
-    apiManager:
+    components.apiManager:
       updateStrategy:
         type: Recreate
   asserts:

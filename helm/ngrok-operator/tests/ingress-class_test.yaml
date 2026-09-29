@@ -4,29 +4,29 @@ templates:
 tests:
 - it: Should match snapshot
   set:
-    features.ingress.enabled: true
-    features.ingress.ingressClass.create: true
+    ngrok.features.ingress.enabled: true
+    ngrok.features.ingress.ingressClass.create: true
   asserts:
   - matchSnapshot: {}
 - it: Creates an default ingress class called ngrok by default
   set:
-    features.ingress.enabled: true
-    features.ingress.ingressClass.create: true
+    ngrok.features.ingress.enabled: true
+    ngrok.features.ingress.ingressClass.create: true
   asserts:
   - isKind:
       of: IngressClass
   - hasDocuments:
       count: 1
-- it: Does not create an ingress class when features.ingress.enabled is false
+- it: Does not create an ingress class when ngrok.features.ingress.enabled is false
   set:
-    features.ingress.enabled: false
+    ngrok.features.ingress.enabled: false
   asserts:
   - hasDocuments:
       count: 0
-- it: Does not create an ingress class when features.ingress.ingressClass.create is false
+- it: Does not create an ingress class when ngrok.features.ingress.ingressClass.create is false
   set:
-    features.ingress.enabled: true
-    features.ingress.ingressClass.create: false
+    ngrok.features.ingress.enabled: true
+    ngrok.features.ingress.ingressClass.create: false
   asserts:
   - hasDocuments:
       count: 0

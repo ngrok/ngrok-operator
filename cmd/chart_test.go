@@ -43,14 +43,11 @@ func flagsByEnv() map[string]*pflag.Flag {
 	return byEnv
 }
 
-// envFromPath is the variable the naming rule gives a values path:
-// NGROK_OPERATOR_, then the path with "__" between levels and "_" between
-// words, the ngrok settings at the top level.
+// envFromPath is the variable the naming rule gives a path under ngrok in the
+// values: NGROK_OPERATOR_, then the path with "__" between levels and "_"
+// between words.
 func envFromPath(path string) string {
 	parts := strings.Split(path, ".")
-	if parts[0] == "ngrok" {
-		parts = parts[1:]
-	}
 	for i, p := range parts {
 		parts[i] = strings.ToUpper(camelWords.ReplaceAllString(p, "${1}_${2}"))
 	}
@@ -88,8 +85,11 @@ func TestChartEnvMatchesFlags(t *testing.T) {
 func TestChartValuesMatchDefaults(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(chartDir, "values.yaml"))
 	require.NoError(t, err)
-	var values map[string]any
-	require.NoError(t, yaml.Unmarshal(b, &values))
+	var chart struct {
+		Ngrok map[string]any `json:"ngrok"`
+	}
+	require.NoError(t, yaml.Unmarshal(b, &chart))
+	values := chart.Ngrok
 	byEnv := flagsByEnv()
 	table := chartEnv(t)
 
@@ -97,11 +97,11 @@ func TestChartValuesMatchDefaults(t *testing.T) {
 	for path, name := range table {
 		inTable[path] = true
 		v, ok := lookup(values, strings.Split(path, "."))
-		if !assert.True(t, ok, "values.yaml has no %s", path) || isEmpty(v) {
+		if !assert.True(t, ok, "values.yaml has no ngrok.%s", path) || isEmpty(v) {
 			continue
 		}
 		if f, ok := byEnv[name]; ok {
-			assert.Equal(t, f.DefValue, encode(v), "values.yaml %s differs from the default of %s", path, name)
+			assert.Equal(t, f.DefValue, encode(v), "values.yaml ngrok.%s differs from the default of %s", path, name)
 		}
 	}
 
@@ -110,21 +110,22 @@ func TestChartValuesMatchDefaults(t *testing.T) {
 		key := strings.Join(path, ".")
 		m, isMap := v.(map[string]any)
 		if !isMap || inTable[key] {
-			assert.True(t, inTable[key], "values.yaml %s is not in files/operator-env.yaml", key)
+			assert.True(t, inTable[key], "values.yaml ngrok.%s is not in files/operator-env.yaml", key)
 			return
 		}
 		for k, child := range m {
 			walk(append(append([]string{}, path...), k), child)
 		}
 	}
-	// Values only the chart reads: the IngressClass it renders and the
-	// cleanup hook it runs.
+	// Values only the chart reads: the credentials Secret, the IngressClass
+	// it renders and the cleanup hook it runs.
+	delete(values, "credentials")
 	features := values["features"].(map[string]any)
 	delete(features["ingress"].(map[string]any), "ingressClass")
 	delete(features["cleanup"].(map[string]any), "enabled")
 	delete(features["cleanup"].(map[string]any), "timeout")
-	for _, key := range []string{"ngrok", "log", "features", "clusterDomain"} {
-		walk([]string{key}, values[key])
+	for key, v := range values {
+		walk([]string{key}, v)
 	}
 }
 
@@ -139,7 +140,7 @@ func TestChartEnvParses(t *testing.T) {
 	byEnv := flagsByEnv()
 	table := chartEnv(t)
 
-	values := map[string]any{"credentials": map[string]any{"accessToken": "x"}}
+	values := map[string]any{"credentials": map[string]any{"accessToken": "x"}} // under ngrok
 	want := map[string]string{}
 	for path, name := range table {
 		f := byEnv[name]
@@ -148,7 +149,7 @@ func TestChartEnvParses(t *testing.T) {
 		set(values, strings.Split(path, "."), v)
 		want[name] = encode(v)
 	}
-	input, err := json.Marshal(values)
+	input, err := json.Marshal(map[string]any{"ngrok": values})
 	require.NoError(t, err)
 
 	cmd := exec.Command(helm, "template", "t", chartDir, "-f", "-", "--show-only", "templates/api-manager/deployment.yaml")

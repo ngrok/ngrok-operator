@@ -9,7 +9,7 @@ templates:
   - agent/role.yaml
   - credentials-secret.yaml
 set:
-  credentials.accessToken: x
+  ngrok.credentials.accessToken: x
 tests:
   - it: renders one variable per setting, leaving out empty values
     template: agent/deployment.yaml
@@ -54,11 +54,11 @@ tests:
             name: NGROK_OPERATOR_METADATA
             value: '{"example.com/team":"k8s"}'
 
-  - it: renders clusterDomain and features.cleanup.drainPolicy, but not the chart-only cleanup values
+  - it: renders ngrok.clusterDomain and ngrok.features.cleanup.drainPolicy, but not the chart-only cleanup values
     template: api-manager/deployment.yaml
     set:
-      clusterDomain: cluster.example
-      features.cleanup.drainPolicy: Delete
+      ngrok.clusterDomain: cluster.example
+      ngrok.features.cleanup.drainPolicy: Delete
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -83,9 +83,9 @@ tests:
 
   - it: lets a component override the shared log settings for itself alone
     set:
-      log.level: info
-      log.format: json
-      agent.log.level: debug
+      ngrok.log.level: info
+      ngrok.log.format: json
+      components.agent.log.level: debug
     asserts:
       - template: agent/deployment.yaml
         contains:
@@ -109,8 +109,8 @@ tests:
   - it: treats an empty component value as inherit, not as an override to empty
     template: agent/deployment.yaml
     set:
-      log.level: info
-      agent.log.level: ""
+      ngrok.log.level: info
+      components.agent.log.level: ""
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -121,7 +121,7 @@ tests:
   - it: keeps quotes and commas in list values intact
     template: api-manager/deployment.yaml
     set:
-      features.bindings.endpointSelectors: ["a == 'x,y'"]
+      ngrok.features.bindings.endpointSelectors: ["a == 'x,y'"]
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -131,7 +131,7 @@ tests:
 
   - it: renders one-click demo mode like any other feature
     set:
-      features.oneClickDemoMode.enabled: true
+      ngrok.features.oneClickDemoMode.enabled: true
     asserts:
       - template: api-manager/deployment.yaml
         contains:
@@ -143,7 +143,7 @@ tests:
   - it: lets extraEnv override a setting, since it is listed after it
     template: agent/deployment.yaml
     set:
-      agent.extraEnv:
+      components.agent.extraEnv:
         NGROK_OPERATOR_LOG__LEVEL: debug
     asserts:
       - equal:
@@ -155,18 +155,18 @@ tests:
   - it: rejects a per-component features override
     template: agent/deployment.yaml
     set:
-      agent.features.gateway.enabled: false
+      components.agent.features.gateway.enabled: false
     asserts:
       - failedTemplate:
-          errorPattern: "agent.features is not supported"
+          errorPattern: "components.agent.features is not supported"
 
   - it: rejects a per-component ngrok override
     template: api-manager/deployment.yaml
     set:
-      apiManager.ngrok.region: eu
+      components.apiManager.ngrok.region: eu
     asserts:
       - failedTemplate:
-          errorPattern: "apiManager.ngrok is not supported"
+          errorPattern: "components.apiManager.ngrok is not supported"
 
   # LEGACY-values-layout: BEGIN
   - it: fails on values from the pre-0.25 layout
@@ -176,13 +176,13 @@ tests:
       ingress.enabled: false
     asserts:
       - failedTemplate:
-          errorPattern: "(?s)ingress -> features.ingress.*region -> ngrok.region"
+          errorPattern: "(?s)ingress -> ngrok.features.ingress.*region -> ngrok.region"
 
-  - it: fails on the cleanup hook settings that moved to features.cleanup
+  - it: fails on the moved cleanupHook section
     template: api-manager/deployment.yaml
     set:
       cleanupHook.enabled: false
     asserts:
       - failedTemplate:
-          errorPattern: "cleanupHook.enabled -> features.cleanup.enabled"
+          errorPattern: "cleanupHook -> components.cleanupHook \\(enabled and timeout: ngrok.features.cleanup\\)"
   # LEGACY-values-layout: END

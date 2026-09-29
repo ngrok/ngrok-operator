@@ -7,7 +7,7 @@ release:
 tests:
 - it: should match snapshot
   set:
-    apiManager:
+    components.apiManager:
       podDisruptionBudget:
         create: true
   asserts:
@@ -16,7 +16,7 @@ tests:
   template: api-manager/pdb.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    apiManager:
+    components.apiManager:
       podDisruptionBudget:
         create: true
   asserts:
@@ -27,7 +27,7 @@ tests:
   template: api-manager/pdb.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    apiManager:
+    components.apiManager:
       podDisruptionBudget:
         create: true
         minAvailable: "1"

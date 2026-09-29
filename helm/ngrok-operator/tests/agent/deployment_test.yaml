@@ -6,16 +6,16 @@ templates:
 # helm unittest will not load a template unless the suite declares it.
 - credentials-secret.yaml
 set:
-  features:
+  ngrok.features:
     ingress:
       enabled: true
 tests:
 - it: Should match snapshot
   asserts:
   - matchSnapshot: {}
-- it: Should set default agent.updateStrategy.type to RollingUpdate in values.yaml
+- it: Should set default components.agent.updateStrategy.type to RollingUpdate in values.yaml
   set:
-    agent:
+    components.agent:
       updateStrategy:
         type: RollingUpdate
   template: agent/deployment.yaml
@@ -38,9 +38,9 @@ tests:
                 app.kubernetes.io/name: ngrok-operator
             topologyKey: kubernetes.io/hostname
           weight: 1
-- it: Adds .Values.pod.podLabels to the agent deployment podspec
+- it: Adds .Values.components.common.podLabels to the agent deployment podspec
   set:
-    pod:
+    components.common:
       podLabels:
         labelKey1: labelValue1
         labelKey2: labelValue2
@@ -51,9 +51,9 @@ tests:
       content:
         labelKey1: labelValue1
         labelKey2: labelValue2
-- it: Does not add .Values.pod.podLabels to the agent deployment's selector
+- it: Does not add .Values.components.common.podLabels to the agent deployment's selector
   set:
-    pod:
+    components.common:
       podLabels:
         labelKey1: labelValue1
         labelKey2: labelValue2
@@ -66,7 +66,7 @@ tests:
         labelKey2: labelValue2
 - it: Supports selecting which nodes the agent should run on with node selectors
   set:
-    agent:
+    components.agent:
       nodeSelector: &nodeSelector
         disktype: ssd
   template: agent/deployment.yaml
@@ -76,7 +76,7 @@ tests:
       value: *nodeSelector
 - it: Supports setting tolerations on the agent pods
   set:
-    agent:
+    components.agent:
       tolerations:
       - &toleration
         key: "key1"
@@ -90,7 +90,7 @@ tests:
       content: *toleration
 - it: Supports setting topologySpreadConstraints on the agent pods
   set:
-    agent:
+    components.agent:
       topologySpreadConstraints:
       - &tsc
         maxSkew: 1
@@ -108,7 +108,7 @@ tests:
       content: *tsc
 - it: Supports setting resources on the agent pods
   set:
-    agent:
+    components.agent:
       resources: &resources
         requests:
           memory: "128Mi"
@@ -129,16 +129,16 @@ tests:
       value: 30
 - it: Allows overriding terminationGracePeriodSeconds for the agent
   set:
-    agent:
+    components.agent:
       terminationGracePeriodSeconds: 45
   template: agent/deployment.yaml
   asserts:
   - equal:
       path: spec.template.spec.terminationGracePeriodSeconds
       value: 45
-- it: Falls back to pod.podAnnotations when agent.podAnnotations is not set
+- it: Falls back to components.common.podAnnotations when components.agent.podAnnotations is not set
   set:
-    pod:
+    components.common:
       podAnnotations:
         global-annotation: global-value
   template: agent/deployment.yaml
@@ -147,13 +147,13 @@ tests:
       path: spec.template.metadata.annotations
       content:
         global-annotation: global-value
-- it: Deep-merges pod.podAnnotations with agent.podAnnotations, agent winning on collision
+- it: Deep-merges components.common.podAnnotations with components.agent.podAnnotations, agent winning on collision
   set:
-    pod:
+    components.common:
       podAnnotations:
         global-annotation: global-value
         overridden: from-pod
-    agent:
+    components.agent:
       podAnnotations:
         agent-annotation: agent-value
         overridden: from-agent
@@ -167,7 +167,7 @@ tests:
         overridden: from-agent
 - it: Supports Datadog autodiscovery annotations on agent pods
   set:
-    agent:
+    components.agent:
       podAnnotations:
         ad.datadoghq.com/agent.logs: '[{"service":"ngrok-agent","source":"ngrok-agent"}]'
   template: agent/deployment.yaml
@@ -190,13 +190,13 @@ tests:
 - it: deep-merges pod into the component, with the component winning
   template: agent/deployment.yaml
   set:
-    pod:
+    components.common:
       podAnnotations:
         shared: "from-pod"
         overridden: "from-pod"
       tolerations:
         - key: shared-toleration
-    agent:
+    components.agent:
       podAnnotations:
         overridden: "from-agent"
         agentOnly: "from-agent"
@@ -221,7 +221,7 @@ tests:
 - it: does not render in one-click demo mode, which has no authtoken for the agent
   template: agent/deployment.yaml
   set:
-    features:
+    ngrok.features:
       oneClickDemoMode:
         enabled: true
   asserts:

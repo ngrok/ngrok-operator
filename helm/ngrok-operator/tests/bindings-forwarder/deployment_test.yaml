@@ -3,7 +3,7 @@ templates:
 - bindings-forwarder/deployment.yaml
 - bindings-forwarder/role.yaml
 set:
-  features:
+  ngrok.features:
     bindings:
       enabled: true
 tests:
@@ -11,9 +11,9 @@ tests:
   template: bindings-forwarder/deployment.yaml
   asserts:
   - matchSnapshot: {}
-- it: Should set default bindingsForwarder.updateStrategy.type to RollingUpdate in values.yaml
+- it: Should set default components.bindingsForwarder.updateStrategy.type to RollingUpdate in values.yaml
   set:
-    bindingsForwarder:
+    components.bindingsForwarder:
       updateStrategy:
         type: RollingUpdate
   template: bindings-forwarder/deployment.yaml
@@ -21,7 +21,7 @@ tests:
   - equal:
       path: spec.strategy.type
       value: RollingUpdate
-- it: should create a deployment if features.bindings.enabled is true
+- it: should create a deployment if ngrok.features.bindings.enabled is true
   template: bindings-forwarder/deployment.yaml
   asserts:
   - isKind:
@@ -46,9 +46,9 @@ tests:
                 app.kubernetes.io/name: ngrok-operator
             topologyKey: kubernetes.io/hostname
           weight: 1
-- it: Adds .Values.pod.podLabels to the forwarder deployment podspec
+- it: Adds .Values.components.common.podLabels to the forwarder deployment podspec
   set:
-    pod:
+    components.common:
       podLabels:
         labelKey1: labelValue1
         labelKey2: labelValue2
@@ -59,9 +59,9 @@ tests:
       content:
         labelKey1: labelValue1
         labelKey2: labelValue2
-- it: Does not add .Values.pod.podLabels to the forwarder deployment's selector
+- it: Does not add .Values.components.common.podLabels to the forwarder deployment's selector
   set:
-    pod:
+    components.common:
       podLabels:
         labelKey1: labelValue1
         labelKey2: labelValue2
@@ -74,7 +74,7 @@ tests:
         labelKey2: labelValue2
 - it: Supports selecting which nodes the bindings forwarders should run on with node selectors
   set:
-    bindingsForwarder:
+    components.bindingsForwarder:
       nodeSelector: &nodeSelector
         disktype: ssd
   template: bindings-forwarder/deployment.yaml
@@ -84,7 +84,7 @@ tests:
       value: *nodeSelector
 - it: Supports setting tolerations on the bindings forwarder pods
   set:
-    bindingsForwarder:
+    components.bindingsForwarder:
       tolerations:
       - &toleration
         key: "key1"
@@ -98,7 +98,7 @@ tests:
       content: *toleration
 - it: Supports setting topologySpreadConstraints on the bindings forwarder pods
   set:
-    bindingsForwarder:
+    components.bindingsForwarder:
       topologySpreadConstraints:
       - &tsc
         maxSkew: 1
@@ -116,7 +116,7 @@ tests:
       content: *tsc
 - it: Supports setting resources on the bindings forwarder pods
   set:
-    bindingsForwarder:
+    components.bindingsForwarder:
       resources: &resources
         requests:
           memory: "64Mi"
@@ -137,7 +137,7 @@ tests:
       value: 30
 - it: Allows overriding terminationGracePeriodSeconds for the bindings forwarder
   set:
-    bindingsForwarder:
+    components.bindingsForwarder:
       terminationGracePeriodSeconds: 75
   template: bindings-forwarder/deployment.yaml
   asserts:
@@ -158,13 +158,13 @@ tests:
 - it: deep-merges pod into the component, with the component winning
   template: bindings-forwarder/deployment.yaml
   set:
-    pod:
+    components.common:
       podAnnotations:
         shared: "from-pod"
         overridden: "from-pod"
       tolerations:
         - key: shared-toleration
-    bindingsForwarder:
+    components.bindingsForwarder:
       podAnnotations:
         overridden: "from-forwarder"
         forwarderOnly: "from-forwarder"
@@ -189,7 +189,7 @@ tests:
 - it: does not render in one-click demo mode, which has no authtoken for the forwarder
   template: bindings-forwarder/deployment.yaml
   set:
-    features:
+    ngrok.features:
       oneClickDemoMode:
         enabled: true
   asserts:
