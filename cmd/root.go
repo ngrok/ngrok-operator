@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/ngrok/ngrok-operator/internal/flags"
 )
 
 var (
@@ -15,6 +17,9 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use: "ngrok-operator",
+	PersistentPreRunE: func(*cobra.Command, []string) error {
+		return flags.Validate()
+	},
 }
 
 func Execute() {
