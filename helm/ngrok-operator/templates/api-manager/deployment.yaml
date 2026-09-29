@@ -81,6 +81,10 @@ spec:
         {{- if .Values.oneClickDemoMode }}
         - --one-click-demo-mode
         {{- end }}
+        {{- if .Values.privateEndpoints.enabled }}
+        - --enable-feature-private-endpoints=true
+        - --private-endpoints-shared-service={{ include "ngrok-operator.fullname" . }}-private-endpoints
+        {{- end }}
         {{- if .Values.bindings.enabled }}
         - --bindings-endpoint-selectors={{ join "," .Values.bindings.endpointSelectors }}
         {{- if .Values.bindings.serviceAnnotations }}

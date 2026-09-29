@@ -200,3 +200,14 @@ tests:
   - notContains:
       path: spec.template.spec.containers[0].args
       content: --watch-namespace=
+- it: does not pass api-manager-only private endpoints flags to the agent
+  set:
+    privateEndpoints.enabled: true
+  template: agent/deployment.yaml
+  asserts:
+  - notContains:
+      path: spec.template.spec.containers[0].args
+      content: --enable-feature-private-endpoints=true
+  - notContains:
+      path: spec.template.spec.containers[0].args
+      content: --private-endpoints-shared-service=RELEASE-NAME-ngrok-operator-private-endpoints

@@ -120,10 +120,6 @@ Ngrok Operator manager cli feature flags
 {{- if .Values.bindings.enabled }}
 - --enable-feature-bindings={{ .Values.bindings.enabled }}
 {{- end }}
-{{- if .Values.privateEndpoints.enabled }}
-- --enable-feature-private-endpoints=true
-- --private-endpoints-shared-service={{ include "ngrok-operator.fullname" . }}-private-endpoints
-{{- end }}
 {{- end -}}
 
 {{/*
