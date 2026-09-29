@@ -194,3 +194,9 @@ here and vice versa.
   - unknown `x.ngrok.direct` → NXDOMAIN; non-ngrok `.internal` name falls through
   - stop an endpoint → DNS record and Service gone within one poll cycle
 - `make manifests generate test` clean; existing bindings tests unaffected.
+
+## Implementation deviations
+
+- `ngrok-api-go` v9 `endpoints.Client.List` takes `*ngrok.Paging`, which has no `Filter`. Filtering is client-side (hostname suffix + not `kubernetes`-bound).
+- Controller is keyed by hostname, not by CR, and owns one Service per hostname that needs one. Reason: DNS can return one IP per name, so every endpoint on a hostname must share an IP. A hostname goes "dedicated" if any of its endpoints is not http:80 / https:443 / tls:443; then all its endpoints (including http:80) go through per-port forwarder listeners. No finalizer: Services are deleted when the last CR for the hostname disappears.
+- `status.clusterIP` is set for every Ready CR (shared Service IP or the hostname Service IP); `status.forwarderPort` only for dedicated ones. The forwarder needs no Service RBAC.
