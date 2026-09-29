@@ -54,11 +54,38 @@ tests:
             name: NGROK_OPERATOR_METADATA
             value: '{"example.com/team":"k8s"}'
 
+  - it: renders clusterDomain and features.cleanup.drainPolicy, but not the chart-only cleanup values
+    template: api-manager/deployment.yaml
+    set:
+      clusterDomain: cluster.example
+      features.cleanup.drainPolicy: Delete
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_CLUSTER_DOMAIN
+            value: cluster.example
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_FEATURES__CLEANUP__DRAIN_POLICY
+            value: Delete
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_FEATURES__CLEANUP__ENABLED
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR_FEATURES__CLEANUP__TIMEOUT
+          any: true
+
   - it: lets a component override the shared log settings for itself alone
     set:
       log.level: info
       log.format: json
-      agent.config.log.level: debug
+      agent.log.level: debug
     asserts:
       - template: agent/deployment.yaml
         contains:
@@ -83,7 +110,7 @@ tests:
     template: agent/deployment.yaml
     set:
       log.level: info
-      agent.config.log.level: ""
+      agent.log.level: ""
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -104,13 +131,13 @@ tests:
 
   - it: renders one-click demo mode like any other feature
     set:
-      features.oneClickDemoMode: true
+      features.oneClickDemoMode.enabled: true
     asserts:
       - template: api-manager/deployment.yaml
         contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE
+            name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
             value: "true"
 
   - it: lets extraEnv override a setting, since it is listed after it
@@ -128,26 +155,18 @@ tests:
   - it: rejects a per-component features override
     template: agent/deployment.yaml
     set:
-      agent.config.features.gateway.enabled: false
+      agent.features.gateway.enabled: false
     asserts:
       - failedTemplate:
-          errorPattern: "agent.config.features is not supported"
+          errorPattern: "agent.features is not supported"
 
   - it: rejects a per-component ngrok override
     template: api-manager/deployment.yaml
     set:
-      apiManager.config.ngrok.region: eu
+      apiManager.ngrok.region: eu
     asserts:
       - failedTemplate:
-          errorPattern: "apiManager.config.ngrok is not supported"
-
-  - it: rejects any per-component setting other than log
-    template: api-manager/deployment.yaml
-    set:
-      apiManager.config.oneClickDemoMode: true
-    asserts:
-      - failedTemplate:
-          errorPattern: "apiManager.config.oneClickDemoMode is not supported: only log can be set per component"
+          errorPattern: "apiManager.ngrok is not supported"
 
   # LEGACY-values-layout: BEGIN
   - it: fails on values from the pre-0.25 layout
@@ -158,4 +177,12 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "(?s)ingress -> features.ingress.*region -> ngrok.region"
+
+  - it: fails on the cleanup hook settings that moved to features.cleanup
+    template: api-manager/deployment.yaml
+    set:
+      cleanupHook.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "cleanupHook.enabled -> features.cleanup.enabled"
   # LEGACY-values-layout: END

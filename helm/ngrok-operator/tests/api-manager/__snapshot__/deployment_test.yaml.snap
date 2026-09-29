@@ -84,7 +84,7 @@ Should match all-options snapshot:
                   value: k8s.ngrok.com/ingress-controller
                 - name: NGROK_OPERATOR_FEATURES__INGRESS__ENABLED
                   value: "true"
-                - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE
+                - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
                   value: "false"
                 - name: SECRET_ENV_VAR
                   value:
@@ -649,7 +649,7 @@ Should match default snapshot:
                   value: k8s.ngrok.com/ingress-controller
                 - name: NGROK_OPERATOR_FEATURES__INGRESS__ENABLED
                   value: "true"
-                - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE
+                - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
                   value: "false"
               image: docker.io/ngrok/ngrok-operator:0.22.0
               imagePullPolicy: IfNotPresent

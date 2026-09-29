@@ -117,9 +117,14 @@ func TestChartValuesMatchDefaults(t *testing.T) {
 			walk(append(append([]string{}, path...), k), child)
 		}
 	}
-	delete(values["features"].(map[string]any)["ingress"].(map[string]any), "ingressClass") // renders the IngressClass, not an operator setting
-	for _, section := range []string{"ngrok", "log", "features"} {
-		walk([]string{section}, values[section])
+	// Values only the chart reads: the IngressClass it renders and the
+	// cleanup hook it runs.
+	features := values["features"].(map[string]any)
+	delete(features["ingress"].(map[string]any), "ingressClass")
+	delete(features["cleanup"].(map[string]any), "enabled")
+	delete(features["cleanup"].(map[string]any), "timeout")
+	for _, key := range []string{"ngrok", "log", "features", "clusterDomain"} {
+		walk([]string{key}, values[key])
 	}
 }
 

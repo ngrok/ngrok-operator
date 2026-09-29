@@ -46,9 +46,9 @@ tests:
                 app.kubernetes.io/name: ngrok-operator
             topologyKey: kubernetes.io/hostname
           weight: 1
-- it: Adds .Values.defaults.podLabels to the forwarder deployment podspec
+- it: Adds .Values.pod.podLabels to the forwarder deployment podspec
   set:
-    defaults:
+    pod:
       podLabels:
         labelKey1: labelValue1
         labelKey2: labelValue2
@@ -59,9 +59,9 @@ tests:
       content:
         labelKey1: labelValue1
         labelKey2: labelValue2
-- it: Does not add .Values.defaults.podLabels to the forwarder deployment's selector
+- it: Does not add .Values.pod.podLabels to the forwarder deployment's selector
   set:
-    defaults:
+    pod:
       podLabels:
         labelKey1: labelValue1
         labelKey2: labelValue2
@@ -155,13 +155,13 @@ tests:
       content:
         name: NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED
       any: true
-- it: deep-merges defaults into the component, with the component winning
+- it: deep-merges pod into the component, with the component winning
   template: bindings-forwarder/deployment.yaml
   set:
-    defaults:
+    pod:
       podAnnotations:
-        shared: "from-defaults"
-        overridden: "from-defaults"
+        shared: "from-pod"
+        overridden: "from-pod"
       tolerations:
         - key: shared-toleration
     bindingsForwarder:
@@ -174,7 +174,7 @@ tests:
     # map keys merge, component wins on collision
     - equal:
         path: spec.template.metadata.annotations.shared
-        value: from-defaults
+        value: from-pod
     - equal:
         path: spec.template.metadata.annotations.overridden
         value: from-forwarder
@@ -190,7 +190,8 @@ tests:
   template: bindings-forwarder/deployment.yaml
   set:
     features:
-      oneClickDemoMode: true
+      oneClickDemoMode:
+        enabled: true
   asserts:
     - hasDocuments:
         count: 0
