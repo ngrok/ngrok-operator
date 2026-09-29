@@ -37,6 +37,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -457,28 +458,7 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 		LeaderElection:         opts.electionID != "",
 		LeaderElectionID:       opts.electionID,
 
-		// The KubernetesOperator CR is a singleton owned by the operator and always
-		// lives in the release namespace, regardless of `watchNamespace`. Pin its
-		// cache scope to the release namespace so the controller can always list/watch
-		// it, and so RBAC for it can stay narrowly scoped to the release namespace.
-		Cache: cache.Options{
-			ByObject: map[client.Object]cache.ByObject{
-				&ngrokv1alpha1.KubernetesOperator{}: {
-					Namespaces: map[string]cache.Config{
-						opts.namespace: {},
-					},
-				},
-				&ngrokv1.PrivateEndpoint{}: {
-					Namespaces: map[string]cache.Config{
-						opts.namespace: {},
-					},
-				},
-			},
-		}}
-	if opts.ingressWatchNamespace != "" {
-		options.Cache.DefaultNamespaces = map[string]cache.Config{
-			opts.ingressWatchNamespace: {},
-		}
+		Cache: managerCacheOptions(opts),
 	}
 
 	mgr, err := ctrl.NewManager(k8sConfig, options)
@@ -487,6 +467,44 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 	}
 
 	return mgr, nil
+}
+
+func managerCacheOptions(opts apiManagerOpts) cache.Options {
+	// The KubernetesOperator CR is a singleton owned by the operator and always
+	// lives in the release namespace, regardless of `watchNamespace`. Pin its
+	// cache scope to the release namespace so the controller can always list/watch
+	// it, and so RBAC for it can stay narrowly scoped to the release namespace.
+	o := cache.Options{
+		ByObject: map[client.Object]cache.ByObject{
+			&ngrokv1alpha1.KubernetesOperator{}: {
+				Namespaces: map[string]cache.Config{
+					opts.namespace: {},
+				},
+			},
+		},
+	}
+	if opts.ingressWatchNamespace != "" {
+		o.DefaultNamespaces = map[string]cache.Config{
+			opts.ingressWatchNamespace: {},
+		}
+	}
+	// Only when enabled: ByObject entries are resolved at manager start, so
+	// pinning a kind whose CRD isn't installed would fail every install.
+	if opts.enableFeaturePrivateEndpoints {
+		o.ByObject[&ngrokv1.PrivateEndpoint{}] = cache.ByObject{
+			Namespaces: map[string]cache.Config{opts.namespace: {}},
+		}
+		// The shared and per-hostname Services live in the operator namespace.
+		if opts.ingressWatchNamespace != "" && opts.ingressWatchNamespace != opts.namespace {
+			o.ByObject[&corev1.Service{}] = cache.ByObject{
+				Namespaces: map[string]cache.Config{
+					opts.ingressWatchNamespace: {},
+					opts.namespace:             {},
+				},
+			}
+		}
+	}
+	return o
 }
 
 // loadNgrokClientset loads the ngrok API clientset from the environment and managerOpts
