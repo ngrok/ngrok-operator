@@ -1,6 +1,8 @@
 # Helm Chart — Features
 
-Features are configured at the top level under `features:`. This is the **single source of truth** for what is enabled and how each feature is configured. Components do not duplicate feature flags.
+Features are configured at the top level under `features:`, as part of the operator configuration (see [common.md](common.md#operator-configuration)). Each setting is set once for the whole install; the chart passes it to whichever components need it, and it cannot be overridden per component.
+
+Defaults below are the operator's built-in defaults. An empty value in `values.yaml` means the default applies.
 
 ## Ingress
 
@@ -48,6 +50,7 @@ See [features/bindings.md](../features/bindings.md) for behavior details.
 |------------------------------------------|------------------------------------------------------------------|------------|
 | `features.drainPolicy`                   | Drain policy on uninstall: `"Delete"` or `"Retain"`             | `"Retain"` |
 | `features.defaultDomainReclaimPolicy`    | Default reclaim policy for Domains: `"Delete"` or `"Retain"`   | `"Delete"` |
+| `features.oneClickDemoMode`              | Start without credentials and become Ready without reconciling. Also skips rendering the agent and bindings-forwarder | `false` |
 
 ## Cleanup Hook
 

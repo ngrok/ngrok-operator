@@ -76,10 +76,10 @@ Keys without the prefix are ignored. Supplying a reserved suffix fails translati
 
 ## ReferenceGrants
 
-By default, cross-namespace references require a `ReferenceGrant` in the target namespace. This can be disabled via `gateway.disableReferenceGrants: true`, which allows cross-namespace references without explicit grants.
+By default, cross-namespace references require a `ReferenceGrant` in the target namespace. This can be disabled via `features.gateway.disableReferenceGrants: true`, which allows cross-namespace references without explicit grants.
 
 ## When Disabled
 
-When `gateway.enabled: false` or Gateway API CRDs are not installed:
+When `features.gateway.enabled: false` or Gateway API CRDs are not installed:
 - Gateway API resources are not watched or reconciled
 - The feature is excluded from the KubernetesOperator's `enabledFeatures`

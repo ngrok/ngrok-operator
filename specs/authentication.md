@@ -94,4 +94,4 @@ When the bindings feature is enabled, the operator generates a self-signed TLS c
 
 ## One-Click Demo Mode
 
-When `oneClickDemoMode: true` is set, the operator does not connect to the ngrok API or reconcile resources; it reports as Ready and waits. The api-manager pod does not mount the credential in this mode, so no Secret is required for it to start.
+When `features.oneClickDemoMode: true` is set, the operator does not connect to the ngrok API or reconcile resources; it reports as Ready and waits. The api-manager pod does not mount the credential in this mode, so no Secret is required for it to start.

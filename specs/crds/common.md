@@ -132,9 +132,8 @@ resource was created:
    directly, and also the `CloudEndpoint`/`AgentEndpoint` objects the
    **Service (LoadBalancer)** controller generates — that path does not set
    `spec.metadata`, so those objects take the default.
-2. **Global operator metadata (`ngrokMetadata`).** The Helm value `ngrokMetadata`
-   (a `key=value,key=value` map; deprecated alias: `metaData`) is passed to the
-   operator as the `--ngrokMetadata` flag and applied to the resources the
+2. **Global operator metadata (`ngrok.metadata`).** The Helm value `ngrok.metadata`
+   (a key/value map) reaches the operator via its config file and is applied to the resources the
    operator **generates from Ingress and Gateway** translation
    (`CloudEndpoint`/`AgentEndpoint`/`Domain`). It does **not** apply to
    user-authored CRs or to the Service-generated or `KubernetesOperator`
@@ -147,7 +146,7 @@ The map is not always exactly what the user (or Helm value) supplied — the
 operator injects keys in two places:
 
 - **`owned-by`** — for Ingress/Gateway-generated resources, the operator merges
-  `ngrokMetadata` and injects `owned-by` if the user did not already set it
+  `ngrok.metadata` and injects `owned-by` if the user did not already set it
   (`pkg/managerdriver/driver.go::setNgrokMetadataOwner`). The injected owner
   identifies the generating subsystem: `ngrok-operator` for the Ingress path,
   `kubernetes-gateway-api` for the Gateway path. This is the programmatic source

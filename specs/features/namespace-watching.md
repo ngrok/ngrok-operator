@@ -6,10 +6,10 @@ The operator can be scoped to watch specific namespaces instead of the entire cl
 
 ## Configuration
 
-| Component     | Flag                         | Helm Value                | Default |
-|---------------|------------------------------|---------------------------|---------|
-| api-manager   | `--ingress-watch-namespace`  | `features.ingress.watchNamespace`  | `""`    |
-| agent-manager | `--watch-namespace`          | (none)                    | `""`    |
+| Component     | Flag                                  | Helm Value                         | Default |
+|---------------|---------------------------------------|------------------------------------|---------|
+| api-manager   | `--features-ingress-watch-namespace`  | `features.ingress.watchNamespace`  | `""`    |
+| agent-manager | `--features-ingress-watch-namespace`  | `features.ingress.watchNamespace`  | `""`    |
 
 An empty value means "watch all namespaces" (cluster-wide).
 
@@ -34,4 +34,4 @@ When a watch namespace is set:
 
 ## Caveats
 
-Setting `watchNamespace` to a value different from the operator's release namespace is **not supported**. The operator's TLS Secret and KubernetesOperator CR both live in the release namespace. With a mismatched `watchNamespace`, the controller-runtime cache scoped to `watchNamespace` will not see those resources, causing the operator to fail to function correctly. See [rbac/README.md](../rbac/README.md) for the full details on this constraint.
+Setting `features.ingress.watchNamespace` to a value different from the operator's release namespace is **not supported**. The operator's TLS Secret and KubernetesOperator CR both live in the release namespace. With a mismatched `watchNamespace`, the controller-runtime cache scoped to `watchNamespace` will not see those resources, causing the operator to fail to function correctly. See [rbac/README.md](../rbac/README.md) for the full details on this constraint.

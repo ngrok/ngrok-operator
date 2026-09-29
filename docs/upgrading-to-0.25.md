@@ -159,6 +159,40 @@ reads.
 A Secret that carries only `API_KEY` and `AUTHTOKEN` leaves both 0.25 pods
 unable to start, so create the new Secret before the chart upgrade.
 
+### Move your values to the new layout
+
+The 0.25 chart reorganizes its values. Operator settings move under `ngrok`,
+`features` and per-component `config` sections, and pod settings move under
+`defaults` or a component section. There are no aliases for the old keys: a
+values file that still sets one fails the render and lists each old key with
+its new location.
+
+| 0.24 value | 0.25 value |
+|------------|------------|
+| `description`, `region`, `rootCAs`, `serverAddr`, `apiURL`, `clusterDomain` | `ngrok.<same>` |
+| `ngrokMetadata`, `metaData` | `ngrok.metadata` |
+| `ingress.*` | `features.ingress.*` |
+| `watchNamespace`, `controllerName`, `ingressClass.*` | `features.ingress.watchNamespace`, `features.ingress.controllerName`, `features.ingress.ingressClass.*` |
+| `gateway.*` | `features.gateway.*` |
+| `bindings.enabled`, `bindings.endpointSelectors`, `bindings.serviceAnnotations`, `bindings.serviceLabels`, `bindings.ingressEndpoint` | `features.bindings.<same>` |
+| `bindings.forwarder.*` | `bindingsForwarder.*` |
+| `drainPolicy`, `defaultDomainReclaimPolicy` | `features.<same>` |
+| `oneClickDemoMode` | `features.oneClickDemoMode` |
+| `podAnnotations`, `podLabels`, `nodeSelector`, `tolerations`, `affinity`, `podAffinityPreset`, `podAntiAffinityPreset`, `nodeAffinityPreset`, `topologySpreadConstraints`, `priorityClassName`, `extraEnv` | `defaults.<same>` (applies to every component) |
+| `replicaCount`, `resources`, `lifecycle`, `terminationGracePeriodSeconds`, `extraVolumes`, `extraVolumeMounts`, `podDisruptionBudget.*`, `serviceAccount.*` | `apiManager.<same>` |
+| `log.*`, `agent.*`, `credentials.*`, `image.*` | unchanged |
+
+Three behaviors change along with the keys:
+
+- Top-level pod settings such as `podAnnotations` and `tolerations` now apply to
+  the agent and bindings-forwarder as well as the api-manager. To keep a
+  setting on one component only, set it on that component instead, for example
+  `apiManager.tolerations`.
+- Log settings can be overridden for one component under
+  `<component>.config.log`, for example `agent.config.log.level: debug`.
+- An empty operator setting means "use the operator's built-in default". The
+  defaults are listed in the chart README.
+
 ## Required before upgrading
 
 These changes remove compatibility that 0.24 provided. Each one should already
@@ -279,6 +313,25 @@ kubectl get domains.ingress.k8s.ngrok.com -A -o json |
     | "\(.metadata.namespace)/\(.metadata.name): spec=\(.spec.domain) status=\(.status.domain)"
   '
 ```
+
+### Operator flags, if you run the binaries yourself
+
+The chart now passes configuration as `NGROK_OPERATOR_*` environment variables instead of flags, so chart users need no change. If you run `ngrok-operator` with your own arguments, every setting's flag is renamed after its values path (see [configuration](../specs/configuration.md#names)):
+
+| 0.24 flag | 0.25 flag |
+|-----------|-----------|
+| `--enable-feature-ingress`, `--enable-feature-gateway`, `--enable-feature-bindings` | `--features-ingress-enabled`, `--features-gateway-enabled`, `--features-bindings-enabled` |
+| `--ingress-controller-name`, `--ingress-watch-namespace` (agent: `--watch-namespace`) | `--features-ingress-controller-name`, `--features-ingress-watch-namespace` |
+| `--disable-reference-grants` | `--features-gateway-disable-reference-grants` |
+| `--bindings-endpoint-selectors`, `--bindings-service-annotations`, `--bindings-service-labels`, `--bindings-ingress-endpoint` | `--features-bindings-<same>` |
+| `--default-domain-reclaim-policy`, `--drain-policy`, `--one-click-demo-mode` | `--features-<same>` |
+| `--ngrokMetadata` | `--metadata` |
+| `--zap-log-level`, `--zap-encoder`, `--zap-stacktrace-level` | `--log-level`, `--log-format`, `--log-stacktrace-level` |
+
+- Map flags take a YAML or JSON map (`'{env: dev}'`) instead of `key=value,key=value`.
+- `--features-bindings-endpoint-selectors` takes a YAML or JSON list (`'["true"]'`) instead of comma-separated values.
+- The agent and bindings-forwarder no longer accept `--description`, which they ignored.
+- The other `--zap-*` flags (`--zap-devel`, `--zap-time-encoding`) are gone.
 
 ## Upgrade
 

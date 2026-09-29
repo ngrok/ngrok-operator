@@ -4,39 +4,26 @@
 
 The api-manager is the primary operator component responsible for reconciling CRDs, managing ngrok API resources, and handling Ingress/Gateway API integration.
 
-## K8s Deployment Settings
+## Pod Settings
 
-All settings below override global defaults. See [common.md](common.md) for override semantics.
+Any key from `defaults` (see [common.md](common.md)) can also be set here to override it for this component alone.
 
-| Parameter                                      | Description                                          | Default         |
-|------------------------------------------------|------------------------------------------------------|-----------------|
-| `apiManager.replicaCount`                      | Number of api-manager replicas                       | `1`             |
-| `apiManager.podAnnotations`                    | Pod annotations (merged with global)                 | `{}`            |
-| `apiManager.podLabels`                         | Pod labels (merged with global)                      | `{}`            |
-| `apiManager.nodeSelector`                      | Node labels for pod assignment                       | `{}`            |
-| `apiManager.tolerations`                       | Pod tolerations                                      | `[]`            |
-| `apiManager.affinity`                          | Affinity rules                                       | `{}`            |
-| `apiManager.topologySpreadConstraints`         | Topology spread constraints                          | `[]`            |
-| `apiManager.priorityClassName`                 | Pod priority class                                   | `""`            |
-| `apiManager.resources`                         | Container resource requests/limits                   | `{}`            |
-| `apiManager.extraVolumes`                      | Additional volumes                                   | `[]`            |
-| `apiManager.extraVolumeMounts`                 | Additional volume mounts                             | `[]`            |
-| `apiManager.extraEnv`                          | Additional environment variables                     | `{}`            |
-| `apiManager.lifecycle`                         | Container lifecycle hooks                            | `{}`            |
-| `apiManager.terminationGracePeriodSeconds`     | Graceful shutdown time                               | `30`            |
-| `apiManager.updateStrategy.type`               | Update strategy type                                 | `RollingUpdate` |
-| `apiManager.podDisruptionBudget.create`        | Enable PDB creation                                  | `false`         |
-| `apiManager.podDisruptionBudget.maxUnavailable`| Max unavailable pods                                 | `"1"`           |
-| `apiManager.podDisruptionBudget.minAvailable`  | Min available pods                                   | (unset)         |
-| `apiManager.serviceAccount.create`             | Create a ServiceAccount                              | `true`          |
-| `apiManager.serviceAccount.name`               | ServiceAccount name (auto-generated if empty)        | `""`            |
-| `apiManager.serviceAccount.annotations`        | ServiceAccount annotations                           | `{}`            |
-| `apiManager.clusterRole.annotations`           | Annotations for all ClusterRoles                     | `{}`            |
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `apiManager.replicaCount` | Number of replicas | `1` |
+| `apiManager.resources` | Container resource requests/limits | `{}` |
+| `apiManager.lifecycle` | Container lifecycle hooks | `{}` |
+| `apiManager.terminationGracePeriodSeconds` | Graceful shutdown time | `30` |
+| `apiManager.extraVolumes` | Additional volumes | `[]` |
+| `apiManager.extraVolumeMounts` | Additional volume mounts | `[]` |
+| `apiManager.updateStrategy.type` | Update strategy type | `RollingUpdate` |
+| `apiManager.podDisruptionBudget.create` | Enable PDB creation | `false` |
+| `apiManager.podDisruptionBudget.maxUnavailable` | Max unavailable pods | `"1"` |
+| `apiManager.podDisruptionBudget.minAvailable` | Min available pods; set instead of `maxUnavailable` | (unset) |
+| `apiManager.serviceAccount.create` | Create a ServiceAccount | `true` |
+| `apiManager.serviceAccount.name` | ServiceAccount name (auto-generated if empty) | `""` |
+| `apiManager.serviceAccount.annotations` | ServiceAccount annotations | `{}` |
 
-## App Config
+## Operator Configuration
 
-Component-specific app config rendered into the api-manager ConfigMap. Overrides values from the common ConfigMap (`ngrok.*`).
-
-| Parameter                                        | Description                                   | Default  |
-|--------------------------------------------------|-----------------------------------------------|----------|
-| `apiManager.config.oneClickDemoMode`             | Start without credentials for demo purposes   | `false`  |
+`apiManager.config.log` overrides the shared `log` settings for the api-manager alone.
