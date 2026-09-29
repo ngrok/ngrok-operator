@@ -292,7 +292,7 @@ func runOneClickDemoMode(ctx context.Context, mgr ctrl.Manager) error {
 				setupLog.Error(errors.New("Running in one-click-demo mode"), "Ready even if required fields are missing!")
 				setupLog.Info("The ngrok-operator is running in one-click-demo mode which means the operator is not actually reconciling resources.")
 				setupLog.Info("Please provide an ngrok access token in your Helm values to run the operator for real.")
-				setupLog.Info("Please set `oneClickDemoMode: false` in your Helm values to run the operator for real.")
+				setupLog.Info("Please set `features.oneClickDemoMode: false` in your Helm values to run the operator for real.")
 			}
 		}
 	}()
