@@ -36,7 +36,7 @@ import (
 // both rules.
 var (
 	// ngrok
-	Description   = String("description", "NGROK_OPERATOR_DESCRIPTION", "Created by the ngrok-operator", "Description for this installation")
+	Description   = String("description", "NGROK_OPERATOR_DESCRIPTION", "The official ngrok Kubernetes Operator.", "Description for this installation")
 	Region        = String("region", "NGROK_OPERATOR_REGION", "", "The region to use for ngrok tunnels")
 	ServerAddr    = String("server-addr", "NGROK_OPERATOR_SERVER_ADDR", "", "The address of the ngrok server to use for tunnels")
 	APIURL        = String("api-url", "NGROK_OPERATOR_API_URL", "", "The base URL to use for the ngrok api")
@@ -59,7 +59,7 @@ var (
 	BindingsEndpointSelectors     = List("features-bindings-endpoint-selectors", "NGROK_OPERATOR_FEATURES__BINDINGS__ENDPOINT_SELECTORS", []string{"true"}, "CEL expressions selecting the endpoints to project into this cluster, as a YAML or JSON list")
 	BindingsServiceAnnotations    = Map("features-bindings-service-annotations", "NGROK_OPERATOR_FEATURES__BINDINGS__SERVICE_ANNOTATIONS", "Service Annotations to propagate to the target service, as a YAML or JSON map")
 	BindingsServiceLabels         = Map("features-bindings-service-labels", "NGROK_OPERATOR_FEATURES__BINDINGS__SERVICE_LABELS", "Service Labels to propagate to the target service, as a YAML or JSON map")
-	BindingsIngressEndpoint       = String("features-bindings-ingress-endpoint", "NGROK_OPERATOR_FEATURES__BINDINGS__INGRESS_ENDPOINT", "", "The endpoint the bindings forwarder connects to")
+	BindingsIngressEndpoint       = String("features-bindings-ingress-endpoint", "NGROK_OPERATOR_FEATURES__BINDINGS__INGRESS_ENDPOINT", "kubernetes-binding-ingress.ngrok.io:443", "The endpoint the bindings forwarder connects to")
 	DefaultDomainReclaimPolicy    = String("features-domains-default-reclaim-policy", "NGROK_OPERATOR_FEATURES__DOMAINS__DEFAULT_RECLAIM_POLICY", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
 	DrainPolicy                   = String("features-cleanup-drain-policy", "NGROK_OPERATOR_FEATURES__CLEANUP__DRAIN_POLICY", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
 	OneClickDemoMode              = Bool("features-one-click-demo-mode-enabled", "NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE__ENABLED", false, "Run the operator in one-click-demo mode (Ready, but not running)")
