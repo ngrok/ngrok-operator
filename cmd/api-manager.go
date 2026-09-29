@@ -65,9 +65,11 @@ import (
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
+	privateendpointscontroller "github.com/ngrok/ngrok-operator/internal/controller/privateendpoints"
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	pe "github.com/ngrok/ngrok-operator/internal/privateendpoints"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
@@ -118,6 +120,8 @@ type apiManagerOpts struct {
 	enableFeatureIngress          bool
 	enableFeatureGateway          bool
 	enableFeatureBindings         bool
+	enableFeaturePrivateEndpoints bool
+	privateEndpointsSharedService string
 	disableGatewayReferenceGrants bool
 
 	bindings struct {
@@ -166,6 +170,8 @@ func apiCmd() *cobra.Command {
 	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
 	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
 	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
+	c.Flags().BoolVar(&opts.enableFeaturePrivateEndpoints, "enable-feature-private-endpoints", false, "Mirrors ngrok private endpoints into PrivateEndpoint resources for in-cluster access")
+	c.Flags().StringVar(&opts.privateEndpointsSharedService, "private-endpoints-shared-service", "ngrok-operator-private-endpoints", "Name of the Service in the operator namespace fronting the private endpoint forwarder's shared http/https listeners")
 	c.Flags().StringSliceVar(&opts.bindings.endpointSelectors, "bindings-endpoint-selectors", []string{"true"}, "Endpoint Selectors for Endpoint Bindings")
 	c.Flags().StringVar(&opts.bindings.serviceAnnotations, "bindings-service-annotations", "", "Service Annotations to propagate to the target service")
 	c.Flags().StringVar(&opts.bindings.serviceLabels, "bindings-service-labels", "", "Service Labels to propagate to the target service")
@@ -397,6 +403,13 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		setupLog.Info("Endpoint Bindings feature set disabled")
 	}
 
+	if opts.enableFeaturePrivateEndpoints {
+		setupLog.Info("Private Endpoints feature set enabled")
+		if err := enablePrivateEndpointsFeatureSet(opts, mgr, ngrokClientset); err != nil {
+			return fmt.Errorf("unable to enable Private Endpoints feature set: %w", err)
+		}
+	}
+
 	// new kubebuilder controllers will be generated here
 	// please attach these to a feature set
 	// +kubebuilder:scaffold:builder
@@ -451,6 +464,11 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 		Cache: cache.Options{
 			ByObject: map[client.Object]cache.ByObject{
 				&ngrokv1alpha1.KubernetesOperator{}: {
+					Namespaces: map[string]cache.Config{
+						opts.namespace: {},
+					},
+				},
+				&ngrokv1.PrivateEndpoint{}: {
 					Namespaces: map[string]cache.Config{
 						opts.namespace: {},
 					},
@@ -806,6 +824,29 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 	}
 
 	return nil
+}
+
+// enablePrivateEndpointsFeatureSet mirrors private endpoints into the cluster
+// for the private-endpoint-forwarder.
+func enablePrivateEndpointsFeatureSet(opts apiManagerOpts, mgr ctrl.Manager, ngrokClientset ngrokapi.Clientset) error {
+	if err := (&privateendpointscontroller.Reconciler{
+		Client:            mgr.GetClient(),
+		Log:               ctrl.Log.WithName("controllers").WithName("PrivateEndpoint"),
+		Namespace:         opts.namespace,
+		SharedServiceName: opts.privateEndpointsSharedService,
+		ForwarderSelector: map[string]string{"app.kubernetes.io/component": pe.ForwarderComponent},
+		PortMin:           20000,
+		PortMax:           20999,
+	}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("setting up PrivateEndpoint controller: %w", err)
+	}
+	return mgr.Add(&privateendpointscontroller.Poller{
+		Client:    mgr.GetClient(),
+		Log:       ctrl.Log.WithName("controllers").WithName("PrivateEndpointPoller"),
+		Namespace: opts.namespace,
+		Endpoints: ngrokClientset.Endpoints(),
+		Interval:  10 * time.Second,
+	})
 }
 
 func createKubernetesOperator(ctx context.Context, client client.Client, opts apiManagerOpts) error {
