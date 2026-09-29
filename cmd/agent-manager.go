@@ -110,19 +110,19 @@ func agentCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
 
 	fs := c.Flags()
-	flags.IngressWatchNamespace.Bind(fs, &opts.watchNamespace)
+	flags.IngressWatchNamespace(fs, &opts.watchNamespace)
 
 	// agent(tunnel driver) flags
-	flags.NgrokRegion.Bind(fs, &opts.region)
-	flags.NgrokServerAddr.Bind(fs, &opts.serverAddr)
-	flags.NgrokRootCAs.Bind(fs, &opts.rootCAs)
+	flags.NgrokRegion(fs, &opts.region)
+	flags.NgrokServerAddr(fs, &opts.serverAddr)
+	flags.NgrokRootCAs(fs, &opts.rootCAs)
 
 	// feature flags
-	flags.IngressEnabled.Bind(fs, &opts.enableFeatureIngress)
-	flags.GatewayEnabled.Bind(fs, &opts.enableFeatureGateway)
-	flags.GatewayDisableReferenceGrants.Bind(fs, &opts.disableGatewayReferenceGrants)
-	flags.BindingsEnabled.Bind(fs, &opts.enableFeatureBindings)
-	flags.DefaultDomainReclaimPolicy.Bind(fs, &opts.defaultDomainReclaimPolicy)
+	flags.IngressEnabled(fs, &opts.enableFeatureIngress)
+	flags.GatewayEnabled(fs, &opts.enableFeatureGateway)
+	flags.GatewayDisableReferenceGrants(fs, &opts.disableGatewayReferenceGrants)
+	flags.BindingsEnabled(fs, &opts.enableFeatureBindings)
+	flags.DefaultDomainReclaimPolicy(fs, &opts.defaultDomainReclaimPolicy)
 
 	opts.zapOpts = flags.Log(fs)
 

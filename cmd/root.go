@@ -17,8 +17,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use: "ngrok-operator",
-	PersistentPreRunE: func(*cobra.Command, []string) error {
-		return flags.Validate()
+	PersistentPreRunE: func(c *cobra.Command, _ []string) error {
+		return flags.Validate(c.Root())
 	},
 }
 

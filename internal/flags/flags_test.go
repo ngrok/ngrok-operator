@@ -3,6 +3,7 @@ package flags
 import (
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,11 +84,11 @@ func TestBind(t *testing.T) {
 				metadata      map[string]string
 			)
 			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			NgrokRegion.Bind(fs, &region)
-			DrainPolicy.Bind(fs, &drain)
-			GatewayEnabled.Bind(fs, &gateway)
-			BindingsEndpointSelectors.Bind(fs, &selectors)
-			NgrokMetadata.Bind(fs, &metadata)
+			NgrokRegion(fs, &region)
+			DrainPolicy(fs, &drain)
+			GatewayEnabled(fs, &gateway)
+			BindingsEndpointSelectors(fs, &selectors)
+			NgrokMetadata(fs, &metadata)
 			Log(fs)
 			require.NoError(t, fs.Parse(tc.args))
 
@@ -136,7 +137,7 @@ func TestValidate(t *testing.T) {
 			for k, v := range tc.env {
 				t.Setenv(k, v)
 			}
-			err := Validate()
+			err := Validate(testRoot())
 			if tc.wantErr == "" {
 				require.NoError(t, err)
 				return
@@ -146,10 +147,20 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestEnvNamesUnique(t *testing.T) {
-	seen := map[string]bool{}
-	for _, s := range all {
-		assert.False(t, seen[s.env()], "%s is used by two settings", s.env())
-		seen[s.env()] = true
-	}
+// testRoot is a command tree binding a few settings, read from the
+// environment as it is when called.
+func testRoot() *cobra.Command {
+	var (
+		region    string
+		gateway   bool
+		selectors []string
+	)
+	root := &cobra.Command{Use: "root"}
+	sub := &cobra.Command{Use: "sub"}
+	NgrokRegion(sub.Flags(), &region)
+	GatewayEnabled(sub.Flags(), &gateway)
+	BindingsEndpointSelectors(sub.Flags(), &selectors)
+	Log(sub.Flags())
+	root.AddCommand(sub)
+	return root
 }

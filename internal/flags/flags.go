@@ -1,20 +1,23 @@
 // Package flags defines every operator setting once: its flag name,
-// environment variable, default and help. Commands bind the settings they
-// read onto their own options.
+// environment variable, default and help. Each setting is a function that
+// binds its flag onto a command's flag set, writing into the command's own
+// options.
 //
-// A setting's environment variable, when set, replaces its default, so the
-// precedence is flag > environment variable > default. The Helm chart renders
-// the same variable names from files/operator-env.yaml; a test in this package
-// checks the two lists match.
+// A setting's environment variable, when set, becomes its flag's default, so
+// the precedence is flag > environment variable > default. The Helm chart
+// names the same variables in files/operator-env.yaml; a test checks the two
+// agree.
 package flags
 
 import (
 	"errors"
 	"flag"
 	"fmt"
+	"iter"
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -49,139 +52,96 @@ var (
 
 	// api-manager only
 	OneClickDemoMode = Bool("one-click-demo-mode", "NGROK_OPERATOR_API_MANAGER_ONE_CLICK_DEMO_MODE", false, "Run the operator in one-click-demo mode (Ready, but not running)")
-
-	// log: controller-runtime defines these flags; Log gives them defaults
-	LogLevel           = zapSetting("zap-log-level", "NGROK_OPERATOR_LOG_LEVEL")
-	LogFormat          = zapSetting("zap-encoder", "NGROK_OPERATOR_LOG_FORMAT")
-	LogStacktraceLevel = zapSetting("zap-stacktrace-level", "NGROK_OPERATOR_LOG_STACKTRACE_LEVEL")
 )
 
-// Setting is one operator setting of type T.
-type Setting[T any] struct {
-	Flag  string
-	Env   string
-	Usage string
-	def   T
-	add   func(fs *pflag.FlagSet, p *T, name string, def T, usage string)
+// logEnv maps controller-runtime's --zap-* flags to their variables. Log
+// registers the flags.
+var logEnv = map[string]string{
+	"zap-log-level":        "NGROK_OPERATOR_LOG_LEVEL",
+	"zap-encoder":          "NGROK_OPERATOR_LOG_FORMAT",
+	"zap-stacktrace-level": "NGROK_OPERATOR_LOG_STACKTRACE_LEVEL",
 }
 
-// all is every setting, for Validate and the tests.
-var all []setting
+// Annotations on each setting's flag, read by Validate and the tests.
+const (
+	AnnotationEnv      = "ngrok-operator/env"
+	annotationEnvError = "ngrok-operator/env-error"
+)
 
-type setting interface {
-	env() string
-	// check parses value the way the setting's flag would.
-	check(value string) error
+func String(name, env, def, usage string) func(*pflag.FlagSet, *string) {
+	return func(fs *pflag.FlagSet, p *string) {
+		fs.StringVar(p, name, def, usage)
+		withEnv(fs, name, env)
+	}
 }
 
-func register[T any](s *Setting[T]) *Setting[T] {
-	all = append(all, s)
-	return s
+func Bool(name, env string, def bool, usage string) func(*pflag.FlagSet, *bool) {
+	return func(fs *pflag.FlagSet, p *bool) {
+		fs.BoolVar(p, name, def, usage)
+		withEnv(fs, name, env)
+	}
 }
 
-func String(flag, env, def, usage string) *Setting[string] {
-	return register(&Setting[string]{Flag: flag, Env: env, Usage: usage, def: def, add: (*pflag.FlagSet).StringVar})
-}
-
-func Bool(flag, env string, def bool, usage string) *Setting[bool] {
-	return register(&Setting[bool]{Flag: flag, Env: env, Usage: usage, def: def, add: (*pflag.FlagSet).BoolVar})
-}
-
-func List(flag, env string, def []string, usage string) *Setting[[]string] {
-	return register(&Setting[[]string]{Flag: flag, Env: env, Usage: usage, def: def, add: func(fs *pflag.FlagSet, p *[]string, name string, def []string, usage string) {
+func List(name, env string, def []string, usage string) func(*pflag.FlagSet, *[]string) {
+	return func(fs *pflag.FlagSet, p *[]string) {
 		*p = def
 		fs.Var(&listValue{p}, name, usage)
-	}})
+		withEnv(fs, name, env)
+	}
 }
 
-func Map(flag, env, usage string) *Setting[map[string]string] {
-	return register(&Setting[map[string]string]{Flag: flag, Env: env, Usage: usage, def: map[string]string{}, add: func(fs *pflag.FlagSet, p *map[string]string, name string, _ map[string]string, usage string) {
+func Map(name, env, usage string) func(*pflag.FlagSet, *map[string]string) {
+	return func(fs *pflag.FlagSet, p *map[string]string) {
 		*p = map[string]string{}
 		fs.Var(&mapValue{p}, name, usage)
-	}})
-}
-
-// Bind registers the setting's flag on fs, writing into p. The default is the
-// setting's environment variable when set, so --help shows the value the
-// command will use. An invalid variable is left to Validate to report.
-func (s *Setting[T]) Bind(fs *pflag.FlagSet, p *T) {
-	s.add(fs, p, s.Flag, s.def, s.Usage)
-	if value := os.Getenv(s.Env); value != "" {
-		setDefault(fs.Lookup(s.Flag), value)
+		withEnv(fs, name, env)
 	}
-}
-
-func (s *Setting[T]) env() string { return s.Env }
-
-func (s *Setting[T]) check(value string) error {
-	var p T
-	fs := pflag.NewFlagSet(s.Flag, pflag.ContinueOnError)
-	s.add(fs, &p, s.Flag, s.def, s.Usage)
-	return fs.Set(s.Flag, value)
-}
-
-// Default is the setting's built-in default as its flag prints it.
-func (s *Setting[T]) Default() string {
-	var p T
-	fs := pflag.NewFlagSet(s.Flag, pflag.ContinueOnError)
-	s.add(fs, &p, s.Flag, s.def, s.Usage)
-	return fs.Lookup(s.Flag).DefValue
-}
-
-// setDefault makes value the flag's default. An invalid value leaves the
-// default in place; pflag's Set can write a zero value before failing.
-func setDefault(f *pflag.Flag, value string) {
-	if f.Value.Set(value) != nil {
-		_ = f.Value.Set(f.DefValue)
-		return
-	}
-	f.DefValue = f.Value.String()
-}
-
-// zapFlag is a log setting whose flag controller-runtime defines.
-type zapFlag struct{ Flag, Env string }
-
-func zapSetting(flag, env string) *zapFlag {
-	s := &zapFlag{flag, env}
-	all = append(all, s)
-	return s
-}
-
-func (s *zapFlag) env() string { return s.Env }
-
-func (s *zapFlag) check(value string) error {
-	fs := flag.NewFlagSet(s.Flag, flag.ContinueOnError)
-	(&zap.Options{}).BindFlags(fs)
-	return fs.Set(s.Flag, value)
 }
 
 // Log registers controller-runtime's --zap-* flags on fs, with the log
-// settings' environment variables as their defaults.
+// variables as their defaults.
 func Log(fs *pflag.FlagSet) *zap.Options {
 	opts := &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
 	opts.BindFlags(goFlagSet)
 	fs.AddGoFlagSet(goFlagSet)
-	for _, s := range []*zapFlag{LogLevel, LogFormat, LogStacktraceLevel} {
-		if value := os.Getenv(s.Env); value != "" {
-			setDefault(fs.Lookup(s.Flag), value)
-		}
+	for name, env := range logEnv {
+		withEnv(fs, name, env)
 	}
 	return opts
 }
 
-// Validate reports every NGROK_OPERATOR_* variable that is invalid for its
-// setting or names no setting, so a misspelled or malformed setting stops the
-// operator instead of being ignored.
-func Validate() error {
+// withEnv tags the flag with its variable and, when the variable is set,
+// makes its value the flag's default, so --help shows the value the command
+// will use. An invalid value keeps the built-in default and is recorded for
+// Validate; pflag's Set can write a zero value before failing.
+func withEnv(fs *pflag.FlagSet, name, env string) {
+	_ = fs.SetAnnotation(name, AnnotationEnv, []string{env})
+	value := os.Getenv(env)
+	if value == "" {
+		return
+	}
+	f := fs.Lookup(name)
+	if err := f.Value.Set(value); err != nil {
+		_ = f.Value.Set(f.DefValue)
+		_ = fs.SetAnnotation(name, annotationEnvError, []string{fmt.Sprintf("%s: %v", env, err)})
+		return
+	}
+	f.DefValue = f.Value.String()
+}
+
+// Validate reports every NGROK_OPERATOR_* variable that its setting could not
+// parse, or that no command's flag reads, so a misspelled or malformed
+// setting stops the operator instead of being ignored.
+func Validate(root *cobra.Command) error {
 	var errs []error
 	known := map[string]bool{}
-	for _, s := range all {
-		known[s.env()] = true
-		if value := os.Getenv(s.env()); value != "" {
-			if err := s.check(value); err != nil {
-				errs = append(errs, fmt.Errorf("%s: %w", s.env(), err))
-			}
+	for f := range Flags(root) {
+		if env := f.Annotations[AnnotationEnv]; env != nil {
+			known[env[0]] = true
+		}
+		if msg := f.Annotations[annotationEnvError]; msg != nil {
+			errs = append(errs, errors.New(msg[0]))
 		}
 	}
 	for _, kv := range os.Environ() {
@@ -191,4 +151,24 @@ func Validate() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// Flags yields every flag of root and its subcommands.
+func Flags(root *cobra.Command) iter.Seq[*pflag.Flag] {
+	return func(yield func(*pflag.Flag) bool) {
+		cmds := []*cobra.Command{root}
+		for len(cmds) > 0 {
+			c := cmds[0]
+			cmds = append(cmds[1:], c.Commands()...)
+			stop := false
+			c.Flags().VisitAll(func(f *pflag.Flag) {
+				if !stop && !yield(f) {
+					stop = true
+				}
+			})
+			if stop {
+				return
+			}
+		}
+	}
 }
