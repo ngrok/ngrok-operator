@@ -23,8 +23,6 @@ Should match all-options snapshot:
           app.kubernetes.io/component: controller
           app.kubernetes.io/instance: RELEASE-NAME
           app.kubernetes.io/name: ngrok-operator
-      strategy:
-        type: RollingUpdate
       template:
         metadata:
           annotations:
@@ -114,7 +112,6 @@ Should match all-options snapshot:
                 - mountPath: /test-volume
                   name: test-volume
           serviceAccountName: RELEASE-NAME-ngrok-operator
-          terminationGracePeriodSeconds: 30
           volumes:
             - emptyDir: {}
               name: test-volume
@@ -585,8 +582,6 @@ Should match default snapshot:
           app.kubernetes.io/component: controller
           app.kubernetes.io/instance: RELEASE-NAME
           app.kubernetes.io/name: ngrok-operator
-      strategy:
-        type: RollingUpdate
       template:
         metadata:
           annotations:
@@ -666,7 +661,6 @@ Should match default snapshot:
               securityContext:
                 allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-ngrok-operator
-          terminationGracePeriodSeconds: 30
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role

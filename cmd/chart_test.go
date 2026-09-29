@@ -140,8 +140,14 @@ func TestChartComponentOverrides(t *testing.T) {
 		Components map[string]map[string]any `json:"components"`
 	}
 	require.NoError(t, yaml.Unmarshal(b, &chart))
+	// The common keys, set or commented out, from their documentation.
+	common := map[string]bool{}
+	for _, m := range regexp.MustCompile(`(?m)^## @(?:param|extra) components\.common\.(\w+)`).FindAllStringSubmatch(string(b), -1) {
+		common[m[1]] = true
+	}
+	require.NotEmpty(t, common)
 	for _, component := range []string{"apiManager", "agent", "bindingsForwarder"} {
-		for key := range chart.Components["common"] {
+		for key := range common {
 			path := "components." + component + "." + key
 			assert.Contains(t, string(b), "## @extra "+path+" ", "values.yaml does not document %s", path)
 			assert.NotContains(t, chart.Components[component], key, "values.yaml sets %s, so it always overrides components.common.%s", path, key)

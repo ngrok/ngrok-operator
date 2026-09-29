@@ -121,12 +121,25 @@ tests:
   - equal:
       path: spec.template.spec.containers[0].resources
       value: *resources
-- it: Sets terminationGracePeriodSeconds by default
+- it: Leaves terminationGracePeriodSeconds to Kubernetes by default
+  template: agent/deployment.yaml
+  asserts:
+  - notExists:
+      path: spec.template.spec.terminationGracePeriodSeconds
+- it: Applies components.common.terminationGracePeriodSeconds and updateStrategy to the agent
+  set:
+    components.common:
+      terminationGracePeriodSeconds: 60
+      updateStrategy:
+        type: Recreate
   template: agent/deployment.yaml
   asserts:
   - equal:
       path: spec.template.spec.terminationGracePeriodSeconds
-      value: 30
+      value: 60
+  - equal:
+      path: spec.strategy.type
+      value: Recreate
 - it: Allows overriding terminationGracePeriodSeconds for the agent
   set:
     components.agent:

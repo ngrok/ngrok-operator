@@ -156,13 +156,12 @@ tests:
   - equal:
       path: spec.template.spec.priorityClassName
       value: high-priority
-- it: Sets terminationGracePeriodSeconds by default
+- it: Leaves terminationGracePeriodSeconds to Kubernetes by default
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   asserts:
-  - equal:
+  - notExists:
       path: spec.template.spec.terminationGracePeriodSeconds
-      value: 30
 - it: Allows overriding terminationGracePeriodSeconds
   template: api-manager/deployment.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
