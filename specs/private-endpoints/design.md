@@ -1,6 +1,9 @@
 # Private Endpoints in Kubernetes — design
 
-Status: draft (POC) · Owner: Alex Bezek · Date: 2026-09-29
+Status: draft (POC), revision 2 · Owner: Alex Bezek · Date: 2026-09-29
+
+Revision 2 replaced the forwarder's own DNS server and Host/SNI routing with CoreDNS
+rewrites onto one Service per hostname. See "Why no DNS server" below.
 
 ## Goal
 
@@ -23,9 +26,9 @@ forward. Background and earlier options: `specs/private-dial/` on branch
 In:
 - `PrivateEndpoint` CRD (`ngrok.com/v1`) mirroring the account's private endpoints.
 - Poller in api-manager that lists internal-binding endpoints and reconciles CRs.
-- Controller in api-manager that gives tcp endpoints a ClusterIP Service.
-- New `private-endpoint-forwarder` subcommand + Deployment: DNS server, host/SNI-demuxing
-  shared listener, per-port tcp listeners, all egress over private dial.
+- Controller in api-manager that gives every private endpoint hostname a Service.
+- New `private-endpoint-forwarder` subcommand + Deployment: one listener per endpoint,
+  all egress over private dial.
 - Helm wiring behind `privateEndpoints.enabled`.
 - kind-only CoreDNS setup (script / make target).
 
@@ -46,23 +49,25 @@ Out (deferred, hand-waved in the POC):
   endpoint given `host:port`, authenticated with a PAT. The operator is already PAT-only.
 - For `https://` endpoints ngrok terminates TLS (Traffic Policy runs at L7), so the client's
   TLS session ends at ngrok with the real cert. For `tls://` endpoints TLS is end-to-end.
-  Either way the forwarder never decrypts; it peeks SNI and copies bytes.
-- `http://` carries the name in the `Host` header. Raw `tcp://` carries no name, so each
-  tcp endpoint needs its own destination IP — a ClusterIP Service.
-- ngrok-api-go v9 `Endpoints.List` takes a CEL `Filter`.
+  Either way the forwarder never decrypts; it only copies bytes.
+- Private dial matches `(host, port)` to an endpoint server-side, so the client only needs to
+  know which hostname a connection is for. One IP per hostname plus the destination port is
+  enough; nothing has to read the Host header or SNI. Agent v4 uses the same model (a
+  synthetic IP per hostname on a TUN device, port passed through).
 
 ## Architecture
 
 ```
-ngrok API ──poll(Endpoints.List, internal binding)──▶ PrivateEndpoint CRs (operator ns)
-                                                                 │
-               ┌─────────────────────────────────────────────────┤
-               ▼                                                 ▼
- controller (api-manager): tcp CR → port + ClusterIP Svc   forwarder pods (informer on CRs)
-                                                             ├─ DNS :53  (internal., ngrok.direct.)
- pod ─DNS─▶ CoreDNS ─forward─▶ ngrok-private-dns Svc ────────┘   http/https/tls → shared Svc IP
- pod ─conn─▶ shared Svc :80/:443 ─▶ Host/SNI peek ─┐              tcp → CR.status.clusterIP
- pod ─conn─▶ per-tcp Svc :port ──▶ port→endpoint ──┴─▶ privatedial.DialContext(host:port) ─▶ ngrok
+ngrok API ──poll(Endpoints.List)──▶ PrivateEndpoint CRs (operator ns)
+                                           │
+              ┌────────────────────────────┴───────────────────────────┐
+              ▼                                                        ▼
+ controller (api-manager):                                forwarder pods (informer on CRs):
+ Service foo-internal per hostname,                       listener per forwarderPort,
+ port per endpoint → forwarderPort                        forwarderPort → host:port
+
+ pod ─DNS foo.internal─▶ CoreDNS rewrite ─▶ foo-internal.<ns>.svc.cluster.local ─▶ ClusterIP
+ pod ─conn ClusterIP:6379─▶ Service ─▶ forwarder :forwarderPort ─▶ privatedial.DialContext(foo.internal:6379)
 ```
 
 ## Components
@@ -105,62 +110,62 @@ read-only mirror of the account plus the in-cluster wiring.
 
 ### 3. PrivateEndpoint controller (api-manager)
 
-- `http`/`https`/`tls`: nothing to create; mark Ready.
-- `tcp`: allocate a forwarder port (reuse the `port_allocator` approach, rebuilt from CR
-  status on startup), create a ClusterIP Service in the operator namespace
-  (`port: spec.port` → `targetPort: forwarderPort`, selector = forwarder pods), write
-  `status.clusterIP` / `status.forwarderPort`, mark Ready.
-- Finalizer deletes the Service and releases the port.
-- Uses `BaseController` helpers and status subresource per repo rules.
+- Keyed by hostname, since every endpoint on a hostname must share the one IP DNS returns.
+- Each hostname gets a ClusterIP Service in the operator namespace named after it:
+  `foo.internal` → `foo-internal`, `foo.ngrok.direct` → `foo-ngrok-direct`
+  (`ServiceName` in `internal/privateendpoints/naming.go`). The suffix keeps the same label
+  under the two TLDs from colliding.
+- One Service port per endpoint: `port: spec.port` → `targetPort: forwarderPort`, selecting
+  the forwarder pods. Forwarder ports are allocated from 20000–20999, reading PrivateEndpoints
+  uncached so back-to-back reconciles can't hand out the same port.
+- Writes `status.clusterIP` / `status.forwarderPort`, marks Ready.
+- Hostnames that can't be a Service name → `Ready=False`, reason `UnsupportedHostname`.
+- When the last endpoint for a hostname goes away its Service is deleted (found by label; no
+  finalizer).
 
 ### 4. `private-endpoint-forwarder` (new subcommand + Deployment)
 
-Watches `PrivateEndpoint` CRs (informer, operator namespace only) and serves:
-
-- **DNS server** (UDP+TCP :53, `miekg/dns`) authoritative for `internal.` and
-  `ngrok.direct.`:
-  - Known http/https/tls host → A = shared forwarder Service ClusterIP.
-  - Known tcp host → A = `status.clusterIP`.
-  - Unknown `ngrok.direct.` name → NXDOMAIN.
-  - Unknown `internal.` name → forward to the pod's upstream resolver (GKE's own
-    `*.internal` names keep working).
-  - AAAA → empty NOERROR for known names. TTL 5s.
-  - Before the informer syncs → SERVFAIL.
-- **Shared listener** (:80, :443, behind Service `ngrok-private-endpoints`):
-  - :80 — read the HTTP request head to get `Host`, look up the endpoint, dial, replay the
-    buffered bytes, then copy both ways.
-  - :443 — peek the TLS ClientHello for SNI, look up (https or tls endpoint on 443), dial,
-    replay, copy. No termination.
-  - Unknown host / no SNI → close.
-- **tcp listeners**: one per `forwarderPort` in CR status; accepted conn → dial
-  `hostname:port`, copy.
-- **Egress**: one `privatedial.Dialer` per process, PAT from the existing credentials secret
-  (new per-component key, falling back to `credentials.accessToken`), `ProtocolQUIC` forced.
-- Dial failure → close the client conn, log with endpoint URL.
+- Watches `PrivateEndpoint` CRs (operator namespace only) and keeps one TCP listener open per
+  Ready CR's `status.forwarderPort`.
+- Each accepted connection → `privatedial.DialContext(ctx, "tcp", hostname:port)` → copy both
+  ways with half-close; once one direction finishes, the other gets 5s before both close
+  (same as agent v4).
+- One `privatedial.Dialer` per process, PAT from the credentials secret (key
+  `PRIVATE_ENDPOINTS_ACCESS_TOKEN`, falling back to `credentials.accessToken`),
+  `ProtocolQUIC` forced. The library bounds each dial at 5s.
+- No DNS server, no Host/SNI parsing, no TLS handling: bytes only.
 
 ### 5. Helm
 
 - `privateEndpoints.enabled` (default false).
-- Deployment, ServiceAccount, RBAC (read `privateendpoints`), Services
-  `ngrok-private-dns` (53/udp, 53/tcp) and `ngrok-private-endpoints` (80, 443).
-- api-manager gets RBAC for `privateendpoints` (+status, finalizers) and Services in its
-  namespace; poller/controller enabled by a flag wired from the same value.
+- Forwarder Deployment, ServiceAccount, RBAC (read `privateendpoints`).
+- api-manager gets `--enable-feature-private-endpoints` and a Role in the release namespace for
+  `privateendpoints` (+status) and Services.
 - CRD in the CRDs chart.
 
 ### 6. kind CoreDNS setup
 
-Script (`scripts/kind-private-endpoints-dns.sh`, exposed via make) appends to the Corefile:
+`make kind-private-endpoints-dns` (`scripts/kind-private-endpoints-dns.sh`) adds to the main
+`.:53` server block:
 
 ```
-internal:53 {
-    forward . <ngrok-private-dns ClusterIP>
-}
-ngrok.direct:53 {
-    forward . <ngrok-private-dns ClusterIP>
-}
+rewrite stop name regex ^([a-z][a-z0-9-]*)\.internal\.$ {1}-internal.<ns>.svc.cluster.local. answer auto
+rewrite stop name regex ^([a-z][a-z0-9-]*)\.ngrok\.direct\.$ {1}-ngrok-direct.<ns>.svc.cluster.local. answer auto
 ```
 
-and restarts CoreDNS. Documented as the manual v1 step; automatic CoreDNS detection is v2.
+and restarts CoreDNS. `answer auto` makes replies carry the queried name. Only single-label
+names match, so `metadata.google.internal` and other multi-label `.internal` names keep
+resolving upstream. Unknown single-label names get NXDOMAIN. Documented as the manual v1 step;
+provider-specific setup is a follow-up spike.
+
+## Why no DNS server
+
+Revision 1 ran a DNS server in the forwarder (authoritative for `internal.` / `ngrok.direct.`),
+shared :80/:443 listeners that routed by Host header / SNI, and per-host Services only for
+non-http endpoints. Kubernetes already gives every Service an IP and a DNS name, so a CoreDNS
+rewrite onto a Service per hostname does the same job with far less of our own networking code,
+and matches how agent v4 and private dial are meant to be used. Our own DNS server (answering
+from `privatedial.Dialer.GetHost`) stays the fallback if the caveats below become blockers.
 
 ## Coexistence with bindings
 
@@ -168,35 +173,46 @@ Separate CRD, controllers, Deployment, and listeners. Both can be enabled at onc
 endpoint bound as `kubernetes` is not an internal-binding endpoint, so it is never picked up
 here and vice versa.
 
-## Risks / open items
+## Caveats / open items
 
-- Exact Endpoints.List filter expression for the internal binding.
-- Whether private dial to `host:443` for an https endpoint behaves as assumed (TLS
-  terminated by ngrok with the endpoint's cert). Validated first in the e2e.
-- QUIC-only egress requires UDP/443 out of the cluster.
-- Pod identity regression (GAT-475) — policies on `conn.k8s.pod.*` won't match.
-- Shared :80/:443 means an http and a tls endpoint can't both claim port 80/443 on the same
-  hostname ambiguously; URL uniqueness should prevent this, confirm.
+- **Single-label hostnames only.** `api.foo.internal` can't be mapped to a Service name, so it
+  is marked `UnsupportedHostname`. Lifting this needs our own DNS server.
+- **Hostname label rules.** The label must be a valid DNS-1035 label (lowercase letters,
+  digits, `-`, starting with a letter), and at most 50 characters for `.ngrok.direct` / 54 for
+  `.internal`, so the Service name stays within 63.
+- **One Service per hostname** and one forwarder port per endpoint (1000 ports). Fine for low
+  hundreds of endpoints.
+- **We take over every single-label `.internal` name** in the cluster. Clusters already using
+  `foo.internal` names for something else collide; long term, document this and steer those
+  users to `.ngrok.direct`.
+- **Connections to a removed port** on a still-existing hostname time out rather than being
+  refused (the Service no longer has that port).
+- **QUIC-only egress** requires UDP/443 out of the cluster.
+- **Pod identity** (GAT-475): `privatedial.Config.Metadata` is per session, and the server
+  doesn't expose it to Traffic Policy yet, so `conn.k8s.pod.*`-style policies don't match.
+- **`privatedial` isn't on ngrok-go main.** We pin `e2b70148` (same as the monorepo); agent v4
+  pins `cc6f75f` on the `privatedial` branch.
+- **Binding rename.** The API will report `bindings: ["private"]` instead of `internal`. The
+  poller filters on hostname suffix, so it's unaffected.
 
 ## Verification
 
-- Unit (table-driven):
-  - DNS answer logic (known/unknown per zone, scheme→IP, pre-sync SERVFAIL).
-  - Host parsing and SNI peek, including replay of peeked bytes.
-  - Poller diff: dedupe pooled endpoints, create/update/delete, error → no deletes.
-  - Port allocation and rebuild from status.
-- envtest: controller creates/deletes Service, status populated, finalizer cleanup.
+- Unit (table-driven): hostname → Service name mapping, poller diff (dedupe pooled
+  endpoints, create/delete, error → no deletes), forwarder table, port listeners, drain.
+- envtest: controller creates/updates/deletes per-hostname Services, allocates unique ports
+  (including under cache lag), rejects unsupported hostnames.
 - Live e2e in kind with endpoints started outside the cluster:
   - `curl http://foo.internal`
   - `curl https://foo.ngrok.direct` with cert verification on
   - a `tls://` endpoint via `openssl s_client -servername`
   - `redis-cli -h bar.internal -p 6379 PING` → `PONG`
-  - unknown `x.ngrok.direct` → NXDOMAIN; non-ngrok `.internal` name falls through
+  - unknown single-label name → NXDOMAIN; multi-label `.internal` name falls through
   - stop an endpoint → DNS record and Service gone within one poll cycle
 - `make manifests generate test` clean; existing bindings tests unaffected.
 
 ## Implementation deviations
 
-- `ngrok-api-go` v9 `endpoints.Client.List` takes `*ngrok.Paging`, which has no `Filter`. Filtering is client-side (hostname suffix + not `kubernetes`-bound).
-- Controller is keyed by hostname, not by CR, and owns one Service per hostname that needs one. Reason: DNS can return one IP per name, so every endpoint on a hostname must share an IP. A hostname goes "dedicated" if any of its endpoints is not http:80 / https:443 / tls:443; then all its endpoints (including http:80) go through per-port forwarder listeners. No finalizer: Services are deleted when the last CR for the hostname disappears.
-- `status.clusterIP` is set for every Ready CR (shared Service IP or the hostname Service IP); `status.forwarderPort` only for dedicated ones. The forwarder needs no Service RBAC.
+- `ngrok-api-go` v9 `endpoints.Client.List` takes `*ngrok.Paging`, which has no `Filter`.
+  Filtering is client-side (hostname suffix + not `kubernetes`-bound).
+- Controller is keyed by hostname, not by CR. No finalizer: a hostname's Service is deleted
+  when its last CR disappears.

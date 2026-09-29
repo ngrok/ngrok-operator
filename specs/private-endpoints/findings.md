@@ -90,3 +90,52 @@ Known POC limitations observed / carried:
 - With `watchNamespace` set to a namespace other than the release namespace, the api-manager
   cache doesn't see operator-namespace Services, so the controller can't wire hostnames. Not
   exercised here.
+
+## E2E, revision 2 (CoreDNS rewrite + Service per hostname) — 2026-09-29
+
+Same `pe-poc` kind cluster (CoreDNS v1.14.2), redeployed with `make deploy_with_private_endpoints`
+and `make kind-private-endpoints-dns` (run twice; one managed block inside `.:53`, the revision-1
+`internal:53` / `ngrok.direct:53` stanzas removed).
+
+Endpoints: the four from revision 1, plus `http://pe-web-<u>.ngrok.direct` alongside the
+existing `https://pe-web-<u>.ngrok.direct`, so one hostname has two endpoints and the label
+`pe-web-<u>` exists under both TLDs.
+
+```
+URL                                   IP             FWD     READY
+http://pe-web-<u>.ngrok.direct        10.96.78.224   20001   True
+https://pe-web-<u>.ngrok.direct       10.96.78.224   20002   True
+http://pe-web-<u>.internal            10.96.81.153   20003   True
+tls://pe-tls-<u>.internal:443         10.96.199.13   20004   True
+tcp://pe-redis-<u>.internal:6379      10.96.54.118   20000   True
+
+NAME                        PORT(S)
+pe-redis-<u>-internal       6379/TCP
+pe-tls-<u>-internal         443/TCP
+pe-web-<u>-internal         80/TCP
+pe-web-<u>-ngrok-direct     80/TCP,443/TCP
+```
+
+From a `nicolaka/netshoot` pod:
+
+```
+== http .internal                 200
+== http .ngrok.direct             200
+== https .ngrok.direct (verify)   200 ssl_verify=0
+== tls .internal                  subject=CN=pe-tls-<u>.internal
+== tcp redis                      +PONG
+== dig answer name                pe-web-<u>.internal. 27 IN A 10.96.81.153   (answer auto works)
+== uppercase query                PE-WEB-<u>.Internal → 10.96.81.153
+== unknown single-label           nope-<u>.internal → NXDOMAIN
+== cluster dns                    kubernetes.default.svc.cluster.local → 10.96.0.1
+```
+
+Multi-label fall-through: with a temporary CoreDNS `hosts` entry after the rewrites
+(`169.254.169.254 metadata.google.internal`), `dig metadata.google.internal` returned
+169.254.169.254, so multi-label `.internal` names are not rewritten. Entry removed afterwards.
+
+Cleanup:
+- Stopped the `ngrok tcp` agent at 18:03:58; CR and `pe-redis-<u>-internal` Service gone by
+  18:04:00; `dig` → NXDOMAIN.
+- Stopped only `http://pe-web-<u>.ngrok.direct`: its Service dropped to `443/TCP`, https still
+  200, and `curl http://…` now times out (no port on the Service) rather than being refused.
