@@ -13,10 +13,8 @@ Any key from `components.common` (see [common.md](common.md)) can also be set he
 | `components.bindingsForwarder.replicaCount` | Number of replicas | `1` |
 | `components.bindingsForwarder.resources` | Container resource requests/limits | `{}` |
 | `components.bindingsForwarder.lifecycle` | Container lifecycle hooks | `{}` |
-| `components.bindingsForwarder.terminationGracePeriodSeconds` | Graceful shutdown time | `30` |
 | `components.bindingsForwarder.extraVolumes` | Additional volumes | `[]` |
 | `components.bindingsForwarder.extraVolumeMounts` | Additional volume mounts | `[]` |
-| `components.bindingsForwarder.updateStrategy.type` | Update strategy type | `RollingUpdate` |
 | `components.bindingsForwarder.serviceAccount.create` | Create a ServiceAccount | `true` |
 | `components.bindingsForwarder.serviceAccount.name` | ServiceAccount name (auto-generated if empty) | `""` |
 | `components.bindingsForwarder.serviceAccount.annotations` | ServiceAccount annotations | `{}` |

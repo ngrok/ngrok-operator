@@ -77,6 +77,8 @@ Pod settings applied to the api-manager, agent and bindings-forwarder. Any of th
 | `components.common.topologySpreadConstraints`     | Topology spread constraints                      | `[]`           |
 | `components.common.priorityClassName`             | Pod priority class                               | `""`           |
 | `components.common.extraEnv`                      | Additional environment variables                 | `{}`           |
+| `components.common.terminationGracePeriodSeconds` | Graceful shutdown period, in seconds          | (Kubernetes: `30`) |
+| `components.common.updateStrategy`                | Deployment update strategy                       | (Kubernetes: `RollingUpdate`) |
 
 Helm reserves `global` for values passed down to subcharts, so the shared section is not named that.
 

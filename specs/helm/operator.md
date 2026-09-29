@@ -13,10 +13,8 @@ Any key from `components.common` (see [common.md](common.md)) can also be set he
 | `components.apiManager.replicaCount` | Number of replicas | `1` |
 | `components.apiManager.resources` | Container resource requests/limits | `{}` |
 | `components.apiManager.lifecycle` | Container lifecycle hooks | `{}` |
-| `components.apiManager.terminationGracePeriodSeconds` | Graceful shutdown time | `30` |
 | `components.apiManager.extraVolumes` | Additional volumes | `[]` |
 | `components.apiManager.extraVolumeMounts` | Additional volume mounts | `[]` |
-| `components.apiManager.updateStrategy.type` | Update strategy type | `RollingUpdate` |
 | `components.apiManager.podDisruptionBudget.create` | Enable PDB creation | `false` |
 | `components.apiManager.podDisruptionBudget.maxUnavailable` | Max unavailable pods | `"1"` |
 | `components.apiManager.podDisruptionBudget.minAvailable` | Min available pods; set instead of `maxUnavailable` | (unset) |
