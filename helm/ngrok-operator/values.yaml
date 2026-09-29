@@ -145,15 +145,20 @@ ngrok:
 ##
 ## @section Components
 ##
-## Kubernetes settings for each pod the chart runs. `common` applies to the
-## api-manager, agent and bindings-forwarder; any key in it can also be set on
-## one of them (for example `components.agent.tolerations`) to override it for
-## that component alone. Maps merge with the component winning per key; lists
-## replace.
+## Kubernetes settings for each pod the chart runs.
 ##
-## The bindings-forwarder renders only when `ngrok.features.bindings.enabled`
-## is true. `cleanupHook` holds the pod settings of the pre-delete hook
-## `ngrok.features.cleanup` runs.
+## `components.common` applies to the api-manager, agent and bindings-forwarder.
+## Each of them can override any common key, listed commented out under the
+## component:
+##   - a key the component leaves unset inherits the common value;
+##   - a non-empty map merges with the common one, the component winning per key;
+##   - any other value, including an empty `{}`, `[]` or `""`, replaces it, so
+##     `components.agent.tolerations: []` drops the common tolerations for the
+##     agent alone.
+## A null value is removed by Helm before the chart sees it, so setting one key
+## of a map to null clears the whole map for that component.
+##
+## The keys a component lists commented out have no chart default.
 ##
 ## @param components.common.podAnnotations Pod annotations
 ## @param components.common.podLabels Pod labels
@@ -168,45 +173,92 @@ ngrok:
 ## @param components.common.topologySpreadConstraints Topology spread constraints for pod assignment
 ## @param components.common.priorityClassName Priority class for pod scheduling
 ## @param components.common.extraEnv Additional environment variables, as a map of name to value
+##
+## @section Components: API Manager
+##
 ## @param components.apiManager.replicaCount The number of api-manager replicas to run
-## @param components.apiManager.resources.limits Resource limits
-## @param components.apiManager.resources.requests Resource requests
-## @param components.apiManager.lifecycle Container lifecycle hooks
 ## @param components.apiManager.terminationGracePeriodSeconds Graceful shutdown period
-## @param components.apiManager.extraVolumes Additional volumes
-## @param components.apiManager.extraVolumeMounts Additional volume mounts
 ## @param components.apiManager.podDisruptionBudget.create Whether to create a PodDisruptionBudget
 ## @param components.apiManager.podDisruptionBudget.maxUnavailable Maximum unavailable pods
-## @param components.apiManager.podDisruptionBudget.minAvailable Minimum available pods. Set this instead of `maxUnavailable`, not alongside it
+## @extra components.apiManager.podDisruptionBudget.minAvailable Minimum available pods. Set this instead of `maxUnavailable`, not alongside it
 ## @param components.apiManager.serviceAccount.create Whether to create a ServiceAccount
-## @param components.apiManager.serviceAccount.name ServiceAccount name. Generated if empty
-## @param components.apiManager.serviceAccount.annotations ServiceAccount annotations
+## @extra components.apiManager.serviceAccount.name ServiceAccount name. Generated if empty
+## @extra components.apiManager.serviceAccount.annotations ServiceAccount annotations
 ## @param components.apiManager.updateStrategy.type Deployment update strategy
-## @param components.apiManager.log Overrides of the shared `log` settings for the api-manager
+## @extra components.apiManager.resources Resource requests and limits
+## @extra components.apiManager.lifecycle Container lifecycle hooks
+## @extra components.apiManager.extraVolumes Additional volumes
+## @extra components.apiManager.extraVolumeMounts Additional volume mounts
+## @extra components.apiManager.log Overrides of `ngrok.log` for the api-manager
+## @extra components.apiManager.podAnnotations Overrides `components.common.podAnnotations` for the api-manager
+## @extra components.apiManager.podLabels Overrides `components.common.podLabels` for the api-manager
+## @extra components.apiManager.nodeSelector Overrides `components.common.nodeSelector` for the api-manager
+## @extra components.apiManager.tolerations Overrides `components.common.tolerations` for the api-manager
+## @extra components.apiManager.affinity Overrides `components.common.affinity` for the api-manager
+## @extra components.apiManager.podAffinityPreset Overrides `components.common.podAffinityPreset` for the api-manager
+## @extra components.apiManager.podAntiAffinityPreset Overrides `components.common.podAntiAffinityPreset` for the api-manager
+## @extra components.apiManager.nodeAffinityPreset Overrides `components.common.nodeAffinityPreset` for the api-manager
+## @extra components.apiManager.topologySpreadConstraints Overrides `components.common.topologySpreadConstraints` for the api-manager
+## @extra components.apiManager.priorityClassName Overrides `components.common.priorityClassName` for the api-manager
+## @extra components.apiManager.extraEnv Overrides `components.common.extraEnv` for the api-manager
+##
+## @section Components: Agent
+##
 ## @param components.agent.replicaCount The number of agent replicas to run
-## @param components.agent.resources.limits Resource limits
-## @param components.agent.resources.requests Resource requests
-## @param components.agent.lifecycle Container lifecycle hooks
 ## @param components.agent.terminationGracePeriodSeconds Graceful shutdown period
-## @param components.agent.extraVolumes Additional volumes
-## @param components.agent.extraVolumeMounts Additional volume mounts
 ## @param components.agent.serviceAccount.create Whether to create a ServiceAccount
-## @param components.agent.serviceAccount.name ServiceAccount name. Generated if empty
-## @param components.agent.serviceAccount.annotations ServiceAccount annotations
+## @extra components.agent.serviceAccount.name ServiceAccount name. Generated if empty
+## @extra components.agent.serviceAccount.annotations ServiceAccount annotations
 ## @param components.agent.updateStrategy.type Deployment update strategy
-## @param components.agent.log Overrides of the shared `log` settings for the agent
+## @extra components.agent.resources Resource requests and limits
+## @extra components.agent.lifecycle Container lifecycle hooks
+## @extra components.agent.extraVolumes Additional volumes
+## @extra components.agent.extraVolumeMounts Additional volume mounts
+## @extra components.agent.log Overrides of `ngrok.log` for the agent
+## @extra components.agent.podAnnotations Overrides `components.common.podAnnotations` for the agent
+## @extra components.agent.podLabels Overrides `components.common.podLabels` for the agent
+## @extra components.agent.nodeSelector Overrides `components.common.nodeSelector` for the agent
+## @extra components.agent.tolerations Overrides `components.common.tolerations` for the agent
+## @extra components.agent.affinity Overrides `components.common.affinity` for the agent
+## @extra components.agent.podAffinityPreset Overrides `components.common.podAffinityPreset` for the agent
+## @extra components.agent.podAntiAffinityPreset Overrides `components.common.podAntiAffinityPreset` for the agent
+## @extra components.agent.nodeAffinityPreset Overrides `components.common.nodeAffinityPreset` for the agent
+## @extra components.agent.topologySpreadConstraints Overrides `components.common.topologySpreadConstraints` for the agent
+## @extra components.agent.priorityClassName Overrides `components.common.priorityClassName` for the agent
+## @extra components.agent.extraEnv Overrides `components.common.extraEnv` for the agent
+##
+## @section Components: Bindings Forwarder
+##
+## Rendered only when `ngrok.features.bindings.enabled` is true.
+##
 ## @param components.bindingsForwarder.replicaCount The number of bindings-forwarder replicas to run
-## @param components.bindingsForwarder.resources.limits Resource limits
-## @param components.bindingsForwarder.resources.requests Resource requests
-## @param components.bindingsForwarder.lifecycle Container lifecycle hooks
 ## @param components.bindingsForwarder.terminationGracePeriodSeconds Graceful shutdown period
-## @param components.bindingsForwarder.extraVolumes Additional volumes
-## @param components.bindingsForwarder.extraVolumeMounts Additional volume mounts
 ## @param components.bindingsForwarder.serviceAccount.create Whether to create a ServiceAccount
-## @param components.bindingsForwarder.serviceAccount.name ServiceAccount name. Generated if empty
-## @param components.bindingsForwarder.serviceAccount.annotations ServiceAccount annotations
+## @extra components.bindingsForwarder.serviceAccount.name ServiceAccount name. Generated if empty
+## @extra components.bindingsForwarder.serviceAccount.annotations ServiceAccount annotations
 ## @param components.bindingsForwarder.updateStrategy.type Deployment update strategy
-## @param components.bindingsForwarder.log Overrides of the shared `log` settings for the bindings-forwarder
+## @extra components.bindingsForwarder.resources Resource requests and limits
+## @extra components.bindingsForwarder.lifecycle Container lifecycle hooks
+## @extra components.bindingsForwarder.extraVolumes Additional volumes
+## @extra components.bindingsForwarder.extraVolumeMounts Additional volume mounts
+## @extra components.bindingsForwarder.log Overrides of `ngrok.log` for the bindings-forwarder
+## @extra components.bindingsForwarder.podAnnotations Overrides `components.common.podAnnotations` for the bindings-forwarder
+## @extra components.bindingsForwarder.podLabels Overrides `components.common.podLabels` for the bindings-forwarder
+## @extra components.bindingsForwarder.nodeSelector Overrides `components.common.nodeSelector` for the bindings-forwarder
+## @extra components.bindingsForwarder.tolerations Overrides `components.common.tolerations` for the bindings-forwarder
+## @extra components.bindingsForwarder.affinity Overrides `components.common.affinity` for the bindings-forwarder
+## @extra components.bindingsForwarder.podAffinityPreset Overrides `components.common.podAffinityPreset` for the bindings-forwarder
+## @extra components.bindingsForwarder.podAntiAffinityPreset Overrides `components.common.podAntiAffinityPreset` for the bindings-forwarder
+## @extra components.bindingsForwarder.nodeAffinityPreset Overrides `components.common.nodeAffinityPreset` for the bindings-forwarder
+## @extra components.bindingsForwarder.topologySpreadConstraints Overrides `components.common.topologySpreadConstraints` for the bindings-forwarder
+## @extra components.bindingsForwarder.priorityClassName Overrides `components.common.priorityClassName` for the bindings-forwarder
+## @extra components.bindingsForwarder.extraEnv Overrides `components.common.extraEnv` for the bindings-forwarder
+##
+## @section Components: Cleanup Hook
+##
+## The pod of the pre-delete hook `ngrok.features.cleanup` runs. It does not
+## take `components.common`.
+##
 ## @param components.cleanupHook.image.repository The repository for the kubectl image used by the cleanup hook
 ## @param components.cleanupHook.image.tag The tag for the kubectl image
 ## @param components.cleanupHook.image.pullPolicy The pull policy for the cleanup hook image
@@ -231,56 +283,92 @@ components:
     extraEnv: {}
   apiManager:
     replicaCount: 1
-    resources:
-      limits: {}
-      requests: {}
-    lifecycle: {}
     terminationGracePeriodSeconds: 30
-    extraVolumes: []
-    extraVolumeMounts: []
     podDisruptionBudget:
       create: false
       maxUnavailable: "1"
-      minAvailable: ""
+      # minAvailable: ""
     serviceAccount:
       create: true
-      name: ""
-      annotations: {}
+      # name: ""
+      # annotations: {}
     updateStrategy:
       type: RollingUpdate
-    log: {}
+    # resources:
+    #   limits: {}
+    #   requests: {}
+    # lifecycle: {}
+    # extraVolumes: []
+    # extraVolumeMounts: []
+    # log: {}             # overrides of ngrok.log
+    ## Overrides of components.common:
+    # podAnnotations: {}
+    # podLabels: {}
+    # nodeSelector: {}
+    # tolerations: []
+    # affinity: {}
+    # podAffinityPreset: ""
+    # podAntiAffinityPreset: ""
+    # nodeAffinityPreset: {}
+    # topologySpreadConstraints: []
+    # priorityClassName: ""
+    # extraEnv: {}
   agent:
     replicaCount: 1
-    resources:
-      limits: {}
-      requests: {}
-    lifecycle: {}
     terminationGracePeriodSeconds: 30
-    extraVolumes: []
-    extraVolumeMounts: []
     serviceAccount:
       create: true
-      name: ""
-      annotations: {}
+      # name: ""
+      # annotations: {}
     updateStrategy:
       type: RollingUpdate
-    log: {}
+    # resources:
+    #   limits: {}
+    #   requests: {}
+    # lifecycle: {}
+    # extraVolumes: []
+    # extraVolumeMounts: []
+    # log: {}             # overrides of ngrok.log
+    ## Overrides of components.common:
+    # podAnnotations: {}
+    # podLabels: {}
+    # nodeSelector: {}
+    # tolerations: []
+    # affinity: {}
+    # podAffinityPreset: ""
+    # podAntiAffinityPreset: ""
+    # nodeAffinityPreset: {}
+    # topologySpreadConstraints: []
+    # priorityClassName: ""
+    # extraEnv: {}
   bindingsForwarder:
     replicaCount: 1
-    resources:
-      limits: {}
-      requests: {}
-    lifecycle: {}
     terminationGracePeriodSeconds: 30
-    extraVolumes: []
-    extraVolumeMounts: []
     serviceAccount:
       create: true
-      name: ""
-      annotations: {}
+      # name: ""
+      # annotations: {}
     updateStrategy:
       type: RollingUpdate
-    log: {}
+    # resources:
+    #   limits: {}
+    #   requests: {}
+    # lifecycle: {}
+    # extraVolumes: []
+    # extraVolumeMounts: []
+    # log: {}             # overrides of ngrok.log
+    ## Overrides of components.common:
+    # podAnnotations: {}
+    # podLabels: {}
+    # nodeSelector: {}
+    # tolerations: []
+    # affinity: {}
+    # podAffinityPreset: ""
+    # podAntiAffinityPreset: ""
+    # nodeAffinityPreset: {}
+    # topologySpreadConstraints: []
+    # priorityClassName: ""
+    # extraEnv: {}
   cleanupHook:
     image:
       repository: bitnami/kubectl

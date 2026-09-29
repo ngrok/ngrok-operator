@@ -393,42 +393,10 @@
                             "description": "The number of api-manager replicas to run",
                             "default": 1
                         },
-                        "resources": {
-                            "type": "object",
-                            "properties": {
-                                "limits": {
-                                    "type": "object",
-                                    "description": "Resource limits",
-                                    "default": {}
-                                },
-                                "requests": {
-                                    "type": "object",
-                                    "description": "Resource requests",
-                                    "default": {}
-                                }
-                            }
-                        },
-                        "lifecycle": {
-                            "type": "object",
-                            "description": "Container lifecycle hooks",
-                            "default": {}
-                        },
                         "terminationGracePeriodSeconds": {
                             "type": "number",
                             "description": "Graceful shutdown period",
                             "default": 30
-                        },
-                        "extraVolumes": {
-                            "type": "array",
-                            "description": "Additional volumes",
-                            "default": [],
-                            "items": {}
-                        },
-                        "extraVolumeMounts": {
-                            "type": "array",
-                            "description": "Additional volume mounts",
-                            "default": [],
-                            "items": {}
                         },
                         "podDisruptionBudget": {
                             "type": "object",
@@ -442,11 +410,6 @@
                                     "type": "string",
                                     "description": "Maximum unavailable pods",
                                     "default": "1"
-                                },
-                                "minAvailable": {
-                                    "type": "string",
-                                    "description": "Minimum available pods. Set this instead of `maxUnavailable`, not alongside it",
-                                    "default": ""
                                 }
                             }
                         },
@@ -457,16 +420,6 @@
                                     "type": "boolean",
                                     "description": "Whether to create a ServiceAccount",
                                     "default": true
-                                },
-                                "name": {
-                                    "type": "string",
-                                    "description": "ServiceAccount name. Generated if empty",
-                                    "default": ""
-                                },
-                                "annotations": {
-                                    "type": "object",
-                                    "description": "ServiceAccount annotations",
-                                    "default": {}
                                 }
                             }
                         },
@@ -479,11 +432,6 @@
                                     "default": "RollingUpdate"
                                 }
                             }
-                        },
-                        "log": {
-                            "type": "object",
-                            "description": "Overrides of the shared `log` settings for the api-manager",
-                            "default": {}
                         }
                     }
                 },
@@ -495,42 +443,10 @@
                             "description": "The number of agent replicas to run",
                             "default": 1
                         },
-                        "resources": {
-                            "type": "object",
-                            "properties": {
-                                "limits": {
-                                    "type": "object",
-                                    "description": "Resource limits",
-                                    "default": {}
-                                },
-                                "requests": {
-                                    "type": "object",
-                                    "description": "Resource requests",
-                                    "default": {}
-                                }
-                            }
-                        },
-                        "lifecycle": {
-                            "type": "object",
-                            "description": "Container lifecycle hooks",
-                            "default": {}
-                        },
                         "terminationGracePeriodSeconds": {
                             "type": "number",
                             "description": "Graceful shutdown period",
                             "default": 30
-                        },
-                        "extraVolumes": {
-                            "type": "array",
-                            "description": "Additional volumes",
-                            "default": [],
-                            "items": {}
-                        },
-                        "extraVolumeMounts": {
-                            "type": "array",
-                            "description": "Additional volume mounts",
-                            "default": [],
-                            "items": {}
                         },
                         "serviceAccount": {
                             "type": "object",
@@ -539,16 +455,6 @@
                                     "type": "boolean",
                                     "description": "Whether to create a ServiceAccount",
                                     "default": true
-                                },
-                                "name": {
-                                    "type": "string",
-                                    "description": "ServiceAccount name. Generated if empty",
-                                    "default": ""
-                                },
-                                "annotations": {
-                                    "type": "object",
-                                    "description": "ServiceAccount annotations",
-                                    "default": {}
                                 }
                             }
                         },
@@ -561,11 +467,6 @@
                                     "default": "RollingUpdate"
                                 }
                             }
-                        },
-                        "log": {
-                            "type": "object",
-                            "description": "Overrides of the shared `log` settings for the agent",
-                            "default": {}
                         }
                     }
                 },
@@ -577,42 +478,10 @@
                             "description": "The number of bindings-forwarder replicas to run",
                             "default": 1
                         },
-                        "resources": {
-                            "type": "object",
-                            "properties": {
-                                "limits": {
-                                    "type": "object",
-                                    "description": "Resource limits",
-                                    "default": {}
-                                },
-                                "requests": {
-                                    "type": "object",
-                                    "description": "Resource requests",
-                                    "default": {}
-                                }
-                            }
-                        },
-                        "lifecycle": {
-                            "type": "object",
-                            "description": "Container lifecycle hooks",
-                            "default": {}
-                        },
                         "terminationGracePeriodSeconds": {
                             "type": "number",
                             "description": "Graceful shutdown period",
                             "default": 30
-                        },
-                        "extraVolumes": {
-                            "type": "array",
-                            "description": "Additional volumes",
-                            "default": [],
-                            "items": {}
-                        },
-                        "extraVolumeMounts": {
-                            "type": "array",
-                            "description": "Additional volume mounts",
-                            "default": [],
-                            "items": {}
                         },
                         "serviceAccount": {
                             "type": "object",
@@ -621,16 +490,6 @@
                                     "type": "boolean",
                                     "description": "Whether to create a ServiceAccount",
                                     "default": true
-                                },
-                                "name": {
-                                    "type": "string",
-                                    "description": "ServiceAccount name. Generated if empty",
-                                    "default": ""
-                                },
-                                "annotations": {
-                                    "type": "object",
-                                    "description": "ServiceAccount annotations",
-                                    "default": {}
                                 }
                             }
                         },
@@ -643,11 +502,6 @@
                                     "default": "RollingUpdate"
                                 }
                             }
-                        },
-                        "log": {
-                            "type": "object",
-                            "description": "Overrides of the shared `log` settings for the bindings-forwarder",
-                            "default": {}
                         }
                     }
                 },

@@ -127,8 +127,10 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
+        {{- with $values.resources }}
         resources:
-        {{- toYaml $values.resources | nindent 10 }}
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- with $values.extraVolumes }}
       volumes:
       {{- toYaml . | nindent 6 }}

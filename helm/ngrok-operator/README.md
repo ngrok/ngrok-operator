@@ -132,62 +132,112 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### Components
 
-| Name                                                         | Description                                                                               | Value             |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- | ----------------- |
-| `components.common.podAnnotations`                           | Pod annotations                                                                           | `{}`              |
-| `components.common.podLabels`                                | Pod labels                                                                                | `{}`              |
-| `components.common.nodeSelector`                             | Node labels for pod assignment                                                            | `{}`              |
-| `components.common.tolerations`                              | Tolerations for pod assignment                                                            | `[]`              |
-| `components.common.affinity`                                 | Affinity rules. Overrides the presets below when set                                      | `{}`              |
-| `components.common.podAffinityPreset`                        | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`       | `""`              |
-| `components.common.podAntiAffinityPreset`                    | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`  | `soft`            |
-| `components.common.nodeAffinityPreset.type`                  | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard` | `""`              |
-| `components.common.nodeAffinityPreset.key`                   | Node label key to match. Ignored if `affinity` is set.                                    | `""`              |
-| `components.common.nodeAffinityPreset.values`                | Node label values to match. Ignored if `affinity` is set.                                 | `[]`              |
-| `components.common.topologySpreadConstraints`                | Topology spread constraints for pod assignment                                            | `[]`              |
-| `components.common.priorityClassName`                        | Priority class for pod scheduling                                                         | `""`              |
-| `components.common.extraEnv`                                 | Additional environment variables, as a map of name to value                               | `{}`              |
-| `components.apiManager.replicaCount`                         | The number of api-manager replicas to run                                                 | `1`               |
-| `components.apiManager.resources.limits`                     | Resource limits                                                                           | `{}`              |
-| `components.apiManager.resources.requests`                   | Resource requests                                                                         | `{}`              |
-| `components.apiManager.lifecycle`                            | Container lifecycle hooks                                                                 | `{}`              |
-| `components.apiManager.terminationGracePeriodSeconds`        | Graceful shutdown period                                                                  | `30`              |
-| `components.apiManager.extraVolumes`                         | Additional volumes                                                                        | `[]`              |
-| `components.apiManager.extraVolumeMounts`                    | Additional volume mounts                                                                  | `[]`              |
-| `components.apiManager.podDisruptionBudget.create`           | Whether to create a PodDisruptionBudget                                                   | `false`           |
-| `components.apiManager.podDisruptionBudget.maxUnavailable`   | Maximum unavailable pods                                                                  | `1`               |
-| `components.apiManager.podDisruptionBudget.minAvailable`     | Minimum available pods. Set this instead of `maxUnavailable`, not alongside it            | `""`              |
-| `components.apiManager.serviceAccount.create`                | Whether to create a ServiceAccount                                                        | `true`            |
-| `components.apiManager.serviceAccount.name`                  | ServiceAccount name. Generated if empty                                                   | `""`              |
-| `components.apiManager.serviceAccount.annotations`           | ServiceAccount annotations                                                                | `{}`              |
-| `components.apiManager.updateStrategy.type`                  | Deployment update strategy                                                                | `RollingUpdate`   |
-| `components.apiManager.log`                                  | Overrides of the shared `log` settings for the api-manager                                | `{}`              |
-| `components.agent.replicaCount`                              | The number of agent replicas to run                                                       | `1`               |
-| `components.agent.resources.limits`                          | Resource limits                                                                           | `{}`              |
-| `components.agent.resources.requests`                        | Resource requests                                                                         | `{}`              |
-| `components.agent.lifecycle`                                 | Container lifecycle hooks                                                                 | `{}`              |
-| `components.agent.terminationGracePeriodSeconds`             | Graceful shutdown period                                                                  | `30`              |
-| `components.agent.extraVolumes`                              | Additional volumes                                                                        | `[]`              |
-| `components.agent.extraVolumeMounts`                         | Additional volume mounts                                                                  | `[]`              |
-| `components.agent.serviceAccount.create`                     | Whether to create a ServiceAccount                                                        | `true`            |
-| `components.agent.serviceAccount.name`                       | ServiceAccount name. Generated if empty                                                   | `""`              |
-| `components.agent.serviceAccount.annotations`                | ServiceAccount annotations                                                                | `{}`              |
-| `components.agent.updateStrategy.type`                       | Deployment update strategy                                                                | `RollingUpdate`   |
-| `components.agent.log`                                       | Overrides of the shared `log` settings for the agent                                      | `{}`              |
-| `components.bindingsForwarder.replicaCount`                  | The number of bindings-forwarder replicas to run                                          | `1`               |
-| `components.bindingsForwarder.resources.limits`              | Resource limits                                                                           | `{}`              |
-| `components.bindingsForwarder.resources.requests`            | Resource requests                                                                         | `{}`              |
-| `components.bindingsForwarder.lifecycle`                     | Container lifecycle hooks                                                                 | `{}`              |
-| `components.bindingsForwarder.terminationGracePeriodSeconds` | Graceful shutdown period                                                                  | `30`              |
-| `components.bindingsForwarder.extraVolumes`                  | Additional volumes                                                                        | `[]`              |
-| `components.bindingsForwarder.extraVolumeMounts`             | Additional volume mounts                                                                  | `[]`              |
-| `components.bindingsForwarder.serviceAccount.create`         | Whether to create a ServiceAccount                                                        | `true`            |
-| `components.bindingsForwarder.serviceAccount.name`           | ServiceAccount name. Generated if empty                                                   | `""`              |
-| `components.bindingsForwarder.serviceAccount.annotations`    | ServiceAccount annotations                                                                | `{}`              |
-| `components.bindingsForwarder.updateStrategy.type`           | Deployment update strategy                                                                | `RollingUpdate`   |
-| `components.bindingsForwarder.log`                           | Overrides of the shared `log` settings for the bindings-forwarder                         | `{}`              |
-| `components.cleanupHook.image.repository`                    | The repository for the kubectl image used by the cleanup hook                             | `bitnami/kubectl` |
-| `components.cleanupHook.image.tag`                           | The tag for the kubectl image                                                             | `latest`          |
-| `components.cleanupHook.image.pullPolicy`                    | The pull policy for the cleanup hook image                                                | `IfNotPresent`    |
-| `components.cleanupHook.resources.limits`                    | The resources limits for the cleanup hook container                                       | `{}`              |
-| `components.cleanupHook.resources.requests`                  | The requested resources for the cleanup hook container                                    | `{}`              |
+| Name                                          | Description                                                                               | Value  |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------- | ------ |
+| `components.common.podAnnotations`            | Pod annotations                                                                           | `{}`   |
+| `components.common.podLabels`                 | Pod labels                                                                                | `{}`   |
+| `components.common.nodeSelector`              | Node labels for pod assignment                                                            | `{}`   |
+| `components.common.tolerations`               | Tolerations for pod assignment                                                            | `[]`   |
+| `components.common.affinity`                  | Affinity rules. Overrides the presets below when set                                      | `{}`   |
+| `components.common.podAffinityPreset`         | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`       | `""`   |
+| `components.common.podAntiAffinityPreset`     | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`  | `soft` |
+| `components.common.nodeAffinityPreset.type`   | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard` | `""`   |
+| `components.common.nodeAffinityPreset.key`    | Node label key to match. Ignored if `affinity` is set.                                    | `""`   |
+| `components.common.nodeAffinityPreset.values` | Node label values to match. Ignored if `affinity` is set.                                 | `[]`   |
+| `components.common.topologySpreadConstraints` | Topology spread constraints for pod assignment                                            | `[]`   |
+| `components.common.priorityClassName`         | Priority class for pod scheduling                                                         | `""`   |
+| `components.common.extraEnv`                  | Additional environment variables, as a map of name to value                               | `{}`   |
+
+### Components: API Manager
+
+| Name                                                       | Description                                                                    | Value           |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------- |
+| `components.apiManager.replicaCount`                       | The number of api-manager replicas to run                                      | `1`             |
+| `components.apiManager.terminationGracePeriodSeconds`      | Graceful shutdown period                                                       | `30`            |
+| `components.apiManager.podDisruptionBudget.create`         | Whether to create a PodDisruptionBudget                                        | `false`         |
+| `components.apiManager.podDisruptionBudget.maxUnavailable` | Maximum unavailable pods                                                       | `1`             |
+| `components.apiManager.podDisruptionBudget.minAvailable`   | Minimum available pods. Set this instead of `maxUnavailable`, not alongside it |                 |
+| `components.apiManager.serviceAccount.create`              | Whether to create a ServiceAccount                                             | `true`          |
+| `components.apiManager.serviceAccount.name`                | ServiceAccount name. Generated if empty                                        |                 |
+| `components.apiManager.serviceAccount.annotations`         | ServiceAccount annotations                                                     |                 |
+| `components.apiManager.updateStrategy.type`                | Deployment update strategy                                                     | `RollingUpdate` |
+| `components.apiManager.resources`                          | Resource requests and limits                                                   |                 |
+| `components.apiManager.lifecycle`                          | Container lifecycle hooks                                                      |                 |
+| `components.apiManager.extraVolumes`                       | Additional volumes                                                             |                 |
+| `components.apiManager.extraVolumeMounts`                  | Additional volume mounts                                                       |                 |
+| `components.apiManager.log`                                | Overrides of `ngrok.log` for the api-manager                                   |                 |
+| `components.apiManager.podAnnotations`                     | Overrides `components.common.podAnnotations` for the api-manager               |                 |
+| `components.apiManager.podLabels`                          | Overrides `components.common.podLabels` for the api-manager                    |                 |
+| `components.apiManager.nodeSelector`                       | Overrides `components.common.nodeSelector` for the api-manager                 |                 |
+| `components.apiManager.tolerations`                        | Overrides `components.common.tolerations` for the api-manager                  |                 |
+| `components.apiManager.affinity`                           | Overrides `components.common.affinity` for the api-manager                     |                 |
+| `components.apiManager.podAffinityPreset`                  | Overrides `components.common.podAffinityPreset` for the api-manager            |                 |
+| `components.apiManager.podAntiAffinityPreset`              | Overrides `components.common.podAntiAffinityPreset` for the api-manager        |                 |
+| `components.apiManager.nodeAffinityPreset`                 | Overrides `components.common.nodeAffinityPreset` for the api-manager           |                 |
+| `components.apiManager.topologySpreadConstraints`          | Overrides `components.common.topologySpreadConstraints` for the api-manager    |                 |
+| `components.apiManager.priorityClassName`                  | Overrides `components.common.priorityClassName` for the api-manager            |                 |
+| `components.apiManager.extraEnv`                           | Overrides `components.common.extraEnv` for the api-manager                     |                 |
+
+### Components: Agent
+
+| Name                                             | Description                                                           | Value           |
+| ------------------------------------------------ | --------------------------------------------------------------------- | --------------- |
+| `components.agent.replicaCount`                  | The number of agent replicas to run                                   | `1`             |
+| `components.agent.terminationGracePeriodSeconds` | Graceful shutdown period                                              | `30`            |
+| `components.agent.serviceAccount.create`         | Whether to create a ServiceAccount                                    | `true`          |
+| `components.agent.serviceAccount.name`           | ServiceAccount name. Generated if empty                               |                 |
+| `components.agent.serviceAccount.annotations`    | ServiceAccount annotations                                            |                 |
+| `components.agent.updateStrategy.type`           | Deployment update strategy                                            | `RollingUpdate` |
+| `components.agent.resources`                     | Resource requests and limits                                          |                 |
+| `components.agent.lifecycle`                     | Container lifecycle hooks                                             |                 |
+| `components.agent.extraVolumes`                  | Additional volumes                                                    |                 |
+| `components.agent.extraVolumeMounts`             | Additional volume mounts                                              |                 |
+| `components.agent.log`                           | Overrides of `ngrok.log` for the agent                                |                 |
+| `components.agent.podAnnotations`                | Overrides `components.common.podAnnotations` for the agent            |                 |
+| `components.agent.podLabels`                     | Overrides `components.common.podLabels` for the agent                 |                 |
+| `components.agent.nodeSelector`                  | Overrides `components.common.nodeSelector` for the agent              |                 |
+| `components.agent.tolerations`                   | Overrides `components.common.tolerations` for the agent               |                 |
+| `components.agent.affinity`                      | Overrides `components.common.affinity` for the agent                  |                 |
+| `components.agent.podAffinityPreset`             | Overrides `components.common.podAffinityPreset` for the agent         |                 |
+| `components.agent.podAntiAffinityPreset`         | Overrides `components.common.podAntiAffinityPreset` for the agent     |                 |
+| `components.agent.nodeAffinityPreset`            | Overrides `components.common.nodeAffinityPreset` for the agent        |                 |
+| `components.agent.topologySpreadConstraints`     | Overrides `components.common.topologySpreadConstraints` for the agent |                 |
+| `components.agent.priorityClassName`             | Overrides `components.common.priorityClassName` for the agent         |                 |
+| `components.agent.extraEnv`                      | Overrides `components.common.extraEnv` for the agent                  |                 |
+
+### Components: Bindings Forwarder
+
+| Name                                                         | Description                                                                        | Value           |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------- | --------------- |
+| `components.bindingsForwarder.replicaCount`                  | The number of bindings-forwarder replicas to run                                   | `1`             |
+| `components.bindingsForwarder.terminationGracePeriodSeconds` | Graceful shutdown period                                                           | `30`            |
+| `components.bindingsForwarder.serviceAccount.create`         | Whether to create a ServiceAccount                                                 | `true`          |
+| `components.bindingsForwarder.serviceAccount.name`           | ServiceAccount name. Generated if empty                                            |                 |
+| `components.bindingsForwarder.serviceAccount.annotations`    | ServiceAccount annotations                                                         |                 |
+| `components.bindingsForwarder.updateStrategy.type`           | Deployment update strategy                                                         | `RollingUpdate` |
+| `components.bindingsForwarder.resources`                     | Resource requests and limits                                                       |                 |
+| `components.bindingsForwarder.lifecycle`                     | Container lifecycle hooks                                                          |                 |
+| `components.bindingsForwarder.extraVolumes`                  | Additional volumes                                                                 |                 |
+| `components.bindingsForwarder.extraVolumeMounts`             | Additional volume mounts                                                           |                 |
+| `components.bindingsForwarder.log`                           | Overrides of `ngrok.log` for the bindings-forwarder                                |                 |
+| `components.bindingsForwarder.podAnnotations`                | Overrides `components.common.podAnnotations` for the bindings-forwarder            |                 |
+| `components.bindingsForwarder.podLabels`                     | Overrides `components.common.podLabels` for the bindings-forwarder                 |                 |
+| `components.bindingsForwarder.nodeSelector`                  | Overrides `components.common.nodeSelector` for the bindings-forwarder              |                 |
+| `components.bindingsForwarder.tolerations`                   | Overrides `components.common.tolerations` for the bindings-forwarder               |                 |
+| `components.bindingsForwarder.affinity`                      | Overrides `components.common.affinity` for the bindings-forwarder                  |                 |
+| `components.bindingsForwarder.podAffinityPreset`             | Overrides `components.common.podAffinityPreset` for the bindings-forwarder         |                 |
+| `components.bindingsForwarder.podAntiAffinityPreset`         | Overrides `components.common.podAntiAffinityPreset` for the bindings-forwarder     |                 |
+| `components.bindingsForwarder.nodeAffinityPreset`            | Overrides `components.common.nodeAffinityPreset` for the bindings-forwarder        |                 |
+| `components.bindingsForwarder.topologySpreadConstraints`     | Overrides `components.common.topologySpreadConstraints` for the bindings-forwarder |                 |
+| `components.bindingsForwarder.priorityClassName`             | Overrides `components.common.priorityClassName` for the bindings-forwarder         |                 |
+| `components.bindingsForwarder.extraEnv`                      | Overrides `components.common.extraEnv` for the bindings-forwarder                  |                 |
+
+### Components: Cleanup Hook
+
+| Name                                        | Description                                                   | Value             |
+| ------------------------------------------- | ------------------------------------------------------------- | ----------------- |
+| `components.cleanupHook.image.repository`   | The repository for the kubectl image used by the cleanup hook | `bitnami/kubectl` |
+| `components.cleanupHook.image.tag`          | The tag for the kubectl image                                 | `latest`          |
+| `components.cleanupHook.image.pullPolicy`   | The pull policy for the cleanup hook image                    | `IfNotPresent`    |
+| `components.cleanupHook.resources.limits`   | The resources limits for the cleanup hook container           | `{}`              |
+| `components.cleanupHook.resources.requests` | The requested resources for the cleanup hook container        | `{}`              |

@@ -161,7 +161,9 @@ The namespace to watch.
 
 {{/*
 A component's pod settings: `components.common` with the component's own keys
-merged on top. Maps merge with the component winning per key; lists replace.
+on top. A key the component sets wins even when empty, so it can clear a common
+value; a non-empty map merges with the common one, the component winning per
+key. A key the component leaves unset inherits the common value.
 
 Takes the root context for .Values and the component's key under
 `components`, since an include passes only one argument.
@@ -169,9 +171,18 @@ Takes the root context for .Values and the component's key under
 Usage: fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "agent"))
 */}}
 {{- define "ngrok-operator.componentValues" -}}
-{{- /* .Values.components.<component>, minus its log overrides. deepCopy so the merge leaves .Values untouched. */ -}}
-{{- $component := omit (index .context.Values.components .component) "log" -}}
-{{- mergeOverwrite (deepCopy .context.Values.components.common) (deepCopy $component) | toYaml -}}
+{{- /* deepCopy both, so the merge leaves .Values untouched. log is operator config, not a pod setting. */ -}}
+{{- $values := deepCopy .context.Values.components.common -}}
+{{- $component := deepCopy (omit (index .context.Values.components .component) "log") -}}
+{{- range $key, $val := $component -}}
+{{- $common := get $values $key -}}
+{{- if and (kindIs "map" $val) $val (kindIs "map" $common) -}}
+{{- $_ := set $values $key (mergeOverwrite $common $val) -}}
+{{- else -}}
+{{- $_ := set $values $key $val -}}
+{{- end -}}
+{{- end -}}
+{{- $values | toYaml -}}
 {{- end -}}
 
 {{/*
