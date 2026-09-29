@@ -2,25 +2,25 @@
 
 ## Overview
 
-The bindings forwarder runs as a separate deployment responsible for forwarding traffic for bound endpoints. It is only deployed when `features.bindings.enabled: true`.
+The bindings forwarder runs as a separate deployment responsible for forwarding traffic for bound endpoints. It is only deployed when `ngrok.features.bindings.enabled: true`.
 
 ## Pod Settings
 
-Any key from `defaults` (see [common.md](common.md)) can also be set here to override it for this component alone.
+Any key from `components.common` (see [common.md](common.md)) can also be set here to override it for this component alone.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `bindingsForwarder.replicaCount` | Number of replicas | `1` |
-| `bindingsForwarder.resources` | Container resource requests/limits | `{}` |
-| `bindingsForwarder.lifecycle` | Container lifecycle hooks | `{}` |
-| `bindingsForwarder.terminationGracePeriodSeconds` | Graceful shutdown time | `30` |
-| `bindingsForwarder.extraVolumes` | Additional volumes | `[]` |
-| `bindingsForwarder.extraVolumeMounts` | Additional volume mounts | `[]` |
-| `bindingsForwarder.updateStrategy.type` | Update strategy type | `RollingUpdate` |
-| `bindingsForwarder.serviceAccount.create` | Create a ServiceAccount | `true` |
-| `bindingsForwarder.serviceAccount.name` | ServiceAccount name (auto-generated if empty) | `""` |
-| `bindingsForwarder.serviceAccount.annotations` | ServiceAccount annotations | `{}` |
+| `components.bindingsForwarder.replicaCount` | Number of replicas | `1` |
+| `components.bindingsForwarder.resources` | Container resource requests/limits | `{}` |
+| `components.bindingsForwarder.lifecycle` | Container lifecycle hooks | `{}` |
+| `components.bindingsForwarder.terminationGracePeriodSeconds` | Graceful shutdown time | `30` |
+| `components.bindingsForwarder.extraVolumes` | Additional volumes | `[]` |
+| `components.bindingsForwarder.extraVolumeMounts` | Additional volume mounts | `[]` |
+| `components.bindingsForwarder.updateStrategy.type` | Update strategy type | `RollingUpdate` |
+| `components.bindingsForwarder.serviceAccount.create` | Create a ServiceAccount | `true` |
+| `components.bindingsForwarder.serviceAccount.name` | ServiceAccount name (auto-generated if empty) | `""` |
+| `components.bindingsForwarder.serviceAccount.annotations` | ServiceAccount annotations | `{}` |
 
 ## Operator Configuration
 
-`bindingsForwarder.log` overrides the shared `log` settings for the bindings-forwarder alone.
+`components.bindingsForwarder.log` overrides `ngrok.log` for the bindings-forwarder alone.

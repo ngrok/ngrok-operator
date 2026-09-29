@@ -35,7 +35,7 @@ Each operator instance maintains independent drain state:
 
 Each deployment MUST be scoped to watch different namespaces:
 
-- `features.ingress.watchNamespace` for the api-manager
+- `ngrok.features.ingress.watchNamespace` for the api-manager
 - the same value for the agent-manager, which the chart passes it as `NGROK_OPERATOR_FEATURES__INGRESS__WATCH_NAMESPACE`
 - Scoping prevents resource conflicts between installations
 

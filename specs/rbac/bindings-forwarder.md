@@ -5,7 +5,7 @@ resources and watches Pods cluster-wide (`cache.AllNamespaces` in
 `cmd/bindings-forwarder-manager.go`) so it can reconcile bindings against consumer
 Pods in any namespace. As a result it always renders a small ClusterRole for Pods
 in addition to its namespaced Role. Bound to the `ngrok-operator-bindings-forwarder`
-ServiceAccount; only deploys when `features.bindings.enabled: true`. See
+ServiceAccount; only deploys when `ngrok.features.bindings.enabled: true`. See
 [README.md](README.md#namespace-scoping) for the cross-component scoping strategy.
 
 ## Namespace-scoped resources (Role in release namespace)

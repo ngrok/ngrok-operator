@@ -4,17 +4,17 @@
 
 The endpoint bindings feature allows ngrok endpoints to be "bound" into a Kubernetes cluster, projecting external ngrok endpoints as local Kubernetes services. This enables traffic from ngrok to flow directly to services inside the cluster.
 
-Bindings is opt-in (`features.bindings.enabled: false` by default).
+Bindings is opt-in (`ngrok.features.bindings.enabled: false` by default).
 
 ## Configuration
 
 | Helm Value                              | Description                                           | Default                                   |
 |-----------------------------------------|-------------------------------------------------------|-------------------------------------------|
-| `features.bindings.enabled`             | Enable the bindings feature                           | `false`                                   |
-| `features.bindings.endpointSelectors`   | CEL expressions filtering which endpoints to project  | `["true"]`                                |
-| `features.bindings.serviceAnnotations`  | Annotations applied to projected services             | `{}`                                      |
-| `features.bindings.serviceLabels`       | Labels applied to projected services                  | `{}`                                      |
-| `features.bindings.ingressEndpoint`     | Hostname of the bindings ingress endpoint             | `kubernetes-binding-ingress.ngrok.io:443` |
+| `ngrok.features.bindings.enabled`             | Enable the bindings feature                           | `false`                                   |
+| `ngrok.features.bindings.endpointSelectors`   | CEL expressions filtering which endpoints to project  | `["true"]`                                |
+| `ngrok.features.bindings.serviceAnnotations`  | Annotations applied to projected services             | `{}`                                      |
+| `ngrok.features.bindings.serviceLabels`       | Labels applied to projected services                  | `{}`                                      |
+| `ngrok.features.bindings.ingressEndpoint`     | Hostname of the bindings ingress endpoint             | `kubernetes-binding-ingress.ngrok.io:443` |
 
 ## Components
 
@@ -61,7 +61,7 @@ When a workload connects through a projected bound-endpoint Service, the binding
 
 ## When Disabled
 
-When `features.bindings.enabled: false`:
+When `ngrok.features.bindings.enabled: false`:
 - The bindings forwarder deployment is not created
 - BoundEndpoint resources are not managed
 - The bindings feature is excluded from the KubernetesOperator's `enabledFeatures`

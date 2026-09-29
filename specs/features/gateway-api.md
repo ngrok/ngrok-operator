@@ -10,8 +10,8 @@ The ngrok-operator supports the Kubernetes Gateway API, providing a role-oriente
 
 | Helm Value                         | Description                                          | Default |
 |------------------------------------|------------------------------------------------------|---------|
-| `features.gateway.enabled`                  | Enable Gateway API support (if CRDs detected)        | `true`  |
-| `features.gateway.disableReferenceGrants`   | Disable ReferenceGrant requirement                   | `false` |
+| `ngrok.features.gateway.enabled`                  | Enable Gateway API support (if CRDs detected)        | `true`  |
+| `ngrok.features.gateway.disableReferenceGrants`   | Disable ReferenceGrant requirement                   | `false` |
 
 ## Supported Resources
 
@@ -76,10 +76,10 @@ Keys without the prefix are ignored. Supplying a reserved suffix fails translati
 
 ## ReferenceGrants
 
-By default, cross-namespace references require a `ReferenceGrant` in the target namespace. This can be disabled via `features.gateway.disableReferenceGrants: true`, which allows cross-namespace references without explicit grants.
+By default, cross-namespace references require a `ReferenceGrant` in the target namespace. This can be disabled via `ngrok.features.gateway.disableReferenceGrants: true`, which allows cross-namespace references without explicit grants.
 
 ## When Disabled
 
-When `features.gateway.enabled: false` or Gateway API CRDs are not installed:
+When `ngrok.features.gateway.enabled: false` or Gateway API CRDs are not installed:
 - Gateway API resources are not watched or reconciled
 - The feature is excluded from the KubernetesOperator's `enabledFeatures`

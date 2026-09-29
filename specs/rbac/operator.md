@@ -137,7 +137,7 @@ These resources live in the release namespace regardless of `watchNamespace` bec
 
 The BoundEndpoint controller (binding poller) reconciles BoundEndpoint CRs and creates Kubernetes Services in any namespace based on the BoundEndpoint's top-level domain. Both are inherently cluster-wide and are not constrained by `watchNamespace`.
 
-These rules are **not** gated on `features.bindings.enabled`. The BoundEndpoint CRD is always installed (it ships in the unconditional `ngrok-crds` subchart), and the drain orchestrator in `internal/drain/drain.go` unconditionally lists BoundEndpoints during operator shutdown. Without these grants, drain would block on a forbidden cache list and the KubernetesOperator finalizer would never be released. The cross-namespace Service write rules are inert when `features.bindings.enabled=false` (the BoundEndpoint poller doesn't run, so nothing creates Services), but kept here for symmetry and to match `main`'s behavior.
+These rules are **not** gated on `ngrok.features.bindings.enabled`. The BoundEndpoint CRD is always installed (it ships in the unconditional `ngrok-crds` subchart), and the drain orchestrator in `internal/drain/drain.go` unconditionally lists BoundEndpoints during operator shutdown. Without these grants, drain would block on a forbidden cache list and the KubernetesOperator finalizer would never be released. The cross-namespace Service write rules are inert when `ngrok.features.bindings.enabled=false` (the BoundEndpoint poller doesn't run, so nothing creates Services), but kept here for symmetry and to match `main`'s behavior.
 
 ### ngrok API (`ngrok.com`)
 

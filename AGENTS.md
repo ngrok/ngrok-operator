@@ -87,8 +87,8 @@ make undeploy               # Remove from cluster
 
 ## Configuration
 
-- **Credentials**: `helm install` requires `credentials.accessToken` (a single ngrok access token)
-- **Feature Flags**: `features.gateway.enabled=true` enables Gateway API support
+- **Credentials**: `helm install` requires `ngrok.credentials.accessToken` (a single ngrok access token)
+- **Feature Flags**: `ngrok.features.gateway.enabled=true` enables Gateway API support
 
 ## Rules
 
@@ -99,7 +99,7 @@ make undeploy               # Remove from cluster
 - Requeue on transient ngrok API errors (return `ctrl.Result{Requeue: true}`)
 - Prefer `BaseController` helpers over raw client operations
 - App config settings are defined once in `internal/flags` (flag, env var,
-  default, help), named after their values path (`features.gateway.enabled` is
+  default, help), named after their values path (`ngrok.features.gateway.enabled` is
   `NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED` and `--features-gateway-enabled`).
   Commands bind them with `flags.X(fs, &opts.x)`. A new setting also
   needs an empty key in the chart's `values.yaml` and a line in

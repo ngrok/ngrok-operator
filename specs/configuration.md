@@ -24,11 +24,11 @@ A setting is named after its path in the chart's values:
 
 | Values path | Variable | Flag |
 |-------------|----------|------|
-| `features.gateway.enabled` | `NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED` | `--features-gateway-enabled` |
-| `log.stacktraceLevel` | `NGROK_OPERATOR_LOG__STACKTRACE_LEVEL` | `--log-stacktrace-level` |
+| `ngrok.features.gateway.enabled` | `NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED` | `--features-gateway-enabled` |
+| `ngrok.log.stacktraceLevel` | `NGROK_OPERATOR_LOG__STACKTRACE_LEVEL` | `--log-stacktrace-level` |
 | `ngrok.region` | `NGROK_OPERATOR_REGION` | `--region` |
 
-The variable is `NGROK_OPERATOR_` and the path, with `__` between levels and `_` between words. The shared `ngrok` settings sit at the top level, so the name does not say ngrok twice. The flag is the variable without the prefix, in kebab case. Names are written out in full, not generated; `TestSettingNames` and `TestChartEnvNames` check they follow the rule.
+The variable is `NGROK_OPERATOR_` and the path under `ngrok`, with `__` between levels and `_` between words. The flag is the variable without the prefix, in kebab case. Names are written out in full, not generated; `TestSettingNames` and `TestChartEnvNames` check they follow the rule.
 
 ## Precedence
 
@@ -59,7 +59,7 @@ Credentials (`NGROK_ACCESS_TOKEN`) and `POD_NAMESPACE` are read separately and a
 
 ## In the chart
 
-`helm/ngrok-operator/files/operator-env.yaml` lists each setting's variable by its path in the component's configuration (`ngrok.region: NGROK_OPERATOR_REGION`). For each Deployment, `ngrok-operator.componentConfig` merges the shared values with the component's log overrides, and `ngrok-operator.componentEnv` writes a variable for each path in the list that holds a value. See [helm/common.md](helm/common.md#operator-configuration) for the values and their merge rule.
+`helm/ngrok-operator/files/operator-env.yaml` lists each setting's variable by its path under `ngrok` (`region: NGROK_OPERATOR_REGION`). For each Deployment, `ngrok-operator.componentConfig` merges the shared values with the component's log overrides, and `ngrok-operator.componentEnv` writes a variable for each path in the list that holds a value. See [helm/common.md](helm/common.md#operator-configuration) for the values and their merge rule.
 
 Values are written into the pod spec, not a ConfigMap. Each ReplicaSet keeps the configuration it was rolled out with, so an old pod that restarts during a rollout does not start with the new release's settings. A change to any setting rolls the Deployment.
 
@@ -89,7 +89,7 @@ export NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED=false
 ## Adding a setting
 
 1. Define it in `internal/flags/flags.go`, named after its values path, and bind it in each command that reads it.
-2. Add its key to `values.yaml` under `ngrok`, `log` or `features` (every feature an object), empty unless it is a boolean, with an `@param` line that states the default.
+2. Add its key to `values.yaml` under `ngrok` (a feature goes in `ngrok.features`, as an object), empty unless it is a boolean, with an `@param` line that states the default.
 3. Add its path and variable to `helm/ngrok-operator/files/operator-env.yaml`.
 4. Run `make update-readme` in `helm/ngrok-operator` to regenerate the chart README and schema.
 

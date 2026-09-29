@@ -86,11 +86,12 @@ The token is shown once. Store it the way you store the credentials it replaces.
 ### Replace the credential values
 
 Remove `credentials.apiKey` and `credentials.authtoken` from your values file
-and set `credentials.accessToken` instead:
+and set `ngrok.credentials.accessToken` instead:
 
 ```yaml
-credentials:
-  accessToken: "<your-access-token>"
+ngrok:
+  credentials:
+    accessToken: "<your-access-token>"
 ```
 
 If you pass credentials on the command line, replace both `--set` flags with
@@ -99,20 +100,21 @@ one:
 ```bash
 helm upgrade "$RELEASE" ngrok/ngrok-operator \
   --namespace "$NAMESPACE" \
-  --set credentials.accessToken="$NGROK_ACCESS_TOKEN"
+  --set ngrok.credentials.accessToken="$NGROK_ACCESS_TOKEN"
 ```
 
 Passing either removed value now fails the render:
 
 ```
-Error: UPGRADE FAILED: execution error at (ngrok-operator/templates/api-manager/deployment.yaml:30:28):
-credentials.apiKey and credentials.authtoken have been replaced by a single
-credentials.accessToken (an ngrok access token).
+Error: UPGRADE FAILED: execution error at (ngrok-operator/templates/api-manager/deployment.yaml:1:4):
+
+These Helm values moved in 0.25 and are no longer read at their old location:
+
+  credentials -> ngrok.credentials (apiKey and authtoken are replaced by accessToken)
 ```
 
-The error names the api-manager deployment because it is the first template to
-pull in the credentials Secret, for its checksum annotation. The removed values
-are what it is complaining about.
+The error names the api-manager deployment because it checks for values from
+the 0.24 layout, which is where the removed values live.
 
 This includes values carried forward implicitly. If you upgrade with
 `--reuse-values`, the old keys come along from the previous release and the
@@ -121,7 +123,7 @@ upgrade fails until you remove them.
 ### Create a new Secret if you manage your own
 
 If you manage the credentials Secret yourself and point at it with
-`credentials.secret.name`, create a new Secret under a new name rather than
+`ngrok.credentials.secret.name`, create a new Secret under a new name rather than
 editing the existing one. The chart now reads one key per component:
 
 | Before | After |
@@ -146,9 +148,10 @@ data:
 Then point the upgrade at it:
 
 ```yaml
-credentials:
-  secret:
-    name: my-ngrok-credentials-v2
+ngrok:
+  credentials:
+    secret:
+      name: my-ngrok-credentials-v2
 ```
 
 Leaving the old Secret untouched keeps the running 0.24 pods working until the
@@ -161,36 +164,41 @@ unable to start, so create the new Secret before the chart upgrade.
 
 ### Move your values to the new layout
 
-The 0.25 chart reorganizes its values. Operator settings move under `ngrok`
-and `features`, and pod settings move under `pod` or a component section. There are no aliases for the old keys: a
-values file that still sets one fails the render and lists each old key with
-its new location.
+The 0.25 chart reorganizes its values into three groups: the chart's own
+settings stay at the top level, the operator's configuration moves under
+`ngrok`, and pod settings move under `components`. There are no aliases for the
+old keys: a values file that still sets one fails the render and lists each old
+key with its new location.
 
 | 0.24 value | 0.25 value |
 |------------|------------|
-| `description`, `region`, `rootCAs`, `serverAddr`, `apiURL` | `ngrok.<same>` |
+| `description`, `region`, `rootCAs`, `serverAddr`, `apiURL`, `clusterDomain` | `ngrok.<same>` |
 | `ngrokMetadata`, `metaData` | `ngrok.metadata` |
-| `ingress.*` | `features.ingress.*` |
-| `watchNamespace`, `controllerName`, `ingressClass.*` | `features.ingress.watchNamespace`, `features.ingress.controllerName`, `features.ingress.ingressClass.*` |
-| `gateway.*` | `features.gateway.*` |
-| `bindings.enabled`, `bindings.endpointSelectors`, `bindings.serviceAnnotations`, `bindings.serviceLabels`, `bindings.ingressEndpoint` | `features.bindings.<same>` |
-| `bindings.forwarder.*` | `bindingsForwarder.*` |
-| `drainPolicy` | `features.cleanup.drainPolicy` |
-| `defaultDomainReclaimPolicy` | `features.domains.defaultReclaimPolicy` |
-| `cleanupHook.enabled`, `cleanupHook.timeout` | `features.cleanup.enabled`, `features.cleanup.timeout` |
-| `oneClickDemoMode` | `features.oneClickDemoMode.enabled` |
-| `podAnnotations`, `podLabels`, `nodeSelector`, `tolerations`, `affinity`, `podAffinityPreset`, `podAntiAffinityPreset`, `nodeAffinityPreset`, `topologySpreadConstraints`, `priorityClassName`, `extraEnv` | `pod.<same>` (applies to every component) |
-| `replicaCount`, `resources`, `lifecycle`, `terminationGracePeriodSeconds`, `extraVolumes`, `extraVolumeMounts`, `podDisruptionBudget.*`, `serviceAccount.*` | `apiManager.<same>` |
-| `clusterDomain`, `log.*`, `agent.*`, `credentials.*`, `image.*` | unchanged |
+| `credentials.*` | `ngrok.credentials.*` |
+| `log.*` | `ngrok.log.*` |
+| `ingress.*` | `ngrok.features.ingress.*` |
+| `watchNamespace`, `controllerName`, `ingressClass.*` | `ngrok.features.ingress.watchNamespace`, `ngrok.features.ingress.controllerName`, `ngrok.features.ingress.ingressClass.*` |
+| `gateway.*` | `ngrok.features.gateway.*` |
+| `bindings.enabled`, `bindings.endpointSelectors`, `bindings.serviceAnnotations`, `bindings.serviceLabels`, `bindings.ingressEndpoint` | `ngrok.features.bindings.<same>` |
+| `drainPolicy` | `ngrok.features.cleanup.drainPolicy` |
+| `defaultDomainReclaimPolicy` | `ngrok.features.domains.defaultReclaimPolicy` |
+| `oneClickDemoMode` | `ngrok.features.oneClickDemoMode.enabled` |
+| `cleanupHook.enabled`, `cleanupHook.timeout` | `ngrok.features.cleanup.enabled`, `ngrok.features.cleanup.timeout` |
+| `cleanupHook.image`, `cleanupHook.resources` | `components.cleanupHook.<same>` |
+| `podAnnotations`, `podLabels`, `nodeSelector`, `tolerations`, `affinity`, `podAffinityPreset`, `podAntiAffinityPreset`, `nodeAffinityPreset`, `topologySpreadConstraints`, `priorityClassName`, `extraEnv` | `components.common.<same>` (applies to every component) |
+| `replicaCount`, `resources`, `lifecycle`, `terminationGracePeriodSeconds`, `extraVolumes`, `extraVolumeMounts`, `podDisruptionBudget.*`, `serviceAccount.*` | `components.apiManager.<same>` |
+| `agent.*` | `components.agent.*` |
+| `bindings.forwarder.*` | `components.bindingsForwarder.*` |
+| `nameOverride`, `fullnameOverride`, `commonLabels`, `commonAnnotations`, `image.*`, `installCRDs`, `crdAccessRoles.*` | unchanged |
 
 Three behaviors change along with the keys:
 
 - Top-level pod settings such as `podAnnotations` and `tolerations` now apply to
   the agent and bindings-forwarder as well as the api-manager. To keep a
   setting on one component only, set it on that component instead, for example
-  `apiManager.tolerations`.
+  `components.apiManager.tolerations`.
 - Log settings can be overridden for one component under
-  `<component>.log`, for example `agent.log.level: debug`.
+  `components.<component>.log`, for example `components.agent.log.level: debug`.
 - An empty operator setting means "use the operator's built-in default". The
   defaults are listed in the chart README.
 
@@ -409,17 +417,18 @@ tunnels.
 The chart can take a separate token per component, so each token can be scoped
 to only the permissions its component needs.
 
-To set them, use these instead of `credentials.accessToken`:
+To set them, use these instead of `ngrok.credentials.accessToken`:
 
 ```yaml
-credentials:
-  agent:
-    accessToken: "<token that can start tunnels>"
-  apiManager:
-    accessToken: "<token with ngrok API permissions>"
+ngrok:
+  credentials:
+    agent:
+      accessToken: "<token that can start tunnels>"
+    apiManager:
+      accessToken: "<token with ngrok API permissions>"
 ```
 
-Either may be set on its own alongside `credentials.accessToken`, which the
+Either may be set on its own alongside `ngrok.credentials.accessToken`, which the
 other falls back to. Setting one without a fallback for the other fails the
 render rather than leaving a pod unable to start.
 
@@ -457,13 +466,13 @@ Secret, so each restarts and picks up the new value.
 helm upgrade "$RELEASE" ngrok/ngrok-operator \
   --namespace "$NAMESPACE" \
   --reuse-values \
-  --set credentials.accessToken="$NEW_NGROK_ACCESS_TOKEN"
+  --set ngrok.credentials.accessToken="$NEW_NGROK_ACCESS_TOKEN"
 ```
 
 Revoke the old token in the dashboard once the rollout completes.
 
 This works because the checksum is taken over the Secret the chart renders. If
-you manage the Secret yourself with `credentials.secret.name`, the chart renders
+you manage the Secret yourself with `ngrok.credentials.secret.name`, the chart renders
 nothing, the checksum never changes, and neither pod restarts — the token is
 read from the environment once at startup, so both keep using the old value.
 Restart them yourself after rotating, before revoking the old token:

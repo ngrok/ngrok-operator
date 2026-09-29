@@ -26,19 +26,21 @@ Both keys hold the same value unless a per-component token is configured.
 When installing via Helm, the token can be provided directly:
 
 ```yaml
-credentials:
-  accessToken: "<your-access-token>"
+ngrok:
+  credentials:
+    accessToken: "<your-access-token>"
 ```
 
 One token for every component is the simple path. A token can also be set per
-component, each falling back to `credentials.accessToken` when empty:
+component, each falling back to `ngrok.credentials.accessToken` when empty:
 
 ```yaml
-credentials:
-  agent:
-    accessToken: "<agent-manager token>"
-  apiManager:
-    accessToken: "<api-manager token>"
+ngrok:
+  credentials:
+    agent:
+      accessToken: "<agent-manager token>"
+    apiManager:
+      accessToken: "<api-manager token>"
 ```
 
 The agent-manager only establishes tunnel sessions, and the api-manager only
@@ -48,7 +50,7 @@ permissions its component needs.
 Setting a token for one component but not the other fails the render, rather
 than leaving the other pod unable to start.
 
-When the value is provided, the Helm chart creates a Secret with the generated name `<release-name>-ngrok-operator-credentials` (or the name specified in `credentials.secret.name`).
+When the value is provided, the Helm chart creates a Secret with the generated name `<release-name>-ngrok-operator-credentials` (or the name specified in `ngrok.credentials.secret.name`).
 
 ### Via Pre-existing Secret
 
@@ -71,12 +73,13 @@ Both keys are required, and may hold the same token.
 Then reference it in Helm values:
 
 ```yaml
-credentials:
-  secret:
-    name: my-ngrok-credentials
+ngrok:
+  credentials:
+    secret:
+      name: my-ngrok-credentials
 ```
 
-When `credentials.accessToken` is empty, the Helm chart does not create a Secret and expects the named Secret to already exist.
+When `ngrok.credentials.accessToken` is empty, the Helm chart does not create a Secret and expects the named Secret to already exist.
 
 ## Credential Consumption
 
@@ -94,4 +97,4 @@ When the bindings feature is enabled, the operator generates a self-signed TLS c
 
 ## One-Click Demo Mode
 
-When `features.oneClickDemoMode.enabled: true` is set, the operator does not connect to the ngrok API or reconcile resources; it reports as Ready and waits. The api-manager pod does not mount the credential in this mode, so no Secret is required for it to start.
+When `ngrok.features.oneClickDemoMode.enabled: true` is set, the operator does not connect to the ngrok API or reconcile resources; it reports as Ready and waits. The api-manager pod does not mount the credential in this mode, so no Secret is required for it to start.

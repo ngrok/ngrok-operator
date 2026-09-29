@@ -68,7 +68,7 @@ The `spec.reclaimPolicy` field controls what happens to the ngrok domain reserva
 | `Delete` | The ngrok domain reservation is deleted (default)             |
 | `Retain` | The ngrok domain reservation is kept; only the CR is removed  |
 
-The default is set via `features.domains.defaultReclaimPolicy` in Helm values (default: `Delete`). Use `Retain` to preserve reserved domains across operator reinstalls or when managing domains outside of the operator's lifecycle.
+The default is set via `ngrok.features.domains.defaultReclaimPolicy` in Helm values (default: `Delete`). Use `Retain` to preserve reserved domains across operator reinstalls or when managing domains outside of the operator's lifecycle.
 
 ## Special Cases
 

@@ -32,7 +32,7 @@ Controls what happens to the ngrok domain reservation when the Domain CR is dele
 - **`Delete`** (default): The domain reservation is deleted from the ngrok API.
 - **`Retain`**: The domain reservation is preserved in the ngrok API.
 
-The default can be overridden globally via the Helm value `features.domains.defaultReclaimPolicy`.
+The default can be overridden globally via the Helm value `ngrok.features.domains.defaultReclaimPolicy`.
 
 ## Status
 
