@@ -13,70 +13,113 @@ The CRD chart can be installed automatically via `installCRDs: true` (default) o
 
 ## Top-Level Structure
 
+Values fall into three buckets:
+
+- **Pod settings**: `defaults` holds the Kubernetes settings shared by every component. Each component section overrides them and adds settings of its own, such as `resources`.
+- **Operator configuration**: `ngrok`, `log` and `features` are set once. Users don't need to know which component reads a setting, and that can change without a values change. Only `log` can be overridden per component.
+- **Component-only settings**: `<component>.config` holds settings that exist for one component alone, and its `log` overrides.
+
 ```yaml
-global:              # Shared k8s deployment defaults (deep-merged into each component)
-ngrok:               # ngrok platform connection config (shared by all components)
+image:               # Operator image, shared by every component
+defaults:            # Shared pod settings (merged into each component)
+ngrok:               # Operator configuration: ngrok platform connection
+log:                 # Operator configuration: logging
+features:            # Operator configuration: feature flags and feature settings
 credentials:         # Secret for the access token
-features:            # Feature flags and feature-specific config (single source of truth)
-apiManager:          # K8s deployment settings + app config for api-manager
-agent:               # K8s deployment settings + app config for agent
-bindingsForwarder:   # K8s deployment settings for bindings-forwarder
+apiManager:          # api-manager pod settings; `config:` for its own settings and log overrides
+agent:               # agent pod settings; `config:` for its own settings and log overrides
+bindingsForwarder:   # bindings-forwarder pod settings; `config:` for its own settings and log overrides
 nameOverride: ""
 fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
 installCRDs: true
 cleanupHook:         # Pre-delete cleanup job
 ```
 
-## `global:`
+## Merge Rule
 
-Contains k8s deployment defaults that are **deep-merged** into each component section. Component values win on conflicts. Any setting that applies to all three components (`apiManager`, `agent`, `bindingsForwarder`) MUST be present here.
+Where a shared value has a per-component override, the two combine the same way: **maps merge, with the component winning per key; lists replace.**
+
+- Pod settings: `defaults.<key>` merged with `<component>.<key>`.
+- Logging: `log` merged with `<component>.config.log`.
+
+## `defaults:`
+
+Pod settings applied to every component. Any of these can also be set as `apiManager.<key>`, `agent.<key>` or `bindingsForwarder.<key>` to override it for that component alone.
 
 | Parameter                                | Description                                      | Default        |
 |------------------------------------------|--------------------------------------------------|----------------|
-| `global.image.registry`                  | Docker registry                                  | `docker.io`    |
-| `global.image.repository`               | Image repository                                 | `ngrok/ngrok-operator` |
-| `global.image.tag`                       | Image tag (defaults to chart appVersion)         | `""`           |
-| `global.image.pullPolicy`               | Image pull policy                                | `IfNotPresent` |
-| `global.image.pullSecrets`              | Array of imagePullSecrets                        | `[]`           |
-| `global.commonLabels`                    | Labels applied to all k8s resources              | `{}`           |
-| `global.commonAnnotations`              | Annotations applied to all k8s resources         | `{}`           |
-| `global.podAnnotations`                 | Pod annotations (merged into each component)     | `{}`           |
-| `global.podLabels`                       | Pod labels (merged into each component)          | `{}`           |
-| `global.nodeSelector`                    | Node labels for pod assignment                   | `{}`           |
-| `global.tolerations`                     | Pod tolerations                                  | `[]`           |
-| `global.affinity`                        | Affinity rules                                   | `{}`           |
-| `global.topologySpreadConstraints`      | Topology spread constraints                      | `[]`           |
-| `global.priorityClassName`              | Pod priority class                               | `""`           |
-| `global.resources`                       | Container resource requests/limits               | `{}`           |
-| `global.extraVolumes`                    | Additional volumes                               | `[]`           |
-| `global.extraVolumeMounts`              | Additional volume mounts                         | `[]`           |
-| `global.extraEnv`                        | Additional environment variables                 | `{}`           |
-| `global.lifecycle`                       | Container lifecycle hooks                        | `{}`           |
-| `global.terminationGracePeriodSeconds`  | Graceful shutdown time                           | `30`           |
-| `global.podDisruptionBudget.create`     | Enable PDB for all components                    | `false`        |
-| `global.podDisruptionBudget.maxUnavailable` | Max unavailable pods (global default)        | `"1"`          |
-| `global.podDisruptionBudget.minAvailable` | Min available pods (global default)            | (unset)        |
+| `defaults.podAnnotations`                | Pod annotations                                  | `{}`           |
+| `defaults.podLabels`                     | Pod labels                                       | `{}`           |
+| `defaults.nodeSelector`                  | Node labels for pod assignment                   | `{}`           |
+| `defaults.tolerations`                   | Pod tolerations                                  | `[]`           |
+| `defaults.affinity`                      | Affinity rules; overrides the presets when set   | `{}`           |
+| `defaults.podAffinityPreset`             | `soft` or `hard`                                 | `""`           |
+| `defaults.podAntiAffinityPreset`         | `soft` or `hard`                                 | `soft`         |
+| `defaults.nodeAffinityPreset`            | `type`, `key` and `values` for a node affinity preset | (unset)   |
+| `defaults.topologySpreadConstraints`     | Topology spread constraints                      | `[]`           |
+| `defaults.priorityClassName`             | Pod priority class                               | `""`           |
+| `defaults.extraEnv`                      | Additional environment variables                 | `{}`           |
 
-### Override Semantics
+`defaults` is not named `global` because Helm reserves `global` for values passed down to subcharts.
 
-Maps (`podAnnotations`, `nodeSelector`, `extraEnv`, etc.) use **deep merge** — component values are merged on top of global, with the component winning on key conflicts. Arrays (`tolerations`, `topologySpreadConstraints`, `extraVolumes`, etc.) use **replace** — if the component sets them, the global value is ignored entirely.
+Settings that rarely apply to every component, such as `resources`, live only in each component's section. See [operator.md](operator.md), [agent.md](agent.md) and [bindings-forwarder.md](bindings-forwarder.md).
 
-## `ngrok:`
+## Operator Configuration
 
-Platform connection config shared by all components. Rendered into a common ConfigMap.
+`ngrok.*`, `log.*` and `features.*` (see [features.md](features.md)) reach every component. Each component reads the settings it needs and ignores the rest.
+
+`ngrok` and `features` cannot be overridden per component: two components disagreeing on, say, `features.gateway.enabled` is a misconfiguration. Setting `<component>.config.ngrok` or `<component>.config.features` fails the render.
+
+`log` can be overridden for one component:
+
+```yaml
+log:
+  level: info
+agent:
+  config:
+    log:
+      level: debug   # the agent logs at debug; the others at info
+```
+
+Settings that exist for one component alone go in the rest of `<component>.config`, for example `apiManager.config.oneClickDemoMode`.
+
+**An empty value means "not set"**: the chart leaves it out and the operator's built-in default applies. The defaults live only in the operator's flag definitions, so the chart cannot disagree with them. A test asserts that every value in `values.yaml` is either empty or equal to the binary's default. Booleans always render, because Helm cannot tell `false` from unset.
+
+The same rule means a component cannot set a log value back to empty: an empty `<component>.config.log` value inherits the shared value.
+
+### `ngrok:`
 
 | Parameter              | Description                                           | Default             |
 |------------------------|-------------------------------------------------------|---------------------|
-| `ngrok.description`    | Operator description in ngrok dashboard               | `"The official ngrok Kubernetes Operator."` |
-| `ngrok.region`         | ngrok region (empty = closest region)                 | `""`                |
-| `ngrok.rootCAs`        | CA trust mode: `"trusted"` or `"host"`                | `""`                |
-| `ngrok.serverAddr`     | Custom ngrok server address                           | `""`                |
-| `ngrok.apiURL`         | Custom ngrok API URL                                  | `""`                |
+| `ngrok.description`    | Operator description in ngrok dashboard               | `The official ngrok Kubernetes Operator.` |
+| `ngrok.region`         | ngrok region                                          | account default     |
+| `ngrok.rootCAs`        | CA trust mode: `trusted` or `host`                    | `trusted`           |
+| `ngrok.serverAddr`     | Custom ngrok server address                           | ngrok default       |
+| `ngrok.apiURL`         | Custom ngrok API URL                                  | ngrok default       |
 | `ngrok.metadata`       | Key-value metadata for all ngrok API resources        | `{}`                |
 | `ngrok.clusterDomain`  | Kubernetes cluster domain for DNS resolution          | `svc.cluster.local` |
-| `ngrok.log.level`      | Log level: `debug`, `info`, `error`                   | `info`              |
-| `ngrok.log.format`     | Log format: `console`, `json`                         | `json`              |
-| `ngrok.log.stacktraceLevel` | Stacktrace level: `info`, `error`                | `error`             |
+
+### `log:`
+
+| Parameter              | Description                                                   | Default |
+|------------------------|---------------------------------------------------------------|---------|
+| `log.level`            | `debug`, `info`, `error`, `panic`, or an integer for more verbose debug levels | `info` |
+| `log.format`           | `json` or `console`                                           | `json`  |
+| `log.stacktraceLevel`  | `info`, `error` or `panic`                                    | `error` |
+
+## Delivery
+
+Each Deployment carries its component's operator configuration as environment variables in the pod spec: one `NGROK_OPERATOR_<PATH>` variable per setting, named from its values path (`features.gateway.enabled` is `NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED`), with the component's log overrides applied. Component-only settings are named after the component (`NGROK_OPERATOR_API_MANAGER_ONE_CLICK_DEMO_MODE`). There is no ConfigMap.
+
+Because the values are part of the pod spec, changing one component's configuration rolls only that component, and each ReplicaSet keeps the configuration it was rolled out with.
+
+Adding an operator configuration value needs no template change. See [configuration.md](../configuration.md).
+
+## Upgrading From the Pre-0.25 Layout
+
+Values were moved without compatibility shims. A values file that still sets a key at its old location fails the render with a list of each old key and its new location.
 
 ## `credentials:`
 
@@ -84,33 +127,18 @@ Platform connection config shared by all components. Rendered into a common Conf
 |----------------------------|------------------------------------------------|---------|
 | `credentials.secret.name`  | Secret name (auto-generated if empty)          | `""`    |
 | `credentials.accessToken`  | ngrok access token                             | `""`    |
+| `credentials.agent.accessToken` | Access token for the agent only; falls back to `credentials.accessToken` | `""` |
+| `credentials.apiManager.accessToken` | Access token for the api-manager only; falls back to `credentials.accessToken` | `""` |
 
 See [authentication.md](../authentication.md) for details on credential management.
 
 ## Other Top-Level Parameters
 
-| Parameter          | Description                              | Default |
-|--------------------|------------------------------------------|---------|
-| `nameOverride`     | Partially override generated resource names | `""`  |
-| `fullnameOverride` | Fully override generated resource names  | `""`    |
-| `installCRDs`      | Install CRDs alongside the operator      | `true`  |
-
-## Config File System
-
-Each component binary accepts multiple `--config` flags pointing to key=value config files. Helm produces ConfigMaps that are mounted as config files:
-
-| ConfigMap | Source | Mount path |
-|-----------|--------|------------|
-| `{fullname}-common-config` | `ngrok.*` + `features.*` | `/etc/ngrok/common.conf` |
-| `{fullname}-api-manager-config` | `apiManager.config` | `/etc/ngrok/component.conf` |
-| `{fullname}-agent-config` | `agent.config` | `/etc/ngrok/component.conf` |
-| `{fullname}-bindings-forwarder-config` | `bindingsForwarder.config` | `/etc/ngrok/component.conf` |
-
-Files are loaded in order; later values override earlier ones. Individual CLI flags override config file values.
-
-### Local Development
-
-```bash
-go run . api-manager --config=./hack/api-manager.conf
-go run . api-manager --config=./hack/api-manager.conf --log-level=debug
-```
+| Parameter           | Description                                 | Default |
+|---------------------|---------------------------------------------|---------|
+| `nameOverride`      | Partially override generated resource names | `""`    |
+| `fullnameOverride`  | Fully override generated resource names     | `""`    |
+| `commonLabels`      | Labels applied to all resources             | `{}`    |
+| `commonAnnotations` | Annotations applied to all resources        | `{}`    |
+| `image.*`           | Operator image registry, repository, tag, pull policy and pull secrets | see chart README |
+| `installCRDs`       | Install CRDs alongside the operator         | `true`  |

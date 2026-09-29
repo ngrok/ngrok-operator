@@ -26,6 +26,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 ### Top-Level Specs
 
 - [authentication.md](authentication.md) — Credentials, secrets, access token management
+- [configuration.md](configuration.md) — How app config reaches each component, its precedence, and where defaults live
 - [annotations.md](annotations.md) — Central reference for all `ngrok.com/` annotations
 - [upstream-protocols.md](upstream-protocols.md) — How the transport and application protocol to backend Services is selected (`app-protocols` annotation, `appProtocol` field values)
 - [design-decisions.md](design-decisions.md) — Settled architectural trade-offs and their rationale

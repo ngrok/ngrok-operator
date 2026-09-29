@@ -61,7 +61,7 @@ When a workload connects through a projected bound-endpoint Service, the binding
 
 ## When Disabled
 
-When `bindings.enabled: false`:
+When `features.bindings.enabled: false`:
 - The bindings forwarder deployment is not created
 - BoundEndpoint resources are not managed
 - The bindings feature is excluded from the KubernetesOperator's `enabledFeatures`
