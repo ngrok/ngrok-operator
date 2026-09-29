@@ -3413,7 +3413,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator-agent
       containers:
       - name: agent
@@ -3423,18 +3422,10 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
+        - --release-name=ngrok-operator
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name=ngrok-operator-agent-manager
-        - --release-name=ngrok-operator
-        - --default-domain-reclaim-policy=Delete
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -3449,6 +3440,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR_FEATURES__BINDINGS__ENABLED
+          value: "false"
+        - name: NGROK_OPERATOR_FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+          value: "false"
+        - name: NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR_FEATURES__INGRESS__CONTROLLER_NAME
+          value: "k8s.ngrok.com/ingress-controller"
+        - name: NGROK_OPERATOR_FEATURES__INGRESS__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE
+          value: "false"
         livenessProbe:
           httpGet:
             path: /healthz
@@ -3485,6 +3488,8 @@ metadata:
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: ngrok-operator
@@ -3520,7 +3525,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator
       containers:
       - name: ngrok-operator
@@ -3531,21 +3535,10 @@ spec:
         args:
         - api-manager
         - --release-name=ngrok-operator
-        - --drain-policy=Retain
-        - --default-domain-reclaim-policy=Delete
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id=ngrok-operator-leader
         - --manager-name=ngrok-operator-manager
-        - --cluster-domain=svc.cluster.local
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -3560,6 +3553,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR_FEATURES__BINDINGS__ENABLED
+          value: "false"
+        - name: NGROK_OPERATOR_FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+          value: "false"
+        - name: NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR_FEATURES__INGRESS__CONTROLLER_NAME
+          value: "k8s.ngrok.com/ingress-controller"
+        - name: NGROK_OPERATOR_FEATURES__INGRESS__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE
+          value: "false"
         livenessProbe:
           httpGet:
             path: /healthz
