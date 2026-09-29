@@ -27,13 +27,12 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 )
 
-// Environment variables are NGROK_OPERATOR_ and the setting's path in the
-// chart's values, with "__" between levels and "_" between words:
-// features.gateway.enabled is NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED. The
-// shared ngrok settings sit at the top level, like clusterDomain, which is a
-// top-level value: ngrok.region is NGROK_OPERATOR_REGION. A flag is its
-// variable without the prefix, in kebab case. TestSettingNames in cmd/ checks
-// both rules.
+// Environment variables are NGROK_OPERATOR_ and the setting's path under
+// ngrok in the chart's values, with "__" between levels and "_" between
+// words: ngrok.features.gateway.enabled is
+// NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED, and ngrok.region is
+// NGROK_OPERATOR_REGION. A flag is its variable without the prefix, in kebab
+// case. TestSettingNames in cmd/ checks both rules.
 var (
 	// ngrok
 	Description   = String("description", "NGROK_OPERATOR_DESCRIPTION", "The official ngrok Kubernetes Operator.", "Description for this installation")
