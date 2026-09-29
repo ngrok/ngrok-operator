@@ -89,7 +89,7 @@ spec:
           allowPrivilegeEscalation: false
         env:
         {{- /* In one-click demo mode the api-manager starts without credentials. */}}
-        {{- if not .Values.features.oneClickDemoMode.enabled }}
+        {{- if not .Values.ngrok.features.oneClickDemoMode.enabled }}
         - name: NGROK_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:

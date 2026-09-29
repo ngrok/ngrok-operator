@@ -32,264 +32,6 @@ image:
   pullSecrets: []
 
 ##
-## @section Pod settings
-##
-## Applied to the pods of every component. Any key here can also be set on a
-## component (for example `agent.tolerations`) to override it for that
-## component alone. Maps merge with the component winning per key; lists
-## replace.
-##
-## @param pod.podAnnotations Pod annotations
-## @param pod.podLabels Pod labels
-## @param pod.nodeSelector Node labels for pod assignment
-## @param pod.tolerations Tolerations for pod assignment
-## @param pod.affinity Affinity rules. Overrides the presets below when set
-## @param pod.podAffinityPreset Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
-## @param pod.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
-## @param pod.nodeAffinityPreset.type Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
-## @param pod.nodeAffinityPreset.key Node label key to match. Ignored if `affinity` is set.
-## @param pod.nodeAffinityPreset.values Node label values to match. Ignored if `affinity` is set.
-## @param pod.topologySpreadConstraints Topology spread constraints for pod assignment
-## @param pod.priorityClassName Priority class for pod scheduling
-## @param pod.extraEnv Additional environment variables, as a map of name to value
-##
-pod:
-  podAnnotations: {}
-  podLabels: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  podAffinityPreset: ""
-  podAntiAffinityPreset: soft
-  nodeAffinityPreset:
-    type: ""
-    key: ""
-    values: []
-  topologySpreadConstraints: []
-  priorityClassName: ""
-  extraEnv: {}
-
-##
-## @section Operator configuration
-##
-## Set once for every component: which component reads a setting is an
-## implementation detail. `log` is the exception and can be overridden for one
-## component under `<component>.log` (for example `agent.log.level`).
-##
-## An empty value means "not set": the operator's built-in default applies.
-## Those defaults live in the operator binary and are listed here for reference.
-##
-## @param ngrok.description Description of this installation in the ngrok dashboard. Default: `The official ngrok Kubernetes Operator.`
-## @param ngrok.region ngrok region to use. Default: the account's default region
-## @param ngrok.serverAddr Address of the ngrok server to use for tunnels. Default: the ngrok default
-## @param ngrok.apiURL Base URL for the ngrok API. Default: the ngrok default
-## @param ngrok.rootCAs Root CAs to trust: `trusted` for the ngrok CA, `host` for the host's CA bundle. Default: `trusted`
-## @param ngrok.metadata Key/value pairs added as metadata to the ngrok API resources the operator creates
-##
-ngrok:
-  description: ""
-  region: ""
-  serverAddr: ""
-  apiURL: ""
-  rootCAs: ""
-  metadata: {}
-
-## @param clusterDomain Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`
-##
-clusterDomain: ""
-
-## @param log.level Log level: `debug`, `info`, `error`, `panic`, or an integer for more verbose debug levels. Default: `info`
-## @param log.format Log format: `json` or `console`. Default: `json`
-## @param log.stacktraceLevel Level at and above which stacktraces are captured: `info`, `error` or `panic`. Default: `error`
-##
-log:
-  level: ""
-  format: ""
-  stacktraceLevel: ""
-
-## @param features.ingress.enabled Enable the Kubernetes Ingress controller
-## @param features.ingress.controllerName Controller name matched by IngressClasses, and set on the IngressClass this chart creates
-## @param features.ingress.watchNamespace Namespace to watch for Ingress and AgentEndpoint resources. Default: all namespaces
-## @param features.ingress.ingressClass.name IngressClass resource name
-## @param features.ingress.ingressClass.create Create the IngressClass resource
-## @param features.ingress.ingressClass.default Set the IngressClass as the cluster default
-## @param features.gateway.enabled Enable Gateway API support, if the Gateway API CRDs are detected
-## @param features.gateway.disableReferenceGrants Disable the ReferenceGrant requirement for cross-namespace references
-## @param features.bindings.enabled Enable the Endpoint Bindings feature, including the bindings-forwarder
-## @param features.bindings.endpointSelectors CEL expressions filtering which endpoints are projected into this cluster. Default: `["true"]`
-## @param features.bindings.serviceAnnotations Annotations applied to projected services
-## @param features.bindings.serviceLabels Labels applied to projected services
-## @param features.bindings.ingressEndpoint Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`
-## @param features.domains.defaultReclaimPolicy Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`
-## @param features.cleanup.enabled Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed
-## @param features.cleanup.timeout Seconds the hook waits for the drain to finish
-## @param features.cleanup.drainPolicy What the drain does with the ngrok API resources the operator created: `Delete` or `Retain`. Default: `Retain`
-## @param features.oneClickDemoMode.enabled Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder
-##
-features:
-  ingress:
-    enabled: true
-    controllerName: k8s.ngrok.com/ingress-controller
-    watchNamespace: ""
-    ingressClass:
-      name: ngrok
-      create: true
-      default: false
-  gateway:
-    enabled: true
-    disableReferenceGrants: false
-  bindings:
-    enabled: false
-    endpointSelectors: []
-    serviceAnnotations: {}
-    serviceLabels: {}
-    ingressEndpoint: ""
-  domains:
-    defaultReclaimPolicy: ""
-  cleanup:
-    enabled: true
-    timeout: 300
-    drainPolicy: ""
-  oneClickDemoMode:
-    enabled: false
-
-##
-## @section Credentials configuration
-##
-## @param credentials.secret.name The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.
-## @param credentials.accessToken Your ngrok access token. Used by every component that needs one, unless overridden below.
-## @param credentials.agent.accessToken Optional access token for the agent-manager only. Falls back to credentials.accessToken.
-## @param credentials.apiManager.accessToken Optional access token for the api-manager only. Falls back to credentials.accessToken.
-##
-credentials:
-  secret:
-    name: ""
-  accessToken: ""
-  ## One token for everything is the simple path. The per-component values set a
-  ## separate token for each component, falling back to accessToken when empty,
-  ## so each token can be scoped to only the permissions its component needs.
-  agent:
-    accessToken: ""
-  apiManager:
-    accessToken: ""
-
-##
-## @section API Manager
-##
-## Any key from `pod` can also be set here to override it for the
-## api-manager alone.
-##
-## @param apiManager.replicaCount The number of api-manager replicas to run
-## @param apiManager.resources.limits Resource limits
-## @param apiManager.resources.requests Resource requests
-## @param apiManager.lifecycle Container lifecycle hooks
-## @param apiManager.terminationGracePeriodSeconds Graceful shutdown period
-## @param apiManager.extraVolumes Additional volumes
-## @param apiManager.extraVolumeMounts Additional volume mounts
-## @param apiManager.podDisruptionBudget.create Whether to create a PodDisruptionBudget
-## @param apiManager.podDisruptionBudget.maxUnavailable Maximum unavailable pods
-## @param apiManager.podDisruptionBudget.minAvailable Minimum available pods. Set this instead of `maxUnavailable`, not alongside it
-## @param apiManager.serviceAccount.create Whether to create a ServiceAccount
-## @param apiManager.serviceAccount.name ServiceAccount name. Generated if empty
-## @param apiManager.serviceAccount.annotations ServiceAccount annotations
-## @param apiManager.updateStrategy.type Deployment update strategy
-## @param apiManager.log Overrides of the shared `log` settings for the api-manager
-##
-apiManager:
-  replicaCount: 1
-  resources:
-    limits: {}
-    requests: {}
-  lifecycle: {}
-  terminationGracePeriodSeconds: 30
-  extraVolumes: []
-  extraVolumeMounts: []
-  podDisruptionBudget:
-    create: false
-    maxUnavailable: "1"
-    minAvailable: ""
-  serviceAccount:
-    create: true
-    name: ""
-    annotations: {}
-  updateStrategy:
-    type: RollingUpdate
-  log: {}
-
-##
-## @section Agent
-##
-## Any key from `pod` can also be set here to override it for the agent
-## alone.
-##
-## @param agent.replicaCount The number of agent replicas to run
-## @param agent.resources.limits Resource limits
-## @param agent.resources.requests Resource requests
-## @param agent.lifecycle Container lifecycle hooks
-## @param agent.terminationGracePeriodSeconds Graceful shutdown period
-## @param agent.extraVolumes Additional volumes
-## @param agent.extraVolumeMounts Additional volume mounts
-## @param agent.serviceAccount.create Whether to create a ServiceAccount
-## @param agent.serviceAccount.name ServiceAccount name. Generated if empty
-## @param agent.serviceAccount.annotations ServiceAccount annotations
-## @param agent.updateStrategy.type Deployment update strategy
-## @param agent.log Overrides of the shared `log` settings for the agent
-##
-agent:
-  replicaCount: 1
-  resources:
-    limits: {}
-    requests: {}
-  lifecycle: {}
-  terminationGracePeriodSeconds: 30
-  extraVolumes: []
-  extraVolumeMounts: []
-  serviceAccount:
-    create: true
-    name: ""
-    annotations: {}
-  updateStrategy:
-    type: RollingUpdate
-  log: {}
-
-##
-## @section Bindings Forwarder
-##
-## Rendered only when `features.bindings.enabled` is true. Any key from
-## `pod` can also be set here to override it for the bindings-forwarder
-## alone.
-##
-## @param bindingsForwarder.replicaCount The number of bindings-forwarder replicas to run
-## @param bindingsForwarder.resources.limits Resource limits
-## @param bindingsForwarder.resources.requests Resource requests
-## @param bindingsForwarder.lifecycle Container lifecycle hooks
-## @param bindingsForwarder.terminationGracePeriodSeconds Graceful shutdown period
-## @param bindingsForwarder.extraVolumes Additional volumes
-## @param bindingsForwarder.extraVolumeMounts Additional volume mounts
-## @param bindingsForwarder.serviceAccount.create Whether to create a ServiceAccount
-## @param bindingsForwarder.serviceAccount.name ServiceAccount name. Generated if empty
-## @param bindingsForwarder.serviceAccount.annotations ServiceAccount annotations
-## @param bindingsForwarder.updateStrategy.type Deployment update strategy
-## @param bindingsForwarder.log Overrides of the shared `log` settings for the bindings-forwarder
-##
-bindingsForwarder:
-  replicaCount: 1
-  resources:
-    limits: {}
-    requests: {}
-  lifecycle: {}
-  terminationGracePeriodSeconds: 30
-  extraVolumes: []
-  extraVolumeMounts: []
-  serviceAccount:
-    create: true
-    name: ""
-    annotations: {}
-  updateStrategy:
-    type: RollingUpdate
-  log: {}
-
-##
 ## @section RBAC
 ##
 ## @param crdAccessRoles.create Whether to create editor/viewer ClusterRoles for CRDs
@@ -307,21 +49,243 @@ crdAccessRoles:
 installCRDs: true
 
 ##
-## @section Cleanup Hook configuration
+## @section ngrok
 ##
-## The pod settings of the hook `features.cleanup` runs.
+## How the operator connects to ngrok and what it does. Set once for every
+## component: which component reads a setting is an implementation detail.
+## `log` is the exception and can be overridden for one component under
+## `components.<component>.log` (for example `components.agent.log.level`).
 ##
-## @param cleanupHook.image.repository The repository for the kubectl image used by the cleanup hook
-## @param cleanupHook.image.tag The tag for the kubectl image
-## @param cleanupHook.image.pullPolicy The pull policy for the cleanup hook image
-## @param cleanupHook.resources.limits The resources limits for the cleanup hook container
-## @param cleanupHook.resources.requests The requested resources for the cleanup hook container
+## An empty value means "not set": the operator's built-in default applies.
+## Those defaults live in the operator binary and are listed here for reference.
 ##
-cleanupHook:
-  image:
-    repository: bitnami/kubectl
-    tag: latest
-    pullPolicy: IfNotPresent
-  resources:
-    limits: {}
-    requests: {}
+## @param ngrok.credentials.secret.name The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.
+## @param ngrok.credentials.accessToken Your ngrok access token. Used by every component that needs one, unless overridden below.
+## @param ngrok.credentials.agent.accessToken Optional access token for the agent-manager only. Falls back to ngrok.credentials.accessToken.
+## @param ngrok.credentials.apiManager.accessToken Optional access token for the api-manager only. Falls back to ngrok.credentials.accessToken.
+## @param ngrok.description Description of this installation in the ngrok dashboard. Default: `The official ngrok Kubernetes Operator.`
+## @param ngrok.region ngrok region to use. Default: the account's default region
+## @param ngrok.serverAddr Address of the ngrok server to use for tunnels. Default: the ngrok default
+## @param ngrok.apiURL Base URL for the ngrok API. Default: the ngrok default
+## @param ngrok.rootCAs Root CAs to trust: `trusted` for the ngrok CA, `host` for the host's CA bundle. Default: `trusted`
+## @param ngrok.metadata Key/value pairs added as metadata to the ngrok API resources the operator creates
+## @param ngrok.clusterDomain Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`
+## @param ngrok.log.level Log level: `debug`, `info`, `error`, `panic`, or an integer for more verbose debug levels. Default: `info`
+## @param ngrok.log.format Log format: `json` or `console`. Default: `json`
+## @param ngrok.log.stacktraceLevel Level at and above which stacktraces are captured: `info`, `error` or `panic`. Default: `error`
+## @param ngrok.features.ingress.enabled Enable the Kubernetes Ingress controller
+## @param ngrok.features.ingress.controllerName Controller name matched by IngressClasses, and set on the IngressClass this chart creates
+## @param ngrok.features.ingress.watchNamespace Namespace to watch for Ingress and AgentEndpoint resources. Default: all namespaces
+## @param ngrok.features.ingress.ingressClass.name IngressClass resource name
+## @param ngrok.features.ingress.ingressClass.create Create the IngressClass resource
+## @param ngrok.features.ingress.ingressClass.default Set the IngressClass as the cluster default
+## @param ngrok.features.gateway.enabled Enable Gateway API support, if the Gateway API CRDs are detected
+## @param ngrok.features.gateway.disableReferenceGrants Disable the ReferenceGrant requirement for cross-namespace references
+## @param ngrok.features.bindings.enabled Enable the Endpoint Bindings feature, including the bindings-forwarder
+## @param ngrok.features.bindings.endpointSelectors CEL expressions filtering which endpoints are projected into this cluster. Default: `["true"]`
+## @param ngrok.features.bindings.serviceAnnotations Annotations applied to projected services
+## @param ngrok.features.bindings.serviceLabels Labels applied to projected services
+## @param ngrok.features.bindings.ingressEndpoint Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`
+## @param ngrok.features.domains.defaultReclaimPolicy Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`
+## @param ngrok.features.cleanup.enabled Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed
+## @param ngrok.features.cleanup.timeout Seconds the hook waits for the drain to finish
+## @param ngrok.features.cleanup.drainPolicy What the drain does with the ngrok API resources the operator created: `Delete` or `Retain`. Default: `Retain`
+## @param ngrok.features.oneClickDemoMode.enabled Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder
+##
+ngrok:
+  credentials:
+    secret:
+      name: ""
+    accessToken: ""
+    ## One token for everything is the simple path. The per-component values set a
+    ## separate token for each component, falling back to accessToken when empty,
+    ## so each token can be scoped to only the permissions its component needs.
+    agent:
+      accessToken: ""
+    apiManager:
+      accessToken: ""
+  description: ""
+  region: ""
+  serverAddr: ""
+  apiURL: ""
+  rootCAs: ""
+  metadata: {}
+  clusterDomain: ""
+  log:
+    level: ""
+    format: ""
+    stacktraceLevel: ""
+  features:
+    ingress:
+      enabled: true
+      controllerName: k8s.ngrok.com/ingress-controller
+      watchNamespace: ""
+      ingressClass:
+        name: ngrok
+        create: true
+        default: false
+    gateway:
+      enabled: true
+      disableReferenceGrants: false
+    bindings:
+      enabled: false
+      endpointSelectors: []
+      serviceAnnotations: {}
+      serviceLabels: {}
+      ingressEndpoint: ""
+    domains:
+      defaultReclaimPolicy: ""
+    cleanup:
+      enabled: true
+      timeout: 300
+      drainPolicy: ""
+    oneClickDemoMode:
+      enabled: false
+
+##
+## @section Components
+##
+## Kubernetes settings for each pod the chart runs. `common` applies to the
+## api-manager, agent and bindings-forwarder; any key in it can also be set on
+## one of them (for example `components.agent.tolerations`) to override it for
+## that component alone. Maps merge with the component winning per key; lists
+## replace.
+##
+## The bindings-forwarder renders only when `ngrok.features.bindings.enabled`
+## is true. `cleanupHook` holds the pod settings of the pre-delete hook
+## `ngrok.features.cleanup` runs.
+##
+## @param components.common.podAnnotations Pod annotations
+## @param components.common.podLabels Pod labels
+## @param components.common.nodeSelector Node labels for pod assignment
+## @param components.common.tolerations Tolerations for pod assignment
+## @param components.common.affinity Affinity rules. Overrides the presets below when set
+## @param components.common.podAffinityPreset Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param components.common.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param components.common.nodeAffinityPreset.type Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param components.common.nodeAffinityPreset.key Node label key to match. Ignored if `affinity` is set.
+## @param components.common.nodeAffinityPreset.values Node label values to match. Ignored if `affinity` is set.
+## @param components.common.topologySpreadConstraints Topology spread constraints for pod assignment
+## @param components.common.priorityClassName Priority class for pod scheduling
+## @param components.common.extraEnv Additional environment variables, as a map of name to value
+## @param components.apiManager.replicaCount The number of api-manager replicas to run
+## @param components.apiManager.resources.limits Resource limits
+## @param components.apiManager.resources.requests Resource requests
+## @param components.apiManager.lifecycle Container lifecycle hooks
+## @param components.apiManager.terminationGracePeriodSeconds Graceful shutdown period
+## @param components.apiManager.extraVolumes Additional volumes
+## @param components.apiManager.extraVolumeMounts Additional volume mounts
+## @param components.apiManager.podDisruptionBudget.create Whether to create a PodDisruptionBudget
+## @param components.apiManager.podDisruptionBudget.maxUnavailable Maximum unavailable pods
+## @param components.apiManager.podDisruptionBudget.minAvailable Minimum available pods. Set this instead of `maxUnavailable`, not alongside it
+## @param components.apiManager.serviceAccount.create Whether to create a ServiceAccount
+## @param components.apiManager.serviceAccount.name ServiceAccount name. Generated if empty
+## @param components.apiManager.serviceAccount.annotations ServiceAccount annotations
+## @param components.apiManager.updateStrategy.type Deployment update strategy
+## @param components.apiManager.log Overrides of the shared `log` settings for the api-manager
+## @param components.agent.replicaCount The number of agent replicas to run
+## @param components.agent.resources.limits Resource limits
+## @param components.agent.resources.requests Resource requests
+## @param components.agent.lifecycle Container lifecycle hooks
+## @param components.agent.terminationGracePeriodSeconds Graceful shutdown period
+## @param components.agent.extraVolumes Additional volumes
+## @param components.agent.extraVolumeMounts Additional volume mounts
+## @param components.agent.serviceAccount.create Whether to create a ServiceAccount
+## @param components.agent.serviceAccount.name ServiceAccount name. Generated if empty
+## @param components.agent.serviceAccount.annotations ServiceAccount annotations
+## @param components.agent.updateStrategy.type Deployment update strategy
+## @param components.agent.log Overrides of the shared `log` settings for the agent
+## @param components.bindingsForwarder.replicaCount The number of bindings-forwarder replicas to run
+## @param components.bindingsForwarder.resources.limits Resource limits
+## @param components.bindingsForwarder.resources.requests Resource requests
+## @param components.bindingsForwarder.lifecycle Container lifecycle hooks
+## @param components.bindingsForwarder.terminationGracePeriodSeconds Graceful shutdown period
+## @param components.bindingsForwarder.extraVolumes Additional volumes
+## @param components.bindingsForwarder.extraVolumeMounts Additional volume mounts
+## @param components.bindingsForwarder.serviceAccount.create Whether to create a ServiceAccount
+## @param components.bindingsForwarder.serviceAccount.name ServiceAccount name. Generated if empty
+## @param components.bindingsForwarder.serviceAccount.annotations ServiceAccount annotations
+## @param components.bindingsForwarder.updateStrategy.type Deployment update strategy
+## @param components.bindingsForwarder.log Overrides of the shared `log` settings for the bindings-forwarder
+## @param components.cleanupHook.image.repository The repository for the kubectl image used by the cleanup hook
+## @param components.cleanupHook.image.tag The tag for the kubectl image
+## @param components.cleanupHook.image.pullPolicy The pull policy for the cleanup hook image
+## @param components.cleanupHook.resources.limits The resources limits for the cleanup hook container
+## @param components.cleanupHook.resources.requests The requested resources for the cleanup hook container
+##
+components:
+  common:
+    podAnnotations: {}
+    podLabels: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    podAffinityPreset: ""
+    podAntiAffinityPreset: soft
+    nodeAffinityPreset:
+      type: ""
+      key: ""
+      values: []
+    topologySpreadConstraints: []
+    priorityClassName: ""
+    extraEnv: {}
+  apiManager:
+    replicaCount: 1
+    resources:
+      limits: {}
+      requests: {}
+    lifecycle: {}
+    terminationGracePeriodSeconds: 30
+    extraVolumes: []
+    extraVolumeMounts: []
+    podDisruptionBudget:
+      create: false
+      maxUnavailable: "1"
+      minAvailable: ""
+    serviceAccount:
+      create: true
+      name: ""
+      annotations: {}
+    updateStrategy:
+      type: RollingUpdate
+    log: {}
+  agent:
+    replicaCount: 1
+    resources:
+      limits: {}
+      requests: {}
+    lifecycle: {}
+    terminationGracePeriodSeconds: 30
+    extraVolumes: []
+    extraVolumeMounts: []
+    serviceAccount:
+      create: true
+      name: ""
+      annotations: {}
+    updateStrategy:
+      type: RollingUpdate
+    log: {}
+  bindingsForwarder:
+    replicaCount: 1
+    resources:
+      limits: {}
+      requests: {}
+    lifecycle: {}
+    terminationGracePeriodSeconds: 30
+    extraVolumes: []
+    extraVolumeMounts: []
+    serviceAccount:
+      create: true
+      name: ""
+      annotations: {}
+    updateStrategy:
+      type: RollingUpdate
+    log: {}
+  cleanupHook:
+    image:
+      repository: bitnami/kubectl
+      tag: latest
+      pullPolicy: IfNotPresent
+    resources:
+      limits: {}
+      requests: {}

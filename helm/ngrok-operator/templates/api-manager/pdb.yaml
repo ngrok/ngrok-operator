@@ -1,4 +1,4 @@
-{{- if .Values.apiManager.podDisruptionBudget.create }}
+{{- if .Values.components.apiManager.podDisruptionBudget.create }}
 {{ $component := "controller"}}
 {{- $values := fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "apiManager")) -}}
 ---
@@ -11,11 +11,11 @@ metadata:
     {{- include "ngrok-operator.labels" . | nindent 4 }}
     app.kubernetes.io/component: {{ $component }}
 spec:
-  {{- if .Values.apiManager.podDisruptionBudget.minAvailable }}
-  minAvailable: {{ .Values.apiManager.podDisruptionBudget.minAvailable }}
+  {{- if .Values.components.apiManager.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.components.apiManager.podDisruptionBudget.minAvailable }}
   {{- end }}
-  {{- if .Values.apiManager.podDisruptionBudget.maxUnavailable }}
-  maxUnavailable: {{ .Values.apiManager.podDisruptionBudget.maxUnavailable }}
+  {{- if .Values.components.apiManager.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.components.apiManager.podDisruptionBudget.maxUnavailable }}
   {{- end }}
   selector:
     matchLabels:

@@ -1,16 +1,15 @@
-# The operator environment variable for each setting, by its path in the
-# component's configuration (see ngrok-operator.componentConfig). A variable is
-# NGROK_OPERATOR_ and the path with "__" between levels and "_" between words;
-# the ngrok settings sit at the top level, like clusterDomain. The operator
-# defines the same names in internal/flags; the tests in cmd/chart_test.go
-# check the two lists match and follow that rule.
-ngrok.description: NGROK_OPERATOR_DESCRIPTION
-ngrok.region: NGROK_OPERATOR_REGION
-ngrok.serverAddr: NGROK_OPERATOR_SERVER_ADDR
-ngrok.apiURL: NGROK_OPERATOR_API_URL
-ngrok.rootCAs: NGROK_OPERATOR_ROOT_CAS
-ngrok.metadata: NGROK_OPERATOR_METADATA
-
+# The operator environment variable for each setting, by its path under
+# `ngrok` in the values. A variable is NGROK_OPERATOR_ and the path with "__"
+# between levels and "_" between words: features.gateway.enabled is
+# NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED. The operator defines the same
+# names in internal/flags; the tests in cmd/chart_test.go check the two lists
+# match and follow that rule.
+description: NGROK_OPERATOR_DESCRIPTION
+region: NGROK_OPERATOR_REGION
+serverAddr: NGROK_OPERATOR_SERVER_ADDR
+apiURL: NGROK_OPERATOR_API_URL
+rootCAs: NGROK_OPERATOR_ROOT_CAS
+metadata: NGROK_OPERATOR_METADATA
 clusterDomain: NGROK_OPERATOR_CLUSTER_DOMAIN
 
 log.level: NGROK_OPERATOR_LOG__LEVEL

@@ -53,87 +53,69 @@
                 }
             }
         },
-        "pod": {
+        "crdAccessRoles": {
             "type": "object",
             "properties": {
-                "podAnnotations": {
+                "create": {
+                    "type": "boolean",
+                    "description": "Whether to create editor/viewer ClusterRoles for CRDs",
+                    "default": true
+                },
+                "annotations": {
                     "type": "object",
-                    "description": "Pod annotations",
-                    "default": {}
-                },
-                "podLabels": {
-                    "type": "object",
-                    "description": "Pod labels",
-                    "default": {}
-                },
-                "nodeSelector": {
-                    "type": "object",
-                    "description": "Node labels for pod assignment",
-                    "default": {}
-                },
-                "tolerations": {
-                    "type": "array",
-                    "description": "Tolerations for pod assignment",
-                    "default": [],
-                    "items": {}
-                },
-                "affinity": {
-                    "type": "object",
-                    "description": "Affinity rules. Overrides the presets below when set",
-                    "default": {}
-                },
-                "podAffinityPreset": {
-                    "type": "string",
-                    "description": "Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`",
-                    "default": ""
-                },
-                "podAntiAffinityPreset": {
-                    "type": "string",
-                    "description": "Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`",
-                    "default": "soft"
-                },
-                "nodeAffinityPreset": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string",
-                            "description": "Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`",
-                            "default": ""
-                        },
-                        "key": {
-                            "type": "string",
-                            "description": "Node label key to match. Ignored if `affinity` is set.",
-                            "default": ""
-                        },
-                        "values": {
-                            "type": "array",
-                            "description": "Node label values to match. Ignored if `affinity` is set.",
-                            "default": [],
-                            "items": {}
-                        }
-                    }
-                },
-                "topologySpreadConstraints": {
-                    "type": "array",
-                    "description": "Topology spread constraints for pod assignment",
-                    "default": [],
-                    "items": {}
-                },
-                "priorityClassName": {
-                    "type": "string",
-                    "description": "Priority class for pod scheduling",
-                    "default": ""
-                },
-                "extraEnv": {
-                    "type": "object",
-                    "description": "Additional environment variables, as a map of name to value",
+                    "description": "Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)",
                     "default": {}
                 }
             }
         },
+        "installCRDs": {
+            "type": "boolean",
+            "description": "When true, the ngrok CRDs will be installed alongside the operator",
+            "default": true
+        },
         "ngrok": {
             "type": "object",
             "properties": {
+                "credentials": {
+                    "type": "object",
+                    "properties": {
+                        "secret": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.",
+                                    "default": ""
+                                }
+                            }
+                        },
+                        "accessToken": {
+                            "type": "string",
+                            "description": "Your ngrok access token. Used by every component that needs one, unless overridden below.",
+                            "default": ""
+                        },
+                        "agent": {
+                            "type": "object",
+                            "properties": {
+                                "accessToken": {
+                                    "type": "string",
+                                    "description": "Optional access token for the agent-manager only. Falls back to ngrok.credentials.accessToken.",
+                                    "default": ""
+                                }
+                            }
+                        },
+                        "apiManager": {
+                            "type": "object",
+                            "properties": {
+                                "accessToken": {
+                                    "type": "string",
+                                    "description": "Optional access token for the api-manager only. Falls back to ngrok.credentials.accessToken.",
+                                    "default": ""
+                                }
+                            }
+                        }
+                    }
+                },
                 "description": {
                     "type": "string",
                     "description": "Description of this installation in the ngrok dashboard. Default: `The official ngrok Kubernetes Operator.`",
@@ -163,526 +145,549 @@
                     "type": "object",
                     "description": "Key/value pairs added as metadata to the ngrok API resources the operator creates",
                     "default": {}
-                }
-            }
-        },
-        "clusterDomain": {
-            "type": "string",
-            "description": "Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`",
-            "default": ""
-        },
-        "log": {
-            "type": "object",
-            "properties": {
-                "level": {
+                },
+                "clusterDomain": {
                     "type": "string",
-                    "description": "Log level: `debug`, `info`, `error`, `panic`, or an integer for more verbose debug levels. Default: `info`",
+                    "description": "Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`",
                     "default": ""
                 },
-                "format": {
-                    "type": "string",
-                    "description": "Log format: `json` or `console`. Default: `json`",
-                    "default": ""
-                },
-                "stacktraceLevel": {
-                    "type": "string",
-                    "description": "Level at and above which stacktraces are captured: `info`, `error` or `panic`. Default: `error`",
-                    "default": ""
-                }
-            }
-        },
-        "features": {
-            "type": "object",
-            "properties": {
-                "ingress": {
+                "log": {
                     "type": "object",
                     "properties": {
-                        "enabled": {
-                            "type": "boolean",
-                            "description": "Enable the Kubernetes Ingress controller",
-                            "default": true
-                        },
-                        "controllerName": {
+                        "level": {
                             "type": "string",
-                            "description": "Controller name matched by IngressClasses, and set on the IngressClass this chart creates",
-                            "default": "k8s.ngrok.com/ingress-controller"
-                        },
-                        "watchNamespace": {
-                            "type": "string",
-                            "description": "Namespace to watch for Ingress and AgentEndpoint resources. Default: all namespaces",
+                            "description": "Log level: `debug`, `info`, `error`, `panic`, or an integer for more verbose debug levels. Default: `info`",
                             "default": ""
                         },
-                        "ingressClass": {
+                        "format": {
+                            "type": "string",
+                            "description": "Log format: `json` or `console`. Default: `json`",
+                            "default": ""
+                        },
+                        "stacktraceLevel": {
+                            "type": "string",
+                            "description": "Level at and above which stacktraces are captured: `info`, `error` or `panic`. Default: `error`",
+                            "default": ""
+                        }
+                    }
+                },
+                "features": {
+                    "type": "object",
+                    "properties": {
+                        "ingress": {
                             "type": "object",
                             "properties": {
-                                "name": {
-                                    "type": "string",
-                                    "description": "IngressClass resource name",
-                                    "default": "ngrok"
-                                },
-                                "create": {
+                                "enabled": {
                                     "type": "boolean",
-                                    "description": "Create the IngressClass resource",
+                                    "description": "Enable the Kubernetes Ingress controller",
                                     "default": true
                                 },
-                                "default": {
+                                "controllerName": {
+                                    "type": "string",
+                                    "description": "Controller name matched by IngressClasses, and set on the IngressClass this chart creates",
+                                    "default": "k8s.ngrok.com/ingress-controller"
+                                },
+                                "watchNamespace": {
+                                    "type": "string",
+                                    "description": "Namespace to watch for Ingress and AgentEndpoint resources. Default: all namespaces",
+                                    "default": ""
+                                },
+                                "ingressClass": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "IngressClass resource name",
+                                            "default": "ngrok"
+                                        },
+                                        "create": {
+                                            "type": "boolean",
+                                            "description": "Create the IngressClass resource",
+                                            "default": true
+                                        },
+                                        "default": {
+                                            "type": "boolean",
+                                            "description": "Set the IngressClass as the cluster default",
+                                            "default": false
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "gateway": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
                                     "type": "boolean",
-                                    "description": "Set the IngressClass as the cluster default",
+                                    "description": "Enable Gateway API support, if the Gateway API CRDs are detected",
+                                    "default": true
+                                },
+                                "disableReferenceGrants": {
+                                    "type": "boolean",
+                                    "description": "Disable the ReferenceGrant requirement for cross-namespace references",
+                                    "default": false
+                                }
+                            }
+                        },
+                        "bindings": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "description": "Enable the Endpoint Bindings feature, including the bindings-forwarder",
+                                    "default": false
+                                },
+                                "endpointSelectors": {
+                                    "type": "array",
+                                    "description": "CEL expressions filtering which endpoints are projected into this cluster. Default: `[\"true\"]`",
+                                    "default": [],
+                                    "items": {}
+                                },
+                                "serviceAnnotations": {
+                                    "type": "object",
+                                    "description": "Annotations applied to projected services",
+                                    "default": {}
+                                },
+                                "serviceLabels": {
+                                    "type": "object",
+                                    "description": "Labels applied to projected services",
+                                    "default": {}
+                                },
+                                "ingressEndpoint": {
+                                    "type": "string",
+                                    "description": "Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`",
+                                    "default": ""
+                                }
+                            }
+                        },
+                        "domains": {
+                            "type": "object",
+                            "properties": {
+                                "defaultReclaimPolicy": {
+                                    "type": "string",
+                                    "description": "Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`",
+                                    "default": ""
+                                }
+                            }
+                        },
+                        "cleanup": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "description": "Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed",
+                                    "default": true
+                                },
+                                "timeout": {
+                                    "type": "number",
+                                    "description": "Seconds the hook waits for the drain to finish",
+                                    "default": 300
+                                },
+                                "drainPolicy": {
+                                    "type": "string",
+                                    "description": "What the drain does with the ngrok API resources the operator created: `Delete` or `Retain`. Default: `Retain`",
+                                    "default": ""
+                                }
+                            }
+                        },
+                        "oneClickDemoMode": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "description": "Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder",
                                     "default": false
                                 }
                             }
                         }
                     }
-                },
-                "gateway": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean",
-                            "description": "Enable Gateway API support, if the Gateway API CRDs are detected",
-                            "default": true
-                        },
-                        "disableReferenceGrants": {
-                            "type": "boolean",
-                            "description": "Disable the ReferenceGrant requirement for cross-namespace references",
-                            "default": false
-                        }
-                    }
-                },
-                "bindings": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean",
-                            "description": "Enable the Endpoint Bindings feature, including the bindings-forwarder",
-                            "default": false
-                        },
-                        "endpointSelectors": {
-                            "type": "array",
-                            "description": "CEL expressions filtering which endpoints are projected into this cluster. Default: `[\"true\"]`",
-                            "default": [],
-                            "items": {}
-                        },
-                        "serviceAnnotations": {
-                            "type": "object",
-                            "description": "Annotations applied to projected services",
-                            "default": {}
-                        },
-                        "serviceLabels": {
-                            "type": "object",
-                            "description": "Labels applied to projected services",
-                            "default": {}
-                        },
-                        "ingressEndpoint": {
-                            "type": "string",
-                            "description": "Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`",
-                            "default": ""
-                        }
-                    }
-                },
-                "domains": {
-                    "type": "object",
-                    "properties": {
-                        "defaultReclaimPolicy": {
-                            "type": "string",
-                            "description": "Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`",
-                            "default": ""
-                        }
-                    }
-                },
-                "cleanup": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean",
-                            "description": "Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed",
-                            "default": true
-                        },
-                        "timeout": {
-                            "type": "number",
-                            "description": "Seconds the hook waits for the drain to finish",
-                            "default": 300
-                        },
-                        "drainPolicy": {
-                            "type": "string",
-                            "description": "What the drain does with the ngrok API resources the operator created: `Delete` or `Retain`. Default: `Retain`",
-                            "default": ""
-                        }
-                    }
-                },
-                "oneClickDemoMode": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean",
-                            "description": "Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder",
-                            "default": false
-                        }
-                    }
                 }
             }
         },
-        "credentials": {
+        "components": {
             "type": "object",
             "properties": {
-                "secret": {
+                "common": {
                     "type": "object",
                     "properties": {
-                        "name": {
+                        "podAnnotations": {
+                            "type": "object",
+                            "description": "Pod annotations",
+                            "default": {}
+                        },
+                        "podLabels": {
+                            "type": "object",
+                            "description": "Pod labels",
+                            "default": {}
+                        },
+                        "nodeSelector": {
+                            "type": "object",
+                            "description": "Node labels for pod assignment",
+                            "default": {}
+                        },
+                        "tolerations": {
+                            "type": "array",
+                            "description": "Tolerations for pod assignment",
+                            "default": [],
+                            "items": {}
+                        },
+                        "affinity": {
+                            "type": "object",
+                            "description": "Affinity rules. Overrides the presets below when set",
+                            "default": {}
+                        },
+                        "podAffinityPreset": {
                             "type": "string",
-                            "description": "The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.",
+                            "description": "Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`",
                             "default": ""
-                        }
-                    }
-                },
-                "accessToken": {
-                    "type": "string",
-                    "description": "Your ngrok access token. Used by every component that needs one, unless overridden below.",
-                    "default": ""
-                },
-                "agent": {
-                    "type": "object",
-                    "properties": {
-                        "accessToken": {
+                        },
+                        "podAntiAffinityPreset": {
                             "type": "string",
-                            "description": "Optional access token for the agent-manager only. Falls back to credentials.accessToken.",
+                            "description": "Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`",
+                            "default": "soft"
+                        },
+                        "nodeAffinityPreset": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`",
+                                    "default": ""
+                                },
+                                "key": {
+                                    "type": "string",
+                                    "description": "Node label key to match. Ignored if `affinity` is set.",
+                                    "default": ""
+                                },
+                                "values": {
+                                    "type": "array",
+                                    "description": "Node label values to match. Ignored if `affinity` is set.",
+                                    "default": [],
+                                    "items": {}
+                                }
+                            }
+                        },
+                        "topologySpreadConstraints": {
+                            "type": "array",
+                            "description": "Topology spread constraints for pod assignment",
+                            "default": [],
+                            "items": {}
+                        },
+                        "priorityClassName": {
+                            "type": "string",
+                            "description": "Priority class for pod scheduling",
                             "default": ""
+                        },
+                        "extraEnv": {
+                            "type": "object",
+                            "description": "Additional environment variables, as a map of name to value",
+                            "default": {}
                         }
                     }
                 },
                 "apiManager": {
                     "type": "object",
                     "properties": {
-                        "accessToken": {
-                            "type": "string",
-                            "description": "Optional access token for the api-manager only. Falls back to credentials.accessToken.",
-                            "default": ""
-                        }
-                    }
-                }
-            }
-        },
-        "apiManager": {
-            "type": "object",
-            "properties": {
-                "replicaCount": {
-                    "type": "number",
-                    "description": "The number of api-manager replicas to run",
-                    "default": 1
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
+                        "replicaCount": {
+                            "type": "number",
+                            "description": "The number of api-manager replicas to run",
+                            "default": 1
+                        },
+                        "resources": {
                             "type": "object",
-                            "description": "Resource limits",
+                            "properties": {
+                                "limits": {
+                                    "type": "object",
+                                    "description": "Resource limits",
+                                    "default": {}
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "description": "Resource requests",
+                                    "default": {}
+                                }
+                            }
+                        },
+                        "lifecycle": {
+                            "type": "object",
+                            "description": "Container lifecycle hooks",
                             "default": {}
                         },
-                        "requests": {
+                        "terminationGracePeriodSeconds": {
+                            "type": "number",
+                            "description": "Graceful shutdown period",
+                            "default": 30
+                        },
+                        "extraVolumes": {
+                            "type": "array",
+                            "description": "Additional volumes",
+                            "default": [],
+                            "items": {}
+                        },
+                        "extraVolumeMounts": {
+                            "type": "array",
+                            "description": "Additional volume mounts",
+                            "default": [],
+                            "items": {}
+                        },
+                        "podDisruptionBudget": {
                             "type": "object",
-                            "description": "Resource requests",
-                            "default": {}
-                        }
-                    }
-                },
-                "lifecycle": {
-                    "type": "object",
-                    "description": "Container lifecycle hooks",
-                    "default": {}
-                },
-                "terminationGracePeriodSeconds": {
-                    "type": "number",
-                    "description": "Graceful shutdown period",
-                    "default": 30
-                },
-                "extraVolumes": {
-                    "type": "array",
-                    "description": "Additional volumes",
-                    "default": [],
-                    "items": {}
-                },
-                "extraVolumeMounts": {
-                    "type": "array",
-                    "description": "Additional volume mounts",
-                    "default": [],
-                    "items": {}
-                },
-                "podDisruptionBudget": {
-                    "type": "object",
-                    "properties": {
-                        "create": {
-                            "type": "boolean",
-                            "description": "Whether to create a PodDisruptionBudget",
-                            "default": false
+                            "properties": {
+                                "create": {
+                                    "type": "boolean",
+                                    "description": "Whether to create a PodDisruptionBudget",
+                                    "default": false
+                                },
+                                "maxUnavailable": {
+                                    "type": "string",
+                                    "description": "Maximum unavailable pods",
+                                    "default": "1"
+                                },
+                                "minAvailable": {
+                                    "type": "string",
+                                    "description": "Minimum available pods. Set this instead of `maxUnavailable`, not alongside it",
+                                    "default": ""
+                                }
+                            }
                         },
-                        "maxUnavailable": {
-                            "type": "string",
-                            "description": "Maximum unavailable pods",
-                            "default": "1"
-                        },
-                        "minAvailable": {
-                            "type": "string",
-                            "description": "Minimum available pods. Set this instead of `maxUnavailable`, not alongside it",
-                            "default": ""
-                        }
-                    }
-                },
-                "serviceAccount": {
-                    "type": "object",
-                    "properties": {
-                        "create": {
-                            "type": "boolean",
-                            "description": "Whether to create a ServiceAccount",
-                            "default": true
-                        },
-                        "name": {
-                            "type": "string",
-                            "description": "ServiceAccount name. Generated if empty",
-                            "default": ""
-                        },
-                        "annotations": {
+                        "serviceAccount": {
                             "type": "object",
-                            "description": "ServiceAccount annotations",
-                            "default": {}
-                        }
-                    }
-                },
-                "updateStrategy": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string",
-                            "description": "Deployment update strategy",
-                            "default": "RollingUpdate"
-                        }
-                    }
-                },
-                "log": {
-                    "type": "object",
-                    "description": "Overrides of the shared `log` settings for the api-manager",
-                    "default": {}
-                }
-            }
-        },
-        "agent": {
-            "type": "object",
-            "properties": {
-                "replicaCount": {
-                    "type": "number",
-                    "description": "The number of agent replicas to run",
-                    "default": 1
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "description": "Resource limits",
-                            "default": {}
+                            "properties": {
+                                "create": {
+                                    "type": "boolean",
+                                    "description": "Whether to create a ServiceAccount",
+                                    "default": true
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "ServiceAccount name. Generated if empty",
+                                    "default": ""
+                                },
+                                "annotations": {
+                                    "type": "object",
+                                    "description": "ServiceAccount annotations",
+                                    "default": {}
+                                }
+                            }
                         },
-                        "requests": {
+                        "updateStrategy": {
                             "type": "object",
-                            "description": "Resource requests",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Deployment update strategy",
+                                    "default": "RollingUpdate"
+                                }
+                            }
+                        },
+                        "log": {
+                            "type": "object",
+                            "description": "Overrides of the shared `log` settings for the api-manager",
                             "default": {}
                         }
                     }
                 },
-                "lifecycle": {
-                    "type": "object",
-                    "description": "Container lifecycle hooks",
-                    "default": {}
-                },
-                "terminationGracePeriodSeconds": {
-                    "type": "number",
-                    "description": "Graceful shutdown period",
-                    "default": 30
-                },
-                "extraVolumes": {
-                    "type": "array",
-                    "description": "Additional volumes",
-                    "default": [],
-                    "items": {}
-                },
-                "extraVolumeMounts": {
-                    "type": "array",
-                    "description": "Additional volume mounts",
-                    "default": [],
-                    "items": {}
-                },
-                "serviceAccount": {
+                "agent": {
                     "type": "object",
                     "properties": {
-                        "create": {
-                            "type": "boolean",
-                            "description": "Whether to create a ServiceAccount",
-                            "default": true
+                        "replicaCount": {
+                            "type": "number",
+                            "description": "The number of agent replicas to run",
+                            "default": 1
                         },
-                        "name": {
-                            "type": "string",
-                            "description": "ServiceAccount name. Generated if empty",
-                            "default": ""
-                        },
-                        "annotations": {
+                        "resources": {
                             "type": "object",
-                            "description": "ServiceAccount annotations",
+                            "properties": {
+                                "limits": {
+                                    "type": "object",
+                                    "description": "Resource limits",
+                                    "default": {}
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "description": "Resource requests",
+                                    "default": {}
+                                }
+                            }
+                        },
+                        "lifecycle": {
+                            "type": "object",
+                            "description": "Container lifecycle hooks",
+                            "default": {}
+                        },
+                        "terminationGracePeriodSeconds": {
+                            "type": "number",
+                            "description": "Graceful shutdown period",
+                            "default": 30
+                        },
+                        "extraVolumes": {
+                            "type": "array",
+                            "description": "Additional volumes",
+                            "default": [],
+                            "items": {}
+                        },
+                        "extraVolumeMounts": {
+                            "type": "array",
+                            "description": "Additional volume mounts",
+                            "default": [],
+                            "items": {}
+                        },
+                        "serviceAccount": {
+                            "type": "object",
+                            "properties": {
+                                "create": {
+                                    "type": "boolean",
+                                    "description": "Whether to create a ServiceAccount",
+                                    "default": true
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "ServiceAccount name. Generated if empty",
+                                    "default": ""
+                                },
+                                "annotations": {
+                                    "type": "object",
+                                    "description": "ServiceAccount annotations",
+                                    "default": {}
+                                }
+                            }
+                        },
+                        "updateStrategy": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Deployment update strategy",
+                                    "default": "RollingUpdate"
+                                }
+                            }
+                        },
+                        "log": {
+                            "type": "object",
+                            "description": "Overrides of the shared `log` settings for the agent",
                             "default": {}
                         }
                     }
                 },
-                "updateStrategy": {
+                "bindingsForwarder": {
                     "type": "object",
                     "properties": {
-                        "type": {
-                            "type": "string",
-                            "description": "Deployment update strategy",
-                            "default": "RollingUpdate"
+                        "replicaCount": {
+                            "type": "number",
+                            "description": "The number of bindings-forwarder replicas to run",
+                            "default": 1
+                        },
+                        "resources": {
+                            "type": "object",
+                            "properties": {
+                                "limits": {
+                                    "type": "object",
+                                    "description": "Resource limits",
+                                    "default": {}
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "description": "Resource requests",
+                                    "default": {}
+                                }
+                            }
+                        },
+                        "lifecycle": {
+                            "type": "object",
+                            "description": "Container lifecycle hooks",
+                            "default": {}
+                        },
+                        "terminationGracePeriodSeconds": {
+                            "type": "number",
+                            "description": "Graceful shutdown period",
+                            "default": 30
+                        },
+                        "extraVolumes": {
+                            "type": "array",
+                            "description": "Additional volumes",
+                            "default": [],
+                            "items": {}
+                        },
+                        "extraVolumeMounts": {
+                            "type": "array",
+                            "description": "Additional volume mounts",
+                            "default": [],
+                            "items": {}
+                        },
+                        "serviceAccount": {
+                            "type": "object",
+                            "properties": {
+                                "create": {
+                                    "type": "boolean",
+                                    "description": "Whether to create a ServiceAccount",
+                                    "default": true
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "ServiceAccount name. Generated if empty",
+                                    "default": ""
+                                },
+                                "annotations": {
+                                    "type": "object",
+                                    "description": "ServiceAccount annotations",
+                                    "default": {}
+                                }
+                            }
+                        },
+                        "updateStrategy": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Deployment update strategy",
+                                    "default": "RollingUpdate"
+                                }
+                            }
+                        },
+                        "log": {
+                            "type": "object",
+                            "description": "Overrides of the shared `log` settings for the bindings-forwarder",
+                            "default": {}
                         }
                     }
                 },
-                "log": {
-                    "type": "object",
-                    "description": "Overrides of the shared `log` settings for the agent",
-                    "default": {}
-                }
-            }
-        },
-        "bindingsForwarder": {
-            "type": "object",
-            "properties": {
-                "replicaCount": {
-                    "type": "number",
-                    "description": "The number of bindings-forwarder replicas to run",
-                    "default": 1
-                },
-                "resources": {
+                "cleanupHook": {
                     "type": "object",
                     "properties": {
-                        "limits": {
+                        "image": {
                             "type": "object",
-                            "description": "Resource limits",
-                            "default": {}
+                            "properties": {
+                                "repository": {
+                                    "type": "string",
+                                    "description": "The repository for the kubectl image used by the cleanup hook",
+                                    "default": "bitnami/kubectl"
+                                },
+                                "tag": {
+                                    "type": "string",
+                                    "description": "The tag for the kubectl image",
+                                    "default": "latest"
+                                },
+                                "pullPolicy": {
+                                    "type": "string",
+                                    "description": "The pull policy for the cleanup hook image",
+                                    "default": "IfNotPresent"
+                                }
+                            }
                         },
-                        "requests": {
+                        "resources": {
                             "type": "object",
-                            "description": "Resource requests",
-                            "default": {}
-                        }
-                    }
-                },
-                "lifecycle": {
-                    "type": "object",
-                    "description": "Container lifecycle hooks",
-                    "default": {}
-                },
-                "terminationGracePeriodSeconds": {
-                    "type": "number",
-                    "description": "Graceful shutdown period",
-                    "default": 30
-                },
-                "extraVolumes": {
-                    "type": "array",
-                    "description": "Additional volumes",
-                    "default": [],
-                    "items": {}
-                },
-                "extraVolumeMounts": {
-                    "type": "array",
-                    "description": "Additional volume mounts",
-                    "default": [],
-                    "items": {}
-                },
-                "serviceAccount": {
-                    "type": "object",
-                    "properties": {
-                        "create": {
-                            "type": "boolean",
-                            "description": "Whether to create a ServiceAccount",
-                            "default": true
-                        },
-                        "name": {
-                            "type": "string",
-                            "description": "ServiceAccount name. Generated if empty",
-                            "default": ""
-                        },
-                        "annotations": {
-                            "type": "object",
-                            "description": "ServiceAccount annotations",
-                            "default": {}
-                        }
-                    }
-                },
-                "updateStrategy": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string",
-                            "description": "Deployment update strategy",
-                            "default": "RollingUpdate"
-                        }
-                    }
-                },
-                "log": {
-                    "type": "object",
-                    "description": "Overrides of the shared `log` settings for the bindings-forwarder",
-                    "default": {}
-                }
-            }
-        },
-        "crdAccessRoles": {
-            "type": "object",
-            "properties": {
-                "create": {
-                    "type": "boolean",
-                    "description": "Whether to create editor/viewer ClusterRoles for CRDs",
-                    "default": true
-                },
-                "annotations": {
-                    "type": "object",
-                    "description": "Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)",
-                    "default": {}
-                }
-            }
-        },
-        "installCRDs": {
-            "type": "boolean",
-            "description": "When true, the ngrok CRDs will be installed alongside the operator",
-            "default": true
-        },
-        "cleanupHook": {
-            "type": "object",
-            "properties": {
-                "image": {
-                    "type": "object",
-                    "properties": {
-                        "repository": {
-                            "type": "string",
-                            "description": "The repository for the kubectl image used by the cleanup hook",
-                            "default": "bitnami/kubectl"
-                        },
-                        "tag": {
-                            "type": "string",
-                            "description": "The tag for the kubectl image",
-                            "default": "latest"
-                        },
-                        "pullPolicy": {
-                            "type": "string",
-                            "description": "The pull policy for the cleanup hook image",
-                            "default": "IfNotPresent"
-                        }
-                    }
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "description": "The resources limits for the cleanup hook container",
-                            "default": {}
-                        },
-                        "requests": {
-                            "type": "object",
-                            "description": "The requested resources for the cleanup hook container",
-                            "default": {}
+                            "properties": {
+                                "limits": {
+                                    "type": "object",
+                                    "description": "The resources limits for the cleanup hook container",
+                                    "default": {}
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "description": "The requested resources for the cleanup hook container",
+                                    "default": {}
+                                }
+                            }
                         }
                     }
                 }
