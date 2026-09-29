@@ -138,12 +138,13 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### Credentials configuration
 
-| Name                                 | Description                                                                                                        | Value |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ----- |
-| `credentials.secret.name`            | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name. | `""`  |
-| `credentials.accessToken`            | Your ngrok access token. Used by every component that needs one, unless overridden below.                          | `""`  |
-| `credentials.agent.accessToken`      | Optional access token for the agent-manager only. Falls back to credentials.accessToken.                           | `""`  |
-| `credentials.apiManager.accessToken` | Optional access token for the api-manager only. Falls back to credentials.accessToken.                             | `""`  |
+| Name                                       | Description                                                                                                        | Value |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ----- |
+| `credentials.secret.name`                  | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name. | `""`  |
+| `credentials.accessToken`                  | Your ngrok access token. Used by every component that needs one, unless overridden below.                          | `""`  |
+| `credentials.agent.accessToken`            | Optional access token for the agent-manager only. Falls back to credentials.accessToken.                           | `""`  |
+| `credentials.apiManager.accessToken`       | Optional access token for the api-manager only. Falls back to credentials.accessToken.                             | `""`  |
+| `credentials.privateEndpoints.accessToken` | Optional access token for the private-endpoint-forwarder only. Falls back to credentials.accessToken.              | `""`  |
 
 ### Kubernetes Ingress feature configuration
 
@@ -206,6 +207,18 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `bindings.forwarder.tolerations`                   | Tolerations for the bindings forwarder pod(s)                                                                 | `[]`                                      |
 | `bindings.forwarder.nodeSelector`                  | Node labels for the bindings forwarder pod(s)                                                                 | `{}`                                      |
 | `bindings.forwarder.topologySpreadConstraints`     | Topology Spread Constraints for the bindings forwarder pod(s)                                                 | `[]`                                      |
+
+### Private Endpoints (POC)
+
+| Name                                                    | Description                                                                                                                                                                                              | Value   |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `privateEndpoints.enabled`                              | Make ngrok private endpoints (*.internal, *.ngrok.direct) reachable from pods by URL. Requires CoreDNS to forward internal. and ngrok.direct. to the <fullname>-private-dns Service, and UDP/443 egress. | `false` |
+| `privateEndpoints.forwarder.replicaCount`               | Number of private endpoint forwarder pods                                                                                                                                                                | `1`     |
+| `privateEndpoints.forwarder.resources.limits`           | Forwarder container resource limits                                                                                                                                                                      | `{}`    |
+| `privateEndpoints.forwarder.resources.requests`         | Forwarder container resource requests                                                                                                                                                                    | `{}`    |
+| `privateEndpoints.forwarder.serviceAccount.create`      | Create a ServiceAccount for the forwarder                                                                                                                                                                | `true`  |
+| `privateEndpoints.forwarder.serviceAccount.name`        | ServiceAccount name (generated when empty)                                                                                                                                                               | `""`    |
+| `privateEndpoints.forwarder.serviceAccount.annotations` | ServiceAccount annotations                                                                                                                                                                               | `{}`    |
 
 ### Custom Resource Definitions installation
 

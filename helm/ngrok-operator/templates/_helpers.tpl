@@ -58,6 +58,8 @@ Usage: include "ngrok-operator.accessTokenSecretKey" "agent"
 AGENT_ACCESS_TOKEN
 {{- else if eq . "apiManager" -}}
 API_MANAGER_ACCESS_TOKEN
+{{- else if eq . "privateEndpoints" -}}
+PRIVATE_ENDPOINTS_ACCESS_TOKEN
 {{- else -}}
 {{- fail (printf "unknown component %q for accessTokenSecretKey" .) -}}
 {{- end -}}
@@ -118,6 +120,10 @@ Ngrok Operator manager cli feature flags
 {{- if .Values.bindings.enabled }}
 - --enable-feature-bindings={{ .Values.bindings.enabled }}
 {{- end }}
+{{- if .Values.privateEndpoints.enabled }}
+- --enable-feature-private-endpoints=true
+- --private-endpoints-shared-service={{ include "ngrok-operator.fullname" . }}-private-endpoints
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -150,6 +156,17 @@ Create the name of the bindings-forwarder service account to use
     {{ default (printf "%s-bindings-forwarder" (include "ngrok-operator.fullname" .)) .Values.bindings.forwarder.serviceAccount.name }}
 {{- else -}}
     {{ default "default" .Values.bindings.forwarder.serviceAccount.name }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Create the name of the private endpoint forwarder service account to use
+*/}}
+{{- define "ngrok-operator.privateEndpoints.forwarder.serviceAccountName" -}}
+{{- if .Values.privateEndpoints.forwarder.serviceAccount.create -}}
+    {{ default (printf "%s-private-endpoint-forwarder" (include "ngrok-operator.fullname" .)) .Values.privateEndpoints.forwarder.serviceAccount.name }}
+{{- else -}}
+    {{ default "default" .Values.privateEndpoints.forwarder.serviceAccount.name }}
 {{- end -}}
 {{- end -}}
 

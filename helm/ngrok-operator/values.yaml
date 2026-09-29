@@ -235,6 +235,7 @@ log:
 ## @param credentials.accessToken Your ngrok access token. Used by every component that needs one, unless overridden below.
 ## @param credentials.agent.accessToken Optional access token for the agent-manager only. Falls back to credentials.accessToken.
 ## @param credentials.apiManager.accessToken Optional access token for the api-manager only. Falls back to credentials.accessToken.
+## @param credentials.privateEndpoints.accessToken Optional access token for the private-endpoint-forwarder only. Falls back to credentials.accessToken.
 ##
 credentials:
   secret:
@@ -246,6 +247,8 @@ credentials:
   agent:
     accessToken: ""
   apiManager:
+    accessToken: ""
+  privateEndpoints:
     accessToken: ""
 
 ##
@@ -430,6 +433,28 @@ bindings:
 
     ## @param bindings.forwarder.topologySpreadConstraints Topology Spread Constraints for the bindings forwarder pod(s)
     topologySpreadConstraints: []
+
+##
+## @section Private Endpoints (POC)
+##
+## @param privateEndpoints.enabled Make ngrok private endpoints (*.internal, *.ngrok.direct) reachable from pods by URL. Requires CoreDNS to forward internal. and ngrok.direct. to the <fullname>-private-dns Service, and UDP/443 egress.
+## @param privateEndpoints.forwarder.replicaCount Number of private endpoint forwarder pods
+## @param privateEndpoints.forwarder.resources.limits Forwarder container resource limits
+## @param privateEndpoints.forwarder.resources.requests Forwarder container resource requests
+## @param privateEndpoints.forwarder.serviceAccount.create Create a ServiceAccount for the forwarder
+## @param privateEndpoints.forwarder.serviceAccount.name ServiceAccount name (generated when empty)
+## @param privateEndpoints.forwarder.serviceAccount.annotations ServiceAccount annotations
+privateEndpoints:
+  enabled: false
+  forwarder:
+    replicaCount: 1
+    resources:
+      limits: {}
+      requests: {}
+    serviceAccount:
+      create: true
+      name: ""
+      annotations: {}
 
 ## @section Custom Resource Definitions installation
 ##

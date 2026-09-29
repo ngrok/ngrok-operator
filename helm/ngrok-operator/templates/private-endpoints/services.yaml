@@ -1,0 +1,35 @@
+{{- if .Values.privateEndpoints.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-private-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: private-endpoint-forwarder
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "ngrok-operator.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: private-endpoint-forwarder
+  ports:
+  - {name: dns-udp, port: 53, protocol: UDP, targetPort: dns-udp}
+  - {name: dns-tcp, port: 53, protocol: TCP, targetPort: dns-tcp}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoints
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: private-endpoint-forwarder
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "ngrok-operator.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: private-endpoint-forwarder
+  ports:
+  - {name: http, port: 80, protocol: TCP, targetPort: http}
+  - {name: https, port: 443, protocol: TCP, targetPort: https}
+{{- end }}

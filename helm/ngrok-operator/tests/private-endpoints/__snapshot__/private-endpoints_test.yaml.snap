@@ -1,0 +1,92 @@
+forwarder deployment uses node DNS and the private endpoints token:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/component: private-endpoint-forwarder
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.22.0
+        helm.sh/chart: ngrok-operator-0.24.0
+      name: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: private-endpoint-forwarder
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: ngrok-operator
+      template:
+        metadata:
+          annotations:
+            checksum/secret: b9b73250d071782afda8892d8f0bafe0a6459af1b45fd129a272426d4e656892
+            prometheus.io/path: /metrics
+            prometheus.io/port: "8080"
+            prometheus.io/scrape: "true"
+          labels:
+            app.kubernetes.io/component: private-endpoint-forwarder
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: ngrok-operator
+        spec:
+          containers:
+            - args:
+                - private-endpoint-forwarder
+                - --zap-log-level=info
+                - --zap-stacktrace-level=error
+                - --zap-encoder=json
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=:8080
+                - --dns-bind-address=:5353
+                - --http-bind-address=:8000
+                - --https-bind-address=:8443
+              command:
+                - /ngrok-operator
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NGROK_ACCESS_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: PRIVATE_ENDPOINTS_ACCESS_TOKEN
+                      name: RELEASE-NAME-ngrok-operator-credentials
+              image: docker.io/ngrok/ngrok-operator:0.22.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                initialDelaySeconds: 15
+                periodSeconds: 20
+              name: forwarder
+              ports:
+                - containerPort: 5353
+                  name: dns-udp
+                  protocol: UDP
+                - containerPort: 5353
+                  name: dns-tcp
+                  protocol: TCP
+                - containerPort: 8000
+                  name: http
+                  protocol: TCP
+                - containerPort: 8443
+                  name: https
+                  protocol: TCP
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: 8081
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              resources:
+                limits: {}
+                requests: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+          dnsPolicy: Default
+          serviceAccountName: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder

@@ -325,6 +325,16 @@
                             "default": ""
                         }
                     }
+                },
+                "privateEndpoints": {
+                    "type": "object",
+                    "properties": {
+                        "accessToken": {
+                            "type": "string",
+                            "description": "Optional access token for the private-endpoint-forwarder only. Falls back to credentials.accessToken.",
+                            "default": ""
+                        }
+                    }
                 }
             }
         },
@@ -577,6 +587,61 @@
                             "description": "Topology Spread Constraints for the bindings forwarder pod(s)",
                             "default": [],
                             "items": {}
+                        }
+                    }
+                }
+            }
+        },
+        "privateEndpoints": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Make ngrok private endpoints (*.internal, *.ngrok.direct) reachable from pods by URL. Requires CoreDNS to forward internal. and ngrok.direct. to the <fullname>-private-dns Service, and UDP/443 egress.",
+                    "default": false
+                },
+                "forwarder": {
+                    "type": "object",
+                    "properties": {
+                        "replicaCount": {
+                            "type": "number",
+                            "description": "Number of private endpoint forwarder pods",
+                            "default": 1
+                        },
+                        "resources": {
+                            "type": "object",
+                            "properties": {
+                                "limits": {
+                                    "type": "object",
+                                    "description": "Forwarder container resource limits",
+                                    "default": {}
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "description": "Forwarder container resource requests",
+                                    "default": {}
+                                }
+                            }
+                        },
+                        "serviceAccount": {
+                            "type": "object",
+                            "properties": {
+                                "create": {
+                                    "type": "boolean",
+                                    "description": "Create a ServiceAccount for the forwarder",
+                                    "default": true
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "ServiceAccount name (generated when empty)",
+                                    "default": ""
+                                },
+                                "annotations": {
+                                    "type": "object",
+                                    "description": "ServiceAccount annotations",
+                                    "default": {}
+                                }
+                            }
                         }
                     }
                 }

@@ -1,0 +1,72 @@
+{{- if .Values.privateEndpoints.enabled }}
+{{- if .Values.privateEndpoints.forwarder.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "ngrok-operator.privateEndpoints.forwarder.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: private-endpoint-forwarder
+  {{- with .Values.privateEndpoints.forwarder.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoint-forwarder
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: [ngrok.com]
+  resources: [privateendpoints]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoint-forwarder
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoint-forwarder
+subjects:
+- kind: ServiceAccount
+  name: {{ include "ngrok-operator.privateEndpoints.forwarder.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+---
+# api-manager: poller writes PrivateEndpoints, controller writes their status
+# and the per-hostname Services. Always the release namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoints-manager
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: [ngrok.com]
+  resources: [privateendpoints]
+  verbs: [get, list, watch, create, delete]
+- apiGroups: [ngrok.com]
+  resources: [privateendpoints/status]
+  verbs: [get, update, patch]
+- apiGroups: [""]
+  resources: [services]
+  verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoints-manager
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoints-manager
+subjects:
+- kind: ServiceAccount
+  name: {{ include "ngrok-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

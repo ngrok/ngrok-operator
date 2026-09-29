@@ -1,0 +1,94 @@
+{{- if .Values.privateEndpoints.enabled }}
+{{- $component := "private-endpoint-forwarder" }}
+{{- $forwarder := .Values.privateEndpoints.forwarder }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+  name: {{ include "ngrok-operator.fullname" . }}-{{ $component }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ $forwarder.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: {{ $component }}
+  template:
+    metadata:
+      annotations:
+        {{- if .Values.podAnnotations }}
+          {{- toYaml .Values.podAnnotations | nindent 8 }}
+        {{- end }}
+        prometheus.io/path: /metrics
+        prometheus.io/port: '8080'
+        prometheus.io/scrape: 'true'
+        checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+          {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- end }}
+        app.kubernetes.io/component: {{ $component }}
+    spec:
+      # The forwarder is CoreDNS's upstream for internal. and ngrok.direct.;
+      # resolving through CoreDNS itself would loop.
+      dnsPolicy: Default
+      serviceAccountName: {{ include "ngrok-operator.privateEndpoints.forwarder.serviceAccountName" . }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: forwarder
+        image: {{ include "ngrok-operator.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /ngrok-operator
+        args:
+        - private-endpoint-forwarder
+        - --zap-log-level={{ .Values.log.level }}
+        - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
+        - --zap-encoder={{ .Values.log.format }}
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8080
+        - --dns-bind-address=:5353
+        - --http-bind-address=:8000
+        - --https-bind-address=:8443
+        securityContext:
+          allowPrivilegeEscalation: false
+        ports:
+        - {name: dns-udp, containerPort: 5353, protocol: UDP}
+        - {name: dns-tcp, containerPort: 5353, protocol: TCP}
+        - {name: http, containerPort: 8000, protocol: TCP}
+        - {name: https, containerPort: 8443, protocol: TCP}
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NGROK_ACCESS_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: {{ include "ngrok-operator.accessTokenSecretKey" "privateEndpoints" }}
+              name: {{ include "ngrok-operator.credentialsSecretName" . }}
+        {{- range $key, $value := .Values.extraEnv }}
+        - name: {{ $key }}
+          value: {{- toYaml $value | nindent 12 }}
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          {{- toYaml $forwarder.resources | nindent 10 }}
+{{- end }}
