@@ -6,11 +6,28 @@ How operator configuration reaches each component, and where its defaults live.
 
 `internal/config.Default()` is the only place a default is written. Every component loads the same `config.Config` struct and ignores the settings it does not use.
 
-The struct's JSON tags name each setting. The same name is the key in the chart's values and, through `config.EnvName`, the environment variable. Settings that belong to one component alone live in that component's section, such as `apiManager.oneClickDemoMode`.
+Each setting in the struct carries three tags:
+
+| Tag          | Purpose |
+|--------------|---------|
+| `json`       | Names the setting: its key in the chart's values, and through `config.EnvName` and `config.FlagName` its environment variable and flag |
+| `components` | The components that read it. Only they get its flag |
+| `help`       | Usage text for its flag |
+
+Settings that belong to one component alone live in that component's section, such as `apiManager.oneClickDemoMode`.
+
+## Precedence
+
+Highest wins:
+
+1. **Flag**: `--ngrok-region=eu`
+2. **Setting variable**: `NGROK_OPERATOR_NGROK_REGION=eu`
+3. **Section variable**: `NGROK_OPERATOR_NGROK='{"region":"eu"}'`
+4. **Built-in default**: `config.Default()`
+
+There is no configuration file.
 
 ## Environment variables
-
-Configuration is read only from `NGROK_OPERATOR_*` environment variables. There are no configuration flags and no configuration file.
 
 A variable's name is `NGROK_OPERATOR_` and the setting's path in upper snake case: `ngrok.rootCAs` is `NGROK_OPERATOR_NGROK_ROOT_CAS`. The name is derived from the struct, so it cannot drift from the setting it names.
 
@@ -24,6 +41,12 @@ Two forms are read, and the more specific one wins:
 An empty variable counts as unset.
 
 Logging keeps controller-runtime's `--zap-*` flags. The `log` settings seed them, and a `--zap-*` flag passed on the command line wins.
+
+## Flags
+
+Each setting's flag is generated from the struct: `ngrok.rootCAs` is `--ngrok-root-cas`, the kebab-case form of its environment variable. A flag takes the same encoding as its variable: `--features-gateway-enabled` (a boolean needs no value), `--features-bindings-endpoint-selectors='["true"]'`, `--ngrok-metadata='{env: dev}'`. `--help` shows each setting's help text and its `Default()` value.
+
+A component registers flags only for the settings whose `components` tag names it, so the agent rejects `--ngrok-region` instead of ignoring it. The chart passes no configuration flags; they are for running a component by hand.
 
 Credentials (`NGROK_ACCESS_TOKEN`) and `POD_NAMESPACE` are read separately and are not part of `config.Config`.
 
@@ -43,7 +66,7 @@ A per-component `extraEnv` entry is listed after the chart's variables, so a set
 NGROK_ACCESS_TOKEN=... POD_NAMESPACE=ngrok-operator go run . api-manager
 ```
 
-Nothing else is required. Override individual settings with setting variables, for example in `.envrc-user`:
+Nothing else is required. Override individual settings with flags, or with setting variables, for example in `.envrc-user`:
 
 ```bash
 export NGROK_OPERATOR_LOG_LEVEL=debug
@@ -53,8 +76,8 @@ export NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED=false
 
 ## Adding a configuration value
 
-1. Add the field to `internal/config.Config`, and its default to `Default()`.
+1. Add the field to `internal/config.Config` with `json`, `components` and `help` tags, and its default to `Default()`.
 2. Add the key to `values.yaml` under `ngrok`, `log` or `features` (or `<component>.config` if only that component has the setting), empty unless it is a boolean, with an `@param` line that states the default.
 3. Run `make update-readme` in `helm/ngrok-operator` to regenerate the chart README and schema.
 
-The environment variable, the chart rendering and the tests follow automatically. No template changes are needed.
+The environment variable, the flag, the chart rendering and the tests follow automatically. No template changes are needed.
