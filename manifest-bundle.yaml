@@ -3450,7 +3450,7 @@ spec:
           value: "k8s.ngrok.com/ingress-controller"
         - name: NGROK_OPERATOR_FEATURES__INGRESS__ENABLED
           value: "true"
-        - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE
+        - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
           value: "false"
         livenessProbe:
           httpGet:
@@ -3563,7 +3563,7 @@ spec:
           value: "k8s.ngrok.com/ingress-controller"
         - name: NGROK_OPERATOR_FEATURES__INGRESS__ENABLED
           value: "true"
-        - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE
+        - name: NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
           value: "false"
         livenessProbe:
           httpGet:
