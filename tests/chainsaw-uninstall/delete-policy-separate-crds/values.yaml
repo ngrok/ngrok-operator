@@ -1,10 +1,11 @@
 # Scenario: delete-policy-separate-crds
 # Overrides base values - only specify what's different
 #
-# - features.cleanup.drainPolicy: Delete (resources cleaned up from ngrok API)
+# - ngrok.features.cleanup.drainPolicy: Delete (resources cleaned up from ngrok API)
 # - installCRDs: false (CRDs installed separately via ngrok-crds chart)
 
-features:
-  cleanup:
-    drainPolicy: Delete
+ngrok:
+  features:
+    cleanup:
+      drainPolicy: Delete
 installCRDs: false

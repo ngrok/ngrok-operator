@@ -1,12 +1,13 @@
 # Scenario: multi-ns-retain-policy - Operator A
 # Namespace-scoped operator watching namespace-a only
 
-features:
-  cleanup:
-    drainPolicy: Retain
-  ingress:
-    controllerName: k8s.ngrok.com/ingress-controller-a
-    ingressClass:
-      name: ngrok-a
-    watchNamespace: namespace-a
+ngrok:
+  features:
+    cleanup:
+      drainPolicy: Retain
+    ingress:
+      controllerName: k8s.ngrok.com/ingress-controller-a
+      ingressClass:
+        name: ngrok-a
+      watchNamespace: namespace-a
 installCRDs: false

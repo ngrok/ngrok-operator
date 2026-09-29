@@ -6,12 +6,13 @@ image:
   tag: latest
   pullPolicy: Never
 
-log:
-  format: console
-  level: debug
+ngrok:
+  log:
+    format: console
+    level: debug
 
 # Default to Retain (the actual default) - scenarios override as needed
-# features.cleanup.drainPolicy: Retain
+# ngrok.features.cleanup.drainPolicy: Retain
 
 # Default to bundled CRDs - scenarios override as needed  
 # installCRDs: true
