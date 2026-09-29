@@ -59,7 +59,7 @@ func privateEndpointForwarderCmd() *cobra.Command {
 	var opts privateEndpointForwarderOpts
 	c := &cobra.Command{
 		Use: "private-endpoint-forwarder",
-		RunE: func(c *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return runPrivateEndpointForwarder(opts)
 		},
 	}
