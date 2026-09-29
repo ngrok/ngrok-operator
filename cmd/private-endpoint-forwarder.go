@@ -35,6 +35,7 @@ import (
 
 	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
 	"github.com/ngrok/ngrok-operator/internal/version"
+	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 )
 
 func init() {
@@ -100,18 +101,19 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
 		AuthToken:      token,
 	})
 	table := forwarder.NewTable()
-	proxy := &forwarder.Proxy{
+	syncer := &forwarder.Syncer{
+		Client:       mgr.GetClient(),
+		Namespace:    namespace,
 		Table:        table,
-		Log:          log.WithName("proxy"),
+		Listeners:    bindingsdriver.New(),
 		DrainTimeout: 5 * time.Second,
+		Log:          log.WithName("forward"),
 		Dial: func(ctx context.Context, address string) (net.Conn, error) {
 			return dialer.DialContext(ctx, "tcp", address)
 		},
 	}
-	ports := &forwarder.PortListeners{Proxy: proxy, Log: log.WithName("ports")}
-	defer ports.Close()
-
-	if err := (&forwarder.Syncer{Client: mgr.GetClient(), Namespace: namespace, Table: table, Ports: ports}).SetupWithManager(mgr); err != nil {
+	defer syncer.Close()
+	if err := syncer.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("setting up PrivateEndpoint syncer: %w", err)
 	}
 
