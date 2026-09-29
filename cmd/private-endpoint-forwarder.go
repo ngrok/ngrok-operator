@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -27,13 +26,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
 	"golang.ngrok.com/ngrok/privatedial"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
@@ -47,10 +44,6 @@ func init() {
 type privateEndpointForwarderOpts struct {
 	metricsAddr       string
 	probeAddr         string
-	dnsAddr           string
-	httpAddr          string
-	httpsAddr         string
-	dnsUpstream       string
 	privateDialServer string
 	zapOpts           *zap.Options
 }
@@ -65,10 +58,6 @@ func privateEndpointForwarderCmd() *cobra.Command {
 	}
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to")
-	c.Flags().StringVar(&opts.dnsAddr, "dns-bind-address", ":5353", "UDP and TCP address the DNS server binds to")
-	c.Flags().StringVar(&opts.httpAddr, "http-bind-address", ":8000", "Address of the shared listener for http endpoints on port 80")
-	c.Flags().StringVar(&opts.httpsAddr, "https-bind-address", ":8443", "Address of the shared listener for https/tls endpoints on port 443")
-	c.Flags().StringVar(&opts.dnsUpstream, "dns-upstream", "", "Resolver (host:port) for .internal names that aren't private endpoints. Defaults to the first nameserver in /etc/resolv.conf")
 	c.Flags().StringVar(&opts.privateDialServer, "private-dial-server", "quic.connect-endpoint.ngrok.com:443",
 		"Private dial gateway (host:port). QUIC is forced: privatedial's HTTP/2 transport panics on Go 1.27, so UDP/443 egress is required.")
 
@@ -93,17 +82,6 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
 	if !ok || token == "" {
 		return errors.New("NGROK_ACCESS_TOKEN environment variable should be set, but was not")
 	}
-	upstream := opts.dnsUpstream
-	if upstream == "" {
-		rc, err := dns.ClientConfigFromFile("/etc/resolv.conf")
-		if err != nil {
-			return fmt.Errorf("reading /etc/resolv.conf (set --dns-upstream): %w", err)
-		}
-		if len(rc.Servers) == 0 {
-			return errors.New("no nameserver in /etc/resolv.conf (set --dns-upstream)")
-		}
-		upstream = net.JoinHostPort(rc.Servers[0], rc.Port)
-	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -123,9 +101,9 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
 	})
 	table := forwarder.NewTable()
 	proxy := &forwarder.Proxy{
-		Table:       table,
-		Log:         log.WithName("proxy"),
-		PeekTimeout: 10 * time.Second,
+		Table:        table,
+		Log:          log.WithName("proxy"),
+		DrainTimeout: 5 * time.Second,
 		Dial: func(ctx context.Context, address string) (net.Conn, error) {
 			return dialer.DialContext(ctx, "tcp", address)
 		},
@@ -135,42 +113,6 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
 
 	if err := (&forwarder.Syncer{Client: mgr.GetClient(), Namespace: namespace, Table: table, Ports: ports}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("setting up PrivateEndpoint syncer: %w", err)
-	}
-
-	dnsHandler := &forwarder.DNSHandler{Table: table, Upstream: upstream, TTL: 5, Exchange: forwarder.UDPExchange}
-	for _, network := range []string{"udp", "tcp"} {
-		srv := &dns.Server{Addr: opts.dnsAddr, Net: network, Handler: dnsHandler}
-		if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-			errCh := make(chan error, 1)
-			go func() { errCh <- srv.ListenAndServe() }()
-			select {
-			case <-ctx.Done():
-				return srv.ShutdownContext(context.Background())
-			case err := <-errCh:
-				return fmt.Errorf("dns %s server: %w", network, err)
-			}
-		})); err != nil {
-			return err
-		}
-	}
-
-	for _, l := range []struct {
-		addr string
-		port int32
-		peek func(*bufio.Reader) (string, error)
-	}{
-		{opts.httpAddr, 80, forwarder.PeekHTTPHost},
-		{opts.httpsAddr, 443, forwarder.PeekSNI},
-	} {
-		if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-			ln, err := net.Listen("tcp", l.addr)
-			if err != nil {
-				return fmt.Errorf("listening on %s: %w", l.addr, err)
-			}
-			return proxy.ServeShared(ctx, ln, l.port, l.peek)
-		})); err != nil {
-			return err
-		}
 	}
 
 	if err := mgr.AddReadyzCheck("routing-table", func(*http.Request) error {
@@ -185,6 +127,6 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
 		return fmt.Errorf("error setting up health check: %w", err)
 	}
 
-	log.Info("serving", "dns", opts.dnsAddr, "dnsUpstream", upstream, "http", opts.httpAddr, "https", opts.httpsAddr, "privateDialServer", opts.privateDialServer)
+	log.Info("serving", "privateDialServer", opts.privateDialServer)
 	return mgr.Start(ctrl.SetupSignalHandler())
 }

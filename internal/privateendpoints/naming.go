@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 )
 
@@ -62,16 +64,31 @@ func IsPrivateHostname(h string) bool {
 	return strings.HasSuffix(h, ".internal") || strings.HasSuffix(h, ".ngrok.direct")
 }
 
-// SharedEligible reports whether the endpoint can be served by the shared
-// listener, which demuxes by Host header on 80 and by SNI on 443.
-func SharedEligible(s ngrokv1.PrivateEndpointSpec) bool {
-	switch s.Scheme {
-	case ngrokv1.PrivateEndpointSchemeHTTP:
-		return s.Port == 80
-	case ngrokv1.PrivateEndpointSchemeHTTPS, ngrokv1.PrivateEndpointSchemeTLS:
-		return s.Port == 443
+// tldSuffixes maps each private TLD to the suffix its Services get, so
+// foo.internal and foo.ngrok.direct don't collide. Keep in sync with the
+// CoreDNS rewrite rules in scripts/kind-private-endpoints-dns.sh.
+var tldSuffixes = []struct{ tld, suffix string }{
+	{".internal", "-internal"},
+	{".ngrok.direct", "-ngrok-direct"},
+}
+
+// ServiceName returns the in-cluster Service name that CoreDNS rewrites
+// hostname to. Only single-label hostnames (foo.internal) are supported,
+// because Service names can't contain dots.
+func ServiceName(hostname string) (string, error) {
+	h := NormalizeHost(hostname)
+	for _, t := range tldSuffixes {
+		label, ok := strings.CutSuffix(h, t.tld)
+		if !ok {
+			continue
+		}
+		name := label + t.suffix
+		if len(validation.IsDNS1035Label(label)) > 0 || len(validation.IsDNS1035Label(name)) > 0 {
+			return "", fmt.Errorf("hostname %q can't be mapped to a Service name: only single-label names made of lowercase letters, digits and '-', starting with a letter, are supported", hostname)
+		}
+		return name, nil
 	}
-	return false
+	return "", fmt.Errorf("hostname %q is not under a private endpoint TLD", hostname)
 }
 
 func NormalizeHost(name string) string {
@@ -86,5 +103,3 @@ func shortHash(s string) string {
 func CRName(url string) string { return "pe-" + shortHash(url) }
 
 func HostKey(hostname string) string { return shortHash(NormalizeHost(hostname)) }
-
-func HostServiceName(hostKey string) string { return "pe-host-" + hostKey }

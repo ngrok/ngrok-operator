@@ -1,7 +1,6 @@
 package forwarder
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -43,7 +42,7 @@ func listen(t *testing.T) net.Listener {
 }
 
 func newProxy(tbl *Table, up *fakeUpstream) *Proxy {
-	return &Proxy{Table: tbl, Dial: up.dial, Log: logr.Discard(), PeekTimeout: 200 * time.Millisecond}
+	return &Proxy{Table: tbl, Dial: up.dial, Log: logr.Discard(), DrainTimeout: time.Second}
 }
 
 func readPrefix(t *testing.T, c net.Conn, n int) string {
@@ -55,63 +54,53 @@ func readPrefix(t *testing.T, c net.Conn, n int) string {
 	return string(buf)
 }
 
-func TestServeSharedHTTP(t *testing.T) {
+// A client that never closes must not pin the upstream stream forever once
+// the upstream has finished sending.
+func TestPipeDrainsAfterUpstreamEOF(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	upstreamL := listen(t)
+	defer upstreamL.Close()
+	upstreamSawClose := make(chan error, 1)
+	go func() {
+		c, err := upstreamL.Accept()
+		if err != nil {
+			upstreamSawClose <- err
+			return
+		}
+		defer c.Close()
+		_, _ = io.WriteString(c, "bye")
+		_ = c.(*net.TCPConn).CloseWrite()
+		_, err = io.Copy(io.Discard, c) // returns once the forwarder closes its side
+		upstreamSawClose <- err
+	}()
+
 	tbl := NewTable()
-	tbl.Replace([]Entry{{Hostname: "foo.internal", Port: 80, ClusterIP: "10.0.0.1"}})
-	up := &fakeUpstream{}
-	l := listen(t)
-	go func() { _ = newProxy(tbl, up).ServeShared(ctx, l, 80, PeekHTTPHost) }()
+	port := freePort(t)
+	tbl.Replace([]Entry{{Hostname: "done.internal", Port: 80, ForwarderPort: port}})
+	p := &Proxy{
+		Table:        tbl,
+		Log:          logr.Discard(),
+		DrainTimeout: 200 * time.Millisecond,
+		Dial: func(context.Context, string) (net.Conn, error) {
+			return net.Dial("tcp", upstreamL.Addr().String())
+		},
+	}
+	pl := &PortListeners{Proxy: p, Log: logr.Discard(), BindHost: "127.0.0.1"}
+	defer pl.Close()
+	require.NoError(t, pl.Sync(ctx, []int32{port}))
 
-	t.Run("known host is dialed and bytes replayed", func(t *testing.T) {
-		c, err := net.Dial("tcp", l.Addr().String())
-		require.NoError(t, err)
-		defer c.Close()
-		req := "GET / HTTP/1.1\r\nHost: foo.internal\r\n\r\n"
-		_, err = io.WriteString(c, req)
-		require.NoError(t, err)
-		want := "[foo.internal:80]" + req
-		assert.Equal(t, want, readPrefix(t, c, len(want)))
-	})
-
-	t.Run("unknown host is closed", func(t *testing.T) {
-		c, err := net.Dial("tcp", l.Addr().String())
-		require.NoError(t, err)
-		defer c.Close()
-		_, _ = io.WriteString(c, "GET / HTTP/1.1\r\nHost: nope.internal\r\n\r\n")
-		_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
-		_, err = bufio.NewReader(c).ReadByte()
-		assert.ErrorIs(t, err, io.EOF)
-	})
-
-	t.Run("idle client is closed", func(t *testing.T) {
-		c, err := net.Dial("tcp", l.Addr().String())
-		require.NoError(t, err)
-		defer c.Close()
-		_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
-		_, err = bufio.NewReader(c).ReadByte()
-		assert.ErrorIs(t, err, io.EOF, "server should hang up after PeekTimeout")
-	})
-}
-
-func TestServeSharedTLS(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tbl := NewTable()
-	tbl.Replace([]Entry{{Hostname: "foo.ngrok.direct", Port: 443, ClusterIP: "10.0.0.1"}})
-	up := &fakeUpstream{}
-	l := listen(t)
-	go func() { _ = newProxy(tbl, up).ServeShared(ctx, l, 443, PeekSNI) }()
-
-	hello := clientHello(t, "foo.ngrok.direct")
-	c, err := net.Dial("tcp", l.Addr().String())
+	c, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	require.NoError(t, err)
-	defer c.Close()
-	_, err = c.Write(hello)
-	require.NoError(t, err)
-	want := "[foo.ngrok.direct:443]" + string(hello)
-	assert.Equal(t, want, readPrefix(t, c, len(want)))
+	defer c.Close() // the client stays open and silent for the whole test
+	assert.Equal(t, "bye", readPrefix(t, c, 3))
+
+	select {
+	case <-upstreamSawClose:
+	case <-time.After(2 * time.Second):
+		t.Fatal("upstream connection still open long after DrainTimeout")
+	}
 }
 
 func TestPortListenersFollowSync(t *testing.T) {
@@ -123,7 +112,7 @@ func TestPortListenersFollowSync(t *testing.T) {
 	defer pl.Close()
 
 	port := freePort(t)
-	tbl.Replace([]Entry{{Hostname: "old.internal", Port: 6379, ClusterIP: "10.0.0.2", ForwarderPort: port}})
+	tbl.Replace([]Entry{{Hostname: "old.internal", Port: 6379, ForwarderPort: port}})
 	require.NoError(t, pl.Sync(ctx, []int32{port}))
 	assert.Equal(t, "[old.internal:6379]", dialAndRead(t, port, len("[old.internal:6379]")))
 
@@ -132,7 +121,7 @@ func TestPortListenersFollowSync(t *testing.T) {
 	_, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
 	assert.Error(t, err, "listener should be closed")
 
-	tbl.Replace([]Entry{{Hostname: "new.internal", Port: 5432, ClusterIP: "10.0.0.3", ForwarderPort: port}})
+	tbl.Replace([]Entry{{Hostname: "new.internal", Port: 5432, ForwarderPort: port}})
 	require.NoError(t, pl.Sync(ctx, []int32{port}))
 	assert.Equal(t, "[new.internal:5432]", dialAndRead(t, port, len("[new.internal:5432]")))
 }

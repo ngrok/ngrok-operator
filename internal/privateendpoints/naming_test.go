@@ -1,6 +1,7 @@
 package privateendpoints
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -59,24 +60,33 @@ func TestIsPrivateHostname(t *testing.T) {
 	}
 }
 
-func TestSharedEligible(t *testing.T) {
+func TestServiceName(t *testing.T) {
 	tests := []struct {
-		name   string
-		scheme ngrokv1.PrivateEndpointScheme
-		port   int32
-		want   bool
+		host    string
+		want    string
+		wantErr bool
 	}{
-		{"http 80", "http", 80, true},
-		{"https 443", "https", 443, true},
-		{"tls 443", "tls", 443, true},
-		{"http 8080", "http", 8080, false},
-		{"https 8443", "https", 8443, false},
-		{"tcp 443", "tcp", 443, false},
-		{"tcp 80", "tcp", 80, false},
+		{"foo.internal", "foo-internal", false},
+		{"FOO.Internal.", "foo-internal", false},
+		{"foo.ngrok.direct", "foo-ngrok-direct", false},
+		{"my-app2.internal", "my-app2-internal", false},
+		{"api.foo.internal", "", true}, // multi-label: Service names can't hold dots
+		{"123foo.internal", "", true},  // Service names must start with a letter
+		{"foo-.internal", "", true},    // or end with an alphanumeric
+		{"foo_bar.internal", "", true}, // underscores aren't allowed
+		{"foo.ngrok.app", "", true},    // not a private TLD
+		{strings.Repeat("a", 50) + ".ngrok.direct", strings.Repeat("a", 50) + "-ngrok-direct", false},
+		{strings.Repeat("a", 51) + ".ngrok.direct", "", true}, // 51 + len("-ngrok-direct") > 63
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, SharedEligible(ngrokv1.PrivateEndpointSpec{Scheme: tt.scheme, Port: tt.port}))
+		t.Run(tt.host, func(t *testing.T) {
+			got, err := ServiceName(tt.host)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -87,5 +97,4 @@ func TestNames(t *testing.T) {
 	assert.Regexp(t, `^pe-[0-9a-f]{16}$`, CRName("http://foo.internal"))
 	assert.Equal(t, HostKey("FOO.internal"), HostKey("foo.internal."))
 	assert.Regexp(t, `^[0-9a-f]{16}$`, HostKey("foo.internal"))
-	assert.Equal(t, "pe-host-"+HostKey("foo.internal"), HostServiceName(HostKey("foo.internal")))
 }

@@ -1,7 +1,6 @@
 package forwarder
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -19,58 +18,17 @@ type DialFunc func(ctx context.Context, address string) (net.Conn, error)
 
 // Proxy forwards accepted connections to private endpoints via Dial.
 type Proxy struct {
-	Table       *Table
-	Dial        DialFunc
-	Log         logr.Logger
-	PeekTimeout time.Duration
-}
-
-// ServeShared routes by the name peek extracts (Host header or SNI) for
-// endpoints on the given logical port (80 or 443).
-func (p *Proxy) ServeShared(ctx context.Context, l net.Listener, port int32, peek func(*bufio.Reader) (string, error)) error {
-	return serve(ctx, l, func(c net.Conn) {
-		br := bufio.NewReaderSize(c, PeekBufferSize)
-		_ = c.SetReadDeadline(time.Now().Add(p.PeekTimeout))
-		host, err := peek(br)
-		_ = c.SetReadDeadline(time.Time{})
-		if err != nil {
-			p.Log.V(1).Info("closing connection without a routable name", "port", port, "remote", c.RemoteAddr().String(), "reason", err.Error())
-			_ = c.Close()
-			return
-		}
-		target, ok := p.Table.SharedTarget(host, port)
-		if !ok {
-			p.Log.V(1).Info("closing connection for unknown private endpoint", "host", host, "port", port)
-			_ = c.Close()
-			return
-		}
-		p.forward(ctx, c, br, target)
-	})
+	Table *Table
+	Dial  DialFunc
+	Log   logr.Logger
+	// DrainTimeout bounds how long the other direction may keep running
+	// after one side finishes, so a client that never closes can't pin a
+	// private dial stream.
+	DrainTimeout time.Duration
 }
 
 // ServePort forwards every connection on a per-endpoint forwarder port.
 func (p *Proxy) ServePort(ctx context.Context, l net.Listener, fwdPort int32) error {
-	return serve(ctx, l, func(c net.Conn) {
-		target, ok := p.Table.PortTarget(fwdPort)
-		if !ok {
-			_ = c.Close()
-			return
-		}
-		p.forward(ctx, c, c, target)
-	})
-}
-
-func (p *Proxy) forward(ctx context.Context, client net.Conn, clientR io.Reader, target string) {
-	upstream, err := p.Dial(ctx, target)
-	if err != nil {
-		p.Log.Error(err, "private dial failed", "target", target)
-		_ = client.Close()
-		return
-	}
-	pipe(client, clientR, upstream)
-}
-
-func serve(ctx context.Context, l net.Listener, handle func(net.Conn)) error {
 	stop := context.AfterFunc(ctx, func() { _ = l.Close() })
 	defer stop()
 	for {
@@ -81,25 +39,44 @@ func serve(ctx context.Context, l net.Listener, handle func(net.Conn)) error {
 			}
 			return err
 		}
-		go handle(c)
+		go p.forward(ctx, c, fwdPort)
 	}
 }
 
-// pipe copies both ways. clientR replays any bytes already peeked from client.
-func pipe(client net.Conn, clientR io.Reader, upstream net.Conn) {
-	var wg sync.WaitGroup
-	wg.Add(2)
+func (p *Proxy) forward(ctx context.Context, client net.Conn, fwdPort int32) {
+	target, ok := p.Table.PortTarget(fwdPort)
+	if !ok {
+		_ = client.Close()
+		return
+	}
+	upstream, err := p.Dial(ctx, target)
+	if err != nil {
+		p.Log.Error(err, "private dial failed", "target", target)
+		_ = client.Close()
+		return
+	}
+	pipe(client, upstream, p.DrainTimeout)
+}
+
+// pipe copies both ways, half-closing each side at EOF. Once one direction
+// ends, the other gets drain to finish before both conns are closed.
+func pipe(client, upstream net.Conn, drain time.Duration) {
+	done := make(chan struct{}, 2)
 	go func() {
-		defer wg.Done()
-		_, _ = io.Copy(upstream, clientR)
+		_, _ = io.Copy(upstream, client)
 		closeWrite(upstream)
+		done <- struct{}{}
 	}()
 	go func() {
-		defer wg.Done()
 		_, _ = io.Copy(client, upstream)
 		closeWrite(client)
+		done <- struct{}{}
 	}()
-	wg.Wait()
+	<-done
+	select {
+	case <-done:
+	case <-time.After(drain):
+	}
 	_ = client.Close()
 	_ = upstream.Close()
 }

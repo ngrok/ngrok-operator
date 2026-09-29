@@ -26,10 +26,10 @@ func TestSyncerSync(t *testing.T) {
 		}
 	}
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(
-		cr("a", "op", "foo.internal", 80, "10.0.0.1", 0),
+		cr("a", "op", "foo.internal", 80, "", 0),
 		cr("b", "op", "bar.internal", 6379, "10.0.0.2", port),
 		cr("c", "op", "pending.internal", 6379, "", 0),
-		cr("d", "other", "elsewhere.internal", 80, "10.0.0.9", 0),
+		cr("d", "other", "elsewhere.internal", 80, "10.0.0.9", port+1),
 	).Build()
 
 	tbl := NewTable()
@@ -39,12 +39,8 @@ func TestSyncerSync(t *testing.T) {
 
 	require.NoError(t, sy.Sync(context.Background()))
 	assert.True(t, tbl.Synced())
-	ip, ok := tbl.IP("foo.internal")
+	target, ok := tbl.PortTarget(port)
 	assert.True(t, ok)
-	assert.Equal(t, "10.0.0.1", ip)
-	_, ok = tbl.IP("pending.internal")
-	assert.False(t, ok)
-	_, ok = tbl.IP("elsewhere.internal")
-	assert.False(t, ok, "other namespaces are ignored")
-	assert.Equal(t, []int32{port}, pl.Ports())
+	assert.Equal(t, "bar.internal:6379", target)
+	assert.Equal(t, []int32{port}, pl.Ports(), "not-ready and other-namespace endpoints get no listener")
 }

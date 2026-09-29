@@ -2,7 +2,6 @@ suite: test private endpoints
 templates:
 - private-endpoints/deployment.yaml
 - private-endpoints/rbac.yaml
-- private-endpoints/services.yaml
 - api-manager/deployment.yaml
 # included by api-manager/deployment.yaml checksums; helm-unittest only loads listed templates
 - api-manager/role.yaml
@@ -15,11 +14,10 @@ tests:
   templates:
   - private-endpoints/deployment.yaml
   - private-endpoints/rbac.yaml
-  - private-endpoints/services.yaml
   asserts:
   - hasDocuments:
       count: 0
-- it: forwarder deployment uses node DNS and the private endpoints token
+- it: forwarder deployment uses the private endpoints token and cluster DNS
   set:
     privateEndpoints.enabled: true
   template: private-endpoints/deployment.yaml
@@ -27,9 +25,8 @@ tests:
   - equal:
       path: metadata.name
       value: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
-  - equal:
+  - notExists:
       path: spec.template.spec.dnsPolicy
-      value: Default
   - equal:
       path: spec.template.metadata.labels["app.kubernetes.io/component"]
       value: private-endpoint-forwarder
@@ -45,30 +42,7 @@ tests:
             key: PRIVATE_ENDPOINTS_ACCESS_TOKEN
             name: RELEASE-NAME-ngrok-operator-credentials
   - matchSnapshot: {}
-- it: services map standard ports to forwarder container ports
-  set:
-    privateEndpoints.enabled: true
-  template: private-endpoints/services.yaml
-  asserts:
-  - hasDocuments:
-      count: 2
-  - equal:
-      path: metadata.name
-      value: RELEASE-NAME-ngrok-operator-private-dns
-    documentIndex: 0
-  - contains:
-      path: spec.ports
-      content: {name: dns-udp, port: 53, protocol: UDP, targetPort: dns-udp}
-    documentIndex: 0
-  - equal:
-      path: metadata.name
-      value: RELEASE-NAME-ngrok-operator-private-endpoints
-    documentIndex: 1
-  - contains:
-      path: spec.ports
-      content: {name: https, port: 443, protocol: TCP, targetPort: https}
-    documentIndex: 1
-- it: api-manager gets the feature flag and shared service name
+- it: api-manager gets the feature flag
   set:
     privateEndpoints.enabled: true
   template: api-manager/deployment.yaml
@@ -76,9 +50,6 @@ tests:
   - contains:
       path: spec.template.spec.containers[0].args
       content: --enable-feature-private-endpoints=true
-  - contains:
-      path: spec.template.spec.containers[0].args
-      content: --private-endpoints-shared-service=RELEASE-NAME-ngrok-operator-private-endpoints
 - it: credentials secret carries the private endpoints token, preferring the override
   set:
     privateEndpoints.enabled: true

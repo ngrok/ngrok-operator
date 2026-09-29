@@ -437,7 +437,7 @@ bindings:
 ##
 ## @section Private Endpoints (POC)
 ##
-## @param privateEndpoints.enabled Make ngrok private endpoints (*.internal, *.ngrok.direct) reachable from pods by URL. Requires CoreDNS to forward internal. and ngrok.direct. to the <fullname>-private-dns Service, and UDP/443 egress.
+## @param privateEndpoints.enabled Make ngrok private endpoints (*.internal, *.ngrok.direct) reachable from pods by URL. Requires CoreDNS rewrite rules mapping foo.internal / foo.ngrok.direct to Services in the release namespace, and UDP/443 egress.
 ## @param privateEndpoints.forwarder.replicaCount Number of private endpoint forwarder pods
 ## @param privateEndpoints.forwarder.resources.limits Forwarder container resource limits
 ## @param privateEndpoints.forwarder.resources.requests Forwarder container resource requests

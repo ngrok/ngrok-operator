@@ -32,9 +32,6 @@ spec:
         {{- end }}
         app.kubernetes.io/component: {{ $component }}
     spec:
-      # The forwarder is CoreDNS's upstream for internal. and ngrok.direct.;
-      # resolving through CoreDNS itself would loop.
-      dnsPolicy: Default
       serviceAccountName: {{ include "ngrok-operator.privateEndpoints.forwarder.serviceAccountName" . }}
       {{- if .Values.image.pullSecrets }}
       imagePullSecrets:
@@ -53,16 +50,8 @@ spec:
         - --zap-encoder={{ .Values.log.format }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
-        - --dns-bind-address=:5353
-        - --http-bind-address=:8000
-        - --https-bind-address=:8443
         securityContext:
           allowPrivilegeEscalation: false
-        ports:
-        - {name: dns-udp, containerPort: 5353, protocol: UDP}
-        - {name: dns-tcp, containerPort: 5353, protocol: TCP}
-        - {name: http, containerPort: 8000, protocol: TCP}
-        - {name: https, containerPort: 8443, protocol: TCP}
         env:
         - name: POD_NAMESPACE
           valueFrom:

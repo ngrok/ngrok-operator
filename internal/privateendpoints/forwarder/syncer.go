@@ -32,18 +32,18 @@ func (s *Syncer) Sync(ctx context.Context) error {
 	if err := s.List(ctx, &list, client.InNamespace(s.Namespace)); err != nil {
 		return fmt.Errorf("listing PrivateEndpoints: %w", err)
 	}
-	entries := make([]Entry, 0, len(list.Items))
+	var entries []Entry
 	var ports []int32
 	for _, cr := range list.Items {
+		if cr.Status.ClusterIP == "" || cr.Status.ForwarderPort == 0 {
+			continue // not wired up by the controller yet
+		}
 		entries = append(entries, Entry{
 			Hostname:      cr.Spec.Hostname,
 			Port:          cr.Spec.Port,
-			ClusterIP:     cr.Status.ClusterIP,
 			ForwarderPort: cr.Status.ForwarderPort,
 		})
-		if cr.Status.ClusterIP != "" && cr.Status.ForwarderPort != 0 {
-			ports = append(ports, cr.Status.ForwarderPort)
-		}
+		ports = append(ports, cr.Status.ForwarderPort)
 	}
 	s.Table.Replace(entries)
 	return s.Ports.Sync(ctx, ports)

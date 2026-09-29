@@ -1,4 +1,4 @@
-forwarder deployment uses node DNS and the private endpoints token:
+forwarder deployment uses the private endpoints token and cluster DNS:
   1: |
     apiVersion: apps/v1
     kind: Deployment
@@ -40,9 +40,6 @@ forwarder deployment uses node DNS and the private endpoints token:
                 - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
-                - --dns-bind-address=:5353
-                - --http-bind-address=:8000
-                - --https-bind-address=:8443
               command:
                 - /ngrok-operator
               env:
@@ -64,19 +61,6 @@ forwarder deployment uses node DNS and the private endpoints token:
                 initialDelaySeconds: 15
                 periodSeconds: 20
               name: forwarder
-              ports:
-                - containerPort: 5353
-                  name: dns-udp
-                  protocol: UDP
-                - containerPort: 5353
-                  name: dns-tcp
-                  protocol: TCP
-                - containerPort: 8000
-                  name: http
-                  protocol: TCP
-                - containerPort: 8443
-                  name: https
-                  protocol: TCP
               readinessProbe:
                 httpGet:
                   path: /readyz
@@ -88,5 +72,4 @@ forwarder deployment uses node DNS and the private endpoints token:
                 requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
-          dnsPolicy: Default
           serviceAccountName: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder

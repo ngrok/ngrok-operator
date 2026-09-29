@@ -32,15 +32,15 @@ import (
 // +kubebuilder:rbac:groups=ngrok.com,resources=privateendpoints/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 
-// Reconciler is keyed by hostname (req.Name is a host key), because DNS
-// returns one IP per name: every endpoint on a hostname must share it.
+// Reconciler is keyed by hostname (req.Name is a host key). Each hostname
+// gets one Service, named so the CoreDNS rewrite for foo.internal lands on
+// it, with one port per endpoint on that hostname.
 type Reconciler struct {
 	client.Client
 	// APIReader reads PrivateEndpoints uncached for port allocation.
 	APIReader         client.Reader
 	Log               logr.Logger
 	Namespace         string
-	SharedServiceName string
 	ForwarderSelector map[string]string
 	PortMin, PortMax  int32
 }
@@ -72,39 +72,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 		}
 	}
-	svcName := pe.HostServiceName(hostKey)
 	if len(mine) == 0 {
-		return ctrl.Result{}, r.deleteService(ctx, svcName)
+		return ctrl.Result{}, r.deleteHostServices(ctx, hostKey)
 	}
-	for _, cr := range mine {
-		if !pe.SharedEligible(cr.Spec) {
-			return r.reconcileDedicated(ctx, hostKey, svcName, mine, others)
+	svcName, err := pe.ServiceName(mine[0].Spec.Hostname)
+	if err != nil {
+		var errs []error
+		for _, cr := range mine {
+			errs = append(errs, r.setStatus(ctx, cr, "", 0, "UnsupportedHostname", err.Error()))
 		}
+		errs = append(errs, r.deleteHostServices(ctx, hostKey))
+		return ctrl.Result{}, errors.Join(errs...)
 	}
-	return r.reconcileShared(ctx, svcName, mine)
+	return r.reconcileService(ctx, hostKey, svcName, mine, others)
 }
 
-func (r *Reconciler) reconcileShared(ctx context.Context, svcName string, crs []*ngrokv1.PrivateEndpoint) (ctrl.Result, error) {
-	if err := r.deleteService(ctx, svcName); err != nil {
-		return ctrl.Result{}, err
-	}
-	var shared corev1.Service
-	err := r.Get(ctx, types.NamespacedName{Namespace: r.Namespace, Name: r.SharedServiceName}, &shared)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return ctrl.Result{}, fmt.Errorf("getting shared Service: %w", err)
-	}
-	ip := shared.Spec.ClusterIP
-	var errs []error
-	for _, cr := range crs {
-		errs = append(errs, r.setStatus(ctx, cr, ip, 0, "SharedServiceNotReady", "waiting for Service "+r.SharedServiceName))
-	}
-	if ip == "" {
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, errors.Join(errs...)
-	}
-	return ctrl.Result{}, errors.Join(errs...)
-}
-
-func (r *Reconciler) reconcileDedicated(ctx context.Context, hostKey, svcName string, crs []*ngrokv1.PrivateEndpoint, others map[int32]string) (ctrl.Result, error) {
+func (r *Reconciler) reconcileService(ctx context.Context, hostKey, svcName string, crs []*ngrokv1.PrivateEndpoint, others map[int32]string) (ctrl.Result, error) {
 	keepPort := func(cr *ngrokv1.PrivateEndpoint) bool {
 		fp := cr.Status.ForwarderPort
 		if fp < r.PortMin || fp > r.PortMax {
@@ -212,12 +195,18 @@ func (r *Reconciler) setStatus(ctx context.Context, cr *ngrokv1.PrivateEndpoint,
 	return nil
 }
 
-func (r *Reconciler) deleteService(ctx context.Context, name string) error {
-	err := r.Delete(ctx, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: r.Namespace}})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("deleting Service %s: %w", name, err)
+func (r *Reconciler) deleteHostServices(ctx context.Context, hostKey string) error {
+	var svcs corev1.ServiceList
+	if err := r.List(ctx, &svcs, client.InNamespace(r.Namespace), client.MatchingLabels{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: hostKey}); err != nil {
+		return fmt.Errorf("listing Services for host %s: %w", hostKey, err)
 	}
-	return nil
+	var errs []error
+	for i := range svcs.Items {
+		if err := r.Delete(ctx, &svcs.Items[i]); err != nil && !apierrors.IsNotFound(err) {
+			errs = append(errs, fmt.Errorf("deleting Service %s: %w", svcs.Items[i].Name, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (r *Reconciler) hostRequest(key string) reconcile.Request {
@@ -231,35 +220,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 		return []reconcile.Request{r.hostRequest(o.GetLabels()[pe.HostLabel])}
 	})
-	services := handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
-		if o.GetNamespace() != r.Namespace {
-			return nil
-		}
-		if o.GetName() != r.SharedServiceName {
-			if key := o.GetLabels()[pe.HostLabel]; key != "" {
-				return []reconcile.Request{r.hostRequest(key)}
-			}
-			return nil
-		}
-		var list ngrokv1.PrivateEndpointList
-		if err := r.List(ctx, &list, client.InNamespace(r.Namespace)); err != nil {
-			r.Log.Error(err, "listing PrivateEndpoints for shared Service change")
-			return nil
-		}
-		seen := map[string]bool{}
-		var reqs []reconcile.Request
-		for _, cr := range list.Items {
-			if key := cr.Labels[pe.HostLabel]; key != "" && !seen[key] {
-				seen[key] = true
-				reqs = append(reqs, r.hostRequest(key))
-			}
-		}
-		return reqs
-	})
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("privateendpoint").
 		Watches(&ngrokv1.PrivateEndpoint{}, byHost, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		Watches(&corev1.Service{}, services).
+		Watches(&corev1.Service{}, byHost).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 1}). // port allocation assumes one worker
 		Complete(r)
 }

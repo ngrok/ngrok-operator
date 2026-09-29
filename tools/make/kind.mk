@@ -9,5 +9,5 @@ kind-delete: ## Delete the local kind cluster.
 	kind delete cluster --name "$(KIND_CLUSTER_NAME)"
 
 .PHONY: kind-private-endpoints-dns
-kind-private-endpoints-dns: ## Point kind's CoreDNS at the private endpoint forwarder.
-	KUBE_NAMESPACE=$(KUBE_NAMESPACE) PRIVATE_DNS_SERVICE=$(HELM_RELEASE_NAME)-private-dns ./scripts/kind-private-endpoints-dns.sh
+kind-private-endpoints-dns: ## Add CoreDNS rewrites so kind pods resolve private endpoint names.
+	KUBE_NAMESPACE=$(KUBE_NAMESPACE) ./scripts/kind-private-endpoints-dns.sh

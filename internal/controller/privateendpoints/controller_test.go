@@ -48,24 +48,14 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func setupNS(t *testing.T, withShared bool) (string, *Reconciler) {
+func setupNS(t *testing.T) (string, *Reconciler) {
 	t.Helper()
-	ctx := context.Background()
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "pe-test-"}}
-	require.NoError(t, envClient.Create(ctx, ns))
-	if withShared {
-		require.NoError(t, envClient.Create(ctx, &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{Name: "shared", Namespace: ns.Name},
-			Spec: corev1.ServiceSpec{
-				Selector: map[string]string{"app": "fwd"},
-				Ports:    []corev1.ServicePort{{Name: "http", Port: 80}, {Name: "https", Port: 443}},
-			},
-		}))
-	}
+	require.NoError(t, envClient.Create(context.Background(), ns))
 	return ns.Name, &Reconciler{
 		Client: envClient, APIReader: envClient, Log: logr.Discard(), Namespace: ns.Name,
-		SharedServiceName: "shared", ForwarderSelector: map[string]string{"app": "fwd"},
-		PortMin: 20000, PortMax: 20999,
+		ForwarderSelector: map[string]string{"app": "fwd"},
+		PortMin:           20000, PortMax: 20999,
 	}
 }
 
@@ -96,17 +86,12 @@ func reconcileHost(t *testing.T, r *Reconciler, host string) ctrl.Result {
 	return res
 }
 
-func sharedIP(t *testing.T, ns string) string {
-	t.Helper()
-	var svc corev1.Service
-	require.NoError(t, envClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: "shared"}, &svc))
-	return svc.Spec.ClusterIP
-}
-
 func hostService(t *testing.T, ns, host string) (*corev1.Service, bool) {
 	t.Helper()
+	name, err := pe.ServiceName(host)
+	require.NoError(t, err)
 	var svc corev1.Service
-	err := envClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: pe.HostServiceName(pe.HostKey(host))}, &svc)
+	err = envClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &svc)
 	if apierrors.IsNotFound(err) {
 		return nil, false
 	}
@@ -114,67 +99,80 @@ func hostService(t *testing.T, ns, host string) (*corev1.Service, bool) {
 	return &svc, true
 }
 
+func servicePorts(svc *corev1.Service) map[int32]int32 {
+	out := map[int32]int32{}
+	for _, p := range svc.Spec.Ports {
+		out[p.Port] = p.TargetPort.IntVal
+	}
+	return out
+}
+
 func TestReconcile(t *testing.T) {
-	t.Run("shared host uses shared service ip", func(t *testing.T) {
-		ns, r := setupNS(t, true)
+	t.Run("http host gets its own service named after the hostname", func(t *testing.T) {
+		ns, r := setupNS(t)
 		createCR(t, ns, "http://foo.internal")
-		createCR(t, ns, "https://foo.internal")
 		reconcileHost(t, r, "foo.internal")
 
-		for _, u := range []string{"http://foo.internal", "https://foo.internal"} {
-			cr := getCR(t, ns, u)
-			assert.Equal(t, sharedIP(t, ns), cr.Status.ClusterIP)
-			assert.Zero(t, cr.Status.ForwarderPort)
-			assert.True(t, meta.IsStatusConditionTrue(cr.Status.Conditions, ngrokv1.PrivateEndpointConditionReady))
-		}
-		_, ok := hostService(t, ns, "foo.internal")
-		assert.False(t, ok)
-	})
-
-	t.Run("missing shared service is not ready and requeues", func(t *testing.T) {
-		ns, r := setupNS(t, false)
-		createCR(t, ns, "http://foo.internal")
-		res := reconcileHost(t, r, "foo.internal")
-		assert.NotZero(t, res.RequeueAfter)
-		cr := getCR(t, ns, "http://foo.internal")
-		assert.Empty(t, cr.Status.ClusterIP)
-		assert.False(t, meta.IsStatusConditionTrue(cr.Status.Conditions, ngrokv1.PrivateEndpointConditionReady))
-	})
-
-	t.Run("tcp host gets dedicated service", func(t *testing.T) {
-		ns, r := setupNS(t, true)
-		createCR(t, ns, "tcp://bar.internal:6379")
-		reconcileHost(t, r, "bar.internal")
-
-		svc, ok := hostService(t, ns, "bar.internal")
+		svc, ok := hostService(t, ns, "foo.internal")
 		require.True(t, ok)
-		require.Len(t, svc.Spec.Ports, 1)
-		cr := getCR(t, ns, "tcp://bar.internal:6379")
-		assert.Equal(t, int32(6379), svc.Spec.Ports[0].Port)
-		assert.Equal(t, cr.Status.ForwarderPort, svc.Spec.Ports[0].TargetPort.IntVal)
-		assert.Equal(t, svc.Spec.ClusterIP, cr.Status.ClusterIP)
+		assert.Equal(t, "foo-internal", svc.Name)
 		assert.Equal(t, map[string]string{"app": "fwd"}, svc.Spec.Selector)
+		cr := getCR(t, ns, "http://foo.internal")
+		assert.Equal(t, map[int32]int32{80: cr.Status.ForwarderPort}, servicePorts(svc))
+		assert.Equal(t, svc.Spec.ClusterIP, cr.Status.ClusterIP)
 		assert.GreaterOrEqual(t, cr.Status.ForwarderPort, int32(20000))
+		assert.True(t, meta.IsStatusConditionTrue(cr.Status.Conditions, ngrokv1.PrivateEndpointConditionReady))
 	})
 
-	t.Run("mixed host goes dedicated", func(t *testing.T) {
-		ns, r := setupNS(t, true)
+	t.Run("every endpoint on a hostname gets its own port on one service", func(t *testing.T) {
+		ns, r := setupNS(t)
 		createCR(t, ns, "http://mix.internal")
+		createCR(t, ns, "https://mix.internal")
 		createCR(t, ns, "tcp://mix.internal:6379")
 		reconcileHost(t, r, "mix.internal")
 
 		svc, ok := hostService(t, ns, "mix.internal")
 		require.True(t, ok)
-		assert.Len(t, svc.Spec.Ports, 2)
-		httpCR, tcpCR := getCR(t, ns, "http://mix.internal"), getCR(t, ns, "tcp://mix.internal:6379")
-		assert.Equal(t, svc.Spec.ClusterIP, httpCR.Status.ClusterIP)
-		assert.Equal(t, svc.Spec.ClusterIP, tcpCR.Status.ClusterIP)
-		assert.NotZero(t, httpCR.Status.ForwarderPort)
-		assert.NotEqual(t, httpCR.Status.ForwarderPort, tcpCR.Status.ForwarderPort)
+		h, s, tc := getCR(t, ns, "http://mix.internal"), getCR(t, ns, "https://mix.internal"), getCR(t, ns, "tcp://mix.internal:6379")
+		assert.Equal(t, map[int32]int32{80: h.Status.ForwarderPort, 443: s.Status.ForwarderPort, 6379: tc.Status.ForwarderPort}, servicePorts(svc))
+		assert.Len(t, map[int32]bool{h.Status.ForwarderPort: true, s.Status.ForwarderPort: true, tc.Status.ForwarderPort: true}, 3)
+		for _, cr := range []ngrokv1.PrivateEndpoint{h, s, tc} {
+			assert.Equal(t, svc.Spec.ClusterIP, cr.Status.ClusterIP)
+		}
+	})
+
+	t.Run("same label under both TLDs gets separate services", func(t *testing.T) {
+		ns, r := setupNS(t)
+		createCR(t, ns, "tcp://same.internal:6379")
+		createCR(t, ns, "tcp://same.ngrok.direct:6379")
+		reconcileHost(t, r, "same.internal")
+		reconcileHost(t, r, "same.ngrok.direct")
+
+		a, ok := hostService(t, ns, "same.internal")
+		require.True(t, ok)
+		b, ok := hostService(t, ns, "same.ngrok.direct")
+		require.True(t, ok)
+		assert.NotEqual(t, a.Spec.ClusterIP, b.Spec.ClusterIP)
+	})
+
+	t.Run("unsupported hostname is not ready and gets no service", func(t *testing.T) {
+		ns, r := setupNS(t)
+		createCR(t, ns, "http://api.multi.internal")
+		reconcileHost(t, r, "api.multi.internal")
+
+		cr := getCR(t, ns, "http://api.multi.internal")
+		assert.Empty(t, cr.Status.ClusterIP)
+		cond := meta.FindStatusCondition(cr.Status.Conditions, ngrokv1.PrivateEndpointConditionReady)
+		require.NotNil(t, cond)
+		assert.Equal(t, metav1.ConditionFalse, cond.Status)
+		assert.Equal(t, "UnsupportedHostname", cond.Reason)
+		var svcs corev1.ServiceList
+		require.NoError(t, envClient.List(context.Background(), &svcs, client.InNamespace(ns)))
+		assert.Empty(t, svcs.Items)
 	})
 
 	t.Run("ports are unique across hosts and stable across reconciles", func(t *testing.T) {
-		ns, r := setupNS(t, true)
+		ns, r := setupNS(t)
 		createCR(t, ns, "tcp://a.internal:5432")
 		createCR(t, ns, "tcp://b.internal:5432")
 		reconcileHost(t, r, "a.internal")
@@ -187,7 +185,7 @@ func TestReconcile(t *testing.T) {
 	})
 
 	t.Run("port allocation ignores cache lag", func(t *testing.T) {
-		ns, r := setupNS(t, true)
+		ns, r := setupNS(t)
 		// An informer that hasn't yet seen other reconciles' status writes.
 		r.Client = interceptor.NewClient(envClient, interceptor.Funcs{
 			List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
@@ -212,7 +210,7 @@ func TestReconcile(t *testing.T) {
 	})
 
 	t.Run("duplicate forwarder port across hosts is reallocated", func(t *testing.T) {
-		ns, r := setupNS(t, true)
+		ns, r := setupNS(t)
 		createCR(t, ns, "tcp://dup-a.internal:5432")
 		createCR(t, ns, "tcp://dup-b.internal:5432")
 		reconcileHost(t, r, "dup-a.internal")
@@ -231,33 +229,23 @@ func TestReconcile(t *testing.T) {
 		assert.Equal(t, b.Status.ForwarderPort, svcB.Spec.Ports[0].TargetPort.IntVal)
 	})
 
-	t.Run("last CR gone deletes host service", func(t *testing.T) {
-		ns, r := setupNS(t, true)
+	t.Run("removing one endpoint drops its port, last one deletes the service", func(t *testing.T) {
+		ns, r := setupNS(t)
+		createCR(t, ns, "http://gone.internal")
 		createCR(t, ns, "tcp://gone.internal:6379")
 		reconcileHost(t, r, "gone.internal")
-		_, ok := hostService(t, ns, "gone.internal")
-		require.True(t, ok)
 
-		cr := getCR(t, ns, "tcp://gone.internal:6379")
-		require.NoError(t, envClient.Delete(context.Background(), &cr))
+		tcp := getCR(t, ns, "tcp://gone.internal:6379")
+		require.NoError(t, envClient.Delete(context.Background(), &tcp))
+		reconcileHost(t, r, "gone.internal")
+		svc, ok := hostService(t, ns, "gone.internal")
+		require.True(t, ok)
+		assert.Len(t, svc.Spec.Ports, 1)
+
+		http := getCR(t, ns, "http://gone.internal")
+		require.NoError(t, envClient.Delete(context.Background(), &http))
 		reconcileHost(t, r, "gone.internal")
 		_, ok = hostService(t, ns, "gone.internal")
 		assert.False(t, ok)
-	})
-
-	t.Run("host switching to shared deletes host service", func(t *testing.T) {
-		ns, r := setupNS(t, true)
-		createCR(t, ns, "http://sw.internal")
-		createCR(t, ns, "tcp://sw.internal:6379")
-		reconcileHost(t, r, "sw.internal")
-		tcp := getCR(t, ns, "tcp://sw.internal:6379")
-		require.NoError(t, envClient.Delete(context.Background(), &tcp))
-		reconcileHost(t, r, "sw.internal")
-
-		_, ok := hostService(t, ns, "sw.internal")
-		assert.False(t, ok)
-		cr := getCR(t, ns, "http://sw.internal")
-		assert.Equal(t, sharedIP(t, ns), cr.Status.ClusterIP)
-		assert.Zero(t, cr.Status.ForwarderPort)
 	})
 }
