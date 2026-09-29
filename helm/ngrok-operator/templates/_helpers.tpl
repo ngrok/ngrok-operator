@@ -70,6 +70,7 @@ Usage: include "ngrok-operator.accessTokenFor" (dict "root" $ "component" "agent
 */}}
 {{- define "ngrok-operator.accessTokenFor" -}}
 {{- $credentials := .root.Values.credentials -}}
+{{- /* credentials.<component>.accessToken, or empty when the component has no section. */ -}}
 {{- $override := (get $credentials .component | default dict).accessToken -}}
 {{- $override | default $credentials.accessToken -}}
 {{- end -}}
@@ -159,64 +160,16 @@ The namespace to watch.
 {{- end -}}
 
 {{/*
-Fail the render when values from the pre-0.25 layout are present, so they are
-never silently ignored.
-*/}}
-{{- define "ngrok-operator.validateValues" -}}
-{{- $moved := dict
-  "description" "ngrok.description"
-  "region" "ngrok.region"
-  "rootCAs" "ngrok.rootCAs"
-  "serverAddr" "ngrok.serverAddr"
-  "apiURL" "ngrok.apiURL"
-  "ngrokMetadata" "ngrok.metadata"
-  "metaData" "ngrok.metadata"
-  "clusterDomain" "ngrok.clusterDomain"
-  "ingress" "features.ingress"
-  "ingressClass" "features.ingress.ingressClass"
-  "controllerName" "features.ingress.controllerName"
-  "watchNamespace" "features.ingress.watchNamespace"
-  "gateway" "features.gateway"
-  "bindings" "features.bindings (forwarder pod settings: bindingsForwarder)"
-  "defaultDomainReclaimPolicy" "features.defaultDomainReclaimPolicy"
-  "drainPolicy" "features.drainPolicy"
-  "oneClickDemoMode" "features.oneClickDemoMode"
-  "podAnnotations" "defaults.podAnnotations"
-  "podLabels" "defaults.podLabels"
-  "nodeSelector" "defaults.nodeSelector"
-  "tolerations" "defaults.tolerations"
-  "affinity" "defaults.affinity"
-  "podAffinityPreset" "defaults.podAffinityPreset"
-  "podAntiAffinityPreset" "defaults.podAntiAffinityPreset"
-  "nodeAffinityPreset" "defaults.nodeAffinityPreset"
-  "topologySpreadConstraints" "defaults.topologySpreadConstraints"
-  "priorityClassName" "defaults.priorityClassName"
-  "extraEnv" "defaults.extraEnv"
-  "replicaCount" "apiManager.replicaCount"
-  "resources" "apiManager.resources"
-  "lifecycle" "apiManager.lifecycle"
-  "terminationGracePeriodSeconds" "apiManager.terminationGracePeriodSeconds"
-  "extraVolumes" "apiManager.extraVolumes"
-  "extraVolumeMounts" "apiManager.extraVolumeMounts"
-  "podDisruptionBudget" "apiManager.podDisruptionBudget"
-  "serviceAccount" "apiManager.serviceAccount"
--}}
-{{- $found := list -}}
-{{- range $old, $new := $moved -}}
-{{- if hasKey $.Values $old }}{{ $found = append $found (printf "  %s -> %s" $old $new) }}{{ end -}}
-{{- end -}}
-{{- if $found -}}
-{{- fail (printf "\n\nThese Helm values moved in 0.25 and are no longer read at their old location:\n\n%s\n\nSee the 0.25 upgrade guide for the full mapping." (join "\n" (sortAlpha $found))) -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 A component's pod settings: `defaults` with the component's own keys merged on
 top. Maps merge with the component winning per key; lists replace.
+
+Takes the root context for .Values and the component's values key, since an
+include passes only one argument.
 
 Usage: fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "agent"))
 */}}
 {{- define "ngrok-operator.componentValues" -}}
+{{- /* .Values.<component>, minus its operator config. deepCopy so the merge leaves .Values untouched. */ -}}
 {{- $component := omit (index .context.Values .component) "config" -}}
 {{- mergeOverwrite (deepCopy .context.Values.defaults) (deepCopy $component) | toYaml -}}
 {{- end -}}
@@ -234,16 +187,20 @@ value and then to the operator's built-in default.
 */}}
 {{- define "ngrok-operator.componentConfig" -}}
 {{- $component := deepCopy ((index .context.Values .component).config | default dict) -}}
+{{- /* Any key besides log is a mistake: fail on the first one. */ -}}
 {{- range $key := keys (omit $component "log") -}}
 {{- fail (printf "%s.config.%s is not supported: only log can be set per component. Set %s under the top-level ngrok or features instead." $.component $key $key) -}}
 {{- end -}}
+{{- /* ingressClass only renders the IngressClass; it is not an operator setting. */ -}}
 {{- $features := deepCopy .context.Values.features -}}
 {{- $_ := unset $features.ingress "ingressClass" -}}
 {{- $config := dict "ngrok" (deepCopy .context.Values.ngrok) "log" (deepCopy .context.Values.log) "features" $features -}}
 {{- $log := $component.log | default dict -}}
+{{- /* Drop empties before merging, so an empty component value does not blank the shared one. */ -}}
 {{- include "ngrok-operator.dropEmpty" $config -}}
 {{- include "ngrok-operator.dropEmpty" $log -}}
 {{- $config = mergeOverwrite $config (dict "log" $log) -}}
+{{- /* And after, to remove sections left empty. */ -}}
 {{- include "ngrok-operator.dropEmpty" $config -}}
 {{- $config | toYaml -}}
 {{- end -}}
@@ -254,15 +211,12 @@ setting in files/operator-env.yaml that the component's configuration holds,
 its variable. Strings are written as-is, booleans and numbers as text, lists
 and maps as JSON.
 
-Values live in the pod spec rather than a ConfigMap, so every ReplicaSet keeps
-the configuration it was rolled out with, even when an old pod restarts during
-a rollout.
-
 Usage: include "ngrok-operator.componentEnv" (dict "context" $ "component" "agent")
 */}}
 {{- define "ngrok-operator.componentEnv" -}}
 {{- $config := fromYaml (include "ngrok-operator.componentConfig" .) -}}
 {{- range $path, $name := .context.Files.Get "files/operator-env.yaml" | fromYaml }}
+{{- /* Walk the dotted path ("features.gateway.enabled") into $config. $found turns false at the first missing key: the setting is unset. */ -}}
 {{- $value := $config -}}
 {{- $found := true -}}
 {{- range splitList "." $path -}}
@@ -273,6 +227,7 @@ Usage: include "ngrok-operator.componentEnv" (dict "context" $ "component" "agen
 {{- end -}}
 {{- end }}
 {{- if $found }}
+{{- /* ternary picks JSON for lists and maps, plain text for everything else. */}}
 - name: {{ $name }}
   value: {{ ternary (toJson $value) (toString $value) (or (kindIs "map" $value) (kindIs "slice" $value)) | quote }}
 {{- end }}
@@ -286,22 +241,13 @@ nested maps. Booleans are kept, since false is a real value.
 {{- define "ngrok-operator.dropEmpty" -}}
 {{- $m := . -}}
 {{- range $key, $val := $m -}}
+{{- /* Recurse first, so a map emptied by its children is dropped too. */ -}}
 {{- if kindIs "map" $val -}}
 {{- include "ngrok-operator.dropEmpty" $val -}}
 {{- end -}}
 {{- if and (not (kindIs "bool" $val)) (empty $val) -}}
 {{- $_ := unset $m $key -}}
 {{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-"true" when one-click demo mode is on. The agent and bindings-forwarder need
-credentials to do anything but crashloop, so they are not rendered then.
-*/}}
-{{- define "ngrok-operator.oneClickDemoMode" -}}
-{{- if .Values.features.oneClickDemoMode -}}
-true
 {{- end -}}
 {{- end -}}
 

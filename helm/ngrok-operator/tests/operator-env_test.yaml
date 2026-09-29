@@ -149,6 +149,7 @@ tests:
       - failedTemplate:
           errorPattern: "apiManager.config.oneClickDemoMode is not supported: only log can be set per component"
 
+  # LEGACY-values-layout: BEGIN
   - it: fails on values from the pre-0.25 layout
     template: api-manager/deployment.yaml
     set:
@@ -157,3 +158,4 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "(?s)ingress -> features.ingress.*region -> ngrok.region"
+  # LEGACY-values-layout: END

@@ -1,4 +1,4 @@
-{{- include "ngrok-operator.validateValues" . }}
+{{- include "ngrok-operator.validateValues" . }}{{- /* LEGACY-values-layout: delete this line */}}
 {{- $component := "controller" }}
 {{- $values := fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "apiManager")) }}
 apiVersion: apps/v1
@@ -88,7 +88,8 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
         env:
-        {{- if not (include "ngrok-operator.oneClickDemoMode" .) }}
+        {{- /* In one-click demo mode the api-manager starts without credentials. */}}
+        {{- if not .Values.features.oneClickDemoMode }}
         - name: NGROK_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:

@@ -1,4 +1,5 @@
-{{- if and .Values.features.bindings.enabled (not (include "ngrok-operator.oneClickDemoMode" .)) }}
+{{- /* Skipped in one-click demo mode: without credentials this component can only crashloop. */}}
+{{- if and .Values.features.bindings.enabled (not .Values.features.oneClickDemoMode) }}
 {{- $component := "bindings-forwarder" }}
 {{- $rbacChecksum := include (print $.Template.BasePath "/bindings-forwarder/role.yaml") . | sha256sum }}
 {{- $values := fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "bindingsForwarder")) }}

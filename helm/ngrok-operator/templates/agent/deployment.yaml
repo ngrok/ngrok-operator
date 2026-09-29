@@ -1,4 +1,5 @@
-{{- if and .Values.features.ingress.enabled (not (include "ngrok-operator.oneClickDemoMode" .)) }}
+{{- /* Skipped in one-click demo mode: without credentials this component can only crashloop. */}}
+{{- if and .Values.features.ingress.enabled (not .Values.features.oneClickDemoMode) }}
 {{- $component := "agent" }}
 {{- $rbacChecksum := include (print $.Template.BasePath "/agent/role.yaml") . | sha256sum }}
 {{- $values := fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "agent")) }}
