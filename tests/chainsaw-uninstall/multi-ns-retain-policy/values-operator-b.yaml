@@ -2,7 +2,8 @@
 # Namespace-scoped operator watching namespace-b only
 
 features:
-  drainPolicy: Retain
+  cleanup:
+    drainPolicy: Retain
   ingress:
     controllerName: k8s.ngrok.com/ingress-controller-b
     ingressClass:

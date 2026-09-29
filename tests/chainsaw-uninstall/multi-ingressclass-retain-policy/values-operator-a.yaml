@@ -10,7 +10,8 @@
 #   - Each operator uses a DIFFERENT ingress class (optional, but recommended)
 
 features:
-  drainPolicy: Retain
+  cleanup:
+    drainPolicy: Retain
   ingress:
     controllerName: k8s.ngrok.com/ingress-controller-a
     ingressClass:

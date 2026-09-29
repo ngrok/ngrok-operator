@@ -11,7 +11,7 @@ log:
   level: debug
 
 # Default to Retain (the actual default) - scenarios override as needed
-# drainPolicy: Retain
+# features.cleanup.drainPolicy: Retain
 
 # Default to bundled CRDs - scenarios override as needed  
 # installCRDs: true

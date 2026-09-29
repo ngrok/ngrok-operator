@@ -16,14 +16,14 @@ deploy: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-imag
 		--create-namespace \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
-		--set-string defaults.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
-		--set defaults.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
+		--set-string pod.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
+		--set pod.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
 		--set ngrok.metadata.env=local,ngrok.metadata.from=makefile \
-		--set features.drainPolicy="Delete" \
+		--set features.cleanup.drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: deploy_gateway
@@ -33,15 +33,15 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--create-namespace \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
-		--set-string defaults.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
-		--set defaults.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
+		--set-string pod.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
+		--set pod.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set-string log.level="8" \
 		--set log.stacktraceLevel=panic \
 		--set ngrok.metadata.env=local,ngrok.metadata.from=makefile \
 		--set features.gateway.enabled=true \
-		--set features.drainPolicy="Delete" \
+		--set features.cleanup.drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: deploy_with_bindings
@@ -51,15 +51,15 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup 
 		--create-namespace \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
-		--set-string defaults.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
-		--set defaults.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
+		--set-string pod.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
+		--set pod.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
 		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set log.level=debug \
 		--set log.stacktraceLevel=panic \
 		--set ngrok.metadata.env=local,ngrok.metadata.from=makefile \
 		--set features.bindings.enabled=true \
-		--set features.drainPolicy="Delete" \
+		--set features.cleanup.drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
 .PHONY: deploy_for_e2e
@@ -67,12 +67,12 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
 		--namespace $(KUBE_NAMESPACE) \
 		--create-namespace \
-		--set features.oneClickDemoMode=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
+		--set features.oneClickDemoMode.enabled=$(DEPLOY_ONE_CLICK_DEMO_MODE) \
 		--set image.repository=$(IMG) \
 		--set image.tag="latest" \
 		--set image.pullPolicy="Never" \
-		--set-string defaults.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
-		--set defaults.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
+		--set-string pod.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
+		--set pod.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"e2e\"\}" \
 		--set credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
 		--set log.format=console \
 		--set log.level=debug \
@@ -82,7 +82,7 @@ deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set features.bindings.serviceAnnotations.annotation1="val1" \
 		--set features.bindings.serviceAnnotations.annotation2="val2" \
 		--set features.bindings.serviceLabels.label1="val1" \
-		--set features.drainPolicy="Delete"
+		--set features.cleanup.drainPolicy="Delete"
 
 .PHONY: deploy_multi_namespace
 ## 1. We want to install the CRDs only once at the beginning

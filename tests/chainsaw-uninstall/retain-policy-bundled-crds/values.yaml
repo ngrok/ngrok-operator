@@ -1,10 +1,11 @@
 # Scenario: retain-policy-bundled-crds
 # Overrides base values - only specify what's different
 #
-# - features.drainPolicy: Retain (default - resources preserved in ngrok API)
+# - features.cleanup.drainPolicy: Retain (default - resources preserved in ngrok API)
 # - installCRDs: true (default, bundled with operator)
 
-# features.drainPolicy defaults to Retain, so we don't need to set it
+# features.cleanup.drainPolicy defaults to Retain, so we don't need to set it
 # But being explicit for clarity:
 features:
-  drainPolicy: Retain
+  cleanup:
+    drainPolicy: Retain
