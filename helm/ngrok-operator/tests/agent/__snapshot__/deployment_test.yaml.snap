@@ -98,9 +98,6 @@ Should match snapshot:
                   port: 8081
                 initialDelaySeconds: 5
                 periodSeconds: 10
-              resources:
-                limits: {}
-                requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-ngrok-operator-agent

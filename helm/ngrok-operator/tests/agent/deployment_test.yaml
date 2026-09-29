@@ -165,6 +165,54 @@ tests:
         global-annotation: global-value
         agent-annotation: agent-value
         overridden: from-agent
+- it: Clears components.common.podAnnotations for the agent alone with an empty map
+  set:
+    components.common:
+      podAnnotations:
+        global-annotation: global-value
+    components.agent:
+      podAnnotations: {}
+  template: agent/deployment.yaml
+  asserts:
+  - notExists:
+      path: spec.template.metadata.annotations.global-annotation
+- it: Clears components.common.tolerations for the agent alone with an empty list
+  set:
+    components.common:
+      tolerations:
+      - key: shared
+        operator: Exists
+    components.agent:
+      tolerations: []
+  template: agent/deployment.yaml
+  asserts:
+  - notExists:
+      path: spec.template.spec.tolerations
+- it: Replaces components.common.tolerations rather than appending to them
+  set:
+    components.common:
+      tolerations:
+      - key: shared
+        operator: Exists
+    components.agent:
+      tolerations:
+      - key: agent-only
+        operator: Exists
+  template: agent/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.template.spec.tolerations
+      value:
+      - key: agent-only
+        operator: Exists
+- it: Clears components.common.podAntiAffinityPreset for the agent alone with an empty string
+  set:
+    components.agent:
+      podAntiAffinityPreset: ""
+  template: agent/deployment.yaml
+  asserts:
+  - notExists:
+      path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
 - it: Supports Datadog autodiscovery annotations on agent pods
   set:
     components.agent:

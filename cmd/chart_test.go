@@ -129,6 +129,26 @@ func TestChartValuesMatchDefaults(t *testing.T) {
 	}
 }
 
+// TestChartComponentOverrides checks that every components.common key is
+// documented, commented out, under each component that takes it, and that no
+// component sets one in values.yaml: a set key would always override the
+// common value.
+func TestChartComponentOverrides(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join(chartDir, "values.yaml"))
+	require.NoError(t, err)
+	var chart struct {
+		Components map[string]map[string]any `json:"components"`
+	}
+	require.NoError(t, yaml.Unmarshal(b, &chart))
+	for _, component := range []string{"apiManager", "agent", "bindingsForwarder"} {
+		for key := range chart.Components["common"] {
+			path := "components." + component + "." + key
+			assert.Contains(t, string(b), "## @extra "+path+" ", "values.yaml does not document %s", path)
+			assert.NotContains(t, chart.Components[component], key, "values.yaml sets %s, so it always overrides components.common.%s", path, key)
+		}
+	}
+}
+
 // TestChartEnvParses renders the chart with every setting set and checks the
 // api-manager gets every variable, each read back by the commands as the
 // value that was set.
