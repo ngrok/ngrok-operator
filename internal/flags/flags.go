@@ -30,9 +30,10 @@ import (
 // Environment variables are NGROK_OPERATOR_ and the setting's path in the
 // chart's values, with "__" between levels and "_" between words:
 // features.gateway.enabled is NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED. The
-// shared ngrok settings sit at the top level: ngrok.region is
-// NGROK_OPERATOR_REGION. A flag is its variable without the prefix, in kebab
-// case. TestSettingNames in cmd/ checks both rules.
+// shared ngrok settings sit at the top level, like clusterDomain, which is a
+// top-level value: ngrok.region is NGROK_OPERATOR_REGION. A flag is its
+// variable without the prefix, in kebab case. TestSettingNames in cmd/ checks
+// both rules.
 var (
 	// ngrok
 	Description   = String("description", "NGROK_OPERATOR_DESCRIPTION", "Created by the ngrok-operator", "Description for this installation")
@@ -59,9 +60,9 @@ var (
 	BindingsServiceAnnotations    = Map("features-bindings-service-annotations", "NGROK_OPERATOR_FEATURES__BINDINGS__SERVICE_ANNOTATIONS", "Service Annotations to propagate to the target service, as a YAML or JSON map")
 	BindingsServiceLabels         = Map("features-bindings-service-labels", "NGROK_OPERATOR_FEATURES__BINDINGS__SERVICE_LABELS", "Service Labels to propagate to the target service, as a YAML or JSON map")
 	BindingsIngressEndpoint       = String("features-bindings-ingress-endpoint", "NGROK_OPERATOR_FEATURES__BINDINGS__INGRESS_ENDPOINT", "", "The endpoint the bindings forwarder connects to")
-	DefaultDomainReclaimPolicy    = String("features-default-domain-reclaim-policy", "NGROK_OPERATOR_FEATURES__DEFAULT_DOMAIN_RECLAIM_POLICY", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
-	DrainPolicy                   = String("features-drain-policy", "NGROK_OPERATOR_FEATURES__DRAIN_POLICY", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
-	OneClickDemoMode              = Bool("features-one-click-demo-mode", "NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE", false, "Run the operator in one-click-demo mode (Ready, but not running)")
+	DefaultDomainReclaimPolicy    = String("features-domains-default-reclaim-policy", "NGROK_OPERATOR_FEATURES__DOMAINS__DEFAULT_RECLAIM_POLICY", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
+	DrainPolicy                   = String("features-cleanup-drain-policy", "NGROK_OPERATOR_FEATURES__CLEANUP__DRAIN_POLICY", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
+	OneClickDemoMode              = Bool("features-one-click-demo-mode-enabled", "NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE__ENABLED", false, "Run the operator in one-click-demo mode (Ready, but not running)")
 )
 
 // otherEnv are the NGROK_OPERATOR_ variables read outside these settings.

@@ -39,8 +39,8 @@ func TestValidateCommands(t *testing.T) {
 	t.Setenv("NGROK_OPERATOR_ROOT_CAS", "host") // only the agent reads it
 	require.NoError(t, flags.Validate(newRoot()))
 
-	t.Setenv("NGROK_OPERATOR_FEATURES__DRAIN_POLICY_TYPO", "Delete")
-	require.ErrorContains(t, flags.Validate(newRoot()), "NGROK_OPERATOR_FEATURES__DRAIN_POLICY_TYPO")
+	t.Setenv("NGROK_OPERATOR_FEATURES__CLEANUP__DRAIN_POLICY_TYPO", "Delete")
+	require.ErrorContains(t, flags.Validate(newRoot()), "NGROK_OPERATOR_FEATURES__CLEANUP__DRAIN_POLICY_TYPO")
 }
 
 // envFormat is NGROK_OPERATOR_ and a values path: "__" between levels, "_"

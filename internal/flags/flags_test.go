@@ -31,8 +31,8 @@ func TestBind(t *testing.T) {
 		},
 		{
 			name: "empty env keeps the default",
-			env:  map[string]string{"NGROK_OPERATOR_FEATURES__DRAIN_POLICY": ""},
-			want: map[string]string{"features-drain-policy": "Retain"},
+			env:  map[string]string{"NGROK_OPERATOR_FEATURES__CLEANUP__DRAIN_POLICY": ""},
+			want: map[string]string{"features-cleanup-drain-policy": "Retain"},
 		},
 		{
 			name: "bool",
