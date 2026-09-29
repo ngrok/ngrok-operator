@@ -158,7 +158,8 @@ ngrok:
 ## A null value is removed by Helm before the chart sees it, so setting one key
 ## of a map to null clears the whole map for that component.
 ##
-## The keys a component lists commented out have no chart default.
+## Commented-out keys have no chart default; Kubernetes' own default applies
+## until one is set.
 ##
 ## @param components.common.podAnnotations Pod annotations
 ## @param components.common.podLabels Pod labels
@@ -173,18 +174,18 @@ ngrok:
 ## @param components.common.topologySpreadConstraints Topology spread constraints for pod assignment
 ## @param components.common.priorityClassName Priority class for pod scheduling
 ## @param components.common.extraEnv Additional environment variables, as a map of name to value
+## @extra components.common.terminationGracePeriodSeconds Graceful shutdown period, in seconds. Kubernetes default: `30`
+## @extra components.common.updateStrategy Deployment update strategy. Kubernetes default: `RollingUpdate`
 ##
 ## @section Components: API Manager
 ##
 ## @param components.apiManager.replicaCount The number of api-manager replicas to run
-## @param components.apiManager.terminationGracePeriodSeconds Graceful shutdown period
 ## @param components.apiManager.podDisruptionBudget.create Whether to create a PodDisruptionBudget
 ## @param components.apiManager.podDisruptionBudget.maxUnavailable Maximum unavailable pods
 ## @extra components.apiManager.podDisruptionBudget.minAvailable Minimum available pods. Set this instead of `maxUnavailable`, not alongside it
 ## @param components.apiManager.serviceAccount.create Whether to create a ServiceAccount
 ## @extra components.apiManager.serviceAccount.name ServiceAccount name. Generated if empty
 ## @extra components.apiManager.serviceAccount.annotations ServiceAccount annotations
-## @param components.apiManager.updateStrategy.type Deployment update strategy
 ## @extra components.apiManager.resources Resource requests and limits
 ## @extra components.apiManager.lifecycle Container lifecycle hooks
 ## @extra components.apiManager.extraVolumes Additional volumes
@@ -201,15 +202,15 @@ ngrok:
 ## @extra components.apiManager.topologySpreadConstraints Overrides `components.common.topologySpreadConstraints` for the api-manager
 ## @extra components.apiManager.priorityClassName Overrides `components.common.priorityClassName` for the api-manager
 ## @extra components.apiManager.extraEnv Overrides `components.common.extraEnv` for the api-manager
+## @extra components.apiManager.terminationGracePeriodSeconds Overrides `components.common.terminationGracePeriodSeconds` for the api-manager
+## @extra components.apiManager.updateStrategy Overrides `components.common.updateStrategy` for the api-manager
 ##
 ## @section Components: Agent
 ##
 ## @param components.agent.replicaCount The number of agent replicas to run
-## @param components.agent.terminationGracePeriodSeconds Graceful shutdown period
 ## @param components.agent.serviceAccount.create Whether to create a ServiceAccount
 ## @extra components.agent.serviceAccount.name ServiceAccount name. Generated if empty
 ## @extra components.agent.serviceAccount.annotations ServiceAccount annotations
-## @param components.agent.updateStrategy.type Deployment update strategy
 ## @extra components.agent.resources Resource requests and limits
 ## @extra components.agent.lifecycle Container lifecycle hooks
 ## @extra components.agent.extraVolumes Additional volumes
@@ -226,17 +227,17 @@ ngrok:
 ## @extra components.agent.topologySpreadConstraints Overrides `components.common.topologySpreadConstraints` for the agent
 ## @extra components.agent.priorityClassName Overrides `components.common.priorityClassName` for the agent
 ## @extra components.agent.extraEnv Overrides `components.common.extraEnv` for the agent
+## @extra components.agent.terminationGracePeriodSeconds Overrides `components.common.terminationGracePeriodSeconds` for the agent
+## @extra components.agent.updateStrategy Overrides `components.common.updateStrategy` for the agent
 ##
 ## @section Components: Bindings Forwarder
 ##
 ## Rendered only when `ngrok.features.bindings.enabled` is true.
 ##
 ## @param components.bindingsForwarder.replicaCount The number of bindings-forwarder replicas to run
-## @param components.bindingsForwarder.terminationGracePeriodSeconds Graceful shutdown period
 ## @param components.bindingsForwarder.serviceAccount.create Whether to create a ServiceAccount
 ## @extra components.bindingsForwarder.serviceAccount.name ServiceAccount name. Generated if empty
 ## @extra components.bindingsForwarder.serviceAccount.annotations ServiceAccount annotations
-## @param components.bindingsForwarder.updateStrategy.type Deployment update strategy
 ## @extra components.bindingsForwarder.resources Resource requests and limits
 ## @extra components.bindingsForwarder.lifecycle Container lifecycle hooks
 ## @extra components.bindingsForwarder.extraVolumes Additional volumes
@@ -253,6 +254,8 @@ ngrok:
 ## @extra components.bindingsForwarder.topologySpreadConstraints Overrides `components.common.topologySpreadConstraints` for the bindings-forwarder
 ## @extra components.bindingsForwarder.priorityClassName Overrides `components.common.priorityClassName` for the bindings-forwarder
 ## @extra components.bindingsForwarder.extraEnv Overrides `components.common.extraEnv` for the bindings-forwarder
+## @extra components.bindingsForwarder.terminationGracePeriodSeconds Overrides `components.common.terminationGracePeriodSeconds` for the bindings-forwarder
+## @extra components.bindingsForwarder.updateStrategy Overrides `components.common.updateStrategy` for the bindings-forwarder
 ##
 ## @section Components: Cleanup Hook
 ##
@@ -281,9 +284,11 @@ components:
     topologySpreadConstraints: []
     priorityClassName: ""
     extraEnv: {}
+    # terminationGracePeriodSeconds: 30
+    # updateStrategy:
+    #   type: RollingUpdate
   apiManager:
     replicaCount: 1
-    terminationGracePeriodSeconds: 30
     podDisruptionBudget:
       create: false
       maxUnavailable: "1"
@@ -292,8 +297,6 @@ components:
       create: true
       # name: ""
       # annotations: {}
-    updateStrategy:
-      type: RollingUpdate
     # resources:
     #   limits: {}
     #   requests: {}
@@ -313,15 +316,15 @@ components:
     # topologySpreadConstraints: []
     # priorityClassName: ""
     # extraEnv: {}
+    # terminationGracePeriodSeconds: 30
+    # updateStrategy:
+    #   type: RollingUpdate
   agent:
     replicaCount: 1
-    terminationGracePeriodSeconds: 30
     serviceAccount:
       create: true
       # name: ""
       # annotations: {}
-    updateStrategy:
-      type: RollingUpdate
     # resources:
     #   limits: {}
     #   requests: {}
@@ -341,15 +344,15 @@ components:
     # topologySpreadConstraints: []
     # priorityClassName: ""
     # extraEnv: {}
+    # terminationGracePeriodSeconds: 30
+    # updateStrategy:
+    #   type: RollingUpdate
   bindingsForwarder:
     replicaCount: 1
-    terminationGracePeriodSeconds: 30
     serviceAccount:
       create: true
       # name: ""
       # annotations: {}
-    updateStrategy:
-      type: RollingUpdate
     # resources:
     #   limits: {}
     #   requests: {}
@@ -369,6 +372,9 @@ components:
     # topologySpreadConstraints: []
     # priorityClassName: ""
     # extraEnv: {}
+    # terminationGracePeriodSeconds: 30
+    # updateStrategy:
+    #   type: RollingUpdate
   cleanupHook:
     image:
       repository: bitnami/kubectl
