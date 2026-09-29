@@ -3377,8 +3377,6 @@ metadata:
     checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
 spec:
   replicas: 1
-  strategy:
-    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: ngrok-operator
@@ -3397,7 +3395,6 @@ spec:
         app.kubernetes.io/instance: ngrok-operator
         app.kubernetes.io/component: agent
     spec:
-      terminationGracePeriodSeconds: 30
       affinity:
         podAffinity:
           
@@ -3485,8 +3482,6 @@ metadata:
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
-  strategy:
-    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: ngrok-operator
@@ -3506,7 +3501,6 @@ spec:
         app.kubernetes.io/instance: ngrok-operator
         app.kubernetes.io/component: controller
     spec:
-      terminationGracePeriodSeconds: 30
       affinity:
         podAffinity:
           
