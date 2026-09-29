@@ -57,7 +57,7 @@ Deletion polling waits up to 60 seconds at 500ms intervals for each resource to 
 | Source                         | Parameter              | Default    |
 |--------------------------------|------------------------|------------|
 | KubernetesOperator CR          | `spec.drain.policy`    | `Retain`   |
-| Helm values                    | `features.drainPolicy` | `"Retain"` |
+| Helm values                    | `features.cleanup.drainPolicy` | `"Retain"` |
 
 ## Cleanup Hook
 
@@ -70,7 +70,7 @@ The Helm chart includes a pre-delete hook that automates the drain process durin
 
 | Helm Value                | Description                    | Default            |
 |---------------------------|--------------------------------|--------------------|
-| `cleanupHook.enabled`     | Enable the pre-delete hook     | `true`             |
-| `cleanupHook.timeout`     | Timeout in seconds             | `300`              |
+| `features.cleanup.enabled` | Enable the pre-delete hook    | `true`             |
+| `features.cleanup.timeout` | Timeout in seconds            | `300`              |
 | `cleanupHook.image`       | kubectl image configuration    | `bitnami/kubectl`  |
 | `cleanupHook.resources`   | Job resource limits/requests   | 100m/128Mi         |

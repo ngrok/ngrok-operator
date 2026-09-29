@@ -44,22 +44,32 @@ When `features.bindings.enabled` is `true`, the bindings forwarder deployment is
 
 See [features/bindings.md](../features/bindings.md) for behavior details.
 
-## Drain and Domain Policies
+## Domains
 
-| Parameter                                | Description                                                      | Default    |
-|------------------------------------------|------------------------------------------------------------------|------------|
-| `features.drainPolicy`                   | Drain policy on uninstall: `"Delete"` or `"Retain"`             | `"Retain"` |
-| `features.defaultDomainReclaimPolicy`    | Default reclaim policy for Domains: `"Delete"` or `"Retain"`   | `"Delete"` |
-| `features.oneClickDemoMode`              | Start without credentials and become Ready without reconciling. Also skips rendering the agent and bindings-forwarder | `false` |
+| Parameter                                  | Description                                                           | Default    |
+|--------------------------------------------|-----------------------------------------------------------------------|------------|
+| `features.domains.defaultReclaimPolicy`    | Reclaim policy given to the Domains the operator creates: `"Delete"` or `"Retain"` | `"Delete"` |
 
-## Cleanup Hook
+## One-Click Demo Mode
 
-> The cleanup hook is intentionally placed at the top level (`cleanupHook.*`) rather than under `features:`. It is lifecycle infrastructure (a pre-delete Helm hook) that runs independent of any operator feature flag, so it does not belong in the feature configuration namespace.
+| Parameter                            | Description                                                      | Default |
+|--------------------------------------|------------------------------------------------------------------|---------|
+| `features.oneClickDemoMode.enabled`  | Start without credentials and become Ready without reconciling. Also skips rendering the agent and bindings-forwarder | `false` |
+
+## Cleanup
+
+On uninstall, a pre-delete hook deletes the KubernetesOperator resource, which makes the operator drain the resources it manages before it is removed. The drain policy decides what happens to the ngrok API resources. It is unrelated to `features.domains.defaultReclaimPolicy`, which applies to a Domain deleted while the operator runs.
+
+| Parameter                        | Description                                                        | Default    |
+|----------------------------------|--------------------------------------------------------------------|------------|
+| `features.cleanup.enabled`       | Run the pre-delete hook                                            | `true`     |
+| `features.cleanup.timeout`       | Seconds the hook waits for the drain                               | `300`      |
+| `features.cleanup.drainPolicy`   | `"Delete"` or `"Retain"` the ngrok API resources on drain          | `"Retain"` |
+
+The hook's own pod settings live under `cleanupHook`:
 
 | Parameter                              | Description                                  | Default              |
 |----------------------------------------|----------------------------------------------|----------------------|
-| `cleanupHook.enabled`                  | Enable the pre-delete cleanup hook           | `true`               |
-| `cleanupHook.timeout`                  | Cleanup timeout in seconds                   | `300`                |
 | `cleanupHook.image.repository`         | kubectl image repository                     | `bitnami/kubectl`    |
 | `cleanupHook.image.tag`               | kubectl image tag                            | `latest`             |
 | `cleanupHook.image.pullPolicy`         | Image pull policy                            | `IfNotPresent`       |

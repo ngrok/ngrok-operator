@@ -89,7 +89,7 @@ export NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED=false
 ## Adding a setting
 
 1. Define it in `internal/flags/flags.go`, named after its values path, and bind it in each command that reads it.
-2. Add its key to `values.yaml` under `ngrok`, `log` or `features`, empty unless it is a boolean, with an `@param` line that states the default.
+2. Add its key to `values.yaml` under `ngrok`, `log` or `features` (every feature an object), empty unless it is a boolean, with an `@param` line that states the default.
 3. Add its path and variable to `helm/ngrok-operator/files/operator-env.yaml`.
 4. Run `make update-readme` in `helm/ngrok-operator` to regenerate the chart README and schema.
 

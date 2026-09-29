@@ -23,4 +23,4 @@ Any key from `defaults` (see [common.md](common.md)) can also be set here to ove
 
 ## Operator Configuration
 
-`agent.config.log` overrides the shared `log` settings for the agent alone. There are no agent-only settings at this time.
+`agent.log` overrides the shared `log` settings for the agent alone.

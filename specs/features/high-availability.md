@@ -45,12 +45,12 @@ Each component has independent PDB configuration. See the component Helm specs f
 
 ## Anti-Affinity
 
-Anti-affinity is configured via the standard `affinity` field on each component (or `defaults.affinity` for all components). There are no preset helpers — write affinity rules directly.
+Anti-affinity is configured via the standard `affinity` field on each component (or `pod.affinity` for all components). There are no preset helpers — write affinity rules directly.
 
 | Helm Value                | Description                                    | Default |
 |---------------------------|------------------------------------------------|---------|
-| `defaults.affinity`       | Affinity rules for all components              | `{}`    |
-| `apiManager.affinity`     | Affinity rules for the api-manager (overrides defaults) | `{}`    |
+| `pod.affinity`            | Affinity rules for all components              | `{}`    |
+| `apiManager.affinity`     | Affinity rules for the api-manager (overrides `pod`) | `{}`    |
 
 ## Leader Election Scope
 

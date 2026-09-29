@@ -161,26 +161,27 @@ unable to start, so create the new Secret before the chart upgrade.
 
 ### Move your values to the new layout
 
-The 0.25 chart reorganizes its values. Operator settings move under `ngrok`,
-`features` and per-component `config` sections, and pod settings move under
-`defaults` or a component section. There are no aliases for the old keys: a
+The 0.25 chart reorganizes its values. Operator settings move under `ngrok`
+and `features`, and pod settings move under `pod` or a component section. There are no aliases for the old keys: a
 values file that still sets one fails the render and lists each old key with
 its new location.
 
 | 0.24 value | 0.25 value |
 |------------|------------|
-| `description`, `region`, `rootCAs`, `serverAddr`, `apiURL`, `clusterDomain` | `ngrok.<same>` |
+| `description`, `region`, `rootCAs`, `serverAddr`, `apiURL` | `ngrok.<same>` |
 | `ngrokMetadata`, `metaData` | `ngrok.metadata` |
 | `ingress.*` | `features.ingress.*` |
 | `watchNamespace`, `controllerName`, `ingressClass.*` | `features.ingress.watchNamespace`, `features.ingress.controllerName`, `features.ingress.ingressClass.*` |
 | `gateway.*` | `features.gateway.*` |
 | `bindings.enabled`, `bindings.endpointSelectors`, `bindings.serviceAnnotations`, `bindings.serviceLabels`, `bindings.ingressEndpoint` | `features.bindings.<same>` |
 | `bindings.forwarder.*` | `bindingsForwarder.*` |
-| `drainPolicy`, `defaultDomainReclaimPolicy` | `features.<same>` |
-| `oneClickDemoMode` | `features.oneClickDemoMode` |
-| `podAnnotations`, `podLabels`, `nodeSelector`, `tolerations`, `affinity`, `podAffinityPreset`, `podAntiAffinityPreset`, `nodeAffinityPreset`, `topologySpreadConstraints`, `priorityClassName`, `extraEnv` | `defaults.<same>` (applies to every component) |
+| `drainPolicy` | `features.cleanup.drainPolicy` |
+| `defaultDomainReclaimPolicy` | `features.domains.defaultReclaimPolicy` |
+| `cleanupHook.enabled`, `cleanupHook.timeout` | `features.cleanup.enabled`, `features.cleanup.timeout` |
+| `oneClickDemoMode` | `features.oneClickDemoMode.enabled` |
+| `podAnnotations`, `podLabels`, `nodeSelector`, `tolerations`, `affinity`, `podAffinityPreset`, `podAntiAffinityPreset`, `nodeAffinityPreset`, `topologySpreadConstraints`, `priorityClassName`, `extraEnv` | `pod.<same>` (applies to every component) |
 | `replicaCount`, `resources`, `lifecycle`, `terminationGracePeriodSeconds`, `extraVolumes`, `extraVolumeMounts`, `podDisruptionBudget.*`, `serviceAccount.*` | `apiManager.<same>` |
-| `log.*`, `agent.*`, `credentials.*`, `image.*` | unchanged |
+| `clusterDomain`, `log.*`, `agent.*`, `credentials.*`, `image.*` | unchanged |
 
 Three behaviors change along with the keys:
 
@@ -189,7 +190,7 @@ Three behaviors change along with the keys:
   setting on one component only, set it on that component instead, for example
   `apiManager.tolerations`.
 - Log settings can be overridden for one component under
-  `<component>.config.log`, for example `agent.config.log.level: debug`.
+  `<component>.log`, for example `agent.log.level: debug`.
 - An empty operator setting means "use the operator's built-in default". The
   defaults are listed in the chart README.
 
@@ -324,7 +325,9 @@ The chart now passes configuration as `NGROK_OPERATOR_*` environment variables i
 | `--ingress-controller-name`, `--ingress-watch-namespace` (agent: `--watch-namespace`) | `--features-ingress-controller-name`, `--features-ingress-watch-namespace` |
 | `--disable-reference-grants` | `--features-gateway-disable-reference-grants` |
 | `--bindings-endpoint-selectors`, `--bindings-service-annotations`, `--bindings-service-labels`, `--bindings-ingress-endpoint` | `--features-bindings-<same>` |
-| `--default-domain-reclaim-policy`, `--drain-policy`, `--one-click-demo-mode` | `--features-<same>` |
+| `--default-domain-reclaim-policy` | `--features-domains-default-reclaim-policy` |
+| `--drain-policy` | `--features-cleanup-drain-policy` |
+| `--one-click-demo-mode` | `--features-one-click-demo-mode-enabled` |
 | `--ngrokMetadata` | `--metadata` |
 | `--zap-log-level`, `--zap-encoder`, `--zap-stacktrace-level` | `--log-level`, `--log-format`, `--log-stacktrace-level` |
 
