@@ -46,6 +46,7 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/config"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -70,6 +71,7 @@ type bindingsForwarderManagerOpts struct {
 	probeAddr   string
 	managerName string
 	zapOpts     *zap.Options
+	configFlags *config.Flags
 
 	// env vars
 	namespace string
@@ -82,7 +84,7 @@ func bindingsForwarderCmd() *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			// The forwarder reads only the log settings, which loadConfig
 			// applies to the zap flags.
-			if _, err := loadConfig(c); err != nil {
+			if _, err := loadConfig(c, opts.configFlags); err != nil {
 				return err
 			}
 			return runController(c.Context(), opts)
@@ -93,6 +95,8 @@ func bindingsForwarderCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
+
+	opts.configFlags = config.RegisterFlags(c.Flags(), config.BindingsForwarder)
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)

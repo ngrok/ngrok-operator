@@ -76,8 +76,9 @@ type agentManagerOpts struct {
 	probeAddr   string
 	managerName string
 
-	cfg     *config.Config
-	zapOpts *zap.Options
+	cfg         *config.Config
+	zapOpts     *zap.Options
+	configFlags *config.Flags
 
 	// env vars
 	namespace string
@@ -88,7 +89,7 @@ func agentCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use: "agent-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
-			cfg, err := loadConfig(c)
+			cfg, err := loadConfig(c, opts.configFlags)
 			if err != nil {
 				return err
 			}
@@ -102,6 +103,8 @@ func agentCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
+
+	opts.configFlags = config.RegisterFlags(c.Flags(), config.Agent)
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)

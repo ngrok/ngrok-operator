@@ -29,7 +29,7 @@ func EnvName(path string) string {
 // EnvNames lists the variable for every individual setting in Config.
 func EnvNames() []string {
 	var names []string
-	walk(reflect.ValueOf(Default()).Elem(), "", func(path string, field reflect.Value) {
+	walk(reflect.ValueOf(Default()).Elem(), "", func(path string, _ reflect.StructField, field reflect.Value) {
 		if field.Kind() != reflect.Struct {
 			names = append(names, EnvName(path))
 		}
@@ -58,7 +58,7 @@ func loadFrom(lookup func(string) (string, bool)) (*Config, error) {
 	cfg := Default()
 
 	var errs []error
-	walk(reflect.ValueOf(cfg).Elem(), "", func(path string, field reflect.Value) {
+	walk(reflect.ValueOf(cfg).Elem(), "", func(path string, _ reflect.StructField, field reflect.Value) {
 		name := EnvName(path)
 		value, ok := lookup(name)
 		if !ok || value == "" {
@@ -74,12 +74,12 @@ func loadFrom(lookup func(string) (string, bool)) (*Config, error) {
 
 // walk calls fn for every field of v, parents before their children, named by
 // its dotted JSON path.
-func walk(v reflect.Value, prefix string, fn func(path string, field reflect.Value)) {
+func walk(v reflect.Value, prefix string, fn func(path string, sf reflect.StructField, field reflect.Value)) {
 	t := v.Type()
 	for i := range t.NumField() {
 		name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
 		field := v.Field(i)
-		fn(prefix+name, field)
+		fn(prefix+name, t.Field(i), field)
 		if field.Kind() == reflect.Struct {
 			walk(field, prefix+name+".", fn)
 		}

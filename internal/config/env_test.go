@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,14 @@ func TestEnvNamesCoverEverySetting(t *testing.T) {
 	names := EnvNames()
 	assert.Contains(t, names, "NGROK_OPERATOR_NGROK_REGION")
 	assert.Contains(t, names, "NGROK_OPERATOR_API_MANAGER_ONE_CLICK_DEMO_MODE")
-	assert.Len(t, names, len(leaves(t, Default())))
+
+	settings := 0
+	walk(reflect.ValueOf(Default()).Elem(), "", func(_ string, _ reflect.StructField, field reflect.Value) {
+		if field.Kind() != reflect.Struct {
+			settings++
+		}
+	})
+	assert.Len(t, names, settings)
 }
 
 func TestLoad(t *testing.T) {

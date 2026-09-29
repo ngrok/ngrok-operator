@@ -1,11 +1,15 @@
 package cmd
 
 import (
+	"flag"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/ngrok/ngrok-operator/internal/config"
 )
 
 // The chart passes only deployment identity and nothing else as flags; every
@@ -41,6 +45,17 @@ func TestChartArgsParse(t *testing.T) {
 	}
 }
 
+// newConfigCmd registers the api-manager's config and zap flags the same way
+// apiCmd does.
+func newConfigCmd() (*cobra.Command, *config.Flags) {
+	c := &cobra.Command{}
+	flags := config.RegisterFlags(c.Flags(), config.APIManager)
+	goFlagSet := flag.NewFlagSet("zap", flag.ContinueOnError)
+	(&zap.Options{}).BindFlags(goFlagSet)
+	c.Flags().AddGoFlagSet(goFlagSet)
+	return c, flags
+}
+
 func TestLoadConfig(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -60,15 +75,26 @@ func TestLoadConfig(t *testing.T) {
 			wantLevel:  "debug",
 		},
 		{
-			name:      "a --zap flag beats the environment",
-			env:       map[string]string{"NGROK_OPERATOR_LOG_LEVEL": "debug"},
-			args:      []string{"--zap-log-level=error"},
+			name:       "a flag beats the environment",
+			env:        map[string]string{"NGROK_OPERATOR_NGROK_REGION": "eu", "NGROK_OPERATOR_LOG_LEVEL": "debug"},
+			args:       []string{"--ngrok-region=us", "--log-level=info"},
+			wantRegion: "us",
+			wantLevel:  "info",
+		},
+		{
+			name:      "a --zap flag beats --log-level",
+			args:      []string{"--log-level=debug", "--zap-log-level=error"},
 			wantLevel: "error",
 		},
 		{
-			name:    "an invalid value names the variable",
+			name:    "an invalid environment value names the variable",
 			env:     map[string]string{"NGROK_OPERATOR_FEATURES_INGRESS_ENABLED": "maybe"},
 			wantErr: "NGROK_OPERATOR_FEATURES_INGRESS_ENABLED",
+		},
+		{
+			name:    "an invalid flag value names the flag",
+			args:    []string{"--features-bindings-endpoint-selectors=[unclosed"},
+			wantErr: "--features-bindings-endpoint-selectors",
 		},
 	}
 
@@ -77,10 +103,10 @@ func TestLoadConfig(t *testing.T) {
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
-			c := apiCmd()
+			c, flags := newConfigCmd()
 			require.NoError(t, c.ParseFlags(tt.args))
 
-			cfg, err := loadConfig(c)
+			cfg, err := loadConfig(c, flags)
 
 			if tt.wantErr != "" {
 				require.Error(t, err)

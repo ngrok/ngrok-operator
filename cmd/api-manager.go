@@ -96,8 +96,9 @@ type apiManagerOpts struct {
 	probeAddr   string
 	managerName string
 
-	cfg     *config.Config
-	zapOpts *zap.Options
+	cfg         *config.Config
+	zapOpts     *zap.Options
+	configFlags *config.Flags
 
 	// env vars
 	namespace string
@@ -108,7 +109,7 @@ func apiCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use: "api-manager",
 		RunE: func(c *cobra.Command, _ []string) error {
-			cfg, err := loadConfig(c)
+			cfg, err := loadConfig(c, opts.configFlags)
 			if err != nil {
 				return err
 			}
@@ -123,6 +124,8 @@ func apiCmd() *cobra.Command {
 	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
 	// TODO(operator-rename): Same as above, but for the manager name.
 	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
+
+	opts.configFlags = config.RegisterFlags(c.Flags(), config.APIManager)
 
 	opts.zapOpts = &zap.Options{}
 	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
