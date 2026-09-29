@@ -1,4 +1,4 @@
-{{- if .Values.cleanupHook.enabled }}
+{{- if .Values.features.cleanup.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -31,7 +31,7 @@ spec:
             - |
               set -e
               echo "Deleting KubernetesOperator '{{ .Release.Name }}' to trigger drain..."
-              kubectl delete kubernetesoperator "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.cleanupHook.timeout }}s || true
+              kubectl delete kubernetesoperator "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.features.cleanup.timeout }}s || true
           resources:
             {{- toYaml .Values.cleanupHook.resources | nindent 12 }}
 {{- end }}

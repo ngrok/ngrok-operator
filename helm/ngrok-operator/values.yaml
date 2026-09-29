@@ -32,28 +32,28 @@ image:
   pullSecrets: []
 
 ##
-## @section Shared pod settings
+## @section Pod settings
 ##
 ## Applied to the pods of every component. Any key here can also be set on a
 ## component (for example `agent.tolerations`) to override it for that
 ## component alone. Maps merge with the component winning per key; lists
 ## replace.
 ##
-## @param defaults.podAnnotations Pod annotations
-## @param defaults.podLabels Pod labels
-## @param defaults.nodeSelector Node labels for pod assignment
-## @param defaults.tolerations Tolerations for pod assignment
-## @param defaults.affinity Affinity rules. Overrides the presets below when set
-## @param defaults.podAffinityPreset Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
-## @param defaults.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
-## @param defaults.nodeAffinityPreset.type Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
-## @param defaults.nodeAffinityPreset.key Node label key to match. Ignored if `affinity` is set.
-## @param defaults.nodeAffinityPreset.values Node label values to match. Ignored if `affinity` is set.
-## @param defaults.topologySpreadConstraints Topology spread constraints for pod assignment
-## @param defaults.priorityClassName Priority class for pod scheduling
-## @param defaults.extraEnv Additional environment variables, as a map of name to value
+## @param pod.podAnnotations Pod annotations
+## @param pod.podLabels Pod labels
+## @param pod.nodeSelector Node labels for pod assignment
+## @param pod.tolerations Tolerations for pod assignment
+## @param pod.affinity Affinity rules. Overrides the presets below when set
+## @param pod.podAffinityPreset Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param pod.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param pod.nodeAffinityPreset.type Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param pod.nodeAffinityPreset.key Node label key to match. Ignored if `affinity` is set.
+## @param pod.nodeAffinityPreset.values Node label values to match. Ignored if `affinity` is set.
+## @param pod.topologySpreadConstraints Topology spread constraints for pod assignment
+## @param pod.priorityClassName Priority class for pod scheduling
+## @param pod.extraEnv Additional environment variables, as a map of name to value
 ##
-defaults:
+pod:
   podAnnotations: {}
   podLabels: {}
   nodeSelector: {}
@@ -74,8 +74,7 @@ defaults:
 ##
 ## Set once for every component: which component reads a setting is an
 ## implementation detail. `log` is the exception and can be overridden for one
-## component under `<component>.config.log` (for example
-## `agent.config.log.level`).
+## component under `<component>.log` (for example `agent.log.level`).
 ##
 ## An empty value means "not set": the operator's built-in default applies.
 ## Those defaults live in the operator binary and are listed here for reference.
@@ -85,7 +84,6 @@ defaults:
 ## @param ngrok.serverAddr Address of the ngrok server to use for tunnels. Default: the ngrok default
 ## @param ngrok.apiURL Base URL for the ngrok API. Default: the ngrok default
 ## @param ngrok.rootCAs Root CAs to trust: `trusted` for the ngrok CA, `host` for the host's CA bundle. Default: `trusted`
-## @param ngrok.clusterDomain Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`
 ## @param ngrok.metadata Key/value pairs added as metadata to the ngrok API resources the operator creates
 ##
 ngrok:
@@ -94,8 +92,11 @@ ngrok:
   serverAddr: ""
   apiURL: ""
   rootCAs: ""
-  clusterDomain: ""
   metadata: {}
+
+## @param clusterDomain Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`
+##
+clusterDomain: ""
 
 ## @param log.level Log level: `debug`, `info`, `error`, `panic`, or an integer for more verbose debug levels. Default: `info`
 ## @param log.format Log format: `json` or `console`. Default: `json`
@@ -119,9 +120,11 @@ log:
 ## @param features.bindings.serviceAnnotations Annotations applied to projected services
 ## @param features.bindings.serviceLabels Labels applied to projected services
 ## @param features.bindings.ingressEndpoint Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`
-## @param features.defaultDomainReclaimPolicy Default reclaim policy for Domains: `Delete` or `Retain`. Default: `Delete`
-## @param features.drainPolicy What to do with ngrok API resources on uninstall: `Delete` or `Retain`. Default: `Retain`
-## @param features.oneClickDemoMode Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder
+## @param features.domains.defaultReclaimPolicy Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`
+## @param features.cleanup.enabled Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed
+## @param features.cleanup.timeout Seconds the hook waits for the drain to finish
+## @param features.cleanup.drainPolicy What the drain does with the ngrok API resources the operator created: `Delete` or `Retain`. Default: `Retain`
+## @param features.oneClickDemoMode.enabled Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder
 ##
 features:
   ingress:
@@ -141,9 +144,14 @@ features:
     serviceAnnotations: {}
     serviceLabels: {}
     ingressEndpoint: ""
-  defaultDomainReclaimPolicy: ""
-  drainPolicy: ""
-  oneClickDemoMode: false
+  domains:
+    defaultReclaimPolicy: ""
+  cleanup:
+    enabled: true
+    timeout: 300
+    drainPolicy: ""
+  oneClickDemoMode:
+    enabled: false
 
 ##
 ## @section Credentials configuration
@@ -168,7 +176,7 @@ credentials:
 ##
 ## @section API Manager
 ##
-## Any key from `defaults` can also be set here to override it for the
+## Any key from `pod` can also be set here to override it for the
 ## api-manager alone.
 ##
 ## @param apiManager.replicaCount The number of api-manager replicas to run
@@ -185,7 +193,7 @@ credentials:
 ## @param apiManager.serviceAccount.name ServiceAccount name. Generated if empty
 ## @param apiManager.serviceAccount.annotations ServiceAccount annotations
 ## @param apiManager.updateStrategy.type Deployment update strategy
-## @param apiManager.config `log` overrides for the api-manager
+## @param apiManager.log Overrides of the shared `log` settings for the api-manager
 ##
 apiManager:
   replicaCount: 1
@@ -206,12 +214,12 @@ apiManager:
     annotations: {}
   updateStrategy:
     type: RollingUpdate
-  config: {}
+  log: {}
 
 ##
 ## @section Agent
 ##
-## Any key from `defaults` can also be set here to override it for the agent
+## Any key from `pod` can also be set here to override it for the agent
 ## alone.
 ##
 ## @param agent.replicaCount The number of agent replicas to run
@@ -225,7 +233,7 @@ apiManager:
 ## @param agent.serviceAccount.name ServiceAccount name. Generated if empty
 ## @param agent.serviceAccount.annotations ServiceAccount annotations
 ## @param agent.updateStrategy.type Deployment update strategy
-## @param agent.config `log` overrides for the agent
+## @param agent.log Overrides of the shared `log` settings for the agent
 ##
 agent:
   replicaCount: 1
@@ -242,13 +250,13 @@ agent:
     annotations: {}
   updateStrategy:
     type: RollingUpdate
-  config: {}
+  log: {}
 
 ##
 ## @section Bindings Forwarder
 ##
 ## Rendered only when `features.bindings.enabled` is true. Any key from
-## `defaults` can also be set here to override it for the bindings-forwarder
+## `pod` can also be set here to override it for the bindings-forwarder
 ## alone.
 ##
 ## @param bindingsForwarder.replicaCount The number of bindings-forwarder replicas to run
@@ -262,7 +270,7 @@ agent:
 ## @param bindingsForwarder.serviceAccount.name ServiceAccount name. Generated if empty
 ## @param bindingsForwarder.serviceAccount.annotations ServiceAccount annotations
 ## @param bindingsForwarder.updateStrategy.type Deployment update strategy
-## @param bindingsForwarder.config `log` overrides for the bindings-forwarder
+## @param bindingsForwarder.log Overrides of the shared `log` settings for the bindings-forwarder
 ##
 bindingsForwarder:
   replicaCount: 1
@@ -279,7 +287,7 @@ bindingsForwarder:
     annotations: {}
   updateStrategy:
     type: RollingUpdate
-  config: {}
+  log: {}
 
 ##
 ## @section RBAC
@@ -301,8 +309,8 @@ installCRDs: true
 ##
 ## @section Cleanup Hook configuration
 ##
-## @param cleanupHook.enabled Enable the pre-delete cleanup hook that drains resources before uninstall
-## @param cleanupHook.timeout Timeout in seconds for the cleanup process
+## The pod settings of the hook `features.cleanup` runs.
+##
 ## @param cleanupHook.image.repository The repository for the kubectl image used by the cleanup hook
 ## @param cleanupHook.image.tag The tag for the kubectl image
 ## @param cleanupHook.image.pullPolicy The pull policy for the cleanup hook image
@@ -310,8 +318,6 @@ installCRDs: true
 ## @param cleanupHook.resources.requests The requested resources for the cleanup hook container
 ##
 cleanupHook:
-  enabled: true
-  timeout: 300
   image:
     repository: bitnami/kubectl
     tag: latest

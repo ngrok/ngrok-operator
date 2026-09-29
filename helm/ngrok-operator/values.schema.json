@@ -53,7 +53,7 @@
                 }
             }
         },
-        "defaults": {
+        "pod": {
             "type": "object",
             "properties": {
                 "podAnnotations": {
@@ -159,17 +159,17 @@
                     "description": "Root CAs to trust: `trusted` for the ngrok CA, `host` for the host's CA bundle. Default: `trusted`",
                     "default": ""
                 },
-                "clusterDomain": {
-                    "type": "string",
-                    "description": "Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`",
-                    "default": ""
-                },
                 "metadata": {
                     "type": "object",
                     "description": "Key/value pairs added as metadata to the ngrok API resources the operator creates",
                     "default": {}
                 }
             }
+        },
+        "clusterDomain": {
+            "type": "string",
+            "description": "Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`",
+            "default": ""
         },
         "log": {
             "type": "object",
@@ -280,20 +280,45 @@
                         }
                     }
                 },
-                "defaultDomainReclaimPolicy": {
-                    "type": "string",
-                    "description": "Default reclaim policy for Domains: `Delete` or `Retain`. Default: `Delete`",
-                    "default": ""
+                "domains": {
+                    "type": "object",
+                    "properties": {
+                        "defaultReclaimPolicy": {
+                            "type": "string",
+                            "description": "Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`",
+                            "default": ""
+                        }
+                    }
                 },
-                "drainPolicy": {
-                    "type": "string",
-                    "description": "What to do with ngrok API resources on uninstall: `Delete` or `Retain`. Default: `Retain`",
-                    "default": ""
+                "cleanup": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed",
+                            "default": true
+                        },
+                        "timeout": {
+                            "type": "number",
+                            "description": "Seconds the hook waits for the drain to finish",
+                            "default": 300
+                        },
+                        "drainPolicy": {
+                            "type": "string",
+                            "description": "What the drain does with the ngrok API resources the operator created: `Delete` or `Retain`. Default: `Retain`",
+                            "default": ""
+                        }
+                    }
                 },
                 "oneClickDemoMode": {
-                    "type": "boolean",
-                    "description": "Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder",
-                    "default": false
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder",
+                            "default": false
+                        }
+                    }
                 }
             }
         },
@@ -432,9 +457,9 @@
                         }
                     }
                 },
-                "config": {
+                "log": {
                     "type": "object",
-                    "description": "`log` overrides for the api-manager",
+                    "description": "Overrides of the shared `log` settings for the api-manager",
                     "default": {}
                 }
             }
@@ -514,9 +539,9 @@
                         }
                     }
                 },
-                "config": {
+                "log": {
                     "type": "object",
-                    "description": "`log` overrides for the agent",
+                    "description": "Overrides of the shared `log` settings for the agent",
                     "default": {}
                 }
             }
@@ -596,9 +621,9 @@
                         }
                     }
                 },
-                "config": {
+                "log": {
                     "type": "object",
-                    "description": "`log` overrides for the bindings-forwarder",
+                    "description": "Overrides of the shared `log` settings for the bindings-forwarder",
                     "default": {}
                 }
             }
@@ -626,16 +651,6 @@
         "cleanupHook": {
             "type": "object",
             "properties": {
-                "enabled": {
-                    "type": "boolean",
-                    "description": "Enable the pre-delete cleanup hook that drains resources before uninstall",
-                    "default": true
-                },
-                "timeout": {
-                    "type": "number",
-                    "description": "Timeout in seconds for the cleanup process",
-                    "default": 300
-                },
                 "image": {
                     "type": "object",
                     "properties": {

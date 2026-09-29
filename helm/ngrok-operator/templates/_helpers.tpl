@@ -160,7 +160,7 @@ The namespace to watch.
 {{- end -}}
 
 {{/*
-A component's pod settings: `defaults` with the component's own keys merged on
+A component's pod settings: `pod` with the component's own keys merged on
 top. Maps merge with the component winning per key; lists replace.
 
 Takes the root context for .Values and the component's values key, since an
@@ -169,33 +169,32 @@ include passes only one argument.
 Usage: fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "agent"))
 */}}
 {{- define "ngrok-operator.componentValues" -}}
-{{- /* .Values.<component>, minus its operator config. deepCopy so the merge leaves .Values untouched. */ -}}
-{{- $component := omit (index .context.Values .component) "config" -}}
-{{- mergeOverwrite (deepCopy .context.Values.defaults) (deepCopy $component) | toYaml -}}
+{{- /* .Values.<component>, minus its log overrides. deepCopy so the merge leaves .Values untouched. */ -}}
+{{- $component := omit (index .context.Values .component) "log" -}}
+{{- mergeOverwrite (deepCopy .context.Values.pod) (deepCopy $component) | toYaml -}}
 {{- end -}}
 
 {{/*
-The operator configuration for one component: the shared `ngrok`, `log` and
-`features` values, plus the component's own `config` section.
-
-`<component>.config.log` overrides the shared `log` for that component, per
-key. `ngrok` and `features` are set once for every component, so `log` is the
-only key `<component>.config` takes.
+The operator configuration for one component: the shared `ngrok`, `log`,
+`features` and `clusterDomain` values, with `<component>.log` overriding the
+shared `log` per key.
 
 Empty values are dropped first, so an unset value falls back to the shared
 value and then to the operator's built-in default.
 */}}
 {{- define "ngrok-operator.componentConfig" -}}
-{{- $component := deepCopy ((index .context.Values .component).config | default dict) -}}
-{{- /* Any key besides log is a mistake: fail on the first one. */ -}}
-{{- range $key := keys (omit $component "log") -}}
-{{- fail (printf "%s.config.%s is not supported: only log can be set per component. Set %s under the top-level ngrok or features instead." $.component $key $key) -}}
+{{- $values := .context.Values -}}
+{{- range $key := list "ngrok" "features" -}}
+{{- if hasKey (index $values $.component) $key -}}
+{{- fail (printf "%s.%s is not supported: %s settings apply to every component. Set them under the top-level %s instead." $.component $key $key $key) -}}
 {{- end -}}
-{{- /* ingressClass only renders the IngressClass; it is not an operator setting. */ -}}
-{{- $features := deepCopy .context.Values.features -}}
+{{- end -}}
+{{- /* Values only the chart reads: ingressClass renders the IngressClass, cleanup.enabled and timeout run the hook. */ -}}
+{{- $features := deepCopy $values.features -}}
 {{- $_ := unset $features.ingress "ingressClass" -}}
-{{- $config := dict "ngrok" (deepCopy .context.Values.ngrok) "log" (deepCopy .context.Values.log) "features" $features -}}
-{{- $log := $component.log | default dict -}}
+{{- $_ = set $features "cleanup" (omit $features.cleanup "enabled" "timeout") -}}
+{{- $config := dict "ngrok" (deepCopy $values.ngrok) "log" (deepCopy $values.log) "features" $features "clusterDomain" $values.clusterDomain -}}
+{{- $log := deepCopy ((index $values .component).log | default dict) -}}
 {{- /* Drop empties before merging, so an empty component value does not blank the shared one. */ -}}
 {{- include "ngrok-operator.dropEmpty" $config -}}
 {{- include "ngrok-operator.dropEmpty" $log -}}

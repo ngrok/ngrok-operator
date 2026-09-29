@@ -17,27 +17,26 @@ never silently ignored.
   "apiURL" "ngrok.apiURL"
   "ngrokMetadata" "ngrok.metadata"
   "metaData" "ngrok.metadata"
-  "clusterDomain" "ngrok.clusterDomain"
   "ingress" "features.ingress"
   "ingressClass" "features.ingress.ingressClass"
   "controllerName" "features.ingress.controllerName"
   "watchNamespace" "features.ingress.watchNamespace"
   "gateway" "features.gateway"
   "bindings" "features.bindings (forwarder pod settings: bindingsForwarder)"
-  "defaultDomainReclaimPolicy" "features.defaultDomainReclaimPolicy"
-  "drainPolicy" "features.drainPolicy"
-  "oneClickDemoMode" "features.oneClickDemoMode"
-  "podAnnotations" "defaults.podAnnotations"
-  "podLabels" "defaults.podLabels"
-  "nodeSelector" "defaults.nodeSelector"
-  "tolerations" "defaults.tolerations"
-  "affinity" "defaults.affinity"
-  "podAffinityPreset" "defaults.podAffinityPreset"
-  "podAntiAffinityPreset" "defaults.podAntiAffinityPreset"
-  "nodeAffinityPreset" "defaults.nodeAffinityPreset"
-  "topologySpreadConstraints" "defaults.topologySpreadConstraints"
-  "priorityClassName" "defaults.priorityClassName"
-  "extraEnv" "defaults.extraEnv"
+  "defaultDomainReclaimPolicy" "features.domains.defaultReclaimPolicy"
+  "drainPolicy" "features.cleanup.drainPolicy"
+  "oneClickDemoMode" "features.oneClickDemoMode.enabled"
+  "podAnnotations" "pod.podAnnotations"
+  "podLabels" "pod.podLabels"
+  "nodeSelector" "pod.nodeSelector"
+  "tolerations" "pod.tolerations"
+  "affinity" "pod.affinity"
+  "podAffinityPreset" "pod.podAffinityPreset"
+  "podAntiAffinityPreset" "pod.podAntiAffinityPreset"
+  "nodeAffinityPreset" "pod.nodeAffinityPreset"
+  "topologySpreadConstraints" "pod.topologySpreadConstraints"
+  "priorityClassName" "pod.priorityClassName"
+  "extraEnv" "pod.extraEnv"
   "replicaCount" "apiManager.replicaCount"
   "resources" "apiManager.resources"
   "lifecycle" "apiManager.lifecycle"
@@ -51,6 +50,10 @@ never silently ignored.
 {{- $found := list -}}
 {{- range $old, $new := $moved -}}
 {{- if hasKey $.Values $old }}{{ $found = append $found (printf "  %s -> %s" $old $new) }}{{ end -}}
+{{- end -}}
+{{- /* cleanupHook stays, but its enabled and timeout moved. */ -}}
+{{- range $key := list "enabled" "timeout" -}}
+{{- if hasKey ($.Values.cleanupHook | default dict) $key }}{{ $found = append $found (printf "  cleanupHook.%s -> features.cleanup.%s" $key $key) }}{{ end -}}
 {{- end -}}
 {{- if $found -}}
 {{- fail (printf "\n\nThese Helm values moved in 0.25 and are no longer read at their old location:\n\n%s\n\nSee the 0.25 upgrade guide for the full mapping." (join "\n" (sortAlpha $found))) -}}

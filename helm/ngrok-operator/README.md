@@ -80,23 +80,23 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `image.pullPolicy`  | The ngrok operator image pull policy.                                             | `IfNotPresent`         |
 | `image.pullSecrets` | An array of imagePullSecrets to be used when pulling the image.                   | `[]`                   |
 
-### Shared pod settings
+### Pod settings
 
-| Name                                 | Description                                                                               | Value  |
-| ------------------------------------ | ----------------------------------------------------------------------------------------- | ------ |
-| `defaults.podAnnotations`            | Pod annotations                                                                           | `{}`   |
-| `defaults.podLabels`                 | Pod labels                                                                                | `{}`   |
-| `defaults.nodeSelector`              | Node labels for pod assignment                                                            | `{}`   |
-| `defaults.tolerations`               | Tolerations for pod assignment                                                            | `[]`   |
-| `defaults.affinity`                  | Affinity rules. Overrides the presets below when set                                      | `{}`   |
-| `defaults.podAffinityPreset`         | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`       | `""`   |
-| `defaults.podAntiAffinityPreset`     | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`  | `soft` |
-| `defaults.nodeAffinityPreset.type`   | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard` | `""`   |
-| `defaults.nodeAffinityPreset.key`    | Node label key to match. Ignored if `affinity` is set.                                    | `""`   |
-| `defaults.nodeAffinityPreset.values` | Node label values to match. Ignored if `affinity` is set.                                 | `[]`   |
-| `defaults.topologySpreadConstraints` | Topology spread constraints for pod assignment                                            | `[]`   |
-| `defaults.priorityClassName`         | Priority class for pod scheduling                                                         | `""`   |
-| `defaults.extraEnv`                  | Additional environment variables, as a map of name to value                               | `{}`   |
+| Name                            | Description                                                                               | Value  |
+| ------------------------------- | ----------------------------------------------------------------------------------------- | ------ |
+| `pod.podAnnotations`            | Pod annotations                                                                           | `{}`   |
+| `pod.podLabels`                 | Pod labels                                                                                | `{}`   |
+| `pod.nodeSelector`              | Node labels for pod assignment                                                            | `{}`   |
+| `pod.tolerations`               | Tolerations for pod assignment                                                            | `[]`   |
+| `pod.affinity`                  | Affinity rules. Overrides the presets below when set                                      | `{}`   |
+| `pod.podAffinityPreset`         | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`       | `""`   |
+| `pod.podAntiAffinityPreset`     | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`  | `soft` |
+| `pod.nodeAffinityPreset.type`   | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard` | `""`   |
+| `pod.nodeAffinityPreset.key`    | Node label key to match. Ignored if `affinity` is set.                                    | `""`   |
+| `pod.nodeAffinityPreset.values` | Node label values to match. Ignored if `affinity` is set.                                 | `[]`   |
+| `pod.topologySpreadConstraints` | Topology spread constraints for pod assignment                                            | `[]`   |
+| `pod.priorityClassName`         | Priority class for pod scheduling                                                         | `""`   |
+| `pod.extraEnv`                  | Additional environment variables, as a map of name to value                               | `{}`   |
 
 ### Operator configuration
 
@@ -107,8 +107,8 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `ngrok.serverAddr`                        | Address of the ngrok server to use for tunnels. Default: the ngrok default                                                                      | `""`                               |
 | `ngrok.apiURL`                            | Base URL for the ngrok API. Default: the ngrok default                                                                                          | `""`                               |
 | `ngrok.rootCAs`                           | Root CAs to trust: `trusted` for the ngrok CA, `host` for the host's CA bundle. Default: `trusted`                                              | `""`                               |
-| `ngrok.clusterDomain`                     | Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`                                                   | `""`                               |
 | `ngrok.metadata`                          | Key/value pairs added as metadata to the ngrok API resources the operator creates                                                               | `{}`                               |
+| `clusterDomain`                           | Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`                                                   | `""`                               |
 | `log.level`                               | Log level: `debug`, `info`, `error`, `panic`, or an integer for more verbose debug levels. Default: `info`                                      | `""`                               |
 | `log.format`                              | Log format: `json` or `console`. Default: `json`                                                                                                | `""`                               |
 | `log.stacktraceLevel`                     | Level at and above which stacktraces are captured: `info`, `error` or `panic`. Default: `error`                                                 | `""`                               |
@@ -125,9 +125,11 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `features.bindings.serviceAnnotations`    | Annotations applied to projected services                                                                                                       | `{}`                               |
 | `features.bindings.serviceLabels`         | Labels applied to projected services                                                                                                            | `{}`                               |
 | `features.bindings.ingressEndpoint`       | Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`                                                   | `""`                               |
-| `features.defaultDomainReclaimPolicy`     | Default reclaim policy for Domains: `Delete` or `Retain`. Default: `Delete`                                                                     | `""`                               |
-| `features.drainPolicy`                    | What to do with ngrok API resources on uninstall: `Delete` or `Retain`. Default: `Retain`                                                       | `""`                               |
-| `features.oneClickDemoMode`               | Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder | `false`                            |
+| `features.domains.defaultReclaimPolicy`   | Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`                                               | `""`                               |
+| `features.cleanup.enabled`                | Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed                    | `true`                             |
+| `features.cleanup.timeout`                | Seconds the hook waits for the drain to finish                                                                                                  | `300`                              |
+| `features.cleanup.drainPolicy`            | What the drain does with the ngrok API resources the operator created: `Delete` or `Retain`. Default: `Retain`                                  | `""`                               |
+| `features.oneClickDemoMode.enabled`       | Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder | `false`                            |
 
 ### Credentials configuration
 
@@ -156,41 +158,41 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `apiManager.serviceAccount.name`                | ServiceAccount name. Generated if empty                                        | `""`            |
 | `apiManager.serviceAccount.annotations`         | ServiceAccount annotations                                                     | `{}`            |
 | `apiManager.updateStrategy.type`                | Deployment update strategy                                                     | `RollingUpdate` |
-| `apiManager.config`                             | `log` overrides for the api-manager                                            | `{}`            |
+| `apiManager.log`                                | Overrides of the shared `log` settings for the api-manager                     | `{}`            |
 
 ### Agent
 
-| Name                                  | Description                             | Value           |
-| ------------------------------------- | --------------------------------------- | --------------- |
-| `agent.replicaCount`                  | The number of agent replicas to run     | `1`             |
-| `agent.resources.limits`              | Resource limits                         | `{}`            |
-| `agent.resources.requests`            | Resource requests                       | `{}`            |
-| `agent.lifecycle`                     | Container lifecycle hooks               | `{}`            |
-| `agent.terminationGracePeriodSeconds` | Graceful shutdown period                | `30`            |
-| `agent.extraVolumes`                  | Additional volumes                      | `[]`            |
-| `agent.extraVolumeMounts`             | Additional volume mounts                | `[]`            |
-| `agent.serviceAccount.create`         | Whether to create a ServiceAccount      | `true`          |
-| `agent.serviceAccount.name`           | ServiceAccount name. Generated if empty | `""`            |
-| `agent.serviceAccount.annotations`    | ServiceAccount annotations              | `{}`            |
-| `agent.updateStrategy.type`           | Deployment update strategy              | `RollingUpdate` |
-| `agent.config`                        | `log` overrides for the agent           | `{}`            |
+| Name                                  | Description                                          | Value           |
+| ------------------------------------- | ---------------------------------------------------- | --------------- |
+| `agent.replicaCount`                  | The number of agent replicas to run                  | `1`             |
+| `agent.resources.limits`              | Resource limits                                      | `{}`            |
+| `agent.resources.requests`            | Resource requests                                    | `{}`            |
+| `agent.lifecycle`                     | Container lifecycle hooks                            | `{}`            |
+| `agent.terminationGracePeriodSeconds` | Graceful shutdown period                             | `30`            |
+| `agent.extraVolumes`                  | Additional volumes                                   | `[]`            |
+| `agent.extraVolumeMounts`             | Additional volume mounts                             | `[]`            |
+| `agent.serviceAccount.create`         | Whether to create a ServiceAccount                   | `true`          |
+| `agent.serviceAccount.name`           | ServiceAccount name. Generated if empty              | `""`            |
+| `agent.serviceAccount.annotations`    | ServiceAccount annotations                           | `{}`            |
+| `agent.updateStrategy.type`           | Deployment update strategy                           | `RollingUpdate` |
+| `agent.log`                           | Overrides of the shared `log` settings for the agent | `{}`            |
 
 ### Bindings Forwarder
 
-| Name                                              | Description                                      | Value           |
-| ------------------------------------------------- | ------------------------------------------------ | --------------- |
-| `bindingsForwarder.replicaCount`                  | The number of bindings-forwarder replicas to run | `1`             |
-| `bindingsForwarder.resources.limits`              | Resource limits                                  | `{}`            |
-| `bindingsForwarder.resources.requests`            | Resource requests                                | `{}`            |
-| `bindingsForwarder.lifecycle`                     | Container lifecycle hooks                        | `{}`            |
-| `bindingsForwarder.terminationGracePeriodSeconds` | Graceful shutdown period                         | `30`            |
-| `bindingsForwarder.extraVolumes`                  | Additional volumes                               | `[]`            |
-| `bindingsForwarder.extraVolumeMounts`             | Additional volume mounts                         | `[]`            |
-| `bindingsForwarder.serviceAccount.create`         | Whether to create a ServiceAccount               | `true`          |
-| `bindingsForwarder.serviceAccount.name`           | ServiceAccount name. Generated if empty          | `""`            |
-| `bindingsForwarder.serviceAccount.annotations`    | ServiceAccount annotations                       | `{}`            |
-| `bindingsForwarder.updateStrategy.type`           | Deployment update strategy                       | `RollingUpdate` |
-| `bindingsForwarder.config`                        | `log` overrides for the bindings-forwarder       | `{}`            |
+| Name                                              | Description                                                       | Value           |
+| ------------------------------------------------- | ----------------------------------------------------------------- | --------------- |
+| `bindingsForwarder.replicaCount`                  | The number of bindings-forwarder replicas to run                  | `1`             |
+| `bindingsForwarder.resources.limits`              | Resource limits                                                   | `{}`            |
+| `bindingsForwarder.resources.requests`            | Resource requests                                                 | `{}`            |
+| `bindingsForwarder.lifecycle`                     | Container lifecycle hooks                                         | `{}`            |
+| `bindingsForwarder.terminationGracePeriodSeconds` | Graceful shutdown period                                          | `30`            |
+| `bindingsForwarder.extraVolumes`                  | Additional volumes                                                | `[]`            |
+| `bindingsForwarder.extraVolumeMounts`             | Additional volume mounts                                          | `[]`            |
+| `bindingsForwarder.serviceAccount.create`         | Whether to create a ServiceAccount                                | `true`          |
+| `bindingsForwarder.serviceAccount.name`           | ServiceAccount name. Generated if empty                           | `""`            |
+| `bindingsForwarder.serviceAccount.annotations`    | ServiceAccount annotations                                        | `{}`            |
+| `bindingsForwarder.updateStrategy.type`           | Deployment update strategy                                        | `RollingUpdate` |
+| `bindingsForwarder.log`                           | Overrides of the shared `log` settings for the bindings-forwarder | `{}`            |
 
 ### RBAC
 
@@ -207,12 +209,10 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### Cleanup Hook configuration
 
-| Name                             | Description                                                               | Value             |
-| -------------------------------- | ------------------------------------------------------------------------- | ----------------- |
-| `cleanupHook.enabled`            | Enable the pre-delete cleanup hook that drains resources before uninstall | `true`            |
-| `cleanupHook.timeout`            | Timeout in seconds for the cleanup process                                | `300`             |
-| `cleanupHook.image.repository`   | The repository for the kubectl image used by the cleanup hook             | `bitnami/kubectl` |
-| `cleanupHook.image.tag`          | The tag for the kubectl image                                             | `latest`          |
-| `cleanupHook.image.pullPolicy`   | The pull policy for the cleanup hook image                                | `IfNotPresent`    |
-| `cleanupHook.resources.limits`   | The resources limits for the cleanup hook container                       | `{}`              |
-| `cleanupHook.resources.requests` | The requested resources for the cleanup hook container                    | `{}`              |
+| Name                             | Description                                                   | Value             |
+| -------------------------------- | ------------------------------------------------------------- | ----------------- |
+| `cleanupHook.image.repository`   | The repository for the kubectl image used by the cleanup hook | `bitnami/kubectl` |
+| `cleanupHook.image.tag`          | The tag for the kubectl image                                 | `latest`          |
+| `cleanupHook.image.pullPolicy`   | The pull policy for the cleanup hook image                    | `IfNotPresent`    |
+| `cleanupHook.resources.limits`   | The resources limits for the cleanup hook container           | `{}`              |
+| `cleanupHook.resources.requests` | The requested resources for the cleanup hook container        | `{}`              |
