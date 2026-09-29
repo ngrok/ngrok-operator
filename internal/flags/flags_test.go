@@ -19,58 +19,47 @@ func TestBind(t *testing.T) {
 	}{
 		{
 			name:        "env replaces the default",
-			env:         map[string]string{"NGROK_OPERATOR_NGROK_REGION": "eu"},
+			env:         map[string]string{"NGROK_OPERATOR_REGION": "eu"},
 			want:        map[string]string{"region": "eu"},
 			wantDefault: map[string]string{"region": "eu"},
 		},
 		{
 			name: "flag wins over env",
-			env:  map[string]string{"NGROK_OPERATOR_NGROK_REGION": "eu"},
+			env:  map[string]string{"NGROK_OPERATOR_REGION": "eu"},
 			args: []string{"--region=us"},
 			want: map[string]string{"region": "us"},
 		},
 		{
 			name: "empty env keeps the default",
-			env:  map[string]string{"NGROK_OPERATOR_FEATURES_DRAIN_POLICY": ""},
-			want: map[string]string{"drain-policy": "Retain"},
+			env:  map[string]string{"NGROK_OPERATOR_FEATURES__DRAIN_POLICY": ""},
+			want: map[string]string{"features-drain-policy": "Retain"},
 		},
 		{
 			name: "bool",
-			env:  map[string]string{"NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED": "false"},
-			want: map[string]string{"enable-feature-gateway": "false"},
+			env:  map[string]string{"NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED": "false"},
+			want: map[string]string{"features-gateway-enabled": "false"},
 		},
 		{
 			name: "bool flag without a value",
-			env:  map[string]string{"NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED": "false"},
-			args: []string{"--enable-feature-gateway"},
-			want: map[string]string{"enable-feature-gateway": "true"},
+			env:  map[string]string{"NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED": "false"},
+			args: []string{"--features-gateway-enabled"},
+			want: map[string]string{"features-gateway-enabled": "true"},
 		},
 		{
 			name: "list keeps commas inside items",
-			env:  map[string]string{"NGROK_OPERATOR_FEATURES_BINDINGS_ENDPOINT_SELECTORS": `["a == 'x,y'","true"]`},
-			want: map[string]string{"bindings-endpoint-selectors": `["a == 'x,y'","true"]`},
+			env:  map[string]string{"NGROK_OPERATOR_FEATURES__BINDINGS__ENDPOINT_SELECTORS": `["a == 'x,y'","true"]`},
+			want: map[string]string{"features-bindings-endpoint-selectors": `["a == 'x,y'","true"]`},
 		},
 		{
 			name: "map as YAML",
-			env:  map[string]string{"NGROK_OPERATOR_NGROK_METADATA": `{env: dev, "example.com/team": k8s}`},
-			want: map[string]string{"ngrokMetadata": `{"env":"dev","example.com/team":"k8s"}`},
+			env:  map[string]string{"NGROK_OPERATOR_METADATA": `{env: dev, "example.com/team": k8s}`},
+			want: map[string]string{"metadata": `{"env":"dev","example.com/team":"k8s"}`},
 		},
 		{
 			name:        "invalid env keeps the built-in default",
-			env:         map[string]string{"NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED": "nope"},
-			want:        map[string]string{"enable-feature-gateway": "true"},
-			wantDefault: map[string]string{"enable-feature-gateway": "true"},
-		},
-		{
-			name: "log env seeds the zap flag",
-			env:  map[string]string{"NGROK_OPERATOR_LOG_LEVEL": "debug", "NGROK_OPERATOR_LOG_FORMAT": "console"},
-			want: map[string]string{"zap-log-level": "debug", "zap-encoder": "console"},
-		},
-		{
-			name: "zap flag wins over log env",
-			env:  map[string]string{"NGROK_OPERATOR_LOG_LEVEL": "debug"},
-			args: []string{"--zap-log-level=error"},
-			want: map[string]string{"zap-log-level": "error"},
+			env:         map[string]string{"NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED": "nope"},
+			want:        map[string]string{"features-gateway-enabled": "true"},
+			wantDefault: map[string]string{"features-gateway-enabled": "true"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -84,12 +73,11 @@ func TestBind(t *testing.T) {
 				metadata      map[string]string
 			)
 			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			NgrokRegion(fs, &region)
+			Region(fs, &region)
 			DrainPolicy(fs, &drain)
 			GatewayEnabled(fs, &gateway)
 			BindingsEndpointSelectors(fs, &selectors)
-			NgrokMetadata(fs, &metadata)
-			Log(fs)
+			Metadata(fs, &metadata)
 			require.NoError(t, fs.Parse(tc.args))
 
 			for name, want := range tc.want {
@@ -110,27 +98,26 @@ func TestValidate(t *testing.T) {
 	}{
 		{
 			name: "valid",
-			env:  map[string]string{"NGROK_OPERATOR_NGROK_REGION": "eu", "NGROK_OPERATOR_LOG_LEVEL": "debug"},
+			env:  map[string]string{"NGROK_OPERATOR_REGION": "eu", "NGROK_OPERATOR_LOG__LEVEL": "debug"},
+		},
+		{
+			name: "variable read outside the settings",
+			env:  map[string]string{"NGROK_OPERATOR_RESTART_ON_CERT_CHANGE": "true"},
 		},
 		{
 			name:    "invalid bool",
-			env:     map[string]string{"NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED": "nope"},
-			wantErr: "NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED",
+			env:     map[string]string{"NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED": "nope"},
+			wantErr: "NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED",
 		},
 		{
 			name:    "invalid list",
-			env:     map[string]string{"NGROK_OPERATOR_FEATURES_BINDINGS_ENDPOINT_SELECTORS": "{a: b}"},
-			wantErr: "NGROK_OPERATOR_FEATURES_BINDINGS_ENDPOINT_SELECTORS",
-		},
-		{
-			name:    "invalid log level",
-			env:     map[string]string{"NGROK_OPERATOR_LOG_LEVEL": "loud"},
-			wantErr: "NGROK_OPERATOR_LOG_LEVEL",
+			env:     map[string]string{"NGROK_OPERATOR_FEATURES__BINDINGS__ENDPOINT_SELECTORS": "{a: b}"},
+			wantErr: "NGROK_OPERATOR_FEATURES__BINDINGS__ENDPOINT_SELECTORS",
 		},
 		{
 			name:    "unknown variable",
-			env:     map[string]string{"NGROK_OPERATOR_NGROK_REGOIN": "eu"},
-			wantErr: "NGROK_OPERATOR_NGROK_REGOIN is not an ngrok-operator setting",
+			env:     map[string]string{"NGROK_OPERATOR_REGOIN": "eu"},
+			wantErr: "NGROK_OPERATOR_REGOIN is not an ngrok-operator setting",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -157,10 +144,35 @@ func testRoot() *cobra.Command {
 	)
 	root := &cobra.Command{Use: "root"}
 	sub := &cobra.Command{Use: "sub"}
-	NgrokRegion(sub.Flags(), &region)
+	Region(sub.Flags(), &region)
 	GatewayEnabled(sub.Flags(), &gateway)
 	BindingsEndpointSelectors(sub.Flags(), &selectors)
 	Log(sub.Flags())
 	root.AddCommand(sub)
 	return root
+}
+
+func TestLogger(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "defaults"},
+		{name: "valid", args: []string{"--log-level=8", "--log-format=console", "--log-stacktrace-level=panic"}},
+		{name: "invalid level", args: []string{"--log-level=loud"}, wantErr: "--log-level"},
+		{name: "invalid format", args: []string{"--log-format=xml"}, wantErr: "--log-format"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			log := Log(fs)
+			require.NoError(t, fs.Parse(tc.args))
+			_, err := log.Logger()
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }

@@ -38,7 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -64,12 +63,9 @@ func init() {
 }
 
 type bindingsForwarderManagerOpts struct {
-	// flags
-	releaseName string
-	metricsAddr string
-	probeAddr   string
-	managerName string
-	zapOpts     *zap.Options
+	managerOpts
+
+	log *flags.LogOptions
 
 	// env vars
 	namespace string
@@ -84,18 +80,18 @@ func bindingsForwarderCmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
-	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
-	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
-
-	opts.zapOpts = flags.Log(c.Flags())
+	addManagerFlags(c.Flags(), &opts.managerOpts, "bindings-forwarder-manager")
+	opts.log = flags.Log(c.Flags())
 
 	return c
 }
 
 func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+	logger, err := opts.log.Logger()
+	if err != nil {
+		return err
+	}
+	ctrl.SetLogger(logger)
 
 	buildInfo := version.Get()
 	setupLog.Info("starting bindings-forwarder-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)

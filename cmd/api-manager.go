@@ -44,7 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -88,19 +87,17 @@ func init() {
 }
 
 type apiManagerOpts struct {
+	managerOpts
+
 	// flags
-	releaseName           string
-	metricsAddr           string
 	electionID            string
-	probeAddr             string
 	serverAddr            string
 	apiURL                string
 	ingressControllerName string
 	ingressWatchNamespace string
 	ngrokMetadata         map[string]string
 	description           string
-	managerName           string
-	zapOpts               *zap.Options
+	log                   *flags.LogOptions
 	clusterDomain         string
 
 	// when true, ngrok-op will allow required fields to be optional
@@ -143,25 +140,20 @@ func apiCmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
-	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
-	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
-	// TODO(operator-rename): Same as above, but for the manager name.
-	c.Flags().StringVar(&opts.managerName, "manager-name", "ngrok-ingress-controller-manager", "Manager name to identify unique ngrok ingress controller instances")
-
 	fs := c.Flags()
-	flags.NgrokMetadata(fs, &opts.ngrokMetadata)
-	flags.NgrokDescription(fs, &opts.description)
-	flags.NgrokRegion(fs, &opts.region)
-	flags.NgrokServerAddr(fs, &opts.serverAddr)
-	flags.NgrokAPIURL(fs, &opts.apiURL)
-	flags.NgrokClusterDomain(fs, &opts.clusterDomain)
+	addManagerFlags(fs, &opts.managerOpts, "ngrok-ingress-controller-manager")
+	fs.StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
+	flags.Metadata(fs, &opts.ngrokMetadata)
+	flags.Description(fs, &opts.description)
+	flags.Region(fs, &opts.region)
+	flags.ServerAddr(fs, &opts.serverAddr)
+	flags.APIURL(fs, &opts.apiURL)
+	flags.ClusterDomain(fs, &opts.clusterDomain)
 	flags.IngressControllerName(fs, &opts.ingressControllerName)
 	flags.IngressWatchNamespace(fs, &opts.ingressWatchNamespace)
-	flags.OneClickDemoMode(fs, &opts.oneClickDemoMode)
 
 	// feature flags
+	flags.OneClickDemoMode(fs, &opts.oneClickDemoMode)
 	flags.IngressEnabled(fs, &opts.enableFeatureIngress)
 	flags.GatewayEnabled(fs, &opts.enableFeatureGateway)
 	flags.GatewayDisableReferenceGrants(fs, &opts.disableGatewayReferenceGrants)
@@ -173,14 +165,18 @@ func apiCmd() *cobra.Command {
 	flags.DefaultDomainReclaimPolicy(fs, &opts.defaultDomainReclaimPolicy)
 	flags.DrainPolicy(fs, (*string)(&opts.drainPolicy))
 
-	opts.zapOpts = flags.Log(fs)
+	opts.log = flags.Log(fs)
 
 	return c
 }
 
 // startOperator starts the ngrok-op
 func startOperator(ctx context.Context, opts apiManagerOpts) error {
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+	logger, err := opts.log.Logger()
+	if err != nil {
+		return err
+	}
+	ctrl.SetLogger(logger)
 
 	buildInfo := version.Get()
 	setupLog.Info("starting api-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)

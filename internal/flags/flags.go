@@ -17,6 +17,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -26,41 +27,45 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 )
 
+// Environment variables are NGROK_OPERATOR_ and the setting's path in the
+// chart's values, with "__" between levels and "_" between words:
+// features.gateway.enabled is NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED. The
+// shared ngrok settings sit at the top level: ngrok.region is
+// NGROK_OPERATOR_REGION. A flag is its variable without the prefix, in kebab
+// case. TestSettingNames in cmd/ checks both rules.
 var (
 	// ngrok
-	NgrokDescription   = String("description", "NGROK_OPERATOR_NGROK_DESCRIPTION", "Created by the ngrok-operator", "Description for this installation")
-	NgrokRegion        = String("region", "NGROK_OPERATOR_NGROK_REGION", "", "The region to use for ngrok tunnels")
-	NgrokServerAddr    = String("server-addr", "NGROK_OPERATOR_NGROK_SERVER_ADDR", "", "The address of the ngrok server to use for tunnels")
-	NgrokAPIURL        = String("api-url", "NGROK_OPERATOR_NGROK_API_URL", "", "The base URL to use for the ngrok api")
-	NgrokRootCAs       = String("root-cas", "NGROK_OPERATOR_NGROK_ROOT_CAS", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
-	NgrokMetadata      = Map("ngrokMetadata", "NGROK_OPERATOR_NGROK_METADATA", "Metadata added to the ngrok API resources the operator creates, as a YAML or JSON map")
-	NgrokClusterDomain = String("cluster-domain", "NGROK_OPERATOR_NGROK_CLUSTER_DOMAIN", common.DefaultClusterDomain, "Cluster domain used in the cluster")
+	Description   = String("description", "NGROK_OPERATOR_DESCRIPTION", "Created by the ngrok-operator", "Description for this installation")
+	Region        = String("region", "NGROK_OPERATOR_REGION", "", "The region to use for ngrok tunnels")
+	ServerAddr    = String("server-addr", "NGROK_OPERATOR_SERVER_ADDR", "", "The address of the ngrok server to use for tunnels")
+	APIURL        = String("api-url", "NGROK_OPERATOR_API_URL", "", "The base URL to use for the ngrok api")
+	RootCAs       = String("root-cas", "NGROK_OPERATOR_ROOT_CAS", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
+	Metadata      = Map("metadata", "NGROK_OPERATOR_METADATA", "Metadata added to the ngrok API resources the operator creates, as a YAML or JSON map")
+	ClusterDomain = String("cluster-domain", "NGROK_OPERATOR_CLUSTER_DOMAIN", common.DefaultClusterDomain, "Cluster domain used in the cluster")
+
+	// log
+	LogLevel           = String("log-level", "NGROK_OPERATOR_LOG__LEVEL", "info", "Log level: debug, info, error, panic, or an integer > 0 for more verbose debug levels")
+	LogFormat          = String("log-format", "NGROK_OPERATOR_LOG__FORMAT", "json", "Log format: json or console")
+	LogStacktraceLevel = String("log-stacktrace-level", "NGROK_OPERATOR_LOG__STACKTRACE_LEVEL", "error", "Level at and above which stacktraces are captured: info, error or panic")
 
 	// features
-	IngressEnabled                = Bool("enable-feature-ingress", "NGROK_OPERATOR_FEATURES_INGRESS_ENABLED", true, "Enables the Ingress controller")
-	IngressControllerName         = String("ingress-controller-name", "NGROK_OPERATOR_FEATURES_INGRESS_CONTROLLER_NAME", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
-	IngressWatchNamespace         = String("ingress-watch-namespace", "NGROK_OPERATOR_FEATURES_INGRESS_WATCH_NAMESPACE", "", "Namespace to watch for Ingress and AgentEndpoint resources. Defaults to all namespaces.")
-	GatewayEnabled                = Bool("enable-feature-gateway", "NGROK_OPERATOR_FEATURES_GATEWAY_ENABLED", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
-	GatewayDisableReferenceGrants = Bool("disable-reference-grants", "NGROK_OPERATOR_FEATURES_GATEWAY_DISABLE_REFERENCE_GRANTS", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
-	BindingsEnabled               = Bool("enable-feature-bindings", "NGROK_OPERATOR_FEATURES_BINDINGS_ENABLED", false, "Enables the Endpoint Bindings controller")
-	BindingsEndpointSelectors     = List("bindings-endpoint-selectors", "NGROK_OPERATOR_FEATURES_BINDINGS_ENDPOINT_SELECTORS", []string{"true"}, "CEL expressions selecting the endpoints to project into this cluster, as a YAML or JSON list")
-	BindingsServiceAnnotations    = Map("bindings-service-annotations", "NGROK_OPERATOR_FEATURES_BINDINGS_SERVICE_ANNOTATIONS", "Service Annotations to propagate to the target service, as a YAML or JSON map")
-	BindingsServiceLabels         = Map("bindings-service-labels", "NGROK_OPERATOR_FEATURES_BINDINGS_SERVICE_LABELS", "Service Labels to propagate to the target service, as a YAML or JSON map")
-	BindingsIngressEndpoint       = String("bindings-ingress-endpoint", "NGROK_OPERATOR_FEATURES_BINDINGS_INGRESS_ENDPOINT", "", "The endpoint the bindings forwarder connects to")
-	DefaultDomainReclaimPolicy    = String("default-domain-reclaim-policy", "NGROK_OPERATOR_FEATURES_DEFAULT_DOMAIN_RECLAIM_POLICY", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
-	DrainPolicy                   = String("drain-policy", "NGROK_OPERATOR_FEATURES_DRAIN_POLICY", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
-
-	// api-manager only
-	OneClickDemoMode = Bool("one-click-demo-mode", "NGROK_OPERATOR_API_MANAGER_ONE_CLICK_DEMO_MODE", false, "Run the operator in one-click-demo mode (Ready, but not running)")
+	IngressEnabled                = Bool("features-ingress-enabled", "NGROK_OPERATOR_FEATURES__INGRESS__ENABLED", true, "Enables the Ingress controller")
+	IngressControllerName         = String("features-ingress-controller-name", "NGROK_OPERATOR_FEATURES__INGRESS__CONTROLLER_NAME", "k8s.ngrok.com/ingress-controller", "The name of the controller to use for matching ingresses classes")
+	IngressWatchNamespace         = String("features-ingress-watch-namespace", "NGROK_OPERATOR_FEATURES__INGRESS__WATCH_NAMESPACE", "", "Namespace to watch for Ingress and AgentEndpoint resources. Defaults to all namespaces.")
+	GatewayEnabled                = Bool("features-gateway-enabled", "NGROK_OPERATOR_FEATURES__GATEWAY__ENABLED", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
+	GatewayDisableReferenceGrants = Bool("features-gateway-disable-reference-grants", "NGROK_OPERATOR_FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
+	BindingsEnabled               = Bool("features-bindings-enabled", "NGROK_OPERATOR_FEATURES__BINDINGS__ENABLED", false, "Enables the Endpoint Bindings controller")
+	BindingsEndpointSelectors     = List("features-bindings-endpoint-selectors", "NGROK_OPERATOR_FEATURES__BINDINGS__ENDPOINT_SELECTORS", []string{"true"}, "CEL expressions selecting the endpoints to project into this cluster, as a YAML or JSON list")
+	BindingsServiceAnnotations    = Map("features-bindings-service-annotations", "NGROK_OPERATOR_FEATURES__BINDINGS__SERVICE_ANNOTATIONS", "Service Annotations to propagate to the target service, as a YAML or JSON map")
+	BindingsServiceLabels         = Map("features-bindings-service-labels", "NGROK_OPERATOR_FEATURES__BINDINGS__SERVICE_LABELS", "Service Labels to propagate to the target service, as a YAML or JSON map")
+	BindingsIngressEndpoint       = String("features-bindings-ingress-endpoint", "NGROK_OPERATOR_FEATURES__BINDINGS__INGRESS_ENDPOINT", "", "The endpoint the bindings forwarder connects to")
+	DefaultDomainReclaimPolicy    = String("features-default-domain-reclaim-policy", "NGROK_OPERATOR_FEATURES__DEFAULT_DOMAIN_RECLAIM_POLICY", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
+	DrainPolicy                   = String("features-drain-policy", "NGROK_OPERATOR_FEATURES__DRAIN_POLICY", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
+	OneClickDemoMode              = Bool("features-one-click-demo-mode", "NGROK_OPERATOR_FEATURES__ONE_CLICK_DEMO_MODE", false, "Run the operator in one-click-demo mode (Ready, but not running)")
 )
 
-// logEnv maps controller-runtime's --zap-* flags to their variables. Log
-// registers the flags.
-var logEnv = map[string]string{
-	"zap-log-level":        "NGROK_OPERATOR_LOG_LEVEL",
-	"zap-encoder":          "NGROK_OPERATOR_LOG_FORMAT",
-	"zap-stacktrace-level": "NGROK_OPERATOR_LOG_STACKTRACE_LEVEL",
-}
+// otherEnv are the NGROK_OPERATOR_ variables read outside these settings.
+var otherEnv = []string{"NGROK_OPERATOR_RESTART_ON_CERT_CHANGE"}
 
 // Annotations on each setting's flag, read by Validate and the tests.
 const (
@@ -85,7 +90,7 @@ func Bool(name, env string, def bool, usage string) func(*pflag.FlagSet, *bool) 
 func List(name, env string, def []string, usage string) func(*pflag.FlagSet, *[]string) {
 	return func(fs *pflag.FlagSet, p *[]string) {
 		*p = def
-		fs.Var(&listValue{p}, name, usage)
+		fs.Var(&yamlValue[[]string]{p, "list"}, name, usage)
 		withEnv(fs, name, env)
 	}
 }
@@ -93,22 +98,40 @@ func List(name, env string, def []string, usage string) func(*pflag.FlagSet, *[]
 func Map(name, env, usage string) func(*pflag.FlagSet, *map[string]string) {
 	return func(fs *pflag.FlagSet, p *map[string]string) {
 		*p = map[string]string{}
-		fs.Var(&mapValue{p}, name, usage)
+		fs.Var(&yamlValue[map[string]string]{p, "map"}, name, usage)
 		withEnv(fs, name, env)
 	}
 }
 
-// Log registers controller-runtime's --zap-* flags on fs, with the log
-// variables as their defaults.
-func Log(fs *pflag.FlagSet) *zap.Options {
-	opts := &zap.Options{}
-	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
-	opts.BindFlags(goFlagSet)
-	fs.AddGoFlagSet(goFlagSet)
-	for name, env := range logEnv {
-		withEnv(fs, name, env)
+// LogOptions holds the log settings. Commands build their logger from it,
+// so they do not depend on the logging library.
+type LogOptions struct{ level, format, stacktraceLevel string }
+
+// Log binds the log settings onto fs.
+func Log(fs *pflag.FlagSet) *LogOptions {
+	o := &LogOptions{}
+	LogLevel(fs, &o.level)
+	LogFormat(fs, &o.format)
+	LogStacktraceLevel(fs, &o.stacktraceLevel)
+	return o
+}
+
+// Logger builds the logger. It parses the settings with controller-runtime's
+// zap flags, so the accepted values are theirs.
+func (o *LogOptions) Logger() (logr.Logger, error) {
+	var opts zap.Options
+	zapFlags := flag.NewFlagSet("log", flag.ContinueOnError)
+	opts.BindFlags(zapFlags)
+	for _, s := range []struct{ setting, zapFlag, value string }{
+		{"log-level", "zap-log-level", o.level},
+		{"log-format", "zap-encoder", o.format},
+		{"log-stacktrace-level", "zap-stacktrace-level", o.stacktraceLevel},
+	} {
+		if err := zapFlags.Set(s.zapFlag, s.value); err != nil {
+			return logr.Logger{}, fmt.Errorf("--%s: %w", s.setting, err)
+		}
 	}
-	return opts
+	return zap.New(zap.UseFlagOptions(&opts)), nil
 }
 
 // withEnv tags the flag with its variable and, when the variable is set,
@@ -136,6 +159,9 @@ func withEnv(fs *pflag.FlagSet, name, env string) {
 func Validate(root *cobra.Command) error {
 	var errs []error
 	known := map[string]bool{}
+	for _, env := range otherEnv {
+		known[env] = true
+	}
 	for f := range Flags(root) {
 		if env := f.Annotations[AnnotationEnv]; env != nil {
 			known[env[0]] = true

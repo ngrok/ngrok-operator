@@ -37,7 +37,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -69,14 +68,12 @@ func init() {
 }
 
 type agentManagerOpts struct {
+	managerOpts
+
 	// flags
-	releaseName    string
-	metricsAddr    string
-	probeAddr      string
 	serverAddr     string
-	managerName    string
 	watchNamespace string
-	zapOpts        *zap.Options
+	log            *flags.LogOptions
 
 	// feature flags
 	enableFeatureIngress          bool
@@ -103,19 +100,14 @@ func agentCmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
-	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
-	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	// TODO(operator-rename): Same as above, but for the manager name.
-	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
-
 	fs := c.Flags()
+	addManagerFlags(fs, &opts.managerOpts, "agent-manager")
 	flags.IngressWatchNamespace(fs, &opts.watchNamespace)
 
 	// agent(tunnel driver) flags
-	flags.NgrokRegion(fs, &opts.region)
-	flags.NgrokServerAddr(fs, &opts.serverAddr)
-	flags.NgrokRootCAs(fs, &opts.rootCAs)
+	flags.Region(fs, &opts.region)
+	flags.ServerAddr(fs, &opts.serverAddr)
+	flags.RootCAs(fs, &opts.rootCAs)
 
 	// feature flags
 	flags.IngressEnabled(fs, &opts.enableFeatureIngress)
@@ -124,13 +116,17 @@ func agentCmd() *cobra.Command {
 	flags.BindingsEnabled(fs, &opts.enableFeatureBindings)
 	flags.DefaultDomainReclaimPolicy(fs, &opts.defaultDomainReclaimPolicy)
 
-	opts.zapOpts = flags.Log(fs)
+	opts.log = flags.Log(fs)
 
 	return c
 }
 
 func runAgentController(_ context.Context, opts agentManagerOpts) error {
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+	logger, err := opts.log.Logger()
+	if err != nil {
+		return err
+	}
+	ctrl.SetLogger(logger)
 
 	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
 	if err != nil {

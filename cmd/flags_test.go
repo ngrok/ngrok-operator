@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -34,9 +36,27 @@ func TestEachEnvNamesOneFlag(t *testing.T) {
 }
 
 func TestValidateCommands(t *testing.T) {
-	t.Setenv("NGROK_OPERATOR_NGROK_ROOT_CAS", "host") // only the agent reads it
+	t.Setenv("NGROK_OPERATOR_ROOT_CAS", "host") // only the agent reads it
 	require.NoError(t, flags.Validate(newRoot()))
 
-	t.Setenv("NGROK_OPERATOR_FEATURES_DRAIN_POLICY_TYPO", "Delete")
-	require.ErrorContains(t, flags.Validate(newRoot()), "NGROK_OPERATOR_FEATURES_DRAIN_POLICY_TYPO")
+	t.Setenv("NGROK_OPERATOR_FEATURES__DRAIN_POLICY_TYPO", "Delete")
+	require.ErrorContains(t, flags.Validate(newRoot()), "NGROK_OPERATOR_FEATURES__DRAIN_POLICY_TYPO")
+}
+
+// envFormat is NGROK_OPERATOR_ and a values path: "__" between levels, "_"
+// between words.
+var envFormat = regexp.MustCompile(`^NGROK_OPERATOR_[A-Z0-9]+(_[A-Z0-9]+)*(__[A-Z0-9]+(_[A-Z0-9]+)*)*$`)
+
+// TestSettingNames checks each setting's variable is in the documented format
+// and its flag is the variable without the prefix, in kebab case.
+func TestSettingNames(t *testing.T) {
+	kebab := strings.NewReplacer("__", "-", "_", "-")
+	for f := range flags.Flags(newRoot()) {
+		env := f.Annotations[flags.AnnotationEnv]
+		if env == nil {
+			continue
+		}
+		assert.Regexp(t, envFormat, env[0])
+		assert.Equal(t, strings.ToLower(kebab.Replace(strings.TrimPrefix(env[0], "NGROK_OPERATOR_"))), f.Name, env[0])
+	}
 }
