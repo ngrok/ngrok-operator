@@ -849,6 +849,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 func enablePrivateEndpointsFeatureSet(opts apiManagerOpts, mgr ctrl.Manager, ngrokClientset ngrokapi.Clientset) error {
 	if err := (&privateendpointscontroller.Reconciler{
 		Client:            mgr.GetClient(),
+		APIReader:         mgr.GetAPIReader(),
 		Log:               ctrl.Log.WithName("controllers").WithName("PrivateEndpoint"),
 		Namespace:         opts.namespace,
 		SharedServiceName: opts.privateEndpointsSharedService,

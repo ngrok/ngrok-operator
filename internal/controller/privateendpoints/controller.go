@@ -36,6 +36,8 @@ import (
 // returns one IP per name: every endpoint on a hostname must share it.
 type Reconciler struct {
 	client.Client
+	// APIReader reads PrivateEndpoints uncached for port allocation.
+	APIReader         client.Reader
 	Log               logr.Logger
 	Namespace         string
 	SharedServiceName string
@@ -45,12 +47,16 @@ type Reconciler struct {
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	hostKey := req.Name
+	// Uncached: the informer may not have seen the forwarder ports the
+	// previous reconcile just wrote, and reusing one cross-routes traffic.
 	var all ngrokv1.PrivateEndpointList
-	if err := r.List(ctx, &all, client.InNamespace(r.Namespace)); err != nil {
+	if err := r.APIReader.List(ctx, &all, client.InNamespace(r.Namespace)); err != nil {
 		return ctrl.Result{}, fmt.Errorf("listing PrivateEndpoints: %w", err)
 	}
 	var mine []*ngrokv1.PrivateEndpoint
-	used := map[int32]bool{}
+	// others maps each forwarder port held on another hostname to the
+	// lowest-named CR holding it; that CR wins if two hosts claim the port.
+	others := map[int32]string{}
 	for i := range all.Items {
 		cr := &all.Items[i]
 		if cr.DeletionTimestamp != nil {
@@ -58,9 +64,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		if cr.Labels[pe.HostLabel] == hostKey {
 			mine = append(mine, cr)
+			continue
 		}
-		if cr.Status.ForwarderPort != 0 {
-			used[cr.Status.ForwarderPort] = true
+		if fp := cr.Status.ForwarderPort; fp != 0 {
+			if cur, ok := others[fp]; !ok || cr.Name < cur {
+				others[fp] = cr.Name
+			}
 		}
 	}
 	svcName := pe.HostServiceName(hostKey)
@@ -69,7 +78,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	for _, cr := range mine {
 		if !pe.SharedEligible(cr.Spec) {
-			return r.reconcileDedicated(ctx, hostKey, svcName, mine, used)
+			return r.reconcileDedicated(ctx, hostKey, svcName, mine, others)
 		}
 	}
 	return r.reconcileShared(ctx, svcName, mine)
@@ -95,7 +104,24 @@ func (r *Reconciler) reconcileShared(ctx context.Context, svcName string, crs []
 	return ctrl.Result{}, errors.Join(errs...)
 }
 
-func (r *Reconciler) reconcileDedicated(ctx context.Context, hostKey, svcName string, crs []*ngrokv1.PrivateEndpoint, used map[int32]bool) (ctrl.Result, error) {
+func (r *Reconciler) reconcileDedicated(ctx context.Context, hostKey, svcName string, crs []*ngrokv1.PrivateEndpoint, others map[int32]string) (ctrl.Result, error) {
+	keepPort := func(cr *ngrokv1.PrivateEndpoint) bool {
+		fp := cr.Status.ForwarderPort
+		if fp < r.PortMin || fp > r.PortMax {
+			return false
+		}
+		owner, taken := others[fp]
+		return !taken || cr.Name < owner
+	}
+	used := map[int32]bool{}
+	for p := range others {
+		used[p] = true
+	}
+	for _, cr := range crs {
+		if keepPort(cr) {
+			used[cr.Status.ForwarderPort] = true
+		}
+	}
 	sort.Slice(crs, func(i, j int) bool {
 		if crs[i].Spec.Port != crs[j].Spec.Port {
 			return crs[i].Spec.Port < crs[j].Spec.Port
@@ -113,7 +139,7 @@ func (r *Reconciler) reconcileDedicated(ctx context.Context, hostKey, svcName st
 		}
 		byPort[cr.Spec.Port] = cr.Name
 		fp := cr.Status.ForwarderPort
-		if fp < r.PortMin || fp > r.PortMax {
+		if !keepPort(cr) {
 			var err error
 			if fp, err = r.allocate(used); err != nil {
 				return ctrl.Result{}, err

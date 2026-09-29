@@ -17,6 +17,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
@@ -24,7 +25,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 )
 
-var envClient client.Client
+var envClient client.WithWatch
 
 func TestMain(m *testing.M) {
 	env := &envtest.Environment{
@@ -38,7 +39,7 @@ func TestMain(m *testing.M) {
 	s := runtime.NewScheme()
 	_ = clientgoscheme.AddToScheme(s)
 	_ = ngrokv1.AddToScheme(s)
-	envClient, err = client.New(cfg, client.Options{Scheme: s})
+	envClient, err = client.NewWithWatch(cfg, client.Options{Scheme: s})
 	if err != nil {
 		panic(err)
 	}
@@ -62,7 +63,7 @@ func setupNS(t *testing.T, withShared bool) (string, *Reconciler) {
 		}))
 	}
 	return ns.Name, &Reconciler{
-		Client: envClient, Log: logr.Discard(), Namespace: ns.Name,
+		Client: envClient, APIReader: envClient, Log: logr.Discard(), Namespace: ns.Name,
 		SharedServiceName: "shared", ForwarderSelector: map[string]string{"app": "fwd"},
 		PortMin: 20000, PortMax: 20999,
 	}
@@ -183,6 +184,51 @@ func TestReconcile(t *testing.T) {
 
 		reconcileHost(t, r, "a.internal")
 		assert.Equal(t, a.Status.ForwarderPort, getCR(t, ns, "tcp://a.internal:5432").Status.ForwarderPort)
+	})
+
+	t.Run("port allocation ignores cache lag", func(t *testing.T) {
+		ns, r := setupNS(t, true)
+		// An informer that hasn't yet seen other reconciles' status writes.
+		r.Client = interceptor.NewClient(envClient, interceptor.Funcs{
+			List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				if err := c.List(ctx, list, opts...); err != nil {
+					return err
+				}
+				if l, ok := list.(*ngrokv1.PrivateEndpointList); ok {
+					for i := range l.Items {
+						l.Items[i].Status = ngrokv1.PrivateEndpointStatus{}
+					}
+				}
+				return nil
+			},
+		})
+		createCR(t, ns, "tcp://lag-a.internal:5432")
+		createCR(t, ns, "tcp://lag-b.internal:6379")
+		reconcileHost(t, r, "lag-a.internal")
+		reconcileHost(t, r, "lag-b.internal")
+		a, b := getCR(t, ns, "tcp://lag-a.internal:5432"), getCR(t, ns, "tcp://lag-b.internal:6379")
+		require.NotZero(t, a.Status.ForwarderPort)
+		assert.NotEqual(t, a.Status.ForwarderPort, b.Status.ForwarderPort)
+	})
+
+	t.Run("duplicate forwarder port across hosts is reallocated", func(t *testing.T) {
+		ns, r := setupNS(t, true)
+		createCR(t, ns, "tcp://dup-a.internal:5432")
+		createCR(t, ns, "tcp://dup-b.internal:5432")
+		reconcileHost(t, r, "dup-a.internal")
+		a := getCR(t, ns, "tcp://dup-a.internal:5432")
+		b := getCR(t, ns, "tcp://dup-b.internal:5432")
+		b.Status.ForwarderPort = a.Status.ForwarderPort // state left behind by an earlier race
+		require.NoError(t, envClient.Status().Update(context.Background(), &b))
+
+		reconcileHost(t, r, "dup-b.internal")
+		reconcileHost(t, r, "dup-a.internal")
+		a, b = getCR(t, ns, "tcp://dup-a.internal:5432"), getCR(t, ns, "tcp://dup-b.internal:5432")
+		assert.NotEqual(t, a.Status.ForwarderPort, b.Status.ForwarderPort)
+		svcA, _ := hostService(t, ns, "dup-a.internal")
+		svcB, _ := hostService(t, ns, "dup-b.internal")
+		assert.Equal(t, a.Status.ForwarderPort, svcA.Spec.Ports[0].TargetPort.IntVal)
+		assert.Equal(t, b.Status.ForwarderPort, svcB.Spec.Ports[0].TargetPort.IntVal)
 	})
 
 	t.Run("last CR gone deletes host service", func(t *testing.T) {
