@@ -65,14 +65,24 @@ var (
 )
 
 // otherEnv are the NGROK_OPERATOR_ variables read outside these settings.
+//
+// TODO: make NGROK_OPERATOR_RESTART_ON_CERT_CHANGE a setting (and a values
+// key) like the others, instead of reading it in internal/util.
 var otherEnv = []string{"NGROK_OPERATOR_RESTART_ON_CERT_CHANGE"}
 
-// Annotations on each setting's flag, read by Validate and the tests.
+// Annotations withEnv puts on each setting's flag, so code holding only the
+// command tree can find a flag's variable. AnnotationEnv is the variable's
+// name: Validate collects them to reject unknown NGROK_OPERATOR_ variables,
+// and the tests in cmd/ compare them with the naming rule and the chart.
+// annotationEnvError is why the variable's value could not be parsed, which
+// Validate reports; binding a flag cannot return an error itself.
 const (
 	AnnotationEnv      = "ngrok-operator/env"
 	annotationEnvError = "ngrok-operator/env-error"
 )
 
+// String defines a string setting. The returned function binds its flag onto
+// a command's flag set, writing into p.
 func String(name, env, def, usage string) func(*pflag.FlagSet, *string) {
 	return func(fs *pflag.FlagSet, p *string) {
 		fs.StringVar(p, name, def, usage)
@@ -80,6 +90,7 @@ func String(name, env, def, usage string) func(*pflag.FlagSet, *string) {
 	}
 }
 
+// Bool defines a boolean setting. See String.
 func Bool(name, env string, def bool, usage string) func(*pflag.FlagSet, *bool) {
 	return func(fs *pflag.FlagSet, p *bool) {
 		fs.BoolVar(p, name, def, usage)
@@ -87,6 +98,7 @@ func Bool(name, env string, def bool, usage string) func(*pflag.FlagSet, *bool) 
 	}
 }
 
+// List defines a list setting, written as a YAML or JSON list. See String.
 func List(name, env string, def []string, usage string) func(*pflag.FlagSet, *[]string) {
 	return func(fs *pflag.FlagSet, p *[]string) {
 		*p = def
@@ -95,12 +107,33 @@ func List(name, env string, def []string, usage string) func(*pflag.FlagSet, *[]
 	}
 }
 
+// Map defines a string map setting, written as a YAML or JSON map, empty by
+// default. See String.
 func Map(name, env, usage string) func(*pflag.FlagSet, *map[string]string) {
 	return func(fs *pflag.FlagSet, p *map[string]string) {
 		*p = map[string]string{}
 		fs.Var(&yamlValue[map[string]string]{p, "map"}, name, usage)
 		withEnv(fs, name, env)
 	}
+}
+
+// ManagerOptions are the controller-runtime manager's flags, which every
+// command has. They are runtime plumbing the chart passes as args, not
+// settings, so they have no environment variable.
+type ManagerOptions struct {
+	ReleaseName string
+	MetricsAddr string
+	ProbeAddr   string
+	ManagerName string
+}
+
+// Manager binds the manager flags onto fs, writing into o. managerName is the
+// command's default manager name.
+func Manager(fs *pflag.FlagSet, o *ManagerOptions, managerName string) {
+	fs.StringVar(&o.ReleaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
+	fs.StringVar(&o.MetricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
+	fs.StringVar(&o.ProbeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	fs.StringVar(&o.ManagerName, "manager-name", managerName, "Manager name to identify unique instances of this component")
 }
 
 // LogOptions holds the log settings. Commands build their logger from it,

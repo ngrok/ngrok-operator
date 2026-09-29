@@ -68,7 +68,7 @@ func init() {
 }
 
 type agentManagerOpts struct {
-	managerOpts
+	flags.ManagerOptions
 
 	// flags
 	serverAddr     string
@@ -101,7 +101,7 @@ func agentCmd() *cobra.Command {
 	}
 
 	fs := c.Flags()
-	addManagerFlags(fs, &opts.managerOpts, "agent-manager")
+	flags.Manager(fs, &opts.ManagerOptions, "agent-manager")
 	flags.IngressWatchNamespace(fs, &opts.watchNamespace)
 
 	// agent(tunnel driver) flags
@@ -145,10 +145,10 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 	options := ctrl.Options{
 		Scheme: scheme,
 		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
+			BindAddress: opts.MetricsAddr,
 		},
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
+		HealthProbeBindAddress: opts.ProbeAddr,
 		LeaderElection:         false,
 
 		// The KubernetesOperator CR is a singleton owned by the operator and always
@@ -204,7 +204,7 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 	healthcheck.RegisterHealthChecker(ad)
 
 	// Create drain state checker - controller will use this to check if draining
-	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.releaseName)
+	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.ReleaseName)
 
 	if err = (&agentcontroller.AgentEndpointReconciler{
 		Client:                     mgr.GetClient(),
@@ -213,7 +213,7 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		Recorder:                   mgr.GetEventRecorder("agentendpoint-controller"),
 		AgentDriver:                ad,
 		DefaultDomainReclaimPolicy: defaultDomainReclaimPolicy,
-		ControllerLabels:           labels.NewControllerLabelValues(opts.namespace, opts.managerName),
+		ControllerLabels:           labels.NewControllerLabelValues(opts.namespace, opts.ManagerName),
 		DrainState:                 drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")

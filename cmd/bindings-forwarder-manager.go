@@ -63,7 +63,7 @@ func init() {
 }
 
 type bindingsForwarderManagerOpts struct {
-	managerOpts
+	flags.ManagerOptions
 
 	log *flags.LogOptions
 
@@ -80,7 +80,7 @@ func bindingsForwarderCmd() *cobra.Command {
 		},
 	}
 
-	addManagerFlags(c.Flags(), &opts.managerOpts, "bindings-forwarder-manager")
+	flags.Manager(c.Flags(), &opts.ManagerOptions, "bindings-forwarder-manager")
 	opts.log = flags.Log(c.Flags())
 
 	return c
@@ -113,10 +113,10 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 			},
 		},
 		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
+			BindAddress: opts.MetricsAddr,
 		},
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
+		HealthProbeBindAddress: opts.ProbeAddr,
 		LeaderElection:         false,
 	}
 
@@ -135,7 +135,7 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 	}
 
 	// Create drain state checker - controller will use this to check if draining
-	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.releaseName)
+	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.ReleaseName)
 
 	if err = (&bindingscontroller.ForwarderReconciler{
 		Client:                 mgr.GetClient(),
@@ -143,7 +143,7 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		Scheme:                 mgr.GetScheme(),
 		Recorder:               mgr.GetEventRecorder("bindings-forwarder-controller"),
 		BindingsDriver:         bd,
-		KubernetesOperatorName: opts.releaseName,
+		KubernetesOperatorName: opts.ReleaseName,
 		RootCAs:                certPool,
 		DrainState:             drainState,
 	}).SetupWithManager(mgr); err != nil {

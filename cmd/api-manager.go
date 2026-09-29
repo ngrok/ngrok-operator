@@ -87,7 +87,7 @@ func init() {
 }
 
 type apiManagerOpts struct {
-	managerOpts
+	flags.ManagerOptions
 
 	// flags
 	electionID            string
@@ -141,7 +141,7 @@ func apiCmd() *cobra.Command {
 	}
 
 	fs := c.Flags()
-	addManagerFlags(fs, &opts.managerOpts, "ngrok-ingress-controller-manager")
+	flags.Manager(fs, &opts.ManagerOptions, "ngrok-ingress-controller-manager")
 	fs.StringVar(&opts.electionID, "election-id", "ngrok-operator-leader", "The name of the configmap that is used for holding the leader lock")
 	flags.Metadata(fs, &opts.ngrokMetadata)
 	flags.Description(fs, &opts.description)
@@ -336,7 +336,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		Recorder:       mgr.GetEventRecorder("drain-orchestrator"),
 		Log:            ctrl.Log.WithName("drain"),
 		K8sOpNamespace: opts.namespace,
-		K8sOpName:      opts.releaseName,
+		K8sOpName:      opts.ReleaseName,
 	})
 	// drainState is the read-only interface passed to all other controllers
 	drainState := drainOrchestrator.State()
@@ -401,7 +401,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		Scheme:            mgr.GetScheme(),
 		Recorder:          mgr.GetEventRecorder("kubernetes-operator-controller"),
 		K8sOpNamespace:    opts.namespace,
-		K8sOpName:         opts.releaseName,
+		K8sOpName:         opts.ReleaseName,
 		NgrokClientset:    ngrokClientset,
 		DrainOrchestrator: drainOrchestrator,
 	}).SetupWithManager(mgr); err != nil {
@@ -430,10 +430,10 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 	options := ctrl.Options{
 		Scheme: scheme,
 		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
+			BindAddress: opts.MetricsAddr,
 		},
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
+		HealthProbeBindAddress: opts.ProbeAddr,
 		LeaderElection:         opts.electionID != "",
 		LeaderElectionID:       opts.electionID,
 
@@ -527,7 +527,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 		options.ingressControllerName,
 		types.NamespacedName{
 			Namespace: options.namespace,
-			Name:      options.managerName,
+			Name:      options.ManagerName,
 		},
 		driverOpts...,
 	)
@@ -550,7 +550,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 
 // enableIngressFeatureSet enables the Ingress feature set for the operator
 func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy, drainState controller.DrainState) error {
-	controllerLabels := labels.NewControllerLabelValues(opts.namespace, opts.managerName)
+	controllerLabels := labels.NewControllerLabelValues(opts.namespace, opts.ManagerName)
 
 	if err := (&ingresscontroller.IngressReconciler{
 		Client:     mgr.GetClient(),
@@ -770,7 +770,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 		Log:                          ctrl.Log.WithName("controllers").WithName("BoundEndpointPoller"),
 		Recorder:                     mgr.GetEventRecorder("endpoint-binding-poller"),
 		Namespace:                    opts.namespace,
-		KubernetesOperatorConfigName: opts.releaseName,
+		KubernetesOperatorConfigName: opts.ReleaseName,
 		TargetServiceAnnotations:     opts.bindings.serviceAnnotations,
 		TargetServiceLabels:          opts.bindings.serviceLabels,
 		PollingInterval:              10 * time.Second,
@@ -787,14 +787,14 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 
 func createKubernetesOperator(ctx context.Context, client client.Client, opts apiManagerOpts) error {
 	k8sOperator := &ngrokv1alpha1.KubernetesOperator{
-		Name:      opts.releaseName,
+		Name:      opts.ReleaseName,
 		Namespace: opts.namespace,
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
 		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
 			Description: opts.description,
 			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
-				Name:      opts.releaseName,
+				Name:      opts.ReleaseName,
 				Namespace: opts.namespace,
 				Version:   version.GetVersion(),
 			},
