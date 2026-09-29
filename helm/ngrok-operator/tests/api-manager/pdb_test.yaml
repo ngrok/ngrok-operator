@@ -7,16 +7,18 @@ release:
 tests:
 - it: should match snapshot
   set:
-    podDisruptionBudget:
-      create: true
+    apiManager:
+      podDisruptionBudget:
+        create: true
   asserts:
   - matchSnapshot: {}
 - it: Defaults to 1 maxUnavailable
   template: api-manager/pdb.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    podDisruptionBudget:
-      create: true
+    apiManager:
+      podDisruptionBudget:
+        create: true
   asserts:
   - equal:
       path: spec.maxUnavailable
@@ -25,10 +27,11 @@ tests:
   template: api-manager/pdb.yaml
   documentIndex: 0 # Document 0 is the deployment since its the first template
   set:
-    podDisruptionBudget:
-      create: true
-      minAvailable: "1"
-      maxUnavailable: null
+    apiManager:
+      podDisruptionBudget:
+        create: true
+        minAvailable: "1"
+        maxUnavailable: null
   asserts:
   - equal:
       path: spec.minAvailable

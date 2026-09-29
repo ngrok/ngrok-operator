@@ -1,7 +1,7 @@
-{{- if and .Values.ingress.enabled (not .Values.oneClickDemoMode) }}
+{{- if and .Values.features.ingress.enabled (not (include "ngrok-operator.oneClickDemoMode" .)) }}
 {{- $component := "agent" }}
 {{- $rbacChecksum := include (print $.Template.BasePath "/agent/role.yaml") . | sha256sum }}
-{{- $agent := .Values.agent }}
+{{- $values := fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "agent")) }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -14,10 +14,10 @@ metadata:
   annotations:
     checksum/rbac: {{ $rbacChecksum }}
 spec:
-  replicas: {{ $agent.replicaCount }}
-  {{- if $agent.updateStrategy }}
+  replicas: {{ $values.replicaCount }}
+  {{- with $values.updateStrategy }}
   strategy:
-    {{- toYaml $agent.updateStrategy | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
   {{- end }}
   selector:
     matchLabels:
@@ -26,10 +26,8 @@ spec:
   template:
     metadata:
       annotations:
-        {{- if $agent.podAnnotations }}
-          {{- toYaml $agent.podAnnotations | nindent 8 }}
-        {{- else if .Values.podAnnotations }}
-          {{- toYaml .Values.podAnnotations | nindent 8 }}
+        {{- with $values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
@@ -38,34 +36,34 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
       labels:
         {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
-        {{- if .Values.podLabels }}
-          {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- with $values.podLabels }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
         app.kubernetes.io/component: {{ $component }}
     spec:
-      {{- if $agent.priorityClassName }}
-      priorityClassName: {{ $agent.priorityClassName | quote }}
+      {{- with $values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if $agent.terminationGracePeriodSeconds }}
-      terminationGracePeriodSeconds: {{ $agent.terminationGracePeriodSeconds }}
+      {{- with $values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ . }}
       {{- end }}
-      {{- if .Values.affinity }}
-      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      {{- if $values.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" $values.affinity "context" $) | nindent 8 }}
       {{- else }}
       affinity:
-        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
-        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
-        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+        podAffinity: {{- include "common.affinities.pods" (dict "type" $values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" $values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" $values.nodeAffinityPreset.type "key" $values.nodeAffinityPreset.key "values" $values.nodeAffinityPreset.values) | nindent 10 }}
       {{- end }}
-      {{- with $agent.nodeSelector }}
+      {{- with $values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{ with $agent.tolerations }}
+      {{- with $values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with $agent.topologySpreadConstraints }}
+      {{- with $values.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -82,30 +80,10 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        {{- include "ngrok-operator.manager.cliFeatureFlags" . | nindent 8 }}
-        {{- if .Values.description }}
-        - {{ printf "--description=%s" .Values.description | quote }}
-        {{- end }}
-        {{- if .Values.region }}
-        - --region={{ .Values.region }}
-        {{- end }}
-        {{- if .Values.rootCAs }}
-        - --root-cas={{ .Values.rootCAs }}
-        {{- end }}
-        {{- if .Values.serverAddr }}
-        - --server-addr={{ .Values.serverAddr }}
-        {{- end }}
-        - --zap-log-level={{ .Values.log.level }}
-        - --zap-stacktrace-level={{ .Values.log.stacktraceLevel }}
-        - --zap-encoder={{ .Values.log.format }}
+        - --release-name={{ .Release.Name }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name={{ include "ngrok-operator.fullname" . }}-agent-manager
-        - --release-name={{ .Release.Name }}
-        - --default-domain-reclaim-policy={{ .Values.defaultDomainReclaimPolicy }}
-        {{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) }}
-        - --watch-namespace={{ .Values.watchNamespace | default .Values.ingress.watchNamespace }}
-        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -120,17 +98,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: {{ .Release.Name | quote }}
-        {{- range $key, $value := .Values.extraEnv }}
+        {{- include "ngrok-operator.componentEnv" (dict "context" $ "component" "agent") | trim | nindent 8 }}
+        {{- range $key, $value := $values.extraEnv }}
         - name: {{ $key }}
           value: {{- toYaml $value | nindent 12 }}
         {{- end }}
-        {{- if .Values.extraVolumeMounts  }}
+        {{- with $values.extraVolumeMounts }}
         volumeMounts:
-        {{ toYaml .Values.extraVolumeMounts | nindent 10 }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- if .Values.lifecycle }}
+        {{- with $values.lifecycle }}
         lifecycle:
-        {{ toYaml .Values.lifecycle | nindent 10 }}
+          {{- toYaml . | nindent 10 }}
         {{- end }}
         livenessProbe:
           httpGet:
@@ -145,9 +124,9 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
-        {{- toYaml $agent.resources | nindent 10 }}
-      {{- if .Values.extraVolumes }}
+        {{- toYaml $values.resources | nindent 10 }}
+      {{- with $values.extraVolumes }}
       volumes:
-        {{ toYaml .Values.extraVolumes | nindent 6 }}
+      {{- toYaml . | nindent 6 }}
       {{- end }}
 {{- end }}
