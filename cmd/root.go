@@ -14,7 +14,8 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use: "ngrok-operator",
+	Use:               "ngrok-operator",
+	PersistentPreRunE: configureFlags,
 }
 
 func Execute() {
