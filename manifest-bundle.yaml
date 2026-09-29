@@ -3464,9 +3464,6 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        resources:
-          limits: {}
-          requests: {}
 
 ---
 # Source: ngrok-operator/templates/api-manager/deployment.yaml
@@ -3577,9 +3574,6 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        resources:
-          limits: {}
-          requests: {}
 
 ---
 # Source: ngrok-operator/templates/ingress-class.yaml
