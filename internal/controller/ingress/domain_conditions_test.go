@@ -51,7 +51,7 @@ func createTestDomainWithCertManagement(name, domainName, id string, job *ingres
 func createTestDomainCoveredByWildcard(name, domainName, wildcard string) *ingressv1alpha1.Domain {
 	domain := createTestDomain(name, domainName, "")
 	domain.Status.Domain = domainName
-	domain.Status.CoveredByWildcardDomain = wildcard
+	domain.Status.CoveredByWildcardDomain = &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard}
 	return domain
 }
 
@@ -314,7 +314,7 @@ func TestIsDomainReady(t *testing.T) {
 			domain: &ingressv1alpha1.Domain{
 				Status: ingressv1alpha1.DomainStatus{
 					ID:                      "",
-					CoveredByWildcardDomain: "*.example.com",
+					CoveredByWildcardDomain: &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.com"},
 					Conditions: []metav1.Condition{{
 						Type:   ConditionDomainReady,
 						Status: metav1.ConditionTrue,
@@ -328,7 +328,7 @@ func TestIsDomainReady(t *testing.T) {
 			domain: &ingressv1alpha1.Domain{
 				Status: ingressv1alpha1.DomainStatus{
 					ID:                      "",
-					CoveredByWildcardDomain: "*.example.com",
+					CoveredByWildcardDomain: &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.com"},
 					Conditions: []metav1.Condition{{
 						Type:   ConditionDomainReady,
 						Status: metav1.ConditionFalse,
@@ -342,7 +342,7 @@ func TestIsDomainReady(t *testing.T) {
 			domain: &ingressv1alpha1.Domain{
 				Status: ingressv1alpha1.DomainStatus{
 					ID:                      "",
-					CoveredByWildcardDomain: "*.example.com",
+					CoveredByWildcardDomain: &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.com"},
 				},
 			},
 			expected: false,

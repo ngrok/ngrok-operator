@@ -122,7 +122,7 @@ var _ = Describe("Gateway controller", Ordered, func() {
 							Namespace: gw.Namespace,
 						}, found)).To(Succeed())
 
-						g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+						g.Expect(found.Status.CoveredByWildcardDomain).To(HaveField("Domain", wildcard))
 						g.Expect(found.Status.ID).To(BeEmpty())
 						g.Expect(found.Status.Domain).To(Equal(domain))
 					}, timeout, interval).Should(Succeed())

@@ -41,7 +41,7 @@ The default can be overridden globally via the Helm value `defaultDomainReclaimP
 | `observedGeneration`            | int64                                   | Generation last reconciled by the controller |
 | `id`                            | string                                  | ngrok domain ID. Empty when the domain is covered by a wildcard |
 | `domain`                        | string                                  | The domain name                            |
-| `coveredByWildcardDomain`       | string                                  | The wildcard reservation serving this hostname (e.g. `*.example.com`), set when the operator skipped reserving the domain itself |
+| `coveredByWildcardDomain`       | *DomainStatusWildcardDomain             | The wildcard reservation serving this hostname, set when the operator skipped reserving the domain itself; unset otherwise |
 | `resolvesTo`                    | []DomainResolvesToEntry                | Resolved targets                           |
 | `cnameTarget`                   | *string                                 | CNAME target for custom domains            |
 | `acmeChallengeCNAMETarget`      | *string                                 | ACME challenge CNAME target                |
@@ -49,6 +49,13 @@ The default can be overridden globally via the Helm value `defaultDomainReclaimP
 | `certificateManagementPolicy`   | *DomainStatusCertificateManagementPolicy| Certificate authority and key type         |
 | `certificateManagementStatus`   | *DomainStatusCertificateManagementStatus| Renewal and provisioning status            |
 | `conditions`                    | []Condition                             | MaxItems: 8                                |
+
+### DomainStatusWildcardDomain
+
+| Field    | Type   | Description                                      |
+|----------|--------|--------------------------------------------------|
+| `id`     | string | ngrok ID of the covering wildcard reservation    |
+| `domain` | string | The wildcard domain name (e.g. `*.example.com`)  |
 
 ## Conditions
 
@@ -69,7 +76,7 @@ The default can be overridden globally via the Helm value `defaultDomainReclaimP
 | Ready          | `.status.conditions[?(@.type=='Ready')].status`               | 0        |
 | Age            | `.metadata.creationTimestamp`                                 | 0        |
 | CNAME Target   | `.status.cnameTarget`                                         | 2        |
-| Wildcard       | `.status.coveredByWildcardDomain`                             | 1        |
+| Wildcard       | `.status.coveredByWildcardDomain.domain`                      | 1        |
 | Reason         | `.status.conditions[?(@.type=='Ready')].reason`               | 1        |
 | Message        | `.status.conditions[?(@.type=='Ready')].message`              | 1        |
 

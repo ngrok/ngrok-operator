@@ -1249,7 +1249,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// No reservation of its own: exactly the state the reconciler writes.
 			domain.Status.ID = ""
 			domain.Status.Domain = hostname
-			domain.Status.CoveredByWildcardDomain = wildcard
+			domain.Status.CoveredByWildcardDomain = &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard}
 			domain.Status.Conditions = []metav1.Condition{
 				{
 					Type:               "Ready",

@@ -117,7 +117,8 @@ When the reservation is skipped:
 - `status.id` is left **empty**. It is the handle the controller would pass to
   the delete API, and the wildcard reservation is shared with every other
   subdomain under it.
-- `status.coveredByWildcardDomain` names the covering wildcard.
+- `status.coveredByWildcardDomain` holds the covering wildcard's `id` and
+  `domain`. It is unset whenever the domain is not covered.
 - `status.domain` is this domain's own hostname, never the wildcard's.
 - `status.cnameTarget` mirrors the wildcard's, because that is the record which
   actually resolves this hostname.

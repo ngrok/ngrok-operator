@@ -861,8 +861,11 @@ var _ = Describe("DomainReconciler", func() {
 		})
 
 		When("the wildcard parent is already reserved", func() {
+			var wildcardReservation *ngrok.ReservedDomain
+
 			BeforeEach(func() {
-				_, err := domainClient.Create(ctx, &ngrok.ReservedDomainCreate{Domain: wildcard})
+				var err error
+				wildcardReservation, err = domainClient.Create(ctx, &ngrok.ReservedDomainCreate{Domain: wildcard})
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -874,7 +877,10 @@ var _ = Describe("DomainReconciler", func() {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 
-					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(&ingressv1alpha1.DomainStatusWildcardDomain{
+						ID:     wildcardReservation.ID,
+						Domain: wildcard,
+					}))
 					// No reservation of its own: status.id is the handle delete()
 					// would pass to the API, and the wildcard is shared.
 					g.Expect(found.Status.ID).To(BeEmpty())
@@ -897,13 +903,6 @@ var _ = Describe("DomainReconciler", func() {
 			})
 
 			It("should mirror the wildcard's CNAME target so LB status still resolves", func() {
-				wildcardReservation := &ngrok.ReservedDomain{}
-				iter := domainClient.List(&ngrok.FilteredPaging{})
-				for iter.Next(ctx) {
-					if iter.Item().Domain == wildcard {
-						wildcardReservation = iter.Item()
-					}
-				}
 				Expect(wildcardReservation.CNAMETarget).ToNot(BeNil(),
 					"a custom wildcard should have a CNAME target to mirror")
 
@@ -912,7 +911,7 @@ var _ = Describe("DomainReconciler", func() {
 				Eventually(func(g Gomega) {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+					g.Expect(found.Status.CoveredByWildcardDomain).To(HaveField("Domain", wildcard))
 					g.Expect(found.Status.CNAMETarget).ToNot(BeNil())
 					g.Expect(*found.Status.CNAMETarget).To(Equal(*wildcardReservation.CNAMETarget))
 					// The ACME challenge record belongs to the wildcard; publishing
@@ -936,7 +935,7 @@ var _ = Describe("DomainReconciler", func() {
 				Eventually(func(g Gomega) {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+					g.Expect(found.Status.CoveredByWildcardDomain).To(HaveField("Domain", wildcard))
 				}, timeout, interval).Should(Succeed())
 
 				Expect(k8sClient.Delete(ctx, domain)).To(Succeed())
@@ -968,7 +967,7 @@ var _ = Describe("DomainReconciler", func() {
 					// the mock iterates a Go map, so a first-match-wins
 					// implementation would flake here.
 					g.Expect(found.Status.ID).To(Equal(exact.ID))
-					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 				}, timeout, interval).Should(Succeed())
 
 				Expect(countReservations()).To(Equal(2))
@@ -983,7 +982,7 @@ var _ = Describe("DomainReconciler", func() {
 				Eventually(func(g Gomega) {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 					g.Expect(found.Status.ID).ToNot(BeEmpty(), "should reserve its own domain")
 				}, timeout, interval).Should(Succeed())
 
@@ -996,7 +995,7 @@ var _ = Describe("DomainReconciler", func() {
 				Eventually(func(g Gomega) {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 					g.Expect(found.Status.ID).ToNot(BeEmpty())
 				}, timeout, interval).Should(Succeed())
 
@@ -1020,7 +1019,7 @@ var _ = Describe("DomainReconciler", func() {
 				Eventually(func(g Gomega) {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 					g.Expect(found.Status.ID).ToNot(BeEmpty())
 				}, timeout, interval).Should(Succeed())
 
@@ -1040,7 +1039,7 @@ var _ = Describe("DomainReconciler", func() {
 				Eventually(func(g Gomega) {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+					g.Expect(found.Status.CoveredByWildcardDomain).To(HaveField("Domain", wildcard))
 				}, timeout, interval).Should(Succeed())
 
 				By("Removing the wildcard reservation from the account")
@@ -1064,7 +1063,7 @@ var _ = Describe("DomainReconciler", func() {
 				Eventually(func(g Gomega) {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty(),
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil(),
 						"stale coverage must be cleared once the domain reserves itself")
 					g.Expect(found.Status.ID).ToNot(BeEmpty())
 					g.Expect(found.Status.Domain).To(Equal(hostname))
@@ -1082,7 +1081,7 @@ var _ = Describe("DomainReconciler", func() {
 				Eventually(func(g Gomega) {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+					g.Expect(found.Status.CoveredByWildcardDomain).To(HaveField("Domain", wildcard))
 				}, timeout, interval).Should(Succeed())
 
 				By("Removing the wildcard and making reservations fail")
@@ -1105,7 +1104,7 @@ var _ = Describe("DomainReconciler", func() {
 				Eventually(func(g Gomega) {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 					g.Expect(found.Status.CNAMETarget).To(BeNil(),
 						"the wildcard's CNAME target must not outlive its coverage")
 					g.Expect(found.Status.ID).To(BeEmpty())
@@ -1123,7 +1122,7 @@ var _ = Describe("DomainReconciler", func() {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.ID).ToNot(BeEmpty())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 					g.Expect(found.Status.Domain).To(Equal(hostname))
 				}, timeout, interval).Should(Succeed())
 
@@ -1137,7 +1136,7 @@ var _ = Describe("DomainReconciler", func() {
 					found := &ingressv1alpha1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.ID).ToNot(BeEmpty())
-					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 				}, timeout, interval).Should(Succeed())
 
 				// A wildcard has no wildcard parent, so only the exact name is asked for.

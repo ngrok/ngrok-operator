@@ -99,7 +99,7 @@ func createWildcardCoveredDomain(name, namespace, domainName, wildcard string) *
 		Status: ingressv1alpha1.DomainStatus{
 			ID:                      "",
 			Domain:                  domainName,
-			CoveredByWildcardDomain: wildcard,
+			CoveredByWildcardDomain: &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard},
 			Conditions: []metav1.Condition{
 				{
 					Type:    "Ready",

@@ -878,7 +878,7 @@ var _ = Describe("ServiceController", func() {
 						fetchedDomain.Status.CNAMETarget = ptr.To(cnameTarget)
 						fetchedDomain.Status.Domain = customDomain
 						fetchedDomain.Status.ID = ""
-						fetchedDomain.Status.CoveredByWildcardDomain = "*.custom-domain.xyz"
+						fetchedDomain.Status.CoveredByWildcardDomain = &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.custom-domain.xyz"}
 						return k8sClient.Status().Update(ctx, fetchedDomain)
 					}, timeout, interval).Should(Succeed())
 

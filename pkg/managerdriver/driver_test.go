@@ -996,7 +996,7 @@ var _ = Describe("Driver", func() {
 				// A covered Domain holds no reservation of its own, so status.id
 				// is empty and status.domain is the fallback the LB status reads.
 				covered := newTestDomain("a-example-ngrok-io", "a.example.ngrok.io", nil)
-				covered.Status.CoveredByWildcardDomain = "*.example.ngrok.io"
+				covered.Status.CoveredByWildcardDomain = &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.ngrok.io"}
 				domains = newTestDomainList(covered)
 			})
 

@@ -71,7 +71,7 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 
 	// A wildcard-covered domain holds no reservation of its own, so an empty
 	// status.id is the expected steady state rather than a failure.
-	coveredByWildcard := domain.Status.CoveredByWildcardDomain != ""
+	coveredByWildcard := domain.Status.CoveredByWildcardDomain != nil
 
 	if domain.Status.ID == "" && !coveredByWildcard {
 		message := "Domain could not be reserved"
@@ -88,9 +88,9 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 	readyMessage := "Domain ready for use"
 	if coveredByWildcard {
 		readyReason = ReasonCoveredByWildcardDomain
-		readyMessage = fmt.Sprintf("Domain ready for use (covered by wildcard domain %s)", domain.Status.CoveredByWildcardDomain)
+		readyMessage = fmt.Sprintf("Domain ready for use (covered by wildcard domain %s)", domain.Status.CoveredByWildcardDomain.Domain)
 		setDomainCreatedCondition(domain, true, ReasonCoveredByWildcardDomain,
-			fmt.Sprintf("Reservation skipped: already covered by wildcard domain %s", domain.Status.CoveredByWildcardDomain))
+			fmt.Sprintf("Reservation skipped: already covered by wildcard domain %s", domain.Status.CoveredByWildcardDomain.Domain))
 	} else {
 		setDomainCreatedCondition(domain, true, ReasonDomainCreated, "Domain successfully reserved")
 	}
@@ -164,7 +164,7 @@ func currentProvisioningJob(status *ingressv1alpha1.DomainStatusCertificateManag
 func IsDomainReady(domain *ingressv1alpha1.Domain) bool {
 	// A domain is only usable if it is backed by a reservation: its own, or the
 	// wildcard parent's when the operator skipped reserving it.
-	if domain.Status.ID == "" && domain.Status.CoveredByWildcardDomain == "" {
+	if domain.Status.ID == "" && domain.Status.CoveredByWildcardDomain == nil {
 		return false
 	}
 

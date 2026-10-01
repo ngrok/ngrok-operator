@@ -41,7 +41,7 @@ spec:
       priority: 2
       type: string
     - description: Wildcard domain covering this domain
-      jsonPath: .status.coveredByWildcardDomain
+      jsonPath: .status.coveredByWildcardDomain.domain
       name: Wildcard
       priority: 1
       type: string
@@ -264,11 +264,23 @@ spec:
                   CoveredByWildcardDomain is the wildcard reservation that already serves
                   this hostname, e.g. "*.example.com" for "a.example.com". When set, the
                   operator intentionally did not reserve this domain in the ngrok API
-                  because the wildcard's DNS record and certificate already cover it.
+                  because the wildcard's DNS record and certificate already cover it. It is
+                  unset when this Domain is not covered by a wildcard.
 
-                  ID stays empty in this case: it is the handle the operator would delete,
-                  and the wildcard reservation is shared with every other subdomain under it.
-                type: string
+                  status.id stays empty in this case: it is the handle the operator would
+                  delete, and the wildcard reservation is shared with every other subdomain
+                  under it. The wildcard's own ID is recorded here instead.
+                properties:
+                  domain:
+                    description: Domain is the wildcard domain name, e.g. "*.example.com"
+                    type: string
+                  id:
+                    description: ID is the unique identifier of the wildcard reservation
+                    type: string
+                required:
+                - domain
+                - id
+                type: object
               domain:
                 description: |-
                   Domain is the hostname this Domain represents. It is the reserved domain

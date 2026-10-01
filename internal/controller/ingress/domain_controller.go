@@ -169,7 +169,7 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// and the watch predicate only fires on annotation/generation changes.
 	// Re-check on an interval: status.id is empty, so the recheck goes back
 	// through create(), which reserves the domain itself once the wildcard is gone.
-	if domain.Status.CoveredByWildcardDomain != "" {
+	if domain.Status.CoveredByWildcardDomain != nil {
 		return ctrl.Result{RequeueAfter: wildcardCoverageRecheckInterval}, nil
 	}
 
@@ -199,8 +199,9 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 		// Announce only on transition. A covered Domain keeps an empty status.id,
 		// so it re-enters create() on every hourly recheck; logging and recording
 		// an event each time would be pure noise at the scale this feature exists
-		// to serve.
-		if domain.Status.CoveredByWildcardDomain != lookup.Wildcard.Domain {
+		// to serve. Compare by ID so a wildcard that was released and reserved
+		// again under the same name still counts as a transition.
+		if prev := domain.Status.CoveredByWildcardDomain; prev == nil || prev.ID != lookup.Wildcard.ID {
 			log.Info("Skipping domain reservation, already covered by a wildcard reservation",
 				"hostname", domain.Spec.Domain, "wildcard", lookup.Wildcard.Domain)
 			r.Recorder.Eventf(domain, nil, v1.EventTypeNormal, "CoveredByWildcardDomain", "Create",
@@ -215,7 +216,7 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 	// so a failed Create does not leave the Domain claiming coverage (and the
 	// wildcard's CNAME target) it no longer has. This is deliberately not done on
 	// lookup errors: a transient API failure says nothing about coverage.
-	if domain.Status.CoveredByWildcardDomain != "" {
+	if domain.Status.CoveredByWildcardDomain != nil {
 		domain.Status = v1alpha1.DomainStatus{Conditions: domain.Status.Conditions}
 	}
 
@@ -277,7 +278,7 @@ func (r *DomainReconciler) delete(ctx context.Context, domain *v1alpha1.Domain) 
 	// would tear down a reservation shared with every other subdomain under the
 	// wildcard. BaseController already skips Delete when status.id is empty; this
 	// is the belt-and-braces guard at the one place that could destroy shared state.
-	if domain.Status.ID == "" || domain.Status.CoveredByWildcardDomain != "" {
+	if domain.Status.ID == "" || domain.Status.CoveredByWildcardDomain != nil {
 		return nil
 	}
 
@@ -358,7 +359,7 @@ func (r *DomainReconciler) updateStatus(ctx context.Context, domain *v1alpha1.Do
 		// recorded wildcard coverage no longer applies. Leaving it set would both
 		// misreport the domain and, via the delete() guard, orphan this
 		// reservation in the account when the CR goes away.
-		domain.Status.CoveredByWildcardDomain = ""
+		domain.Status.CoveredByWildcardDomain = nil
 
 		domain.Status.CNAMETarget = ngrokDomain.CNAMETarget
 		domain.Status.ACMEChallengeCNAMETarget = ngrokDomain.ACMEChallengeCNAMETarget
@@ -386,7 +387,10 @@ func (r *DomainReconciler) updateStatusForWildcardCoverage(ctx context.Context, 
 	// DomainsClient.Delete, and this reservation belongs to the wildcard, which is
 	// shared with every other subdomain under it.
 	domain.Status.ID = ""
-	domain.Status.CoveredByWildcardDomain = wildcard.Domain
+	domain.Status.CoveredByWildcardDomain = &v1alpha1.DomainStatusWildcardDomain{
+		ID:     wildcard.ID,
+		Domain: wildcard.Domain,
+	}
 
 	// This Domain's own hostname, never the wildcard's.
 	domain.Status.Domain = domain.Spec.Domain
