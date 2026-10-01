@@ -1070,6 +1070,48 @@ var _ = Describe("DomainReconciler", func() {
 					g.Expect(found.Status.Domain).To(Equal(hostname))
 				}, timeout, interval).Should(Succeed())
 			})
+
+			It("should clear stale coverage even when reserving the domain itself fails", func() {
+				wc, err := domainClient.Create(ctx, &ngrok.ReservedDomainCreate{Domain: wildcard})
+				Expect(err).ToNot(HaveOccurred())
+
+				hostname := "failing." + suffix
+				domain := createDomain(hostname)
+
+				By("Waiting for the domain to be marked as covered")
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(wildcard))
+				}, timeout, interval).Should(Succeed())
+
+				By("Removing the wildcard and making reservations fail")
+				Expect(domainClient.Delete(ctx, wc.ID)).To(Succeed())
+				domainClient.SetCreateError(errors.New("reservation limit reached"))
+				DeferCleanup(domainClient.ClearErrors)
+
+				By("Forcing a reconcile")
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					if found.Annotations == nil {
+						found.Annotations = map[string]string{}
+					}
+					found.Annotations["test.ngrok.com/nudge"] = "1"
+					g.Expect(k8sClient.Update(ctx, found)).To(Succeed())
+				}, timeout, interval).Should(Succeed())
+
+				By("Verifying the domain no longer claims wildcard coverage")
+				Eventually(func(g Gomega) {
+					found := &ingressv1alpha1.Domain{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
+					g.Expect(found.Status.CoveredByWildcardDomain).To(BeEmpty())
+					g.Expect(found.Status.CNAMETarget).To(BeNil(),
+						"the wildcard's CNAME target must not outlive its coverage")
+					g.Expect(found.Status.ID).To(BeEmpty())
+					g.Expect(IsDomainReady(found)).To(BeFalse())
+				}, timeout, interval).Should(Succeed())
+			})
 		})
 
 		When("no wildcard parent is reserved", func() {

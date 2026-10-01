@@ -210,6 +210,15 @@ func (r *DomainReconciler) create(ctx context.Context, domain *v1alpha1.Domain) 
 		return r.updateStatusForWildcardCoverage(ctx, domain, lookup.Wildcard)
 	}
 
+	// Reaching here means the lookup succeeded and the wildcard no longer covers
+	// this Domain. Drop the status mirrored from it now, before the Create below,
+	// so a failed Create does not leave the Domain claiming coverage (and the
+	// wildcard's CNAME target) it no longer has. This is deliberately not done on
+	// lookup errors: a transient API failure says nothing about coverage.
+	if domain.Status.CoveredByWildcardDomain != "" {
+		domain.Status = v1alpha1.DomainStatus{Conditions: domain.Status.Conditions}
+	}
+
 	// Not found, so we'll create it
 	req := &ngrok.ReservedDomainCreate{
 		Domain:      domain.Spec.Domain,

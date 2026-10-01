@@ -93,7 +93,10 @@ type DomainStatus struct {
 	// ID is the unique identifier of the domain
 	ID string `json:"id,omitempty"`
 
-	// Domain is the domain that was reserved
+	// Domain is the hostname this Domain represents. It is the reserved domain
+	// when the operator holds a reservation for it, and this Domain's own
+	// hostname (never the wildcard's) when it is covered by a wildcard
+	// reservation; see coveredByWildcardDomain.
 	Domain string `json:"domain,omitempty"`
 
 	// CoveredByWildcardDomain is the wildcard reservation that already serves

@@ -270,7 +270,11 @@ spec:
                   and the wildcard reservation is shared with every other subdomain under it.
                 type: string
               domain:
-                description: Domain is the domain that was reserved
+                description: |-
+                  Domain is the hostname this Domain represents. It is the reserved domain
+                  when the operator holds a reservation for it, and this Domain's own
+                  hostname (never the wildcard's) when it is covered by a wildcard
+                  reservation; see coveredByWildcardDomain.
                 type: string
               id:
                 description: ID is the unique identifier of the domain
