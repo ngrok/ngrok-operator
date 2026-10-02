@@ -443,7 +443,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               reclaimPolicy:
                 default: Delete
@@ -706,7 +706,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               rules:
                 description: Rules is a list of rules that belong to the policy
@@ -736,7 +736,7 @@ spec:
                         Metadata is arbitrary key/value data associated with the object in the
                         ngrok API/Dashboard. A raw JSON string is also accepted for backward
                         compatibility and is deprecated; use a map of string values instead.
-                        The ngrokMetadata Helm value is not merged into this field.
+                        The ngrok.metadata Helm value is not merged into this field.
                       x-kubernetes-preserve-unknown-fields: true
                   required:
                   - action
@@ -1087,7 +1087,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               tlsTermination:
                 description: |-
@@ -1440,7 +1440,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               poolingEnabled:
                 description: |-
@@ -1752,7 +1752,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               region:
                 default: global
@@ -3377,8 +3377,6 @@ metadata:
     checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
 spec:
   replicas: 1
-  strategy:
-    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: ngrok-operator
@@ -3397,7 +3395,6 @@ spec:
         app.kubernetes.io/instance: ngrok-operator
         app.kubernetes.io/component: agent
     spec:
-      terminationGracePeriodSeconds: 30
       affinity:
         podAffinity:
           
@@ -3413,7 +3410,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator-agent
       containers:
       - name: agent
@@ -3423,18 +3419,10 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
+        - --release-name=ngrok-operator
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name=ngrok-operator-agent-manager
-        - --release-name=ngrok-operator
-        - --default-domain-reclaim-policy=Delete
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -3449,6 +3437,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR__FEATURES__BINDINGS__ENABLED
+          value: "false"
+        - name: NGROK_OPERATOR__FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+          value: "false"
+        - name: NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR__FEATURES__INGRESS__CONTROLLER_NAME
+          value: "k8s.ngrok.com/ingress-controller"
+        - name: NGROK_OPERATOR__FEATURES__INGRESS__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
+          value: "false"
         livenessProbe:
           httpGet:
             path: /healthz
@@ -3461,9 +3461,6 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        resources:
-          limits: {}
-          requests: {}
 
 ---
 # Source: ngrok-operator/templates/api-manager/deployment.yaml
@@ -3504,7 +3501,6 @@ spec:
         app.kubernetes.io/instance: ngrok-operator
         app.kubernetes.io/component: controller
     spec:
-      terminationGracePeriodSeconds: 30
       affinity:
         podAffinity:
           
@@ -3520,7 +3516,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator
       containers:
       - name: ngrok-operator
@@ -3531,21 +3526,10 @@ spec:
         args:
         - api-manager
         - --release-name=ngrok-operator
-        - --drain-policy=Retain
-        - --default-domain-reclaim-policy=Delete
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id=ngrok-operator-leader
         - --manager-name=ngrok-operator-manager
-        - --cluster-domain=svc.cluster.local
         securityContext:
           allowPrivilegeEscalation: false
         env:
@@ -3560,6 +3544,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR__FEATURES__BINDINGS__ENABLED
+          value: "false"
+        - name: NGROK_OPERATOR__FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+          value: "false"
+        - name: NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR__FEATURES__INGRESS__CONTROLLER_NAME
+          value: "k8s.ngrok.com/ingress-controller"
+        - name: NGROK_OPERATOR__FEATURES__INGRESS__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
+          value: "false"
         livenessProbe:
           httpGet:
             path: /healthz
@@ -3572,9 +3568,6 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        resources:
-          limits: {}
-          requests: {}
 
 ---
 # Source: ngrok-operator/templates/ingress-class.yaml
