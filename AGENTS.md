@@ -87,8 +87,8 @@ make undeploy               # Remove from cluster
 
 ## Configuration
 
-- **Credentials**: `helm install` requires `credentials.accessToken` (a single ngrok access token)
-- **Feature Flags**: `gateway.enabled=true` enables Gateway API support
+- **Credentials**: `helm install` requires `ngrok.credentials.accessToken` (a single ngrok access token)
+- **Feature Flags**: `ngrok.features.gateway.enabled=true` enables Gateway API support
 
 ## Rules
 
@@ -98,6 +98,13 @@ make undeploy               # Remove from cluster
 - Manage finalizers on resource deletion to clean up external resources
 - Requeue on transient ngrok API errors (return `ctrl.Result{Requeue: true}`)
 - Prefer `BaseController` helpers over raw client operations
+- App config settings are defined once in `internal/flags` (flag, env var,
+  default, help), named after their values path (`ngrok.features.gateway.enabled` is
+  `NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED` and `--features-gateway-enabled`).
+  Commands bind them with `flags.X(fs, &opts.x)`. A new setting also
+  needs an empty key in the chart's `values.yaml` and a line in
+  `helm/ngrok-operator/files/operator-env.yaml`; tests fail if they disagree.
+  See [specs/configuration.md](specs/configuration.md).
 - The Go version lives only in `flake.nix`. The `Dockerfile` has no builder
   stage: binaries are cross-compiled on the host by `scripts/build.sh` into
   `bin/ngrok-operator-<os>-<arch>` and `COPY`d into distroless. Don't reintroduce

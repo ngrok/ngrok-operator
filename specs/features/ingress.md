@@ -8,18 +8,18 @@ The ngrok-operator can function as a Kubernetes Ingress controller, watching Ing
 
 | Helm Value                                    | Description                                      | Default                          |
 |-----------------------------------------------|--------------------------------------------------|----------------------------------|
-| `features.ingress.enabled`                    | Enable the Ingress controller                    | `true`                           |
-| `features.ingress.controllerName`             | Controller name for IngressClass matching        | `k8s.ngrok.com/ingress-controller` |
-| `features.ingress.watchNamespace`             | Namespace to watch (empty = all)                 | `""`                             |
-| `features.ingress.ingressClass.name`          | IngressClass resource name                       | `ngrok`                          |
-| `features.ingress.ingressClass.create`        | Create the IngressClass resource                 | `true`                           |
-| `features.ingress.ingressClass.default`       | Set as the default IngressClass                  | `false`                          |
+| `ngrok.features.ingress.enabled`                    | Enable the Ingress controller                    | `true`                           |
+| `ngrok.features.ingress.controllerName`             | Controller name for IngressClass matching        | `k8s.ngrok.com/ingress-controller` |
+| `ngrok.features.ingress.watchNamespace`             | Namespace to watch (empty = all)                 | `""`                             |
+| `ngrok.features.ingress.ingressClass.name`          | IngressClass resource name                       | `ngrok`                          |
+| `ngrok.features.ingress.ingressClass.create`        | Create the IngressClass resource                 | `true`                           |
+| `ngrok.features.ingress.ingressClass.default`       | Set as the default IngressClass                  | `false`                          |
 
 ## Behavior
 
 When enabled, the operator:
 
-1. Creates an `IngressClass` resource (if `ingress.ingressClass.create` is true) with the configured controller name.
+1. Creates an `IngressClass` resource (if `ngrok.features.ingress.ingressClass.create` is true) with the configured controller name.
 2. Watches Ingress resources that reference the operator's IngressClass. An IngressClass matches when its `spec.controller` equals the configured controller name. The two stock names, the default `k8s.ngrok.com/ingress-controller` and its permanent alias `ngrok.com/ingress-controller`, are interchangeable: an operator configured with either one accepts IngressClasses using either, so they cannot be used to isolate two installs. The alias exists because every other user-facing ngrok key uses the `ngrok.com/` prefix and that is the value users naturally write. The alias also covers IngressClasses created under the 0.24 upgrade guide, which briefly advised switching to it. Custom controller names match exactly, so multiple installs stay isolated.
 3. For each matching Ingress, creates `AgentEndpoint` and/or `CloudEndpoint` resources based on the mapping strategy.
 4. Manages Domain resources for the hostnames specified in the Ingress rules.
@@ -52,7 +52,7 @@ See the [Kubernetes Ingress status documentation](https://kubernetes.io/docs/con
 
 ## When Disabled
 
-When `features.ingress.enabled: false`:
+When `ngrok.features.ingress.enabled: false`:
 - No IngressClass resource is created
 - Ingress resources are not watched or reconciled
 - The feature is excluded from the KubernetesOperator's `enabledFeatures`
