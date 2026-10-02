@@ -18,6 +18,11 @@ on:
         required: false
         type: boolean
         default: true
+      charts-changed:
+        description: "Whether the helm charts have changed"
+        required: false
+        type: boolean
+        default: true
   schedule:
     # Run every 8 hours on the main branch to catch flakey tests
     - cron: '0 */8 * * *'
@@ -85,7 +90,9 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    if: ${{ inputs.go-changed || inputs.make-changed || inputs.nix-changed || github.event_name == 'schedule' }}
+    # cmd/chart_test.go checks the chart against the operator's settings, so a
+    # chart-only change runs the unit tests too.
+    if: ${{ inputs.go-changed || inputs.make-changed || inputs.nix-changed || inputs.charts-changed || github.event_name == 'schedule' }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
