@@ -1,0 +1,230 @@
+suite: operator configuration env
+templates:
+  - api-manager/deployment.yaml
+  - agent/deployment.yaml
+  # Included for the Deployments' checksum annotations; helm unittest loads
+  # only the templates a suite declares.
+  - api-manager/role.yaml
+  - api-manager/leader-election-role.yaml
+  - agent/role.yaml
+  - credentials-secret.yaml
+set:
+  ngrok.credentials.accessToken: x
+tests:
+  - it: renders one variable per setting, leaving out empty values
+    template: agent/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__FEATURES__INGRESS__CONTROLLER_NAME
+            value: k8s.ngrok.com/ingress-controller
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__REGION
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__LOG__LEVEL
+          any: true
+
+  - it: gives every component the shared settings
+    set:
+      ngrok.region: eu
+      ngrok.metadata:
+        example.com/team: k8s
+    asserts:
+      - template: api-manager/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__REGION
+            value: eu
+      - template: agent/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__METADATA
+            value: '{"example.com/team":"k8s"}'
+
+  - it: renders ngrok.clusterDomain and ngrok.features.cleanup.drainPolicy, but not the chart-only cleanup values
+    template: api-manager/deployment.yaml
+    set:
+      ngrok.clusterDomain: cluster.example
+      ngrok.features.cleanup.drainPolicy: Delete
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__CLUSTER_DOMAIN
+            value: cluster.example
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__FEATURES__CLEANUP__DRAIN_POLICY
+            value: Delete
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__FEATURES__CLEANUP__ENABLED
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__FEATURES__CLEANUP__TIMEOUT
+          any: true
+
+  - it: lets a component override the shared log settings for itself alone
+    set:
+      ngrok.log.level: info
+      ngrok.log.format: json
+      components.agent.log.level: debug
+    asserts:
+      - template: agent/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__LOG__LEVEL
+            value: debug
+      - template: agent/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__LOG__FORMAT
+            value: json
+      - template: api-manager/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__LOG__LEVEL
+            value: info
+
+  - it: treats an empty component value as inherit, not as an override to empty
+    template: agent/deployment.yaml
+    set:
+      ngrok.log.level: info
+      components.agent.log.level: ""
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__LOG__LEVEL
+            value: info
+
+  - it: keeps quotes and commas in list values intact
+    template: api-manager/deployment.yaml
+    set:
+      ngrok.features.bindings.endpointSelectors: ["a == 'x,y'"]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__FEATURES__BINDINGS__ENDPOINT_SELECTORS
+            value: '["a == ''x,y''"]'
+
+  - it: renders one-click demo mode like any other feature
+    set:
+      ngrok.features.oneClickDemoMode.enabled: true
+    asserts:
+      - template: api-manager/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
+            value: "true"
+
+  - it: lets extraEnv replace a setting's variable instead of adding a duplicate
+    template: agent/deployment.yaml
+    set:
+      ngrok.log.level: info
+      components.agent.extraEnv:
+        NGROK_OPERATOR__LOG__LEVEL: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__LOG__LEVEL
+            value: debug
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__LOG__LEVEL
+            value: "info"
+
+  - it: keeps empty values inside map settings
+    template: api-manager/deployment.yaml
+    set:
+      ngrok.metadata:
+        empty: ""
+        team: k8s
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__METADATA
+            value: '{"empty":"","team":"k8s"}'
+
+  - it: leaves out a map setting that is empty
+    template: api-manager/deployment.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGROK_OPERATOR__METADATA
+          any: true
+
+  - it: rejects a per-component features override
+    template: agent/deployment.yaml
+    set:
+      components.agent.features.gateway.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "components.agent.features is not supported"
+
+  - it: rejects a per-component ngrok override
+    template: api-manager/deployment.yaml
+    set:
+      components.apiManager.ngrok.region: eu
+    asserts:
+      - failedTemplate:
+          errorPattern: "components.apiManager.ngrok is not supported"
+
+  # LEGACY-values-layout: BEGIN
+  - it: fails on values from the pre-0.25 layout
+    template: api-manager/deployment.yaml
+    set:
+      region: eu
+      ingress.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "(?s)ingress -> ngrok.features.ingress.*region -> ngrok.region"
+
+  - it: points the shared pod values of 0.24 at components.common
+    template: api-manager/deployment.yaml
+    set:
+      extraVolumes:
+        - name: custom-ca
+      extraVolumeMounts:
+        - name: custom-ca
+          mountPath: /etc/ssl/custom
+      lifecycle:
+        preStop: {}
+    asserts:
+      - failedTemplate:
+          errorPattern: "(?s)extraVolumeMounts -> components.common.extraVolumeMounts.*extraVolumes -> components.common.extraVolumes.*lifecycle -> components.common.lifecycle"
+
+  - it: fails on the moved cleanupHook section
+    template: api-manager/deployment.yaml
+    set:
+      cleanupHook.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "cleanupHook -> components.cleanupHook \\(enabled and timeout: ngrok.features.cleanup\\)"
+  # LEGACY-values-layout: END
