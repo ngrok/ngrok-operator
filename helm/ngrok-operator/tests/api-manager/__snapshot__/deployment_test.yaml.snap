@@ -54,21 +54,10 @@ Should match all-options snapshot:
             - args:
                 - api-manager
                 - --release-name=RELEASE-NAME
-                - --drain-policy=Retain
-                - --default-domain-reclaim-policy=Delete
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description=The official ngrok Kubernetes Operator.
-                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --election-id=RELEASE-NAME-ngrok-operator-leader
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
-                - --cluster-domain=svc.cluster.local
               command:
                 - /ngrok-operator
               env:
@@ -83,6 +72,18 @@ Should match all-options snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: NGROK_OPERATOR__FEATURES__BINDINGS__ENABLED
+                  value: "false"
+                - name: NGROK_OPERATOR__FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+                  value: "false"
+                - name: NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED
+                  value: "true"
+                - name: NGROK_OPERATOR__FEATURES__INGRESS__CONTROLLER_NAME
+                  value: k8s.ngrok.com/ingress-controller
+                - name: NGROK_OPERATOR__FEATURES__INGRESS__ENABLED
+                  value: "true"
+                - name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
+                  value: "false"
                 - name: SECRET_ENV_VAR
                   value:
                     secretKeyRef:
@@ -105,16 +106,12 @@ Should match all-options snapshot:
                   port: 8081
                 initialDelaySeconds: 5
                 periodSeconds: 10
-              resources:
-                limits: {}
-                requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
               volumeMounts:
                 - mountPath: /test-volume
                   name: test-volume
           serviceAccountName: RELEASE-NAME-ngrok-operator
-          terminationGracePeriodSeconds: 30
           volumes:
             - emptyDir: {}
               name: test-volume
@@ -616,21 +613,10 @@ Should match default snapshot:
             - args:
                 - api-manager
                 - --release-name=RELEASE-NAME
-                - --drain-policy=Retain
-                - --default-domain-reclaim-policy=Delete
-                - --enable-feature-ingress=true
-                - --enable-feature-gateway=true
-                - --disable-reference-grants=false
-                - --description=The official ngrok Kubernetes Operator.
-                - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-                - --zap-log-level=info
-                - --zap-stacktrace-level=error
-                - --zap-encoder=json
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
                 - --election-id=RELEASE-NAME-ngrok-operator-leader
                 - --manager-name=RELEASE-NAME-ngrok-operator-manager
-                - --cluster-domain=svc.cluster.local
               command:
                 - /ngrok-operator
               env:
@@ -645,6 +631,18 @@ Should match default snapshot:
                       fieldPath: metadata.namespace
                 - name: HELM_RELEASE_NAME
                   value: RELEASE-NAME
+                - name: NGROK_OPERATOR__FEATURES__BINDINGS__ENABLED
+                  value: "false"
+                - name: NGROK_OPERATOR__FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+                  value: "false"
+                - name: NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED
+                  value: "true"
+                - name: NGROK_OPERATOR__FEATURES__INGRESS__CONTROLLER_NAME
+                  value: k8s.ngrok.com/ingress-controller
+                - name: NGROK_OPERATOR__FEATURES__INGRESS__ENABLED
+                  value: "true"
+                - name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
+                  value: "false"
               image: docker.io/ngrok/ngrok-operator:0.22.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
@@ -660,13 +658,9 @@ Should match default snapshot:
                   port: 8081
                 initialDelaySeconds: 5
                 periodSeconds: 10
-              resources:
-                limits: {}
-                requests: {}
               securityContext:
                 allowPrivilegeEscalation: false
           serviceAccountName: RELEASE-NAME-ngrok-operator
-          terminationGracePeriodSeconds: 30
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: Role

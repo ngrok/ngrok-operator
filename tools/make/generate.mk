@@ -18,7 +18,7 @@ manifests: ## Generate WebhookConfiguration and CustomResourceDefinition objects
 manifest-bundle: _helm_setup ## Generates the manifest-bundle at the root of the repo.
 	helm template ngrok-operator $(HELM_CHART_DIR) \
 		--namespace $(KUBE_NAMESPACE) \
-		--set credentials.secret.name="ngrok-operator-credentials" > manifest-bundle.yaml
+		--set ngrok.credentials.secret.name="ngrok-operator-credentials" > manifest-bundle.yaml
 
 .PHONY: helm-update-snapshots
 helm-update-snapshots: _helm_setup ## Update helm unittest snapshots

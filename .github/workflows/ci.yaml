@@ -42,6 +42,7 @@ jobs:
       go-changed: ${{ needs.changes.outputs.go == 'true' }}
       make-changed: ${{ needs.changes.outputs.make == 'true' }}
       nix-changed: ${{ needs.changes.outputs.nix == 'true' }}
+      charts-changed: ${{ needs.changes.outputs.charts == 'true' }}
 
   manifest-bundle-diff:
     name: Manifest Bundle Diff

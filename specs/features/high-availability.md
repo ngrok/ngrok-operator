@@ -8,9 +8,9 @@ The ngrok-operator supports running multiple replicas for high availability. Onl
 
 | Component          | Helm Value                            | Default | Recommendation       |
 |--------------------|---------------------------------------|---------|----------------------|
-| API Manager        | `apiManager.replicaCount`             | `1`     | 2+ in production     |
-| Agent              | `agent.replicaCount`                  | `1`     | 2+ in production (see note below) |
-| Bindings Forwarder | `bindingsForwarder.replicaCount`      | `1`     | 2+ in production (see note below) |
+| API Manager        | `components.apiManager.replicaCount`             | `1`     | 2+ in production     |
+| Agent              | `components.agent.replicaCount`                  | `1`     | 2+ in production (see note below) |
+| Bindings Forwarder | `components.bindingsForwarder.replicaCount`      | `1`     | 2+ in production (see note below) |
 
 > **Agent and Bindings Forwarder**: Unlike the API Manager, these components do not use leader election — all replicas are active simultaneously. Running 2+ replicas provides redundancy: if one pod is lost, active connections are re-established through the remaining replicas. This comes at the cost of additional ngrok agent connections (one per replica), which may affect account limits. Set `podDisruptionBudget.create: true` to protect replicas during cluster maintenance.
 
@@ -18,9 +18,11 @@ The ngrok-operator supports running multiple replicas for high availability. Onl
 
 Leader election ensures only one operator replica actively reconciles at a time.
 
-| Setting         | Description                               | Default                     |
-|-----------------|-------------------------------------------|-----------------------------|
-| `--election-id` | ConfigMap/Lease name for leader election  | `ngrok-operator-leader`     |
+| Setting         | Description                                          | Default                       |
+|-----------------|------------------------------------------------------|-------------------------------|
+| `--election-id` | Lease name for leader election; off when empty       | `""` (the chart sets `<fullname>-leader`) |
+
+Leader election is off unless `--election-id` is set, as in kubebuilder's `--leader-elect`. The chart always sets it, so every install elects a leader; a local `go run . api-manager` runs without one, since outside a cluster controller-runtime cannot find a namespace for the Lease.
 
 - **Applies to:** api-manager only. Agent-manager and bindings-forwarder have leader election disabled.
 - **Mechanism:** controller-runtime's lease-based election via `coordination.k8s.io`.
@@ -33,24 +35,24 @@ Each component has independent PDB configuration. See the component Helm specs f
 
 | Helm Value                                           | Description                                    | Default |
 |------------------------------------------------------|------------------------------------------------|---------|
-| `apiManager.podDisruptionBudget.create`              | Enable PDB for api-manager                     | `false` |
-| `apiManager.podDisruptionBudget.maxUnavailable`      | Max unavailable pods                           | `"1"`   |
-| `apiManager.podDisruptionBudget.minAvailable`        | Min available pods                             | (unset) |
-| `agent.podDisruptionBudget.create`                   | Enable PDB for agent                           | `false` |
-| `agent.podDisruptionBudget.maxUnavailable`           | Max unavailable pods                           | `"1"`   |
-| `agent.podDisruptionBudget.minAvailable`             | Min available pods                             | (unset) |
-| `bindingsForwarder.podDisruptionBudget.create`       | Enable PDB for bindings-forwarder              | `false` |
-| `bindingsForwarder.podDisruptionBudget.maxUnavailable` | Max unavailable pods                         | `"1"`   |
-| `bindingsForwarder.podDisruptionBudget.minAvailable` | Min available pods                             | (unset) |
+| `components.apiManager.podDisruptionBudget.create`              | Enable PDB for api-manager                     | `false` |
+| `components.apiManager.podDisruptionBudget.maxUnavailable`      | Max unavailable pods                           | `"1"`   |
+| `components.apiManager.podDisruptionBudget.minAvailable`        | Min available pods                             | (unset) |
+| `components.agent.podDisruptionBudget.create`                   | Enable PDB for agent                           | `false` |
+| `components.agent.podDisruptionBudget.maxUnavailable`           | Max unavailable pods                           | `"1"`   |
+| `components.agent.podDisruptionBudget.minAvailable`             | Min available pods                             | (unset) |
+| `components.bindingsForwarder.podDisruptionBudget.create`       | Enable PDB for bindings-forwarder              | `false` |
+| `components.bindingsForwarder.podDisruptionBudget.maxUnavailable` | Max unavailable pods                         | `"1"`   |
+| `components.bindingsForwarder.podDisruptionBudget.minAvailable` | Min available pods                             | (unset) |
 
 ## Anti-Affinity
 
-Anti-affinity is configured via the standard `affinity` field on each component (or `global.affinity` for all components). There are no preset helpers — write affinity rules directly.
+Anti-affinity is configured via the standard `affinity` field on each component (or `components.common.affinity` for all components). There are no preset helpers — write affinity rules directly.
 
 | Helm Value                | Description                                    | Default |
 |---------------------------|------------------------------------------------|---------|
-| `global.affinity`         | Affinity rules for all components              | `{}`    |
-| `apiManager.affinity`     | Affinity rules for the api-manager (overrides global) | `{}`    |
+| `components.common.affinity`            | Affinity rules for all components              | `{}`    |
+| `components.apiManager.affinity`     | Affinity rules for the api-manager (overrides `components.common`) | `{}`    |
 
 ## Leader Election Scope
 
