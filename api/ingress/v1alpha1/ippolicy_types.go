@@ -38,7 +38,7 @@ type IPPolicyRule struct {
 	// Metadata is arbitrary key/value data associated with the object in the
 	// ngrok API/Dashboard. A raw JSON string is also accepted for backward
 	// compatibility and is deprecated; use a map of string values instead.
-	// The ngrokMetadata Helm value is not merged into this field.
+	// The ngrok.metadata Helm value is not merged into this field.
 	//
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
@@ -63,7 +63,7 @@ type IPPolicySpec struct {
 	// Metadata is arbitrary key/value data associated with the object in the
 	// ngrok API/Dashboard. A raw JSON string is also accepted for backward
 	// compatibility and is deprecated; use a map of string values instead.
-	// The ngrokMetadata Helm value is not merged into this field.
+	// The ngrok.metadata Helm value is not merged into this field.
 	//
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
