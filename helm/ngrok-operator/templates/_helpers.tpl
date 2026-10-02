@@ -34,8 +34,8 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 Create a default name for the credentials secret name using the helm release
 */}}
 {{- define "ngrok-operator.credentialsSecretName" -}}
-{{- if .Values.credentials.secret.name -}}
-{{- .Values.credentials.secret.name -}}
+{{- if .Values.ngrok.credentials.secret.name -}}
+{{- .Values.ngrok.credentials.secret.name -}}
 {{- else -}}
 {{- printf "%s-credentials" (include "ngrok-operator.fullname" .) -}}
 {{- end -}}
@@ -69,7 +69,8 @@ The access token a component actually uses: its own override, else the shared on
 Usage: include "ngrok-operator.accessTokenFor" (dict "root" $ "component" "agent")
 */}}
 {{- define "ngrok-operator.accessTokenFor" -}}
-{{- $credentials := .root.Values.credentials -}}
+{{- $credentials := .root.Values.ngrok.credentials -}}
+{{- /* credentials.<component>.accessToken, or empty when the component has no section. */ -}}
 {{- $override := (get $credentials .component | default dict).accessToken -}}
 {{- $override | default $credentials.accessToken -}}
 {{- end -}}
@@ -99,35 +100,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
-Ngrok Operator manager cli feature flags
-*/}}
-{{- define "ngrok-operator.manager.cliFeatureFlags" -}}
-{{- if .Values.ingress.enabled -}}
-- --enable-feature-ingress={{ .Values.ingress.enabled }}
-{{- end }}
-{{- if .Values.gateway.enabled }}
-- --enable-feature-gateway=true
-{{- else }}
-- --enable-feature-gateway=false
-{{- end }}
-{{- if .Values.gateway.disableReferenceGrants }}
-- --disable-reference-grants=true
-{{- else }}
-- --disable-reference-grants=false
-{{- end }}
-{{- if .Values.bindings.enabled }}
-- --enable-feature-bindings={{ .Values.bindings.enabled }}
-{{- end }}
-{{- end -}}
-
-{{/*
 Create the name of the controller service account to use
 */}}
 {{- define "ngrok-operator.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-    {{ default (include "ngrok-operator.fullname" .) .Values.serviceAccount.name }}
+{{- if .Values.components.apiManager.serviceAccount.create -}}
+    {{ default (include "ngrok-operator.fullname" .) .Values.components.apiManager.serviceAccount.name }}
 {{- else -}}
-    {{ default "default" .Values.serviceAccount.name }}
+    {{ default "default" .Values.components.apiManager.serviceAccount.name }}
 {{- end -}}
 {{- end -}}
 
@@ -135,10 +114,10 @@ Create the name of the controller service account to use
 Create the name of the agent service account to use
 */}}
 {{- define "ngrok-operator.agent.serviceAccountName" -}}
-{{- if .Values.agent.serviceAccount.create -}}
-    {{ default (printf "%s-agent" (include "ngrok-operator.fullname" .)) .Values.agent.serviceAccount.name }}
+{{- if .Values.components.agent.serviceAccount.create -}}
+    {{ default (printf "%s-agent" (include "ngrok-operator.fullname" .)) .Values.components.agent.serviceAccount.name }}
 {{- else -}}
-    {{ default "default" .Values.agent.serviceAccount.name }}
+    {{ default "default" .Values.components.agent.serviceAccount.name }}
 {{- end -}}
 {{- end -}}
 
@@ -146,10 +125,10 @@ Create the name of the agent service account to use
 Create the name of the bindings-forwarder service account to use
 */}}
 {{- define "ngrok-operator.bindings.forwarder.serviceAccountName" -}}
-{{- if .Values.bindings.forwarder.serviceAccount.create -}}
-    {{ default (printf "%s-bindings-forwarder" (include "ngrok-operator.fullname" .)) .Values.bindings.forwarder.serviceAccount.name }}
+{{- if .Values.components.bindingsForwarder.serviceAccount.create -}}
+    {{ default (printf "%s-bindings-forwarder" (include "ngrok-operator.fullname" .)) .Values.components.bindingsForwarder.serviceAccount.name }}
 {{- else -}}
-    {{ default "default" .Values.bindings.forwarder.serviceAccount.name }}
+    {{ default "default" .Values.components.bindingsForwarder.serviceAccount.name }}
 {{- end -}}
 {{- end -}}
 
@@ -165,19 +144,115 @@ Return the ngrok operator image name
 
 {{/*
 Whether RBAC should use namespace-scoped Roles instead of ClusterRoles.
-True when watchNamespace is set (either via deprecated top-level or ingress.watchNamespace).
+True when features.ingress.watchNamespace is set.
 */}}
 {{- define "ngrok-operator.isNamespaced" -}}
-{{- if (.Values.watchNamespace | default .Values.ingress.watchNamespace) -}}
+{{- if .Values.ngrok.features.ingress.watchNamespace -}}
 true
 {{- end -}}
 {{- end -}}
 
 {{/*
-The namespace to watch. Returns the watchNamespace value (deprecated top-level takes precedence).
+The namespace to watch.
 */}}
 {{- define "ngrok-operator.watchNamespace" -}}
-{{- .Values.watchNamespace | default .Values.ingress.watchNamespace -}}
+{{- .Values.ngrok.features.ingress.watchNamespace -}}
+{{- end -}}
+
+{{/*
+A component's pod settings: `components.common` with the component's own keys
+on top. A key the component sets wins even when empty, so it can clear a common
+value; a non-empty map merges with the common one, the component winning per
+key. A key the component leaves unset inherits the common value.
+
+Takes the root context for .Values and the component's key under
+`components`, since an include passes only one argument.
+
+Usage: fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "agent"))
+*/}}
+{{- define "ngrok-operator.componentValues" -}}
+{{- /* deepCopy both, so the merge leaves .Values untouched. log is operator config, not a pod setting. */ -}}
+{{- $values := deepCopy .context.Values.components.common -}}
+{{- $component := deepCopy (omit (index .context.Values.components .component) "log") -}}
+{{- range $key, $val := $component -}}
+{{- $common := get $values $key -}}
+{{- if and (kindIs "map" $val) $val (kindIs "map" $common) -}}
+{{- $_ := set $values $key (mergeOverwrite $common $val) -}}
+{{- else -}}
+{{- $_ := set $values $key $val -}}
+{{- end -}}
+{{- end -}}
+{{- $values | toYaml -}}
+{{- end -}}
+
+{{/*
+The operator configuration for one component: the `ngrok` values, with
+`components.<component>.log` overriding `ngrok.log` per key. An empty component
+log value inherits the shared one.
+*/}}
+{{- define "ngrok-operator.componentConfig" -}}
+{{- $component := index .context.Values.components .component -}}
+{{- range $key := list "ngrok" "features" -}}
+{{- if hasKey $component $key -}}
+{{- fail (printf "components.%s.%s is not supported: ngrok settings apply to every component. Set them under ngrok instead." $.component $key) -}}
+{{- end -}}
+{{- end -}}
+{{- /* Values only the chart reads: credentials go in a Secret, ingressClass renders the IngressClass, cleanup.enabled and timeout run the hook. */ -}}
+{{- $config := omit (deepCopy .context.Values.ngrok) "credentials" -}}
+{{- $_ := unset $config.features.ingress "ingressClass" -}}
+{{- $_ = set $config.features "cleanup" (omit $config.features.cleanup "enabled" "timeout") -}}
+{{- $log := deepCopy ($config.log | default dict) -}}
+{{- range $key, $val := ($component.log | default dict) -}}
+{{- if not (include "ngrok-operator.isEmpty" $val) -}}
+{{- $_ := set $log $key $val -}}
+{{- end -}}
+{{- end -}}
+{{- $_ = set $config "log" $log -}}
+{{- $config | toYaml -}}
+{{- end -}}
+
+{{/*
+The component's operator configuration as container env entries: for each
+setting in files/operator-env.yaml (paths under `ngrok`) that holds a value, its
+variable. Strings are written as-is, booleans and numbers as text, lists and
+maps as JSON. An empty setting is left out so the operator's default applies;
+a map or list setting is written whole, so an empty value inside it is kept.
+
+A variable the component's extraEnv sets is left out too, so extraEnv replaces
+it rather than adding a second entry with the same name.
+
+Usage: include "ngrok-operator.componentEnv" (dict "context" $ "component" "agent")
+*/}}
+{{- define "ngrok-operator.componentEnv" -}}
+{{- $config := fromYaml (include "ngrok-operator.componentConfig" .) -}}
+{{- $extraEnv := (fromYaml (include "ngrok-operator.componentValues" .)).extraEnv | default dict -}}
+{{- range $path, $name := .context.Files.Get "files/operator-env.yaml" | fromYaml }}
+{{- /* Walk the dotted path ("features.gateway.enabled") into $config. $found turns false at the first missing key: the setting is unset. */ -}}
+{{- $value := $config -}}
+{{- $found := true -}}
+{{- range splitList "." $path -}}
+{{- if and $found (kindIs "map" $value) (hasKey $value .) -}}
+{{- $value = get $value . -}}
+{{- else -}}
+{{- $found = false -}}
+{{- end -}}
+{{- end }}
+{{- if and $found (not (include "ngrok-operator.isEmpty" $value)) (not (hasKey $extraEnv $name)) }}
+{{- /* ternary picks JSON for lists and maps, plain text for everything else. */}}
+- name: {{ $name }}
+  value: {{ ternary (toJson $value) (toString $value) (or (kindIs "map" $value) (kindIs "slice" $value)) | quote }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+"true" when a value is an empty string, list or map, or null. Booleans are
+never empty, since false is a real value.
+*/}}
+{{- define "ngrok-operator.isEmpty" -}}
+{{- if and (not (kindIs "bool" .)) (empty .) -}}
+true
+{{- end -}}
 {{- end -}}
 
 {{/*
