@@ -12,8 +12,7 @@ import (
 // Internal domains cannot be reserved via the ngrok API (returns HTTP 400).
 // This function handles case-insensitivity and trailing dots.
 func IsInternalDomain(host string) bool {
-	h := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
-	return strings.HasSuffix(h, ".internal")
+	return strings.HasSuffix(NormalizeHostname(host), ".internal")
 }
 
 // ParseAndSanitizeEndpointURL parses/sanitizes an input string for an endpoint url and provides a *url.URL following the restrictions for endpoints.
@@ -98,4 +97,44 @@ func ParseAndSanitizeEndpointURL(input string, isIngressURL bool) (*url.URL, err
 	}
 
 	return parsedURL, nil
+}
+
+// NormalizeHostname lowercases host and strips surrounding whitespace and the
+// DNS root's trailing dot, so "  A.Example.COM. " and "a.example.com" compare
+// equal. Hostnames are case-insensitive per RFC 4343 and the ngrok API stores
+// them canonicalized.
+func NormalizeHostname(host string) string {
+	return strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+}
+
+// IsWildcardDomain reports whether host is a wildcard hostname (e.g. "*.example.com").
+func IsWildcardDomain(host string) bool {
+	return strings.HasPrefix(NormalizeHostname(host), "*.")
+}
+
+// WildcardParentDomain returns the wildcard hostname that would cover host as a
+// direct child, and whether such a wildcard is possible for host.
+//
+// DNS wildcards match exactly one label, so "*.example.com" covers
+// "a.example.com" but not "a.b.example.com" (whose covering wildcard is
+// "*.b.example.com") and not the apex "example.com". Returns false when host is
+// itself a wildcard, has fewer than three labels (so we never synthesize a
+// "*.<tld>" that could not be reserved anyway), or is malformed.
+func WildcardParentDomain(host string) (string, bool) {
+	h := NormalizeHostname(host)
+	if h == "" || strings.HasPrefix(h, "*.") {
+		return "", false
+	}
+
+	labels := strings.Split(h, ".")
+	if len(labels) < 3 {
+		return "", false
+	}
+	for _, label := range labels {
+		if label == "" || strings.Contains(label, "*") {
+			return "", false
+		}
+	}
+
+	return "*." + strings.Join(labels[1:], "."), true
 }

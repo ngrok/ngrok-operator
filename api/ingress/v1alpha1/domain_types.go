@@ -80,6 +80,8 @@ func (s *DomainSpec) GetResolvesTo() []DomainResolvesToEntry {
 }
 
 // DomainStatus defines the observed state of Domain
+//
+// +kubebuilder:validation:XValidation:rule="!(has(self.id) && has(self.coveredByWildcardDomain))", message="status.id and status.coveredByWildcardDomain cannot both be set"
 type DomainStatus struct {
 
 	// ObservedGeneration is the most recent metadata.generation observed by the
@@ -91,8 +93,23 @@ type DomainStatus struct {
 	// ID is the unique identifier of the domain
 	ID string `json:"id,omitempty"`
 
-	// Domain is the domain that was reserved
+	// Domain is the hostname this Domain represents. It is the reserved domain
+	// when the operator holds a reservation for it, and this Domain's own
+	// hostname (never the wildcard's) when it is covered by a wildcard
+	// reservation; see coveredByWildcardDomain.
 	Domain string `json:"domain,omitempty"`
+
+	// CoveredByWildcardDomain is the wildcard reservation that already serves
+	// this hostname, e.g. "*.example.com" for "a.example.com". When set, the
+	// operator intentionally did not reserve this domain in the ngrok API
+	// because the wildcard's DNS record and certificate already cover it. It is
+	// unset when this Domain is not covered by a wildcard.
+	//
+	// status.id stays empty in this case: it is the handle the operator would
+	// delete, and the wildcard reservation is shared with every other subdomain
+	// under it. The wildcard's own ID is recorded here instead.
+	// +optional
+	CoveredByWildcardDomain *DomainStatusWildcardDomain `json:"coveredByWildcardDomain,omitempty"`
 
 	// ResolvesTo is the list of resolving targets for the domain
 	ResolvesTo []DomainResolvesToEntry `json:"resolvesTo,omitempty"`
@@ -117,6 +134,14 @@ type DomainStatus struct {
 	// +listMapKey=type
 	// +kubebuilder:validation:MaxItems=8
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// DomainStatusWildcardDomain identifies the wildcard reservation covering a Domain
+type DomainStatusWildcardDomain struct {
+	// ID is the unique identifier of the wildcard reservation
+	ID string `json:"id"`
+	// Domain is the wildcard domain name, e.g. "*.example.com"
+	Domain string `json:"domain"`
 }
 
 // DomainStatusCertificateInfo contains information about the TLS certificate for the domain
@@ -167,6 +192,7 @@ type DomainStatusProvisioningJob struct {
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`,description="Domain Ready"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
 // +kubebuilder:printcolumn:name="CNAME Target",type=string,JSONPath=`.status.cnameTarget`,description="CNAME Target",priority=2
+// +kubebuilder:printcolumn:name="Wildcard",type=string,JSONPath=`.status.coveredByWildcardDomain.domain`,description="Wildcard domain covering this domain",priority=1
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].reason`,description="Ready Reason",priority=1
 // +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].message`,description="Ready Message",priority=1
 

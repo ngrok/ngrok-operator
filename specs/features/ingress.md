@@ -22,7 +22,7 @@ When enabled, the operator:
 1. Creates an `IngressClass` resource (if `ngrok.features.ingress.ingressClass.create` is true) with the configured controller name.
 2. Watches Ingress resources that reference the operator's IngressClass. An IngressClass matches when its `spec.controller` equals the configured controller name. The two stock names, the default `k8s.ngrok.com/ingress-controller` and its permanent alias `ngrok.com/ingress-controller`, are interchangeable: an operator configured with either one accepts IngressClasses using either, so they cannot be used to isolate two installs. The alias exists because every other user-facing ngrok key uses the `ngrok.com/` prefix and that is the value users naturally write. The alias also covers IngressClasses created under the 0.24 upgrade guide, which briefly advised switching to it. Custom controller names match exactly, so multiple installs stay isolated.
 3. For each matching Ingress, creates `AgentEndpoint` and/or `CloudEndpoint` resources based on the mapping strategy.
-4. Manages Domain resources for the hostnames specified in the Ingress rules.
+4. Manages Domain resources for the hostnames specified in the Ingress rules. Hostnames that are direct children of an already-reserved wildcard get a Domain CR but no separate ngrok reservation — see [controllers/domain.md](../controllers/domain.md#wildcard-domain-coverage).
 5. Updates the Ingress status with endpoint information.
 
 ## Annotations
