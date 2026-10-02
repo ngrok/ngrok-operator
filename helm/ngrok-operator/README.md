@@ -63,16 +63,12 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### Common parameters
 
-| Name                | Description                                                                                                                    | Value                                     |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| `nameOverride`      | String to partially override generated resource names                                                                          | `""`                                      |
-| `fullnameOverride`  | String to fully override generated resource names                                                                              | `""`                                      |
-| `description`       | ngrok-operator description that will appear in the ngrok dashboard                                                             | `The official ngrok Kubernetes Operator.` |
-| `commonLabels`      | Labels to add to all deployed objects                                                                                          | `{}`                                      |
-| `commonAnnotations` | Annotations to add to all deployed objects                                                                                     | `{}`                                      |
-| `oneClickDemoMode`  | If true, then the operator will startup without required fields or API registration, become Ready, but not actually be running | `false`                                   |
-| `podAnnotations`    | Custom pod annotations to apply to all pods.                                                                                   | `{}`                                      |
-| `podLabels`         | Custom pod labels to apply to all pods.                                                                                        | `{}`                                      |
+| Name                | Description                                           | Value |
+| ------------------- | ----------------------------------------------------- | ----- |
+| `nameOverride`      | String to partially override generated resource names | `""`  |
+| `fullnameOverride`  | String to fully override generated resource names     | `""`  |
+| `commonLabels`      | Labels to add to all deployed objects                 | `{}`  |
+| `commonAnnotations` | Annotations to add to all deployed objects            | `{}`  |
 
 ### Image configuration
 
@@ -84,128 +80,12 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `image.pullPolicy`  | The ngrok operator image pull policy.                                             | `IfNotPresent`         |
 | `image.pullSecrets` | An array of imagePullSecrets to be used when pulling the image.                   | `[]`                   |
 
-### ngrok configuration
+### RBAC
 
-| Name            | Description                                                                                                                                                                                                                                                                                                                   | Value               |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `region`        | ngrok region to create tunnels in. Defaults to connect to the closest geographical region.                                                                                                                                                                                                                                    | `""`                |
-| `rootCAs`       | Set to "trusted" for the ngrok agent CA or "host" to trust the host's CA. Defaults to "trusted".                                                                                                                                                                                                                              | `""`                |
-| `serverAddr`    | This is the address of the ngrok server to connect to. You should set this if you are using a custom ingress address.                                                                                                                                                                                                         | `""`                |
-| `apiURL`        | This is the URL of the ngrok API. You should set this if you are using a custom API URL.                                                                                                                                                                                                                                      | `""`                |
-| `metaData`      | DEPRECATED: Use ngrokMetadata instead                                                                                                                                                                                                                                                                                         |                     |
-| `ngrokMetadata` | Map of key=value,key=value pairs added as metadata to the ngrok API resources the operator generates from Ingress and Gateway API resources. It does NOT apply to resources you create directly via CRDs (Domain, IPPolicy, CloudEndpoint, AgentEndpoint, KubernetesOperator) — set `spec.metadata` on those objects instead. | `{}`                |
-| `clusterDomain` | Configure the default cluster base domain for your kubernetes cluster DNS resolution                                                                                                                                                                                                                                          | `svc.cluster.local` |
-
-### Operator Manager parameters
-
-| Name                                 | Description                                                                                                                                    | Value    |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `replicaCount`                       | The number of controllers to run.                                                                                                              | `1`      |
-| `affinity`                           | Affinity for the controller pod assignment                                                                                                     | `{}`     |
-| `podAffinityPreset`                  | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                                            | `""`     |
-| `podAntiAffinityPreset`              | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                                       | `soft`   |
-| `nodeAffinityPreset.type`            | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                                      | `""`     |
-| `nodeAffinityPreset.key`             | Node label key to match. Ignored if `affinity` is set.                                                                                         | `""`     |
-| `nodeAffinityPreset.values`          | Node label values to match. Ignored if `affinity` is set.                                                                                      | `[]`     |
-| `nodeSelector`                       | Node labels for manager pod(s)                                                                                                                 | `{}`     |
-| `tolerations`                        | Tolerations for manager pod(s)                                                                                                                 | `[]`     |
-| `topologySpreadConstraints`          | Topology Spread Constraints for manager pod(s)                                                                                                 | `[]`     |
-| `priorityClassName`                  | Priority class for pod scheduling                                                                                                              | `""`     |
-| `terminationGracePeriodSeconds`      | The amount of time to wait for the pod to gracefully terminate                                                                                 | `30`     |
-| `lifecycle`                          | an object containing lifecycle configuration                                                                                                   | `{}`     |
-| `podDisruptionBudget.create`         | Enable a Pod Disruption Budget creation                                                                                                        | `false`  |
-| `podDisruptionBudget.maxUnavailable` | Maximum number/percentage of pods that may be made unavailable                                                                                 | `""`     |
-| `podDisruptionBudget.minAvailable`   | Minimum number/percentage of pods that should remain scheduled                                                                                 | `""`     |
-| `resources.limits`                   | The resources limits for the container                                                                                                         | `{}`     |
-| `resources.requests`                 | The requested resources for the container                                                                                                      | `{}`     |
-| `extraVolumes`                       | An array of extra volumes to add to the controller.                                                                                            | `[]`     |
-| `extraVolumeMounts`                  | An array of extra volume mounts to add to the controller.                                                                                      | `[]`     |
-| `extraEnv`                           | an object of extra environment variables to add to the controller.                                                                             | `{}`     |
-| `serviceAccount.create`              | Specifies whether a ServiceAccount should be created                                                                                           | `true`   |
-| `serviceAccount.name`                | The name of the ServiceAccount to use.                                                                                                         | `""`     |
-| `serviceAccount.annotations`         | Additional annotations to add to the ServiceAccount                                                                                            | `{}`     |
-| `crdAccessRoles.create`              | Whether to create editor/viewer ClusterRoles for CRDs                                                                                          | `true`   |
-| `crdAccessRoles.annotations`         | Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)                                                                               | `{}`     |
-| `defaultDomainReclaimPolicy`         | The default domain reclaim policy to use for domains created by the operator. Valid values are "Delete" and "Retain". The default is "Delete". | `Delete` |
-
-### Logging configuration
-
-| Name                  | Description                                                   | Value   |
-| --------------------- | ------------------------------------------------------------- | ------- |
-| `log.level`           | The level to log at. One of 'debug', 'info', or 'error'.      | `info`  |
-| `log.stacktraceLevel` | The level to report stacktrace logs one of 'info' or 'error'. | `error` |
-| `log.format`          | The log format to use. One of console, json.                  | `json`  |
-
-### Credentials configuration
-
-| Name                                 | Description                                                                                                        | Value |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ----- |
-| `credentials.secret.name`            | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name. | `""`  |
-| `credentials.accessToken`            | Your ngrok access token. Used by every component that needs one, unless overridden below.                          | `""`  |
-| `credentials.agent.accessToken`      | Optional access token for the agent-manager only. Falls back to credentials.accessToken.                           | `""`  |
-| `credentials.apiManager.accessToken` | Optional access token for the api-manager only. Falls back to credentials.accessToken.                             | `""`  |
-
-### Kubernetes Ingress feature configuration
-
-| Name                           | Description                                                     | Value                              |
-| ------------------------------ | --------------------------------------------------------------- | ---------------------------------- |
-| `ingressClass.name`            | DEPRECATED: Use ingress.ingressClass.name instead               |                                    |
-| `ingressClass.create`          | DEPRECATED: Use ingress.ingressClass.create instead             |                                    |
-| `ingressClass.default`         | DEPRECATED: Use ingress.ingressClass.default instead            |                                    |
-| `watchNamespace`               | DEPRECATED: Use ingress.watchNamespace instead                  |                                    |
-| `controllerName`               | DEPRECATED: Use ingress.controllerName instead                  |                                    |
-| `ingress.enabled`              | When true, enable the Ingress controller features               | `true`                             |
-| `ingress.ingressClass.name`    | The name of the ingress class to use.                           | `ngrok`                            |
-| `ingress.ingressClass.create`  | Whether to create the ingress class.                            | `true`                             |
-| `ingress.ingressClass.default` | Whether to set the ingress class as default.                    | `false`                            |
-| `ingress.watchNamespace`       | The namespace to watch for ingress resources (default all)      | `""`                               |
-| `ingress.controllerName`       | The name of the controller to look for matching ingress classes | `k8s.ngrok.com/ingress-controller` |
-
-### Agent configuration
-
-| Name                                  | Description                                                                              | Value           |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- | --------------- |
-| `agent.podAnnotations`                | Custom pod annotations to apply to agent pods. If not set, falls back to podAnnotations. | `{}`            |
-| `agent.priorityClassName`             | Priority class for pod scheduling.                                                       | `""`            |
-| `agent.replicaCount`                  | The number of agents to run.                                                             | `1`             |
-| `agent.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the agent.                      | `true`          |
-| `agent.serviceAccount.name`           | The name of the ServiceAccount to use for the agent.                                     | `""`            |
-| `agent.serviceAccount.annotations`    | Additional annotations to add to the agent ServiceAccount                                | `{}`            |
-| `agent.resources.limits`              | The resources limits for the container                                                   | `{}`            |
-| `agent.resources.requests`            | The requested resources for the container                                                | `{}`            |
-| `agent.updateStrategy.type`           | Agent update strategy                                                                    | `RollingUpdate` |
-| `agent.terminationGracePeriodSeconds` | The amount of time to wait for the agent pod to gracefully terminate                     | `30`            |
-| `agent.tolerations`                   | Tolerations for the agent pod(s)                                                         | `[]`            |
-| `agent.nodeSelector`                  | Node labels for the agent pod(s)                                                         | `{}`            |
-| `agent.topologySpreadConstraints`     | Topology Spread Constraints for the agent pod(s)                                         | `[]`            |
-
-### Kubernetes Gateway feature configuration
-
-| Name                             | Description                                                                                                                    | Value   |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| `gateway.enabled`                | When true, Gateway API support will be enabled if the CRDs are detected. When false, Gateway API support will never be enabled | `true`  |
-| `gateway.disableReferenceGrants` | When true, disables required ReferenceGrants for cross-namespace references. Does nothing when gateway.enabled is false        | `false` |
-
-### Kubernetes Bindings feature configuration
-
-| Name                                               | Description                                                                                                   | Value                                     |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `bindings.enabled`                                 | Whether to enable the Endpoint Bindings feature                                                               | `false`                                   |
-| `bindings.endpointSelectors`                       | List of cel expressions used to filter which kubernetes-bound endpoints should be projected into this cluster | `["true"]`                                |
-| `bindings.serviceAnnotations`                      | Annotations to add to projected services bound to an endpoint                                                 | `{}`                                      |
-| `bindings.serviceLabels`                           | Labels to add to projected services bound to an endpoint                                                      | `{}`                                      |
-| `bindings.ingressEndpoint`                         | The hostname of the ingress endpoint for the bindings                                                         | `kubernetes-binding-ingress.ngrok.io:443` |
-| `bindings.forwarder.replicaCount`                  | The number of bindings forwarders to run.                                                                     | `1`                                       |
-| `bindings.forwarder.resources.limits`              | The resources limits for the container                                                                        | `{}`                                      |
-| `bindings.forwarder.resources.requests`            | The requested resources for the container                                                                     | `{}`                                      |
-| `bindings.forwarder.serviceAccount.create`         | Specifies whether a ServiceAccount should be created for the bindings forwarder pod(s).                       | `true`                                    |
-| `bindings.forwarder.serviceAccount.name`           | The name of the ServiceAccount to use for the bindings forwarder pod(s).                                      | `""`                                      |
-| `bindings.forwarder.serviceAccount.annotations`    | Additional annotations to add to the bindings-forwarder ServiceAccount                                        | `{}`                                      |
-| `bindings.forwarder.updateStrategy.type`           | Bindings Forwarder update strategy type                                                                       | `RollingUpdate`                           |
-| `bindings.forwarder.terminationGracePeriodSeconds` | The amount of time to wait for the bindings forwarder pod to gracefully terminate                             | `30`                                      |
-| `bindings.forwarder.tolerations`                   | Tolerations for the bindings forwarder pod(s)                                                                 | `[]`                                      |
-| `bindings.forwarder.nodeSelector`                  | Node labels for the bindings forwarder pod(s)                                                                 | `{}`                                      |
-| `bindings.forwarder.topologySpreadConstraints`     | Topology Spread Constraints for the bindings forwarder pod(s)                                                 | `[]`                                      |
+| Name                         | Description                                                      | Value  |
+| ---------------------------- | ---------------------------------------------------------------- | ------ |
+| `crdAccessRoles.create`      | Whether to create editor/viewer ClusterRoles for CRDs            | `true` |
+| `crdAccessRoles.annotations` | Annotations for CRD access ClusterRoles (e.g., RBAC aggregation) | `{}`   |
 
 ### Custom Resource Definitions installation
 
@@ -213,15 +93,156 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | ------------- | ------------------------------------------------------------------ | ------ |
 | `installCRDs` | When true, the ngrok CRDs will be installed alongside the operator | `true` |
 
-### Cleanup Hook configuration
+### ngrok
 
-| Name                             | Description                                                                                                                                      | Value             |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
-| `drainPolicy`                    | Policy for what to do with ngrok API resources while draining during an Uninstall. "Delete" removes ngrok API resources, "Retain" preserves them | `Retain`          |
-| `cleanupHook.enabled`            | Enable the pre-delete cleanup hook that drains resources before uninstall                                                                        | `true`            |
-| `cleanupHook.timeout`            | Timeout in seconds for the cleanup process                                                                                                       | `300`             |
-| `cleanupHook.image.repository`   | The repository for the kubectl image used by the cleanup hook                                                                                    | `bitnami/kubectl` |
-| `cleanupHook.image.tag`          | The tag for the kubectl image                                                                                                                    | `latest`          |
-| `cleanupHook.image.pullPolicy`   | The pull policy for the cleanup hook image                                                                                                       | `IfNotPresent`    |
-| `cleanupHook.resources.limits`   | The resources limits for the cleanup hook container                                                                                              | `{}`              |
-| `cleanupHook.resources.requests` | The requested resources for the cleanup hook container                                                                                           | `{}`              |
+| Name                                            | Description                                                                                                                                     | Value                              |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `ngrok.credentials.secret.name`                 | The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.                              | `""`                               |
+| `ngrok.credentials.accessToken`                 | Your ngrok access token. Used by every component that needs one, unless overridden below.                                                       | `""`                               |
+| `ngrok.credentials.agent.accessToken`           | Optional access token for the agent-manager only. Falls back to ngrok.credentials.accessToken.                                                  | `""`                               |
+| `ngrok.credentials.apiManager.accessToken`      | Optional access token for the api-manager only. Falls back to ngrok.credentials.accessToken.                                                    | `""`                               |
+| `ngrok.description`                             | Description of this installation in the ngrok dashboard. Default: `The official ngrok Kubernetes Operator.`                                     | `""`                               |
+| `ngrok.region`                                  | ngrok region to use. Default: the account's default region                                                                                      | `""`                               |
+| `ngrok.serverAddr`                              | Address of the ngrok server to use for tunnels. Default: the ngrok default                                                                      | `""`                               |
+| `ngrok.apiURL`                                  | Base URL for the ngrok API. Default: the ngrok default                                                                                          | `""`                               |
+| `ngrok.rootCAs`                                 | Root CAs to trust: `trusted` for the ngrok CA, `host` for the host's CA bundle. Default: `trusted`                                              | `""`                               |
+| `ngrok.metadata`                                | Key/value pairs added as metadata to the ngrok API resources the operator creates                                                               | `{}`                               |
+| `ngrok.clusterDomain`                           | Cluster domain used when resolving in-cluster service addresses. Default: `svc.cluster.local`                                                   | `""`                               |
+| `ngrok.log.level`                               | Log level: `debug`, `info`, `error`, `panic`, or an integer for more verbose debug levels. Default: `info`                                      | `""`                               |
+| `ngrok.log.format`                              | Log format: `json` or `console`. Default: `json`                                                                                                | `""`                               |
+| `ngrok.log.stacktraceLevel`                     | Level at and above which stacktraces are captured: `info`, `error` or `panic`. Default: `error`                                                 | `""`                               |
+| `ngrok.features.ingress.enabled`                | Enable the Kubernetes Ingress controller                                                                                                        | `true`                             |
+| `ngrok.features.ingress.controllerName`         | Controller name matched by IngressClasses, and set on the IngressClass this chart creates                                                       | `k8s.ngrok.com/ingress-controller` |
+| `ngrok.features.ingress.watchNamespace`         | Namespace to watch for Ingress and AgentEndpoint resources. Default: all namespaces                                                             | `""`                               |
+| `ngrok.features.ingress.ingressClass.name`      | IngressClass resource name                                                                                                                      | `ngrok`                            |
+| `ngrok.features.ingress.ingressClass.create`    | Create the IngressClass resource                                                                                                                | `true`                             |
+| `ngrok.features.ingress.ingressClass.default`   | Set the IngressClass as the cluster default                                                                                                     | `false`                            |
+| `ngrok.features.gateway.enabled`                | Enable Gateway API support, if the Gateway API CRDs are detected                                                                                | `true`                             |
+| `ngrok.features.gateway.disableReferenceGrants` | Disable the ReferenceGrant requirement for cross-namespace references                                                                           | `false`                            |
+| `ngrok.features.bindings.enabled`               | Enable the Endpoint Bindings feature, including the bindings-forwarder                                                                          | `false`                            |
+| `ngrok.features.bindings.endpointSelectors`     | CEL expressions filtering which endpoints are projected into this cluster. Default: `["true"]`                                                  | `[]`                               |
+| `ngrok.features.bindings.serviceAnnotations`    | Annotations applied to projected services                                                                                                       | `{}`                               |
+| `ngrok.features.bindings.serviceLabels`         | Labels applied to projected services                                                                                                            | `{}`                               |
+| `ngrok.features.bindings.ingressEndpoint`       | Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`                                                   | `""`                               |
+| `ngrok.features.domains.defaultReclaimPolicy`   | Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`                                               | `""`                               |
+| `ngrok.features.cleanup.enabled`                | Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed                    | `true`                             |
+| `ngrok.features.cleanup.timeout`                | Seconds the hook waits for the drain to finish                                                                                                  | `300`                              |
+| `ngrok.features.cleanup.drainPolicy`            | What the drain does with the ngrok API resources the operator created: `Delete` or `Retain`. Default: `Retain`                                  | `""`                               |
+| `ngrok.features.oneClickDemoMode.enabled`       | Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder | `false`                            |
+
+### Components
+
+| Name                                              | Description                                                                                                        | Value  |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------ |
+| `components.common.podAnnotations`                | Pod annotations                                                                                                    | `{}`   |
+| `components.common.podLabels`                     | Pod labels                                                                                                         | `{}`   |
+| `components.common.nodeSelector`                  | Node labels for pod assignment                                                                                     | `{}`   |
+| `components.common.tolerations`                   | Tolerations for pod assignment                                                                                     | `[]`   |
+| `components.common.affinity`                      | Affinity rules. Overrides the presets below when set                                                               | `{}`   |
+| `components.common.podAffinityPreset`             | Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                                | `""`   |
+| `components.common.podAntiAffinityPreset`         | Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                           | `soft` |
+| `components.common.nodeAffinityPreset.type`       | Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`                          | `""`   |
+| `components.common.nodeAffinityPreset.key`        | Node label key to match. Ignored if `affinity` is set.                                                             | `""`   |
+| `components.common.nodeAffinityPreset.values`     | Node label values to match. Ignored if `affinity` is set.                                                          | `[]`   |
+| `components.common.topologySpreadConstraints`     | Topology spread constraints for pod assignment                                                                     | `[]`   |
+| `components.common.priorityClassName`             | Priority class for pod scheduling                                                                                  | `""`   |
+| `components.common.extraEnv`                      | Additional environment variables, as a map of name to value. A name the chart also sets replaces the chart's entry | `{}`   |
+| `components.common.lifecycle`                     | Container lifecycle hooks                                                                                          |        |
+| `components.common.extraVolumes`                  | Additional volumes                                                                                                 |        |
+| `components.common.extraVolumeMounts`             | Additional volume mounts                                                                                           |        |
+| `components.common.terminationGracePeriodSeconds` | Graceful shutdown period, in seconds. Kubernetes default: `30`                                                     |        |
+| `components.common.updateStrategy`                | Deployment update strategy. Kubernetes default: `RollingUpdate`                                                    |        |
+
+### Components: API Manager
+
+| Name                                                       | Description                                                                     | Value   |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `components.apiManager.replicaCount`                       | The number of api-manager replicas to run                                       | `1`     |
+| `components.apiManager.podDisruptionBudget.create`         | Whether to create a PodDisruptionBudget                                         | `false` |
+| `components.apiManager.podDisruptionBudget.maxUnavailable` | Maximum unavailable pods                                                        | `1`     |
+| `components.apiManager.podDisruptionBudget.minAvailable`   | Minimum available pods. Set this instead of `maxUnavailable`, not alongside it  |         |
+| `components.apiManager.serviceAccount.create`              | Whether to create a ServiceAccount                                              | `true`  |
+| `components.apiManager.serviceAccount.name`                | ServiceAccount name. Generated if empty                                         |         |
+| `components.apiManager.serviceAccount.annotations`         | ServiceAccount annotations                                                      |         |
+| `components.apiManager.resources`                          | Resource requests and limits                                                    |         |
+| `components.apiManager.log`                                | Overrides of `ngrok.log` for the api-manager                                    |         |
+| `components.apiManager.podAnnotations`                     | Overrides `components.common.podAnnotations` for the api-manager                |         |
+| `components.apiManager.podLabels`                          | Overrides `components.common.podLabels` for the api-manager                     |         |
+| `components.apiManager.nodeSelector`                       | Overrides `components.common.nodeSelector` for the api-manager                  |         |
+| `components.apiManager.tolerations`                        | Overrides `components.common.tolerations` for the api-manager                   |         |
+| `components.apiManager.affinity`                           | Overrides `components.common.affinity` for the api-manager                      |         |
+| `components.apiManager.podAffinityPreset`                  | Overrides `components.common.podAffinityPreset` for the api-manager             |         |
+| `components.apiManager.podAntiAffinityPreset`              | Overrides `components.common.podAntiAffinityPreset` for the api-manager         |         |
+| `components.apiManager.nodeAffinityPreset`                 | Overrides `components.common.nodeAffinityPreset` for the api-manager            |         |
+| `components.apiManager.topologySpreadConstraints`          | Overrides `components.common.topologySpreadConstraints` for the api-manager     |         |
+| `components.apiManager.priorityClassName`                  | Overrides `components.common.priorityClassName` for the api-manager             |         |
+| `components.apiManager.extraEnv`                           | Overrides `components.common.extraEnv` for the api-manager                      |         |
+| `components.apiManager.lifecycle`                          | Overrides `components.common.lifecycle` for the api-manager                     |         |
+| `components.apiManager.extraVolumes`                       | Overrides `components.common.extraVolumes` for the api-manager                  |         |
+| `components.apiManager.extraVolumeMounts`                  | Overrides `components.common.extraVolumeMounts` for the api-manager             |         |
+| `components.apiManager.terminationGracePeriodSeconds`      | Overrides `components.common.terminationGracePeriodSeconds` for the api-manager |         |
+| `components.apiManager.updateStrategy`                     | Overrides `components.common.updateStrategy` for the api-manager                |         |
+
+### Components: Agent
+
+| Name                                             | Description                                                               | Value  |
+| ------------------------------------------------ | ------------------------------------------------------------------------- | ------ |
+| `components.agent.replicaCount`                  | The number of agent replicas to run                                       | `1`    |
+| `components.agent.serviceAccount.create`         | Whether to create a ServiceAccount                                        | `true` |
+| `components.agent.serviceAccount.name`           | ServiceAccount name. Generated if empty                                   |        |
+| `components.agent.serviceAccount.annotations`    | ServiceAccount annotations                                                |        |
+| `components.agent.resources`                     | Resource requests and limits                                              |        |
+| `components.agent.log`                           | Overrides of `ngrok.log` for the agent                                    |        |
+| `components.agent.podAnnotations`                | Overrides `components.common.podAnnotations` for the agent                |        |
+| `components.agent.podLabels`                     | Overrides `components.common.podLabels` for the agent                     |        |
+| `components.agent.nodeSelector`                  | Overrides `components.common.nodeSelector` for the agent                  |        |
+| `components.agent.tolerations`                   | Overrides `components.common.tolerations` for the agent                   |        |
+| `components.agent.affinity`                      | Overrides `components.common.affinity` for the agent                      |        |
+| `components.agent.podAffinityPreset`             | Overrides `components.common.podAffinityPreset` for the agent             |        |
+| `components.agent.podAntiAffinityPreset`         | Overrides `components.common.podAntiAffinityPreset` for the agent         |        |
+| `components.agent.nodeAffinityPreset`            | Overrides `components.common.nodeAffinityPreset` for the agent            |        |
+| `components.agent.topologySpreadConstraints`     | Overrides `components.common.topologySpreadConstraints` for the agent     |        |
+| `components.agent.priorityClassName`             | Overrides `components.common.priorityClassName` for the agent             |        |
+| `components.agent.extraEnv`                      | Overrides `components.common.extraEnv` for the agent                      |        |
+| `components.agent.lifecycle`                     | Overrides `components.common.lifecycle` for the agent                     |        |
+| `components.agent.extraVolumes`                  | Overrides `components.common.extraVolumes` for the agent                  |        |
+| `components.agent.extraVolumeMounts`             | Overrides `components.common.extraVolumeMounts` for the agent             |        |
+| `components.agent.terminationGracePeriodSeconds` | Overrides `components.common.terminationGracePeriodSeconds` for the agent |        |
+| `components.agent.updateStrategy`                | Overrides `components.common.updateStrategy` for the agent                |        |
+
+### Components: Bindings Forwarder
+
+| Name                                                         | Description                                                                            | Value  |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ------ |
+| `components.bindingsForwarder.replicaCount`                  | The number of bindings-forwarder replicas to run                                       | `1`    |
+| `components.bindingsForwarder.serviceAccount.create`         | Whether to create a ServiceAccount                                                     | `true` |
+| `components.bindingsForwarder.serviceAccount.name`           | ServiceAccount name. Generated if empty                                                |        |
+| `components.bindingsForwarder.serviceAccount.annotations`    | ServiceAccount annotations                                                             |        |
+| `components.bindingsForwarder.resources`                     | Resource requests and limits                                                           |        |
+| `components.bindingsForwarder.log`                           | Overrides of `ngrok.log` for the bindings-forwarder                                    |        |
+| `components.bindingsForwarder.podAnnotations`                | Overrides `components.common.podAnnotations` for the bindings-forwarder                |        |
+| `components.bindingsForwarder.podLabels`                     | Overrides `components.common.podLabels` for the bindings-forwarder                     |        |
+| `components.bindingsForwarder.nodeSelector`                  | Overrides `components.common.nodeSelector` for the bindings-forwarder                  |        |
+| `components.bindingsForwarder.tolerations`                   | Overrides `components.common.tolerations` for the bindings-forwarder                   |        |
+| `components.bindingsForwarder.affinity`                      | Overrides `components.common.affinity` for the bindings-forwarder                      |        |
+| `components.bindingsForwarder.podAffinityPreset`             | Overrides `components.common.podAffinityPreset` for the bindings-forwarder             |        |
+| `components.bindingsForwarder.podAntiAffinityPreset`         | Overrides `components.common.podAntiAffinityPreset` for the bindings-forwarder         |        |
+| `components.bindingsForwarder.nodeAffinityPreset`            | Overrides `components.common.nodeAffinityPreset` for the bindings-forwarder            |        |
+| `components.bindingsForwarder.topologySpreadConstraints`     | Overrides `components.common.topologySpreadConstraints` for the bindings-forwarder     |        |
+| `components.bindingsForwarder.priorityClassName`             | Overrides `components.common.priorityClassName` for the bindings-forwarder             |        |
+| `components.bindingsForwarder.extraEnv`                      | Overrides `components.common.extraEnv` for the bindings-forwarder                      |        |
+| `components.bindingsForwarder.lifecycle`                     | Overrides `components.common.lifecycle` for the bindings-forwarder                     |        |
+| `components.bindingsForwarder.extraVolumes`                  | Overrides `components.common.extraVolumes` for the bindings-forwarder                  |        |
+| `components.bindingsForwarder.extraVolumeMounts`             | Overrides `components.common.extraVolumeMounts` for the bindings-forwarder             |        |
+| `components.bindingsForwarder.terminationGracePeriodSeconds` | Overrides `components.common.terminationGracePeriodSeconds` for the bindings-forwarder |        |
+| `components.bindingsForwarder.updateStrategy`                | Overrides `components.common.updateStrategy` for the bindings-forwarder                |        |
+
+### Components: Cleanup Hook
+
+| Name                                        | Description                                                   | Value             |
+| ------------------------------------------- | ------------------------------------------------------------- | ----------------- |
+| `components.cleanupHook.image.repository`   | The repository for the kubectl image used by the cleanup hook | `bitnami/kubectl` |
+| `components.cleanupHook.image.tag`          | The tag for the kubectl image                                 | `latest`          |
+| `components.cleanupHook.image.pullPolicy`   | The pull policy for the cleanup hook image                    | `IfNotPresent`    |
+| `components.cleanupHook.resources.limits`   | The resources limits for the cleanup hook container           | `{}`              |
+| `components.cleanupHook.resources.requests` | The requested resources for the cleanup hook container        | `{}`              |
