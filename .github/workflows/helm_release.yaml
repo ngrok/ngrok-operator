@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - release-0.24
     paths:
       - 'helm/ngrok-crds/Chart.yaml'
       - 'helm/ngrok-operator/Chart.yaml'
