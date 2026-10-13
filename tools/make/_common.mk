@@ -70,4 +70,5 @@ include tools/make/test.mk
 include tools/make/build.mk
 include tools/make/deploy.mk
 include tools/make/kind.mk
+include tools/make/pe-demo.mk
 include tools/make/release.mk
