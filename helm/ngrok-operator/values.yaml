@@ -86,6 +86,8 @@ installCRDs: true
 ## @param ngrok.features.bindings.serviceAnnotations Annotations applied to projected services
 ## @param ngrok.features.bindings.serviceLabels Labels applied to projected services
 ## @param ngrok.features.bindings.ingressEndpoint Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`
+## @param ngrok.features.privateEndpoints.enabled (POC) Mirror ngrok private endpoints (*.ngrok.direct by default) into PrivateEndpoint resources and per-hostname Services
+## @param ngrok.features.privateEndpoints.includeInternal Also mirror *.internal private endpoints (needs a foo.internal CoreDNS rewrite too). Off by default because *.internal names can collide with cloud provider DNS (e.g. GKE metadata.internal) and include the operator's own Ingress/Gateway endpoints
 ## @param ngrok.features.domains.defaultReclaimPolicy Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`
 ## @param ngrok.features.cleanup.enabled Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed
 ## @param ngrok.features.cleanup.timeout Seconds the hook waits for the drain to finish
@@ -133,6 +135,9 @@ ngrok:
       serviceAnnotations: {}
       serviceLabels: {}
       ingressEndpoint: ""
+    privateEndpoints:
+      enabled: false
+      includeInternal: false
     domains:
       defaultReclaimPolicy: ""
     cleanup:

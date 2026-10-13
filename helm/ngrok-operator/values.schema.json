@@ -260,6 +260,21 @@
                                 }
                             }
                         },
+                        "privateEndpoints": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "description": "(POC) Mirror ngrok private endpoints (*.ngrok.direct by default) into PrivateEndpoint resources and per-hostname Services",
+                                    "default": false
+                                },
+                                "includeInternal": {
+                                    "type": "boolean",
+                                    "description": "Also mirror *.internal private endpoints (needs a foo.internal CoreDNS rewrite too). Off by default because *.internal names can collide with cloud provider DNS (e.g. GKE metadata.internal) and include the operator's own Ingress/Gateway endpoints",
+                                    "default": false
+                                }
+                            }
+                        },
                         "domains": {
                             "type": "object",
                             "properties": {
