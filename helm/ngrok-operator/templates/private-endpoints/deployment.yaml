@@ -1,0 +1,132 @@
+{{- /* Skipped in one-click demo mode: without credentials this component can only crashloop. */}}
+{{- if and .Values.ngrok.features.privateEndpoints.enabled (not .Values.ngrok.features.oneClickDemoMode.enabled) }}
+{{- $component := "private-endpoint-forwarder" }}
+{{- $values := fromYaml (include "ngrok-operator.componentValues" (dict "context" $ "component" "privateEndpointForwarder")) }}
+{{- /* A custom secret can't be inspected at render time, so only the chart-generated one is checked. */}}
+{{- if and (not .Values.ngrok.credentials.secret.name) (not (include "ngrok-operator.accessTokenFor" (dict "root" $ "component" "privateEndpointForwarder"))) }}
+{{- fail "ngrok.features.privateEndpoints.enabled needs an ngrok access token for the forwarder. Set ngrok.credentials.accessToken or ngrok.credentials.privateEndpointForwarder.accessToken, or set ngrok.credentials.secret.name to an existing secret with a PRIVATE_ENDPOINTS_ACCESS_TOKEN key." }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+  name: {{ include "ngrok-operator.fullname" . }}-{{ $component }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ $values.replicaCount }}
+  {{- with $values.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ngrok-operator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: {{ $component }}
+  template:
+    metadata:
+      annotations:
+        {{- with $values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        prometheus.io/path: /metrics
+        prometheus.io/port: '8080'
+        prometheus.io/scrape: 'true'
+        checksum/secret: {{ include (print $.Template.BasePath "/credentials-secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "ngrok-operator.selectorLabels" . | nindent 8 }}
+        {{- with $values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        app.kubernetes.io/component: {{ $component }}
+    spec:
+      {{- with $values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with $values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ . }}
+      {{- end }}
+      {{- if $values.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" $values.affinity "context" $) | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAffinity: {{- include "common.affinities.pods" (dict "type" $values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" $values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" $values.nodeAffinityPreset.type "key" $values.nodeAffinityPreset.key "values" $values.nodeAffinityPreset.values) | nindent 10 }}
+      {{- end }}
+      {{- with $values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ngrok-operator.privateEndpoints.forwarder.serviceAccountName" . }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: forwarder
+        image: {{ include "ngrok-operator.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /ngrok-operator
+        args:
+        - private-endpoint-forwarder
+        - --release-name={{ .Release.Name }}
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8080
+        - --manager-name={{ include "ngrok-operator.fullname" . }}-{{ $component }}
+        securityContext:
+          allowPrivilegeEscalation: false
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NGROK_ACCESS_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: {{ include "ngrok-operator.accessTokenSecretKey" "privateEndpointForwarder" }}
+              name: {{ include "ngrok-operator.credentialsSecretName" . }}
+        {{- include "ngrok-operator.componentEnv" (dict "context" $ "component" "privateEndpointForwarder") | trim | nindent 8 }}
+        {{- range $key, $value := $values.extraEnv }}
+        - name: {{ $key }}
+          value: {{- toYaml $value | nindent 12 }}
+        {{- end }}
+        {{- with $values.extraVolumeMounts }}
+        volumeMounts:
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with $values.lifecycle }}
+        lifecycle:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        {{- with $values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- with $values.extraVolumes }}
+      volumes:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+{{- end }}

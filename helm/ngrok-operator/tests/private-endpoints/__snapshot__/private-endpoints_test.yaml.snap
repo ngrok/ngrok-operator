@@ -1,0 +1,100 @@
+forwarder deployment uses the private endpoints token and cluster DNS:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/component: private-endpoint-forwarder
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: ngrok-operator
+        app.kubernetes.io/part-of: ngrok-operator
+        app.kubernetes.io/version: 0.22.0
+        helm.sh/chart: ngrok-operator-0.24.0
+      name: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: private-endpoint-forwarder
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: ngrok-operator
+      template:
+        metadata:
+          annotations:
+            checksum/secret: b9b73250d071782afda8892d8f0bafe0a6459af1b45fd129a272426d4e656892
+            prometheus.io/path: /metrics
+            prometheus.io/port: "8080"
+            prometheus.io/scrape: "true"
+          labels:
+            app.kubernetes.io/component: private-endpoint-forwarder
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: ngrok-operator
+        spec:
+          affinity:
+            nodeAffinity: null
+            podAffinity: null
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/component: private-endpoint-forwarder
+                        app.kubernetes.io/instance: RELEASE-NAME
+                        app.kubernetes.io/name: ngrok-operator
+                    topologyKey: kubernetes.io/hostname
+                  weight: 1
+          containers:
+            - args:
+                - private-endpoint-forwarder
+                - --release-name=RELEASE-NAME
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=:8080
+                - --manager-name=RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
+              command:
+                - /ngrok-operator
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: NGROK_ACCESS_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: PRIVATE_ENDPOINTS_ACCESS_TOKEN
+                      name: RELEASE-NAME-ngrok-operator-credentials
+                - name: NGROK_OPERATOR__FEATURES__BINDINGS__ENABLED
+                  value: "false"
+                - name: NGROK_OPERATOR__FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+                  value: "false"
+                - name: NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED
+                  value: "true"
+                - name: NGROK_OPERATOR__FEATURES__INGRESS__CONTROLLER_NAME
+                  value: k8s.ngrok.com/ingress-controller
+                - name: NGROK_OPERATOR__FEATURES__INGRESS__ENABLED
+                  value: "true"
+                - name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
+                  value: "false"
+                - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
+                  value: "true"
+                - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__INCLUDE_INTERNAL
+                  value: "false"
+              image: docker.io/ngrok/ngrok-operator:0.22.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                initialDelaySeconds: 15
+                periodSeconds: 20
+              name: forwarder
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: 8081
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              securityContext:
+                allowPrivilegeEscalation: false
+          serviceAccountName: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
