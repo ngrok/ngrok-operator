@@ -113,6 +113,16 @@
                                     "default": ""
                                 }
                             }
+                        },
+                        "privateEndpointForwarder": {
+                            "type": "object",
+                            "properties": {
+                                "accessToken": {
+                                    "type": "string",
+                                    "description": "Optional access token for the private-endpoint-forwarder only. Falls back to ngrok.credentials.accessToken. With ngrok.features.privateEndpoints.enabled and no ngrok.credentials.secret.name, one of the two must be set or rendering fails. A custom secret is not checked at render time; it must hold a PRIVATE_ENDPOINTS_ACCESS_TOKEN key (the forwarder exits at startup without it).",
+                                    "default": ""
+                                }
+                            }
                         }
                     }
                 },
@@ -265,7 +275,7 @@
                             "properties": {
                                 "enabled": {
                                     "type": "boolean",
-                                    "description": "(POC) Mirror ngrok private endpoints (*.ngrok.direct by default) into PrivateEndpoint resources and per-hostname Services",
+                                    "description": "(POC) Make ngrok private endpoints (*.ngrok.direct by default) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, UDP/443 egress, and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret",
                                     "default": false
                                 },
                                 "includeInternal": {
@@ -461,6 +471,26 @@
                         "replicaCount": {
                             "type": "number",
                             "description": "The number of bindings-forwarder replicas to run",
+                            "default": 1
+                        },
+                        "serviceAccount": {
+                            "type": "object",
+                            "properties": {
+                                "create": {
+                                    "type": "boolean",
+                                    "description": "Whether to create a ServiceAccount",
+                                    "default": true
+                                }
+                            }
+                        }
+                    }
+                },
+                "privateEndpointForwarder": {
+                    "type": "object",
+                    "properties": {
+                        "replicaCount": {
+                            "type": "number",
+                            "description": "The number of private-endpoint-forwarder replicas to run",
                             "default": 1
                         },
                         "serviceAccount": {
