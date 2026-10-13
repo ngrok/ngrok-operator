@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.22.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.22.0...ngrok-operator-0.22.1
+
+Patch release cut from `0.22.0`. It contains only the fix below and none of the unreleased changes on `main`.
+
+### Fixed
+- Keep pooled agent endpoints serving when an update fails. Previously a failed rebind (for example `ERR_NGROK_324` at the session tunnel limit, or an invalid traffic policy) tore down the healthy endpoint, and reconciles with unchanged config rebound needlessly, which under load could drop traffic by @alex-bezek in [#897](https://github.com/ngrok/ngrok-operator/pull/897)
+
 ## 0.22.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0
 
