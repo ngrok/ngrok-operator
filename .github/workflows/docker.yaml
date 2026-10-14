@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - release-0.24
 
 env:
   DOCKER_BUILDX_PLATFORMS: linux/amd64,linux/arm64
@@ -43,7 +44,7 @@ jobs:
     if: |
       github.repository == 'ngrok/ngrok-operator' &&
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/main'
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release-0.24')
     steps:
       - name: Checkout repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,6 +73,7 @@ jobs:
       - name: Build binaries
         run: make image-binaries IMAGE_PLATFORMS=${{ env.DOCKER_BUILDX_PLATFORMS }}
       - name: Build and push latest docker image
+        if: github.ref == 'refs/heads/main'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
@@ -97,6 +99,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: `ngrok-operator-${tag}`,
+              target_commitish: context.sha,
               name: `ngrok-operator-${tag}`,
               body: `${tag}`,
               draft: false,

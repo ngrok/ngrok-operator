@@ -261,28 +261,38 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 		"upstream.protocol", spec.Upstream.Protocol,
 	)
 
-	epf, ok := d.forwarders.Get(name)
+	cfg := endpointConfig{
+		spec:          *spec.DeepCopy(),
+		trafficPolicy: trafficPolicy,
+		clientCerts:   clientCerts,
+		agentTLS:      agentTLS,
+	}
+
+	oldEPF, ok := d.forwarders.Get(name)
 	if ok {
-		// Check if the endpoint matches the spec. If it does, do nothing.
-		// If it doesn't, stop the old endpoint and start a new one.
-		// For now, we just stop the old endpoint and always start a new one.
-		if !epf.PoolingEnabled() {
-			// If pooling is not enabled, we have to stop the old endpoint before starting a new one.
-			log.Info("Stopping existing agent endpoint", "id", epf.ID())
-			if err := epf.CloseWithContext(ctx); err != nil {
-				return &EndpointResult{Ready: false}, err
-			}
-		} else {
-			defer epf.Close()
+		// Every rebind needs a spare session tunnel slot and an unbind of the
+		// old tunnel, so don't rebind a live endpoint whose config is unchanged.
+		if prev, found := d.forwarders.Config(name); found && prev.equal(cfg) && !isDone(oldEPF) {
+			return &EndpointResult{
+				URL:           oldEPF.URL().String(),
+				TrafficPolicy: oldEPF.TrafficPolicy(),
+				Ready:         true,
+			}, nil
 		}
 	}
 
+	// Endpoints are always pooled, so the new endpoint can bind alongside the
+	// old one before it is closed.
+	//
+	// TODO(stacks): Pooling may become configurable per endpoint. When it does,
+	// stop the old endpoint before binding the new one unless both are pooled:
+	// otherwise ngrok misroutes traffic during the overlap (it all goes to one
+	// of them, or fails with ERR_NGROK_6030).
 	upstream := buildUpstream(spec.Upstream, clientCerts)
 	endpointOpts := []ngrok.EndpointOption{
 		ngrok.WithURL(spec.URL),
 		ngrok.WithBindings(spec.Bindings...),
 		ngrok.WithMetadata(commonv1alpha1.MetadataAPIString(spec.Metadata)),
-		// TODO(stacks): This may end up being configurable on a per-endpoint basis in the future
 		ngrok.WithPoolingEnabled(true),
 		ngrok.WithDescription(spec.Description),
 	}
@@ -306,7 +316,18 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 	// Passing the reconciler's ctx would cause the endpoint to shut down as soon as reconciliation completes.
 	epf, err := d.agent.Forward(context.Background(), upstream, endpointOpts...)
 	if err != nil {
+		// Leave any old endpoint running: it is still serving traffic,
+		// and closing it here would turn a failed update into an outage.
 		return &EndpointResult{Ready: false}, err
+	}
+
+	// Retire the old endpoint only once its replacement is bound. A
+	// failed unbind can leave its tunnel slot held on the session, so surface it.
+	if oldEPF != nil {
+		log.Info("Stopping replaced agent endpoint", "id", oldEPF.ID())
+		if err := oldEPF.CloseWithContext(ctx); err != nil {
+			log.Error(err, "Error closing replaced agent endpoint", "id", oldEPF.ID())
+		}
 	}
 
 	log.WithValues(
@@ -322,7 +343,7 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 		"description", spec.Description,
 	).Info("Created agent endpoint")
 
-	d.forwarders.Add(name, epf)
+	d.forwarders.Add(name, epf, cfg)
 
 	result := &EndpointResult{
 		URL:           epf.URL().String(),
@@ -331,6 +352,15 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 	}
 
 	return result, nil
+}
+
+func isDone(epf ngrok.EndpointForwarder) bool {
+	select {
+	case <-epf.Done():
+		return true
+	default:
+		return false
+	}
 }
 
 func (d *driver) DeleteAgentEndpoint(ctx context.Context, name string) error {
