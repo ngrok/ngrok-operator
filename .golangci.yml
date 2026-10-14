@@ -69,6 +69,19 @@ linters:
       - linters:
           - staticcheck
         text: 'SA1019: .*\bNgrokTrafficPolicy is deprecated'
+      # LEGACY-ippolicy-kind: delete this exclusion at cleanup.
+      #
+      # ingress.k8s.ngrok.com/v1alpha1 IPPolicy carries the same
+      # `Deprecated:` marker treatment as NgrokTrafficPolicy above, for the
+      # same reason: the operator's own dual-read code (and the
+      # internal/ippolicy.IPPolicyResource compile-time assertion) must keep
+      # referencing the type for the whole migration window. The trailing
+      # " is deprecated" keeps this from also swallowing IPPolicyRule,
+      # IPPolicySpec, IPPolicyStatus, or IPPolicyList, none of which are
+      # deprecated symbols.
+      - linters:
+          - staticcheck
+        text: 'SA1019: .*\bIPPolicy is deprecated'
     paths:
       - third_party$
       - builtin$

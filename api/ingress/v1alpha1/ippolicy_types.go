@@ -28,6 +28,8 @@ import (
 	"encoding/json"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 )
 
 type IPPolicyRule struct {
@@ -98,7 +100,17 @@ type IPPolicyStatus struct {
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].reason`,description="Ready Reason",priority=1
 // +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].message`,description="Ready Message",priority=1
 
-// IPPolicy is the Schema for the ippolicies API
+// IPPolicy is the Schema for the ippolicies API.
+//
+// Deprecated: superseded by the canonical ngrok.com/v1 IPPolicy. This kind
+// stays fully operable and readable for the whole migration window — see
+// docs/superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md
+// and docs/developer-guide/passivity-shims.md §"Per-shim catalog: TrafficPolicy
+// CRD kind + group rename" for the pattern this follows
+// (LEGACY-ippolicy-kind). Everything that reconciles, resolves, or watches an
+// IPPolicy should be written against internal/ippolicy.IPPolicyResource so it
+// serves both kinds from one implementation, rather than duplicating logic
+// per kind.
 type IPPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -110,6 +122,53 @@ type IPPolicy struct {
 // SetObservedGeneration records the generation the controller reconciled.
 func (p *IPPolicy) SetObservedGeneration(generation int64) {
 	p.Status.ObservedGeneration = generation
+}
+
+// The accessors below satisfy internal/ippolicy.IPPolicyResource so this
+// legacy kind can be driven by the same generic code as the canonical
+// ngrok.com/v1 IPPolicy.
+//
+// LEGACY-ippolicy-kind: these accessors go away when this type is deleted at
+// cleanup; the interface and its generic consumers stay.
+
+// GetDescription returns the human-readable description from the spec.
+func (p *IPPolicy) GetDescription() string {
+	return p.Spec.Description
+}
+
+// GetMetadata returns the spec metadata parsed into a map[string]string,
+// handling both the canonical object form and the deprecated legacy string
+// form.
+func (p *IPPolicy) GetMetadata() map[string]string {
+	return common.MetadataToMap(p.Spec.Metadata)
+}
+
+// GetRulesJSON returns the spec rules re-encoded as JSON so kind-agnostic
+// callers can consume them without depending on this package's IPPolicyRule
+// type.
+func (p *IPPolicy) GetRulesJSON() (json.RawMessage, error) {
+	return json.Marshal(p.Spec.Rules)
+}
+
+// GetID returns the ngrok API ID assigned to this policy, if any.
+func (p *IPPolicy) GetID() string {
+	return p.Status.ID
+}
+
+// SetID records the ngrok API ID assigned to this policy.
+func (p *IPPolicy) SetID(id string) {
+	p.Status.ID = id
+}
+
+// GetConditions returns a pointer to the status condition slice so shared
+// helpers can mutate it in place.
+func (p *IPPolicy) GetConditions() *[]metav1.Condition {
+	return &p.Status.Conditions
+}
+
+// GetObservedGeneration returns the generation the controller last reconciled.
+func (p *IPPolicy) GetObservedGeneration() int64 {
+	return p.Status.ObservedGeneration
 }
 
 // +kubebuilder:object:root=true
