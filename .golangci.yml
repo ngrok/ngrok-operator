@@ -36,6 +36,8 @@ linters:
         - name: unhandled-error
           arguments:
             - fmt.Printf
+            # strings.Builder writes always return a nil error.
+            - strings.Builder.WriteString
         - name: unnecessary-stmt
         - name: unreachable-code
         - name: unused-parameter
