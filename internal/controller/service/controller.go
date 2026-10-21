@@ -602,7 +602,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				// only `policy` survives. Drop the `Policy` write in the cleanup release.
 				TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 					Inline: rawPolicy,
-					Policy: rawPolicy,
+					Policy: rawPolicy, //nolint:staticcheck // SA1019: deliberate legacy dual-write, see above
 				},
 			},
 		}

@@ -49,18 +49,6 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
-    rules:
-      # This branch builds with a newer golangci-lint (Go 1.27.3 security
-      # patch) whose staticcheck flags these deprecated fields. They are used
-      # on purpose: the controllers dual-write and read the legacy CloudEndpoint
-      # traffic-policy fields during the migration window, and the tests cover
-      # that path. main silences the same call sites with inline nolint
-      # comments (#878); this release branch excludes them here instead to keep
-      # the patch's Go diff minimal. Scoped to these symbols so other SA1019
-      # findings still surface.
-      - linters:
-          - staticcheck
-        text: 'SA1019: .*(v1alpha1\.CloudEndpointSpec\)\.TrafficPolicyName|v1alpha1\.CloudEndpointTrafficPolicyCfg\)\.Policy|controller-runtime\.Result\)\.Requeue) is deprecated'
     paths:
       - third_party$
       - builtin$
