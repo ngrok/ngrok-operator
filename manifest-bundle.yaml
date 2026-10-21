@@ -6,10 +6,10 @@ metadata:
   name: ngrok-operator-agent
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
@@ -22,10 +22,10 @@ metadata:
   name: ngrok-operator
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
@@ -55,7 +55,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: boundendpoints.bindings.k8s.ngrok.com
 spec:
   group: bindings.k8s.ngrok.com
@@ -345,7 +345,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: domains.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -639,7 +639,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: ippolicies.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -834,7 +834,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: agentendpoints.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1204,7 +1204,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: cloudendpoints.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1463,7 +1463,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: kubernetesoperators.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1742,7 +1742,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: ngroktrafficpolicies.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -2034,6 +2034,7 @@ rules:
   - patch
   - update
   - watch
+
 ---
 # Source: ngrok-operator/templates/api-manager/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2427,10 +2428,10 @@ metadata:
   name: ngrok-operator-agentendpoint-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2461,10 +2462,10 @@ metadata:
   name: ngrok-operator-agentendpoint-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2491,10 +2492,10 @@ metadata:
   name: ngrok-operator-boundendpoint-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2525,10 +2526,10 @@ metadata:
   name: ngrok-operator-boundendpoint-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2555,10 +2556,10 @@ metadata:
   name: ngrok-operator-cloudendpoint-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2589,10 +2590,10 @@ metadata:
   name: ngrok-operator-cloudendpoint-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2619,10 +2620,10 @@ metadata:
   name: ngrok-operator-domain-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2653,10 +2654,10 @@ metadata:
   name: ngrok-operator-domain-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2683,10 +2684,10 @@ metadata:
   name: ngrok-operator-ippolicy-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2717,10 +2718,10 @@ metadata:
   name: ngrok-operator-ippolicy-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2747,10 +2748,10 @@ metadata:
   name: ngrok-operator-kubernetesoperator-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2781,10 +2782,10 @@ metadata:
   name: ngrok-operator-kubernetesoperator-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2811,10 +2812,10 @@ metadata:
   name: ngrok-operator-ngroktrafficpolicy-editor-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2845,10 +2846,10 @@ metadata:
   name: ngrok-operator-ngroktrafficpolicy-viewer-role
   labels:
     app.kubernetes.io/component: rbac
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
 rules:
@@ -2934,6 +2935,7 @@ rules:
   - get
   - list
   - watch
+
 ---
 # Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -2973,6 +2975,7 @@ rules:
   verbs:
   - create
   - patch
+
 ---
 # Source: ngrok-operator/templates/api-manager/release-namespace-role.yaml
 # Operator-state RBAC: rules the api-manager needs that are tied to the
@@ -3035,6 +3038,7 @@ rules:
   - get
   - patch
   - update
+
 ---
 # Source: ngrok-operator/templates/agent/release-namespace-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3089,10 +3093,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: agent
@@ -3141,7 +3145,7 @@ spec:
       serviceAccountName: ngrok-operator-agent
       containers:
       - name: agent
-        image: docker.io/ngrok/ngrok-operator:0.22.1
+        image: docker.io/ngrok/ngrok-operator:0.22.2
         imagePullPolicy: IfNotPresent
         command:
         - /ngrok-operator
@@ -3195,10 +3199,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
@@ -3248,7 +3252,7 @@ spec:
       serviceAccountName: ngrok-operator
       containers:
       - name: ngrok-operator
-        image: docker.io/ngrok/ngrok-operator:0.22.1
+        image: docker.io/ngrok/ngrok-operator:0.22.2
         imagePullPolicy: IfNotPresent
         command:
         - /ngrok-operator
@@ -3306,10 +3310,10 @@ apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
   labels:
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: controller
@@ -3324,16 +3328,17 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3342,10 +3347,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
@@ -3362,6 +3367,7 @@ rules:
       - list
       - watch
       - delete
+
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3370,10 +3376,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
@@ -3397,10 +3403,10 @@ metadata:
   name: ngrok-operator-cleanup
   namespace: ngrok-operator
   labels:
-    helm.sh/chart: ngrok-operator-0.24.1
+    helm.sh/chart: ngrok-operator-0.24.2
     app.kubernetes.io/name: ngrok-operator
     app.kubernetes.io/instance: ngrok-operator
-    app.kubernetes.io/version: "0.22.1"
+    app.kubernetes.io/version: "0.22.2"
     app.kubernetes.io/part-of: ngrok-operator
     app.kubernetes.io/managed-by: Helm
   annotations:
