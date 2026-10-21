@@ -1,12 +1,18 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # Go 1.26.10 only (eMudhra CA compromise, IR-88). nixpkgs-unstable is
+    # still on 1.26.9, and bumping the main nixpkgs input would also upgrade
+    # golangci-lint and controller-gen on this branch. Drop this input and use
+    # pkgs.go_1_26 again once unstable has 1.26.10.
+    nixpkgs-go.url = "github:NixOS/nixpkgs/67c4421ad610753e77809d6c423010c953d14117";
     flake-utils.url = "github:numtide/flake-utils";
   };
   outputs =
     {
       self,
       nixpkgs,
+      nixpkgs-go,
       flake-utils,
     }:
     (flake-utils.lib.eachDefaultSystem (
@@ -81,7 +87,7 @@
             [
               bashInteractive
               git
-              go_1_26
+              nixpkgs-go.legacyPackages.${system}.go_1_26
               go-tools
               golangci-lint
               gotools
