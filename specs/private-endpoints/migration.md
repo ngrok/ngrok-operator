@@ -47,7 +47,7 @@ explicitly waives it). **Non-blocking** = document it, or fix it before "default
 
 | # | Capability | Bindings (today) | Private endpoints (POC) | Gap | Deprecation |
 |---|---|---|---|---|---|
-| P1 | **Which endpoints reach which cluster** | Opt-in twice: endpoint carries `kubernetes` binding, and must match the operator's `endpointSelectors` CEL (`api/ngrok/v1alpha1/kubernetesoperator_types.go:49`, Helm `ngrok.features.bindings.endpointSelectors`). Poller lists only endpoints bound to *this* operator (`internal/controller/bindings/boundendpoint_poller.go:214`, `GetBoundEndpoints(koId)`), so different clusters get different sets | Every private endpoint in the account, in every cluster with the feature on. Only filter: suffix and not `kubernetes`-bound (`internal/controller/privateendpoints/poller.go:141,152`) | PE lacks scoping and per-cluster targeting; endpoint owner can't opt out | **Blocking** |
+| P1 | **Which endpoints reach which cluster** | Opt-in twice: endpoint carries `kubernetes` binding, and must match the operator's `endpointSelectors` CEL (`api/ngrok/v1alpha1/kubernetesoperator_types.go:49`, Helm `ngrok.features.bindings.endpointSelectors`). Poller lists only endpoints bound to *this* operator (`internal/controller/bindings/boundendpoint_poller.go:214`, `GetBoundEndpoints(koId)`), so different clusters get different sets | Every private endpoint in the account, in every cluster with the feature on. Only filter: suffix and not `kubernetes`-bound (`internal/controller/privateendpoints/privateendpoint_poller.go:141,152`) | PE lacks scoping and per-cluster targeting; endpoint owner can't opt out | **Blocking** |
 | P2 | **Caller identity → Traffic Policy** | Forwarder maps source IP → Pod (`forwarder_controller.go:201-219`), sends UID, name, namespace and `k8s.ngrok.com/*` annotations (`:358-374`) in the binding upgrade (`:249`). Exact Traffic Policy variable names **unverified** | None. Private dial metadata is per session and not visible to Traffic Policy (GAT-475) | PE lacks it; needs backend | **Blocking** if any customer policy uses it (product to confirm); else non-blocking |
 | P3 | **No cluster DNS change** | Plain Kubernetes Service DNS. Target is an ExternalName Service in the app's namespace (`boundendpoint_controller.go:421-441`) | One admin-owned CoreDNS rewrite per cluster; not possible on GKE/OpenShift without D1(b) | PE regresses install UX | **Blocking** until the top platforms have a working path (D1(b), or the alias shim in §4.2 as a stopgap) |
 | P4 | **Egress** | mTLS over TCP/443 to `kubernetes-binding-ingress.ngrok.io` | QUIC only, UDP/443 (HTTP/2 fallback disabled on Go 1.27) | Clusters that block UDP have no path | **Blocking** (SDK track: fix HTTP/2 fallback) |
@@ -111,7 +111,7 @@ No dates. Each phase has entry and exit criteria. Phases line up with
 
 ### M0. Coexist (now)
 
-Both features can run at once; they select disjoint endpoints (`poller.go:141` drops
+Both features can run at once; they select disjoint endpoints (`privateendpoint_poller.go:141` drops
 `kubernetes`-bound; bindings parses only `svc.ns` URLs, `bindingendpoint_aggregator.go:143`).
 
 - Entry: POC (done).

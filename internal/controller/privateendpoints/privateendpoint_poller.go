@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -25,20 +24,16 @@ type EndpointLister interface {
 	List(*ngrok.Paging) ngrok.Iter[*ngrok.Endpoint]
 }
 
-// Poller mirrors the account's private endpoints into PrivateEndpoint CRs.
-type Poller struct {
+// PrivateEndpointPoller mirrors the account's private endpoints into PrivateEndpoint CRs.
+type PrivateEndpointPoller struct {
 	client.Client
 	Log       logr.Logger
 	Namespace string
 	Endpoints EndpointLister
 	Interval  time.Duration
-	// IncludeInternal also mirrors *.internal endpoints. Off by default:
-	// *.ngrok.direct is the supported pattern, and *.internal names collide
-	// with cloud provider DNS and the operator's own AgentEndpoints.
-	IncludeInternal bool
 }
 
-func (p *Poller) Start(ctx context.Context) error {
+func (p *PrivateEndpointPoller) Start(ctx context.Context) error {
 	t := time.NewTicker(p.Interval)
 	defer t.Stop()
 	for {
@@ -55,7 +50,7 @@ func (p *Poller) Start(ctx context.Context) error {
 
 // Sync converges PrivateEndpoint CRs to the API's private endpoints. On a
 // list error it changes nothing, so an API outage never deletes CRs.
-func (p *Poller) Sync(ctx context.Context) error {
+func (p *PrivateEndpointPoller) Sync(ctx context.Context) error {
 	var eps []*ngrok.Endpoint
 	iter := p.Endpoints.List(nil)
 	for iter.Next(ctx) {
@@ -64,7 +59,7 @@ func (p *Poller) Sync(ctx context.Context) error {
 	if err := iter.Err(); err != nil {
 		return fmt.Errorf("listing endpoints: %w", err)
 	}
-	desired := desiredSpecs(p.Log, eps, p.IncludeInternal)
+	desired := desiredSpecs(p.Log, eps)
 
 	var existing ngrokv1.PrivateEndpointList
 	if err := p.List(ctx, &existing, client.InNamespace(p.Namespace), client.MatchingLabels{pe.ManagedByLabel: pe.ManagedByValue}); err != nil {
@@ -105,7 +100,7 @@ func (p *Poller) Sync(ctx context.Context) error {
 
 // heal puts a managed CR's spec and poller-owned labels back to desired. Other
 // labels and status are left alone.
-func (p *Poller) heal(ctx context.Context, cr *ngrokv1.PrivateEndpoint, spec ngrokv1.PrivateEndpointSpec) error {
+func (p *PrivateEndpointPoller) heal(ctx context.Context, cr *ngrokv1.PrivateEndpoint, spec ngrokv1.PrivateEndpointSpec) error {
 	want := managedLabels(spec)
 	drifted := cr.Spec != spec
 	for k, v := range want {
@@ -132,10 +127,9 @@ func managedLabels(spec ngrokv1.PrivateEndpointSpec) map[string]string {
 	}
 }
 
-// desiredSpecs keeps private, non-kubernetes-bound endpoints, keyed by CR
-// name. *.internal endpoints are dropped unless includeInternal. Pooled
-// endpoints share a URL and collapse into one entry.
-func desiredSpecs(log logr.Logger, eps []*ngrok.Endpoint, includeInternal bool) map[string]ngrokv1.PrivateEndpointSpec {
+// desiredSpecs keeps *.ngrok.direct, non-kubernetes-bound endpoints, keyed by
+// CR name. Pooled endpoints share a URL and collapse into one entry.
+func desiredSpecs(log logr.Logger, eps []*ngrok.Endpoint) map[string]ngrokv1.PrivateEndpointSpec {
 	out := map[string]ngrokv1.PrivateEndpointSpec{}
 	for _, ep := range eps {
 		if slices.Contains(ep.Bindings, "kubernetes") {
@@ -147,9 +141,6 @@ func desiredSpecs(log logr.Logger, eps []*ngrok.Endpoint, includeInternal bool) 
 			continue
 		}
 		if !pe.IsPrivateHostname(spec.Hostname) {
-			continue
-		}
-		if !includeInternal && strings.HasSuffix(spec.Hostname, ".internal") {
 			continue
 		}
 		out[pe.CRName(ep.URL)] = spec

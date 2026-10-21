@@ -52,22 +52,6 @@ tests:
       content:
         name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
         value: "true"
-  - contains:
-      path: spec.template.spec.containers[0].env
-      content:
-        name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__INCLUDE_INTERNAL
-        value: "false"
-- it: api-manager mirrors internal endpoints when includeInternal is set
-  set:
-    ngrok.features.privateEndpoints.enabled: true
-    ngrok.features.privateEndpoints.includeInternal: true
-  template: api-manager/deployment.yaml
-  asserts:
-  - contains:
-      path: spec.template.spec.containers[0].env
-      content:
-        name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__INCLUDE_INTERNAL
-        value: "true"
 - it: renders nothing in one-click demo mode
   set:
     ngrok.features.privateEndpoints.enabled: true

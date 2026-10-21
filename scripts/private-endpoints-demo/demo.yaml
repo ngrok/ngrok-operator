@@ -1,8 +1,6 @@
 # Demo origins for private endpoints, published with the operator's own
 # AgentEndpoint CRD (the agent-manager in the same install runs them). The
-# poller then mirrors the *.ngrok.direct ones back as PrivateEndpoints; the one
-# *.internal endpoint is there to show it is NOT mirrored by default (D8).
-# __PREFIX__ and __NS__ are
+# poller then mirrors them back as PrivateEndpoints. __PREFIX__ and __NS__ are
 # substituted by demo.sh. TLS/TCP upstreams use tcp:// so the agent forwards raw
 # bytes (a tls:// upstream would wrap the passthrough stream in a second TLS).
 apiVersion: v1
@@ -149,15 +147,3 @@ spec:
   url: tls://__PREFIX__-tls.ngrok.direct
   bindings: [internal]
   upstream: {url: "tcp://tls.__NS__:8443"}
----
-# Negative case: by default the operator does not mirror *.internal, so this
-# gets no PrivateEndpoint, no Service, and its name does not resolve in-cluster.
-apiVersion: ngrok.k8s.ngrok.com/v1alpha1
-kind: AgentEndpoint
-metadata:
-  name: web-internal
-  namespace: __NS__
-spec:
-  url: http://__PREFIX__-web.internal
-  bindings: [internal]
-  upstream: {url: "http://web.__NS__:80"}

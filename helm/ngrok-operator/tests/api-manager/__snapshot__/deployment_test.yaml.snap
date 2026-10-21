@@ -86,8 +86,6 @@ Should match all-options snapshot:
                   value: "false"
                 - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
                   value: "false"
-                - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__INCLUDE_INTERNAL
-                  value: "false"
                 - name: SECRET_ENV_VAR
                   value:
                     secretKeyRef:
@@ -648,8 +646,6 @@ Should match default snapshot:
                 - name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
                   value: "false"
                 - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
-                  value: "false"
-                - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__INCLUDE_INTERNAL
                   value: "false"
               image: docker.io/ngrok/ngrok-operator:0.22.0
               imagePullPolicy: IfNotPresent

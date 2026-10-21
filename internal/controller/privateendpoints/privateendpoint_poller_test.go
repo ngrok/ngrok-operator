@@ -55,62 +55,45 @@ func TestPollerSync(t *testing.T) {
 	mixed := []ngrok.EndpointCreate{
 		{URL: "http://foo.internal", Bindings: []string{"internal"}},
 		{URL: "https://foo.ngrok.direct", Bindings: []string{"internal"}},
-		{URL: "tcp://bar.internal:6379", Bindings: []string{"internal"}},
+		{URL: "tcp://bar.ngrok.direct:6379", Bindings: []string{"internal"}},
 		{URL: "tls://baz.ngrok.direct", Bindings: []string{"internal"}},
 		{URL: "https://public.ngrok.app", Bindings: []string{"public"}},
 		{URL: "http://svc.ns", Bindings: []string{"kubernetes"}},
-		{URL: "http://legacy.internal", Bindings: []string{"kubernetes"}},
-		{URL: "tcp://noport.internal"},
+		{URL: "http://legacy.ngrok.direct", Bindings: []string{"kubernetes"}},
+		{URL: "tcp://noport.ngrok.direct"},
 	}
 	tests := []struct {
-		name            string
-		includeInternal bool
-		endpoints       []ngrok.EndpointCreate
-		existing        []*ngrokv1.PrivateEndpoint
-		listErr         error
-		wantURLs        []string
-		wantErr         bool
+		name      string
+		endpoints []ngrok.EndpointCreate
+		existing  []*ngrokv1.PrivateEndpoint
+		listErr   error
+		wantURLs  []string
+		wantErr   bool
 	}{
 		{
-			name:      "creates only ngrok.direct endpoints by default",
+			name:      "creates only ngrok.direct endpoints, skips internal, public and kubernetes-bound",
 			endpoints: mixed,
-			wantURLs:  []string{"https://foo.ngrok.direct", "tls://baz.ngrok.direct"},
+			wantURLs:  []string{"https://foo.ngrok.direct", "tcp://bar.ngrok.direct:6379", "tls://baz.ngrok.direct"},
 		},
 		{
-			name:            "creates internal endpoints too when included, skips public and kubernetes-bound",
-			includeInternal: true,
-			endpoints:       mixed,
-			wantURLs:        []string{"http://foo.internal", "https://foo.ngrok.direct", "tcp://bar.internal:6379", "tls://baz.ngrok.direct"},
-		},
-		{
-			name:      "deletes managed internal CRs when internal is not included, keeps unmanaged ones",
-			endpoints: mixed,
+			name:      "deletes managed CRs that are gone, keeps unmanaged ones",
+			endpoints: []ngrok.EndpointCreate{{URL: "http://foo.ngrok.direct"}},
 			existing: []*ngrokv1.PrivateEndpoint{
+				existingCR("http://foo.ngrok.direct", true),
+				existingCR("http://gone.ngrok.direct", true),
 				existingCR("http://foo.internal", true),
-				existingCR("https://foo.ngrok.direct", true),
-				existingCR("http://handmade.internal", false),
+				existingCR("http://handmade.ngrok.direct", false),
 			},
-			wantURLs: []string{"https://foo.ngrok.direct", "tls://baz.ngrok.direct", "http://handmade.internal"},
-		},
-		{
-			name:            "deletes managed CRs that are gone, keeps unmanaged ones",
-			includeInternal: true,
-			endpoints:       []ngrok.EndpointCreate{{URL: "http://foo.internal"}},
-			existing: []*ngrokv1.PrivateEndpoint{
-				existingCR("http://foo.internal", true),
-				existingCR("http://gone.internal", true),
-				existingCR("http://handmade.internal", false),
-			},
-			wantURLs: []string{"http://foo.internal", "http://handmade.internal"},
+			wantURLs: []string{"http://foo.ngrok.direct", "http://handmade.ngrok.direct"},
 		},
 		{
 			name:    "list error keeps CRs",
 			listErr: errors.New("api down"),
 			existing: []*ngrokv1.PrivateEndpoint{
-				existingCR("http://foo.internal", true),
+				existingCR("http://foo.ngrok.direct", true),
 				existingCR("https://foo.ngrok.direct", true),
 			},
-			wantURLs: []string{"http://foo.internal", "https://foo.ngrok.direct"},
+			wantURLs: []string{"http://foo.ngrok.direct", "https://foo.ngrok.direct"},
 			wantErr:  true,
 		},
 	}
@@ -130,7 +113,7 @@ func TestPollerSync(t *testing.T) {
 				b = b.WithObjects(cr)
 			}
 			c := b.Build()
-			p := &Poller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps, IncludeInternal: tt.includeInternal}
+			p := &PrivateEndpointPoller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps}
 
 			err := p.Sync(ctx)
 			if tt.wantErr {
@@ -148,27 +131,27 @@ func TestPollerSyncLabelsAndDedupe(t *testing.T) {
 	// Pooled endpoints share a URL. The mock rejects duplicate URLs on Create,
 	// so feed desiredSpecs directly.
 	pooled := []*ngrok.Endpoint{
-		{ID: "ep_1", URL: "tcp://bar.internal:6379"},
-		{ID: "ep_2", URL: "tcp://bar.internal:6379"},
+		{ID: "ep_1", URL: "tcp://bar.ngrok.direct:6379"},
+		{ID: "ep_2", URL: "tcp://bar.ngrok.direct:6379"},
 	}
-	desired := desiredSpecs(logr.Discard(), pooled, true)
+	desired := desiredSpecs(logr.Discard(), pooled)
 	require.Len(t, desired, 1)
 
 	eps := nmockapi.NewEndpointsClient()
-	_, err := eps.Create(ctx, &ngrok.EndpointCreate{URL: "tcp://bar.internal:6379"})
+	_, err := eps.Create(ctx, &ngrok.EndpointCreate{URL: "tcp://bar.ngrok.direct:6379"})
 	require.NoError(t, err)
 	c := fake.NewClientBuilder().WithScheme(newScheme(t)).Build()
-	require.NoError(t, (&Poller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps, IncludeInternal: true}).Sync(ctx))
+	require.NoError(t, (&PrivateEndpointPoller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps}).Sync(ctx))
 
 	var got ngrokv1.PrivateEndpoint
-	require.NoError(t, c.Get(ctx, client.ObjectKey{Namespace: testNS, Name: pe.CRName("tcp://bar.internal:6379")}, &got))
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Namespace: testNS, Name: pe.CRName("tcp://bar.ngrok.direct:6379")}, &got))
 	assert.Equal(t, pe.ManagedByValue, got.Labels[pe.ManagedByLabel])
-	assert.Equal(t, pe.HostKey("bar.internal"), got.Labels[pe.HostLabel])
+	assert.Equal(t, pe.HostKey("bar.ngrok.direct"), got.Labels[pe.HostLabel])
 	assert.Equal(t, int32(6379), got.Spec.Port)
 }
 
 func TestPollerSyncHealsDrift(t *testing.T) {
-	const url = "tcp://bar.internal:6379"
+	const url = "tcp://bar.ngrok.direct:6379"
 	want, err := pe.ParseURL(url)
 	require.NoError(t, err)
 	wantLabels := map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey(want.Hostname)}
@@ -190,9 +173,9 @@ func TestPollerSyncHealsDrift(t *testing.T) {
 		{
 			name: "restores edited spec",
 			mutate: func(cr *ngrokv1.PrivateEndpoint) {
-				cr.Spec.URL = "http://evil.internal"
+				cr.Spec.URL = "http://evil.ngrok.direct"
 				cr.Spec.Scheme = ngrokv1.PrivateEndpointSchemeHTTP
-				cr.Spec.Hostname = "evil.internal"
+				cr.Spec.Hostname = "evil.ngrok.direct"
 				cr.Spec.Port = 80
 			},
 			wantSpec:   want,
@@ -227,7 +210,7 @@ func TestPollerSyncHealsDrift(t *testing.T) {
 			cr := existingCR(url, true)
 			tt.mutate(cr)
 			c := fake.NewClientBuilder().WithScheme(newScheme(t)).WithObjects(cr).Build()
-			p := &Poller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps, IncludeInternal: true}
+			p := &PrivateEndpointPoller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps}
 
 			require.NoError(t, p.Sync(ctx))
 

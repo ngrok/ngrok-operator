@@ -3,7 +3,7 @@
 One-stop status for the POC on `alex/private-endpoints-poc`: what's built, what we promise,
 what's in flux, what's next. Detail lives in the linked docs; this file links, it doesn't copy.
 
-Last updated: 2026-10-12 · Owner: Alex Bezek · Phase: **finishing the bounded POC**
+Last updated: 2026-10-21 · Owner: Alex Bezek · Phase: **finishing the bounded POC**
 
 ## Doc map
 
@@ -25,7 +25,7 @@ Last updated: 2026-10-12 · Owner: Alex Bezek · Phase: **finishing the bounded 
 
 ## Goal (one line)
 
-Any pod reaches any ngrok private endpoint by its real URL (`foo.ngrok.direct`; `foo.internal` opt-in)
+Any pod reaches any ngrok private endpoint by its real URL (`foo.ngrok.direct`; `.internal` not supported, D9)
 over http/https/tls/tcp, no per-endpoint config, no app changes. Replaces Kubernetes bindings
 (`BoundEndpoint`), which are deprecated alongside, not removed.
 
@@ -35,21 +35,21 @@ over http/https/tls/tcp, no per-endpoint config, no app changes. Replaces Kubern
 ngrok API ──poll 10s──▶ PrivateEndpoint CRs ──▶ controller: Service per hostname, port per endpoint → forwarderPort
                                            └──▶ forwarder: listener per forwarderPort → privatedial(host:port)
 pod ─ foo.ngrok.direct ─▶ CoreDNS rewrite ─▶ foo-ngrok-direct.<ns>.svc ─▶ ClusterIP ─▶ forwarder ─▶ ngrok
-(.internal only with ngrok.features.privateEndpoints.includeInternal, D8)
 ```
 
 | Piece | Where | State |
 |---|---|---|
 | `PrivateEndpoint` CRD (`ngrok.com/v1`) | `api/ngrok/v1/privateendpoint_types.go` | Done |
 | Hostname → Service naming rules | `internal/privateendpoints/naming.go` | Done, tested |
-| Poller (API → CRs, client-side filter, drift heal, `.internal` opt-in) | `internal/controller/privateendpoints/poller.go` | Done, tested |
-| Controller (Services, cursor port alloc 20000–20999, conflict/exhaustion conditions) | `internal/controller/privateendpoints/controller.go` | Done, envtest |
-| api-manager wiring, feature flag, missing-CRD guard (PR-1) | `cmd/api-manager.go` | Done |
-| `private-endpoint-forwarder` subcommand | `cmd/private-endpoint-forwarder.go`, `internal/privateendpoints/forwarder/` | Done, reuses `pkg/bindingsdriver` listeners |
+| Poller (API → CRs, client-side filter, drift heal, `.ngrok.direct` only) | `internal/controller/privateendpoints/privateendpoint_poller.go` | Done, tested |
+| Controller (Services, cursor port alloc 20000–20999, conflict/exhaustion conditions) | `internal/controller/privateendpoints/privateendpoint_controller.go` | Done, envtest |
+| api-manager wiring, feature flag | `cmd/api-manager.go` | Done |
+| `private-endpoint-forwarder-manager` subcommand | `cmd/private-endpoint-forwarder-manager.go`, `internal/controller/privateendpoints/forwarder_controller.go`, `internal/privateendpoints/forwarder/` | Done, reuses `pkg/bindingsdriver` listeners |
 | Dial/copy helper (to upstream) | `internal/privateendpoints/forwarder/privatedial_forward.go` | Isolated, awaiting SDK |
 | Helm (`ngrok.features.privateEndpoints.enabled`, off by default) | `helm/ngrok-operator/templates/private-endpoints/` | Done, snapshot tests |
-| kind CoreDNS setup | `scripts/kind-private-endpoints-dns.sh`, `make kind-private-endpoints-dns` (`PE_INCLUDE_INTERNAL=true` for `.internal`) | Done, kind only |
+| kind CoreDNS setup | `scripts/kind-private-endpoints-dns.sh`, `make kind-private-endpoints-dns` | Done, kind only |
 | Kind demo | `scripts/private-endpoints-demo/`, `make pe-demo-*` | Done; 10/10 checks 2026-10-12 |
+| Chainsaw e2e (http/https, tls, tcp, dns; parallel, one namespace + prefix per test) | `tests/chainsaw-private-endpoints/`, `make e2e-tests-private-endpoints` (= `pe-demo-test`) | Added 2026-10-21, replaces `checks.sh`; 4/4 pass on kind 2026-10-21 |
 | Live e2e | [findings.md](findings.md) | Passed 2026-09-29: http, https (verify on), tls passthrough, tcp/redis, 2 ports on one host, both TLDs, cleanup within a poll |
 
 ## Requirements, limitations, gaps
@@ -68,10 +68,10 @@ Research findings I checked against the code are marked **confirmed**.
 
 | ID | Issue | Severity | Status |
 |---|---|---|---|
-| R1 | Controller `CreateOrUpdate` overwrites a pre-existing Service with the same name, no ownership check (`controller.go:142`) | High | **Fixed** (`a7040ea6`): unowned Service left alone, CRs get `ServiceConflict`, 30s recheck |
+| R1 | Controller `CreateOrUpdate` overwrites a pre-existing Service with the same name, no ownership check (`privateendpoint_controller.go:142`) | High | **Fixed** (`a7040ea6`): unowned Service left alone, CRs get `ServiceConflict`, 30s recheck |
 | R2 | Port reuse can cross-route tcp: `allocate` hands out lowest free port, so a freed port is reused immediately; a stale forwarder replica may still map it to the old host | High (wrong destination) | **Narrowed** (`a7040ea6`): cursor allocation, freed port reused only after full range cycles. Not closed: lagging replica can still misroute a reused port (see D5) |
 | R3 | Poller doesn't heal spec drift (treats CR as present by name; no Update) | Medium | **Fixed** (`058b945b`, RBAC in `a878d1c1`): spec + poller labels restored each poll; unlabeled same-name CR left alone. Live recheck pending |
-| R4 | `.internal` capture collides with existing names; GKE also has single-label `metadata.internal` | High for `.internal` on GKE | **Mitigated by D8** once landed (`.internal` off by default). Remains for opt-in users |
+| R4 | `.internal` capture collides with existing names; GKE also has single-label `metadata.internal` | High for `.internal` on GKE | **Closed by D9** (`.internal` not supported) |
 | R5 | Forwarder bind failures hidden after initial sync; readiness only checks first sync | Medium | **Fixed** (`c083a3a9`): bind errors logged + fail readiness; startup bind failure no longer crashloops |
 | R6 | Forwarder fails to start if token key `PRIVATE_ENDPOINTS_ACCESS_TOKEN` missing; should fail at Helm render | Low | **Fixed** (`c083a3a9`): Helm `fail` when no token source; custom secret documented |
 | R7 | Connection to a removed port times out instead of refusing | Low | Accepted for now |
@@ -82,18 +82,18 @@ Research findings I checked against the code are marked **confirmed**.
 | R12 | Port cursor is in memory; after restart/failover a top-of-range freed port can be reused at once | Low | Accepted for POC |
 | R13 | Forwarder opens listeners for any status port, no range check | Low | Open |
 | R14 | Stale bind error lingers on readiness if next PrivateEndpoint list fails | Low | Accepted for POC |
-| R15 | Rewrite catches single-label apexes `ec2.internal.` / `compute.internal.` (EKS) and `google.internal.` (GCE search domain) → NXDOMAIN. Node names (`ip-x.ec2.internal`) unaffected | Low–Medium | **Mitigated by D8** (no `.internal` rewrite by default). Remains for opt-in users; measured in eks.md / k3s.md runbooks |
+| R15 | Rewrite catches single-label apexes `ec2.internal.` / `compute.internal.` (EKS) and `google.internal.` (GCE search domain) → NXDOMAIN. Node names (`ip-x.ec2.internal`) unaffected | Low–Medium | **Closed by D9** (no `.internal` rewrite) |
 | R17 | Stale rev-1 wording: `ForwarderPort` comment in `api/ngrok/v1/privateendpoint_types.go` ("shared http/https listener"); design.md says clusterIP/forwarderPort "tcp only" | Low | **Fixed, working tree** (type comment + regenerated CRD; design.md rewritten) |
-| R18 | Operator's own Ingress/Gateway translation creates `*.internal` AgentEndpoints (CLEP + internal AEP default). The poller mirrors those too, so in-cluster traffic to them hairpins out through private dial and back in, and they add noise/ports. Confirmed naming: Ingress/Gateway internal URLs are single-label (`pkg/managerdriver/utils.go:111`, dashes, `.internal`) so get mirrored if ≤54 chars; LoadBalancer Service URLs are `tcp://<uid>.<name>.<ns>.internal` (`internal/controller/service/controller.go:584`), multi-label, so become `UnsupportedHostname` CRs | Medium | **Mitigated by D8** (operator-generated endpoints are all `.internal`, not mirrored by default). Deferred for opt-in users; real fix is the Ingress/Gateway → `.ngrok.direct` move (Future). Do NOT filter user-authored AgentEndpoints |
+| R18 | Operator's own Ingress/Gateway translation creates `*.internal` AgentEndpoints (CLEP + internal AEP default). The poller mirrors those too, so in-cluster traffic to them hairpins out through private dial and back in, and they add noise/ports. Confirmed naming: Ingress/Gateway internal URLs are single-label (`pkg/managerdriver/utils.go:111`, dashes, `.internal`) so get mirrored if ≤54 chars; LoadBalancer Service URLs are `tcp://<uid>.<name>.<ns>.internal` (`internal/controller/service/controller.go:584`), multi-label, so become `UnsupportedHostname` CRs | Medium | **Closed by D9** (operator-generated endpoints are all `.internal`, never mirrored). Comes back with the Ingress/Gateway → `.ngrok.direct` move (Future). Do NOT filter user-authored AgentEndpoints |
 | R19 | Poller drift healing (R3 fix) was denied by RBAC: api-manager Role lacked `update` on `privateendpoints`; envtest runs as admin so tests missed it. Found live in kind demo | High (R3 fix inert) | **Fixed** (`a878d1c1`). Helm Role-verb regression test added (working tree); live recheck pending |
 | R16 | Cleanup on uninstall / disable. Per review (PR-3): default `installCRDs=true` puts the CRD in the same release, so `helm uninstall` deletes CRD + CRs and orphans only per-host Services; `installCRDs=false` or disabling the feature orphans both | Medium | Open (GAP-4). Live check: kind-e2e §5 F |
-| R20 | Feature on + CRD missing crashed the whole api-manager (Ingress/Gateway/bindings too) (PR-1) | Medium | **Fixed, working tree**: discovery check like Gateway; warn and disable feature |
+| R20 | Feature on + CRD missing crashed the whole api-manager (Ingress/Gateway/bindings too) (PR-1) | Low | **Won't fix (D10)**: guard removed. The CRD ships in the ngrok-crds chart with no toggle; a missing CRD is a broken install, same as every other ngrok CRD |
 | R21 | Forwarder half-close: 5s drain starts when *either* side ends, so slow replies after client half-close are cut (PR-2; sharper R8) | Medium | **Fixed, working tree**: client half-close starts no timer; drain only after upstream EOF. Bindings is worse (full close on first EOF). sdk-upstream contract updated. No idle timeout yet |
 | R22 | Forwarder on flat-network CNIs (EKS VPC CNI): ports reachable from VPC, no NetworkPolicy (PR-4) | Medium | Plausible; GAP-29, check on EKS |
 | R23 | Controller/forwarder trust any CR in the namespace; a hand-made CR can claim a host's port (PR-7) | Medium | Open (GAP-31) |
 | R24 | Forwarder: no graceful shutdown/preStop/PDB, 1 replica default, no scheduling knobs (PR-5) | Low–Med | Open (GAP-30) |
 
-| R25 | **Wrong destination via partial write.** Controller publishes the Service (targetPort P) *before* writing P to CR status (`controller.go:170` then `:249`), and allocation reserves only ports found in CR status (`controller.go:68-82,108-116`), not existing Service targetPorts. Status write fails or leader dies → new leader doesn't see P → another host gets P → Service A routes to B. No stale forwarder needed | **High, preview blocker** | Confirmed. **New vs bindings** (bindings writes port in BoundEndpoint spec at create, before any Service). **Fixed, working tree** (O1, [routing-safety.md](routing-safety.md)): allocation also treats other hosts' managed Services' targetPorts as used (one extra uncached Service list per reconcile). Tests FT-1a/b/c |
+| R25 | **Wrong destination via partial write.** Controller publishes the Service (targetPort P) *before* writing P to CR status (`privateendpoint_controller.go:170` then `:249`), and allocation reserves only ports found in CR status (`privateendpoint_controller.go:68-82,108-116`), not existing Service targetPorts. Status write fails or leader dies → new leader doesn't see P → another host gets P → Service A routes to B. No stale forwarder needed | **High, preview blocker** | Confirmed. **New vs bindings** (bindings writes port in BoundEndpoint spec at create, before any Service). **Fixed, working tree** (O1, [routing-safety.md](routing-safety.md)): allocation also treats other hosts' managed Services' targetPorts as used (one extra uncached Service list per reconcile). Tests FT-1a/b/c |
 | R26 | Forwarder ambiguous mapping: duplicate forwarderPort across CRs → last entry wins silently (`table.go:32`). Should fail closed | High (with R25) | Confirmed. Same class in bindings (keeps first). **Fixed, working tree** (O2): duplicated port resolves to nothing, connections closed without dial, logged once per change. Tests FT-2a/b/c |
 | R27 | Copy errors discarded (`privatedial_forward.go:71,76`): mid-stream upstream failure becomes orderly EOF to client, so truncated data looks complete. Should reset, not FIN | High (silent truncation) | **Fixed, working tree**: error aborts both sides (TCP RST), returned + logged. Bindings has it too (`forwarder_controller.go:331`). privatedial-side reset needs SDK (A11) |
 | R28 | Forwarder stays Ready while unable to serve: SDK `Done()/Err()` (terminal auth failure, e.g. revoked token) not observed; liveness always OK; informer staleness undetected | Medium | **Mostly fixed, working tree**: not Ready until first Connect; exits on terminal session end (restart re-reads token). Bad token *at startup* stays not-Ready (SDK A12). Informer staleness still open. Bindings: same blind spot, never stuck (fresh TLS per conn) |
@@ -118,7 +118,9 @@ R25–R30 come from a second independent review (4 subagents: control-plane conv
 |---|---|---|---|
 | D3 | *(Partly superseded by D8)* Support both TLDs out of the box. `.ngrok.direct` is primary. `.internal` is secondary: hold it (or mark unsupported) on any platform where it collides (e.g. GKE `metadata.internal`) | 2026-10-12 | Private endpoints are trending to `.ngrok.direct` for browsers, but `.internal`-bound endpoints already exist and are used outside browsers; unclear if they go away |
 | D4 | Operator does not edit cluster DNS. Docs first; automation later only to prove things out. kind script stays as a dev helper | 2026-10-12 | Matches research rec and prior direction; DNS is admin-owned |
-| D8 | `.ngrok.direct` only by default. `.internal` projection is opt-in (poller skips `.internal` hosts unless enabled; kind DNS rewrite follows). Supersedes the "both out of the box" half of D3 | 2026-10-12 | PM (Slack): `.ngrok.direct` is the prescribed pattern going forward; `.internal` stays supported but secondary. Also defuses R4, R15, R18 by default |
+| D8 | *(Superseded by D9)* `.ngrok.direct` only by default. `.internal` projection is opt-in (poller skips `.internal` hosts unless enabled; kind DNS rewrite follows). Supersedes the "both out of the box" half of D3 | 2026-10-12 | PM (Slack): `.ngrok.direct` is the prescribed pattern going forward; `.internal` stays supported but secondary. Also defuses R4, R15, R18 by default |
+| D9 | `.internal` is not supported in the initial pass: poller mirrors `.ngrok.direct` only; no Helm value, flag, or kind DNS rule for `.internal`. Supersedes D8's opt-in | 2026-10-21 | Alex review: smaller surface for the first pass. Closes R4, R15, R18 outright. Can come back as an opt-in later if users need it |
+| D10 | No missing-CRD guard in the api-manager (reverts the PR-1 fix) | 2026-10-21 | Alex review: CRDs ship in the ngrok-crds chart and can't be toggled off, so the discovery check was defending against a broken install |
 | D7 | Platform order: kind (local dev) → EKS (ngrok dogfoods) → k3s (ngrok devboxes). AKS, GKE, OpenShift, RKE2: basic "how this works" docs only, no tested support claim | 2026-10-12 | Platforms we run ourselves first |
 
 ## Future (post-POC, not started)
@@ -144,7 +146,7 @@ Fault tests required before calling the POC correctness-confirmed (none exist ye
 Kind scenarios for FT-3/5/6: `make pe-demo-faults FAULT=origin-restart|rolling-restart|uninstall|revoke` ([demo.md](demo.md)). Expected to FAIL on today's code for R29/R24/R16; bindings shares the R24 and R29 failures.
 
 - [x] FT-1 Leader death / status-write failure between Service publish and status publish (R25) — envtest `TestRoutingSafety` (fails on old code)
-- [ ] FT-2 Stale forwarder + endpoint delete + port reallocation (R2) — duplicate/retarget parts covered (`TestSyncerAmbiguousPort`, `TestSyncerRetargetsOpenListener`); lagging-replica window itself accepted (better than bindings, routing-safety.md)
+- [ ] FT-2 Stale forwarder + endpoint delete + port reallocation (R2) — duplicate/retarget parts covered (`TestForwarderReconcilerAmbiguousPort`, `TestForwarderReconcilerRetargetsOpenListener`); lagging-replica window itself accepted (better than bindings, routing-safety.md)
 - [x] FT-3 Origin restart across a poll — run live 2026-10-13, FAILS as expected (R29), with a client that caches DNS (R29)
 - [x] FT-4 Half-close then delayed response; upstream reset mid-response (R21, R27) — loopback TCP (`TestForwardConnOverTCP`); not yet over real privatedial
 - [ ] FT-5 Credential revocation / reconnect; rolling restart with held connections (R28, R24) — rolling restart run live 2026-10-13, FAILS as expected (held conn cut, 1/10 new conns failed); revoke not run (manual)
@@ -165,7 +167,7 @@ Full list with verification steps: [requirements.md §4](requirements.md). T1–
 1. ✅ Confirmed correctness bugs fixed with tests (R1, R2, R3, R5, R6, R10). Committed.
 2. ✅ Strategy doc for operator devs + product ([strategy.md](strategy.md)). Committed.
 3. ✅ Canned kind demo. First run 2026-10-12: 10/10 checks. Found R19 (fixed, `a878d1c1`).
-4. 🔄 D8: `.ngrok.direct` default, `.internal` opt-in (poller, flag, Helm, kind DNS, demo, runbooks). Working tree, unit + Helm tests pass; needs Alex review + live run.
+4. ✅ D8, then D9 (2026-10-21): `.ngrok.direct` only, `.internal` removed.
 5. ✅ Review hardening: PR-1 fixed; tests for GAP-2 (Helm Role verbs, exact match), GAP-5 (PortConflict, ServiceNotReady), GAP-6 (readyz, startup bind failure). Working tree. Note: kubebuilder RBAC markers are docs only (Helm Roles hand-written), so the Helm test is the real guard.
 6. ✅ Docs: requirements.md, design.md rewrite, strategy/notes/runbooks updated for D8 and review. Working tree.
 7. ✅ Post-POC plans: [sdk-upstream.md](sdk-upstream.md), [migration.md](migration.md). Working tree.
@@ -176,6 +178,7 @@ Later (not POC): EKS/k3s runs, user-facing docs, DNS server spike (GAP-19), iden
 
 ## Changelog
 
+- 2026-10-21: Alex review round (working tree): D9 drop `.internal` (`includeInternal` value/flag/env, `PE_INCLUDE_INTERNAL`, naming TLD table gone); D10 drop missing-CRD guard; demo checks moved to a parallel chainsaw suite (`tests/chainsaw-private-endpoints/`, `checks.sh` deleted, `demo.sh test` gone); renames to match bindings: subcommand `private-endpoint-forwarder-manager`, `privateendpoint_controller.go`/`privateendpoint_poller.go` (`PrivateEndpointReconciler`/`PrivateEndpointPoller`), `Syncer` → `ForwarderReconciler` in `internal/controller/privateendpoints/forwarder_controller.go`.
 - 2026-10-13: Rebased onto main after the Helm values refactor (#899) and regrouped history into 9 reviewable commits. Chart: `ngrok.features.privateEndpoints.{enabled,includeInternal}` (env `NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__*`, defined in `internal/flags`), forwarder pod settings under `components.privateEndpointForwarder` (inherits `components.common`, so GAP-30 scheduling knobs come free), token `ngrok.credentials.privateEndpointForwarder.accessToken` (secret key unchanged: `PRIVATE_ENDPOINTS_ACCESS_TOKEN`). plan.md/research/findings.md keep the old names. Re-run live on kind after the rebase: demo 11/11 pass, settings reach pods as env vars.
 - 2026-10-13: Answers (Alex): `.ngrok.direct` private hostnames are NOT globally unique or reserved — private, so many accounts can each have `foo.ngrok.direct` (no cross-account collision/leak; migration.md Q6 closed). Multi-label `.ngrok.direct` not supported today; Eric wants agent `baseDomain` subdomains later (D6b). Abort (A11) and startup bad-token detection (A12): backend/SDK-owned, Alex can inquire; A12 low value (pod is not-Ready either way).
 - 2026-10-13: Live kind run (findings.md): demo 11/11 incl. tls/tcp on `.ngrok.direct`; R19 heal, PR-1 missing CRD confirmed live; faults: origin-restart, rolling-restart, disable/re-enable fail as expected (R29, R24, R16). New: CoreDNS negative cache adds ~30s after an origin outage.

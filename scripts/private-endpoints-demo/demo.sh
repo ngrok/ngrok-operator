@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Canned kind demo for private endpoints. See specs/private-endpoints/demo.md.
-# Usage: demo.sh preflight|apply|wait|status|test|shell|down
+# Usage: demo.sh preflight|apply|wait|status|shell|down
 #
 # Env:
 #   NGROK_ACCESS_TOKEN  checked against the ngrok API by preflight
@@ -8,15 +8,12 @@
 #   PE_DEMO_NS          namespace for origins + client pod (default pe-demo)
 #   KUBE_NAMESPACE      operator namespace (default ngrok-operator)
 #   PE_DEMO_TIMEOUT     seconds to wait for Ready (default 180)
-#   PE_INCLUDE_INTERNAL true if the operator and DNS were opted in to .internal;
-#                       flips the .internal check from "not mirrored" to "works"
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEMO_NS="${PE_DEMO_NS:-pe-demo}"
 OP_NS="${KUBE_NAMESPACE:-ngrok-operator}"
 TIMEOUT="${PE_DEMO_TIMEOUT:-180}"
-INCLUDE_INTERNAL="${PE_INCLUDE_INTERNAL:-false}"
 CLIENT="pe-demo-client"
 
 # Runs before a cluster exists, so it must not touch kubectl. A revoked or
@@ -51,7 +48,7 @@ fi
 
 # Prefix must be a DNS label starting with a letter and stay short enough for
 # the .ngrok.direct label limit. Reuse the one the namespace was created with so
-# test/down work from a different shell.
+# status/down work from a different shell.
 prefix() {
   if [[ -n "${PE_DEMO_PREFIX:-}" ]]; then
     echo "$PE_DEMO_PREFIX"
@@ -71,14 +68,12 @@ prefix() {
 P="$(prefix)"
 [[ "$P" =~ ^[a-z][a-z0-9-]{0,30}$ ]] || { echo "invalid PE_DEMO_PREFIX '$P' (lowercase DNS label, starts with a letter, <=31 chars)" >&2; exit 1; }
 
-# Endpoints the poller must mirror. The demo's .internal endpoint is only
-# expected when PE_INCLUDE_INTERNAL=true.
+# Endpoints the poller must mirror.
 urls() {
   echo "http://$P-web.ngrok.direct"
   echo "https://$P-web.ngrok.direct"
   echo "tls://$P-tls.ngrok.direct:443"
   echo "tcp://$P-redis.ngrok.direct:6379"
-  [[ "$INCLUDE_INTERNAL" != true ]] || echo "http://$P-web.internal"
 }
 
 render() { sed -e "s/__PREFIX__/$P/g" -e "s/__NS__/$DEMO_NS/g" "$DIR/demo.yaml"; }
@@ -97,8 +92,8 @@ pe_table() {
 cmd_apply() {
   echo "==> applying demo origins + AgentEndpoints (prefix $P, namespace $DEMO_NS)"
   render | kubectl apply -f -
-  # Renamed when the demo moved to .ngrok.direct (D8); drop leftovers from older runs.
-  kubectl -n "$DEMO_NS" delete agentendpoint redis-internal tls-internal --ignore-not-found
+  # Dropped with .internal support; remove leftovers from older runs.
+  kubectl -n "$DEMO_NS" delete agentendpoint redis-internal tls-internal web-internal --ignore-not-found
 }
 
 # AgentEndpoint names whose Ready condition is not True.
@@ -166,9 +161,7 @@ cmd_wait() {
   while :; do
     aeps="$(aeps_not_ready)"
     pes="$(pes_not_ready)"
-    # Also wait for the .internal check to settle: after an upgrade the poller
-    # removes (or adds) the .internal resources on its next poll.
-    [[ -z "$aeps" && -z "$pes" ]] && internal_mirror_check >/dev/null && break
+    [[ -z "$aeps" && -z "$pes" ]] && break
     if ((SECONDS > deadline)); then
       echo "timed out after ${TIMEOUT}s" >&2
       [[ -z "$aeps" ]] || echo "  AgentEndpoints not Ready:$aeps" >&2
@@ -183,7 +176,7 @@ cmd_wait() {
     sleep 5
   done
   ensure_client
-  echo "==> ready. Try: make pe-demo-test   or   make pe-demo-shell"
+  echo "==> ready. Try: make pe-demo-shell   or   make pe-demo-test"
 }
 
 cmd_status() {
@@ -201,35 +194,6 @@ cmd_status() {
   kubectl -n "$DEMO_NS" get agentendpoints,pods 2>/dev/null || echo "(no $DEMO_NS namespace; run make pe-demo-up)"
 }
 
-# Host-side half of the .internal check: by default the poller must not create
-# a PrivateEndpoint or per-host Service for it.
-internal_mirror_check() {
-  local u="http://$P-web.internal" svc="$P-web-internal" pe has
-  pe="$(kubectl -n "$OP_NS" get privateendpoints -o jsonpath='{range .items[*]}{.spec.url}{"\n"}{end}' | grep -Fx -e "$u" -e "$u:80" || true)"
-  has="$(kubectl -n "$OP_NS" get svc "$svc" -o name --ignore-not-found)"
-  if [[ "$INCLUDE_INTERNAL" == true ]]; then
-    if [[ -n "$pe" && -n "$has" ]]; then echo "PASS  $u mirrored (PrivateEndpoint + Service $svc)"; return; fi
-    echo "FAIL  $u should be mirrored (PE_INCLUDE_INTERNAL=true): PrivateEndpoint='${pe}' Service='${has}'"
-  else
-    if [[ -z "$pe" && -z "$has" ]]; then echo "PASS  $u not mirrored (no PrivateEndpoint, no Service)"; return; fi
-    echo "FAIL  $u should not be mirrored by default: PrivateEndpoint='${pe}' Service='${has}'"
-  fi
-  return 1
-}
-
-cmd_test() {
-  ensure_client
-  local rc=0
-  echo "==> checking PrivateEndpoints from the host (prefix $P)"
-  internal_mirror_check || rc=1
-  echo "==> running checks from $DEMO_NS/$CLIENT"
-  kubectl -n "$DEMO_NS" exec -i "$CLIENT" -- bash -s -- "$P" "$OP_NS" "$INCLUDE_INTERNAL" <"$DIR/checks.sh" || rc=1
-  if ((rc != 0)); then
-    echo "==> some checks FAILED (see above)"
-    exit 1
-  fi
-}
-
 cmd_shell() {
   ensure_client
   cat <<EOF
@@ -239,7 +203,6 @@ Demo endpoints (prefix $P):
   echo | openssl s_client -connect $P-tls.ngrok.direct:443 -servername $P-tls.ngrok.direct 2>/dev/null | grep subject=
   printf 'PING\\r\\n' | nc -w 3 $P-redis.ngrok.direct 6379
   dig +noall +answer $P-web.ngrok.direct
-  dig +short $P-web.internal                 # empty: .internal is not mirrored by default
 EOF
   kubectl -n "$DEMO_NS" exec -it "$CLIENT" -- bash
 }
@@ -254,8 +217,7 @@ case "${1:-}" in
   apply) cmd_apply ;;
   wait) cmd_wait ;;
   status) cmd_status ;;
-  test) cmd_test ;;
   shell) cmd_shell ;;
   down) cmd_down ;;
-  *) echo "usage: $0 preflight|apply|wait|status|test|shell|down" >&2; exit 2 ;;
+  *) echo "usage: $0 preflight|apply|wait|status|shell|down" >&2; exit 2 ;;
 esac

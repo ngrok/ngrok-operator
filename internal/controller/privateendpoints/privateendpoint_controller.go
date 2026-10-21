@@ -32,10 +32,10 @@ import (
 // +kubebuilder:rbac:groups=ngrok.com,resources=privateendpoints/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 
-// Reconciler is keyed by hostname (req.Name is a host key). Each hostname
-// gets one Service, named so the CoreDNS rewrite for foo.internal lands on
+// PrivateEndpointReconciler is keyed by hostname (req.Name is a host key). Each hostname
+// gets one Service, named so the CoreDNS rewrite for foo.ngrok.direct lands on
 // it, with one port per endpoint on that hostname.
-type Reconciler struct {
+type PrivateEndpointReconciler struct {
 	client.Client
 	// APIReader reads PrivateEndpoints uncached for port allocation.
 	APIReader         client.Reader
@@ -54,7 +54,7 @@ const retryAfter = 30 * time.Second
 
 var errServiceConflict = errors.New("service not managed by the private endpoint controller")
 
-func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *PrivateEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	hostKey := req.Name
 	// Uncached: the informer may not have seen the forwarder ports the
 	// previous reconcile just wrote, and reusing one cross-routes traffic.
@@ -96,7 +96,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return r.reconcileService(ctx, hostKey, svcName, mine, others)
 }
 
-func (r *Reconciler) reconcileService(ctx context.Context, hostKey, svcName string, crs []*ngrokv1.PrivateEndpoint, others map[int32]string) (ctrl.Result, error) {
+func (r *PrivateEndpointReconciler) reconcileService(ctx context.Context, hostKey, svcName string, crs []*ngrokv1.PrivateEndpoint, others map[int32]string) (ctrl.Result, error) {
 	keepPort := func(cr *ngrokv1.PrivateEndpoint) bool {
 		fp := cr.Status.ForwarderPort
 		if fp < r.PortMin || fp > r.PortMax {
@@ -226,7 +226,7 @@ func (r *Reconciler) reconcileService(ctx context.Context, hostKey, svcName stri
 // lastPort lives in memory and is seeded from the highest port in use, so
 // after a restart or leader change a port freed above every remaining one
 // can still be handed out again immediately.
-func (r *Reconciler) allocate(used map[int32]bool) (int32, bool) {
+func (r *PrivateEndpointReconciler) allocate(used map[int32]bool) (int32, bool) {
 	if r.lastPort == 0 {
 		r.lastPort = r.PortMin - 1
 		for p := range used {
@@ -248,7 +248,7 @@ func (r *Reconciler) allocate(used map[int32]bool) (int32, bool) {
 
 // setStatus writes ip/port and the Ready condition. An empty ip means not
 // ready, with notReadyReason and msg explaining why.
-func (r *Reconciler) setStatus(ctx context.Context, cr *ngrokv1.PrivateEndpoint, ip string, port int32, notReadyReason, msg string) error {
+func (r *PrivateEndpointReconciler) setStatus(ctx context.Context, cr *ngrokv1.PrivateEndpoint, ip string, port int32, notReadyReason, msg string) error {
 	orig := cr.Status.DeepCopy()
 	cr.Status.ClusterIP = ip
 	cr.Status.ForwarderPort = port
@@ -267,7 +267,7 @@ func (r *Reconciler) setStatus(ctx context.Context, cr *ngrokv1.PrivateEndpoint,
 	return nil
 }
 
-func (r *Reconciler) deleteHostServices(ctx context.Context, hostKey string) error {
+func (r *PrivateEndpointReconciler) deleteHostServices(ctx context.Context, hostKey string) error {
 	var svcs corev1.ServiceList
 	if err := r.List(ctx, &svcs, client.InNamespace(r.Namespace), client.MatchingLabels{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: hostKey}); err != nil {
 		return fmt.Errorf("listing Services for host %s: %w", hostKey, err)
@@ -281,11 +281,11 @@ func (r *Reconciler) deleteHostServices(ctx context.Context, hostKey string) err
 	return errors.Join(errs...)
 }
 
-func (r *Reconciler) hostRequest(key string) reconcile.Request {
+func (r *PrivateEndpointReconciler) hostRequest(key string) reconcile.Request {
 	return reconcile.Request{NamespacedName: types.NamespacedName{Namespace: r.Namespace, Name: key}}
 }
 
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *PrivateEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	byHost := handler.EnqueueRequestsFromMapFunc(func(_ context.Context, o client.Object) []reconcile.Request {
 		if o.GetNamespace() != r.Namespace || o.GetLabels()[pe.HostLabel] == "" {
 			return nil

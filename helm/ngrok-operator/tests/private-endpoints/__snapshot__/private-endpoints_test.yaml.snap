@@ -47,7 +47,7 @@ forwarder deployment uses the private endpoints token and cluster DNS:
                   weight: 1
           containers:
             - args:
-                - private-endpoint-forwarder
+                - private-endpoint-forwarder-manager
                 - --release-name=RELEASE-NAME
                 - --health-probe-bind-address=:8081
                 - --metrics-bind-address=:8080
@@ -78,8 +78,6 @@ forwarder deployment uses the private endpoints token and cluster DNS:
                   value: "false"
                 - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
                   value: "true"
-                - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__INCLUDE_INTERNAL
-                  value: "false"
               image: docker.io/ngrok/ngrok-operator:0.22.0
               imagePullPolicy: IfNotPresent
               livenessProbe:

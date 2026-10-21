@@ -20,17 +20,17 @@ Skip reordering the writes, tombstones/quarantine, and replica ack. We accept (b
 
 ## Evidence
 
-**PE controller** (`internal/controller/privateendpoints/controller.go`)
+**PE controller** (`internal/controller/privateendpoints/privateendpoint_controller.go`)
 - The allocator's used set comes only from CR `status.forwarderPort`: `:68-83` builds `others` from status, and `:108-116` builds `used`. Existing Service targetPorts are never read.
 - Write order: the Service goes out first (`CreateOrUpdate` at `:170`). Status is written per CR afterwards (`:195-198`, then `Status().Update` at `:249`).
-- The cursor `lastPort` lives in memory. After a restart it is seeded from the highest port **in status** (`:214-222`). A port P that was just allocated is usually the highest one, and if it reached only the Service it isn't in status. So after a crash between `:170` and `:249`, the new leader's first allocation is **exactly P**. If that allocation is for another host B, then Service A → P → B. Before B's status lands, nothing listens on P, so A fails closed (`syncer.go:56-58` skips CRs without ClusterIP/port).
+- The cursor `lastPort` lives in memory. After a restart it is seeded from the highest port **in status** (`:214-222`). A port P that was just allocated is usually the highest one, and if it reached only the Service it isn't in status. So after a crash between `:170` and `:249`, the new leader's first allocation is **exactly P**. If that allocation is for another host B, then Service A → P → B. Before B's status lands, nothing listens on P, so A fails closed (`privateendpoints/forwarder_controller.go:56-58` skips CRs without ClusterIP/port).
 - Without a crash, a failed status write (for example a conflict with the poller's drift healing) is safe today. The in-memory cursor has already moved past P, and the requeue rewrites Service A to a fresh port.
 - Leader election: on when `--election-id` is set (`cmd/api-manager.go:479-480`). The controller and poller run on the leader only, with `MaxConcurrentReconciles: 1` (`:284`). Range is 20000-20999 (`cmd/api-manager.go:877-878`).
 - Related variant: CR A is deleted, and the leader dies before `deleteHostServices` runs. Service A then still targets P while P is absent from status, so the same reuse misroutes clients of the deleted hostname.
 
 **PE forwarder** (`internal/privateendpoints/forwarder/`)
-- `table.go:28-33`: duplicate `ForwarderPort` → the last entry wins. The order comes from a cached List, so in practice it's arbitrary. The controller instead keeps the lowest CR name (`controller.go:79`), so during the window the forwarder can disagree with the Service.
-- `syncer.go:102-117`: the target is resolved **at accept time**. There's no finalizer: the table is rebuilt from the full list. A replica is wrong only until its informer catches up.
+- `table.go:28-33`: duplicate `ForwarderPort` → the last entry wins. The order comes from a cached List, so in practice it's arbitrary. The controller instead keeps the lowest CR name (`privateendpoint_controller.go:79`), so during the window the forwarder can disagree with the Service.
+- `privateendpoints/forwarder_controller.go:102-117`: the target is resolved **at accept time**. There's no finalizer: the table is rebuilt from the full list. A replica is wrong only until its informer catches up.
 
 **Bindings**
 - Port storage: `spec.port`, chosen with `SetAny` and set in the same `Create` as the object (`boundendpoint_poller.go:389-418`). Services are created only later, by the BoundEndpoint controller (`boundendpoint_controller.go:202-227`), with the upstream targetPort = `spec.Port` (`:467`). So bindings can't produce (a).
@@ -44,7 +44,7 @@ Skip reordering the writes, tombstones/quarantine, and replica ack. We accept (b
 | | Change | Size | Closes | Leaves |
 |---|---|---|---|---|
 | **O1** | Before allocating, List managed Services in the namespace through `APIReader`, and add every `TargetPort` to `used`. A port stays reserved as long as any Service routes to it, so the reservation survives withdrawal | ~15 lines | (a), the deleted-CR-with-surviving-Service variant, and the unsafe part of (d) | A brief reuse of A's old P on reallocation after an existing collision (A's Service moves away within the same reconcile) |
-| **O2** | `Table.Replace` drops any port claimed by more than one entry and returns those ports. The Syncer logs them. The listener stays open and `handler` closes the connection (`syncer.go:106-108`) | ~10 lines | (c) misroute: an ambiguous port fails instead of guessing | Connections fail until the controller reallocates the loser, which takes one reconcile |
+| **O2** | `Table.Replace` drops any port claimed by more than one entry and returns those ports. The ForwarderReconciler logs them. The listener stays open and `handler` closes the connection (`privateendpoints/forwarder_controller.go:106-108`) | ~10 lines | (c) misroute: an ambiguous port fails instead of guessing | Connections fail until the controller reallocates the loser, which takes one reconcile |
 | O3 | Write `status.forwarderPort` (not ready, empty ClusterIP, so the forwarder ignores it) before the Service, then mark it Ready afterwards | ~15 lines + one more status write per allocation | (a) only, which O1 already covers. It keeps A's chosen port stable across a crash | Not the surviving-Service variant. Redundant with O1 |
 | O4 | Quarantine (tombstones / delay before reuse) | ~40+ lines, persisted state | (b) and (d) beyond the cursor | Adds state for a case that's better than bindings |
 | O5 | Replica ack / epoch before reuse | Large (forwarder → controller feedback) | (b) fully | Over-engineering for POC/preview |
@@ -60,10 +60,10 @@ We still accept, and should write down:
 
 ## Tests
 
-Use envtest in `controller_test.go`, same shape as "port allocation ignores cache lag" (`:188`), plus unit tests in `forwarder/`.
+Use envtest in `privateendpoint_controller_test.go`, same shape as "port allocation ignores cache lag" (`:188`), plus unit tests in `forwarder/`.
 - **FT-1a** (R25, crash between writes): wrap `r.Client` with `interceptor.Funcs{SubResourceUpdate}` so that A's status update fails. Reconcile A and assert Service A targets P while A's status is still 0. Then build a **new** Reconciler (`lastPort` = 0, which simulates failover), create B, and reconcile B. Assert B's port ≠ P. Reconcile A, and assert A's Service targetPort equals A's status port and that no two managed Services share a targetPort.
 - **FT-1b** (deleted CR, surviving Service): reconcile A to P, delete CR A without reconciling, then use a new Reconciler for B. Assert B's port ≠ P while Service A exists, and that B can get P once A's Service is deleted.
 - **FT-1c** (status conflict without a crash): same as FT-1a but reuse the same Reconciler. This guards the existing safe path.
 - **FT-2a** (R26, `table_test.go`): two entries share a ForwarderPort. Assert `PortTarget` returns `!ok` and the duplicate port is reported. The non-duplicate entries still resolve.
-- **FT-2b** (`syncer_test.go`): duplicate in the list. A connection to that port is accepted and then closed without a dial (assert the fake `Dial` isn't called).
-- **FT-2c** (R2 bound, documents the acceptance): Syncer with a stale table (P→A). Replace it with (P→B) and assert the next accepted connection dials B without reopening the listener. Together with the existing "freed port is not reused while higher ports are free" (`controller_test.go:266`), this pins down the bound we're accepting.
+- **FT-2b** (`privateendpoints/forwarder_controller_test.go`): duplicate in the list. A connection to that port is accepted and then closed without a dial (assert the fake `Dial` isn't called).
+- **FT-2c** (R2 bound, documents the acceptance): ForwarderReconciler with a stale table (P→A). Replace it with (P→B) and assert the next accepted connection dials B without reopening the listener. Together with the existing "freed port is not reused while higher ports are free" (`privateendpoint_controller_test.go:266`), this pins down the bound we're accepting.

@@ -16,9 +16,9 @@ import (
 func TestForwardConnJoinsBothWays(t *testing.T) {
 	client, server := net.Pipe()
 	defer client.Close()
-	go func() { _ = ForwardConn(context.Background(), echoDial, server, "foo.internal:80", time.Second) }()
+	go func() { _ = ForwardConn(context.Background(), echoDial, server, "foo.ngrok.direct:80", time.Second) }()
 
-	assert.Equal(t, "[foo.internal:80]", readN(t, client, len("[foo.internal:80]")))
+	assert.Equal(t, "[foo.ngrok.direct:80]", readN(t, client, len("[foo.ngrok.direct:80]")))
 	_, err := io.WriteString(client, "ping")
 	require.NoError(t, err)
 	assert.Equal(t, "ping", readN(t, client, 4))
@@ -29,7 +29,7 @@ func TestForwardConnDialFailureClosesClient(t *testing.T) {
 	defer client.Close()
 	failDial := func(context.Context, string) (net.Conn, error) { return nil, errors.New("endpoint offline") }
 
-	err := ForwardConn(context.Background(), failDial, server, "gone.internal:80", time.Second)
+	err := ForwardConn(context.Background(), failDial, server, "gone.ngrok.direct:80", time.Second)
 	require.ErrorContains(t, err, "endpoint offline")
 	_ = client.SetReadDeadline(time.Now().Add(time.Second))
 	_, err = client.Read(make([]byte, 1))
@@ -60,7 +60,7 @@ func TestForwardConnDrainsAfterUpstreamEOF(t *testing.T) {
 	go func() {
 		server, err := clientL.Accept()
 		if err == nil {
-			_ = ForwardConn(context.Background(), dial, server, "done.internal:80", 200*time.Millisecond)
+			_ = ForwardConn(context.Background(), dial, server, "done.ngrok.direct:80", 200*time.Millisecond)
 		}
 	}()
 	client, err := net.Dial("tcp", clientL.Addr().String())
@@ -189,7 +189,7 @@ func TestForwardConnOverTCP(t *testing.T) {
 					forwardErr <- err
 					return
 				}
-				forwardErr <- ForwardConn(context.Background(), dial, server, "x.internal:80", drain)
+				forwardErr <- ForwardConn(context.Background(), dial, server, "x.ngrok.direct:80", drain)
 			}()
 
 			c, err := net.Dial("tcp", clientL.Addr().String())

@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	privateendpointscontroller "github.com/ngrok/ngrok-operator/internal/controller/privateendpoints"
 	"github.com/ngrok/ngrok-operator/internal/flags"
 	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -44,7 +45,7 @@ func init() {
 	rootCmd.AddCommand(privateEndpointForwarderCmd())
 }
 
-type privateEndpointForwarderOpts struct {
+type privateEndpointForwarderManagerOpts struct {
 	flags.ManagerOptions
 
 	log               *flags.LogOptions
@@ -52,21 +53,21 @@ type privateEndpointForwarderOpts struct {
 }
 
 func privateEndpointForwarderCmd() *cobra.Command {
-	var opts privateEndpointForwarderOpts
+	var opts privateEndpointForwarderManagerOpts
 	c := &cobra.Command{
-		Use: "private-endpoint-forwarder",
+		Use: "private-endpoint-forwarder-manager",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runPrivateEndpointForwarder(opts)
 		},
 	}
-	flags.Manager(c.Flags(), &opts.ManagerOptions, "private-endpoint-forwarder")
+	flags.Manager(c.Flags(), &opts.ManagerOptions, "private-endpoint-forwarder-manager")
 	c.Flags().StringVar(&opts.privateDialServer, "private-dial-server", "quic.connect-endpoint.ngrok.com:443",
 		"Private dial gateway (host:port). QUIC is forced: privatedial's HTTP/2 transport panics on Go 1.27, so UDP/443 egress is required.")
 	opts.log = flags.Log(c.Flags())
 	return c
 }
 
-func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
+func runPrivateEndpointForwarder(opts privateEndpointForwarderManagerOpts) error {
 	logger, err := opts.log.Logger()
 	if err != nil {
 		return err
@@ -103,7 +104,7 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
 		AuthToken:      token,
 	})
 	table := forwarder.NewTable()
-	syncer := &forwarder.Syncer{
+	forwarderReconciler := &privateendpointscontroller.ForwarderReconciler{
 		Client:       mgr.GetClient(),
 		Namespace:    namespace,
 		Table:        table,
@@ -114,9 +115,9 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
 			return dialer.DialContext(ctx, "tcp", address)
 		},
 	}
-	defer syncer.Close()
-	if err := syncer.SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("setting up PrivateEndpoint syncer: %w", err)
+	defer forwarderReconciler.Close()
+	if err := forwarderReconciler.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("setting up PrivateEndpoint forwarder controller: %w", err)
 	}
 
 	session := &dialSession{dialer: dialer, log: log.WithName("private-dial"), maxBackoff: 30 * time.Second}
@@ -124,7 +125,7 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
 		return fmt.Errorf("setting up private dial session: %w", err)
 	}
 
-	if err := mgr.AddReadyzCheck("routing-table", forwarderReadyz(table, syncer)); err != nil {
+	if err := mgr.AddReadyzCheck("routing-table", forwarderReadyz(table, forwarderReconciler)); err != nil {
 		return fmt.Errorf("error setting up readyz check: %w", err)
 	}
 	if err := mgr.AddReadyzCheck("private-dial", session.readyz); err != nil {
@@ -140,12 +141,12 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderOpts) error {
 
 // forwarderReadyz is ready once the routing table has synced and every
 // wanted listener is bound.
-func forwarderReadyz(table *forwarder.Table, syncer *forwarder.Syncer) healthz.Checker {
+func forwarderReadyz(table *forwarder.Table, r *privateendpointscontroller.ForwarderReconciler) healthz.Checker {
 	return func(*http.Request) error {
 		if !table.Synced() {
 			return errors.New("routing table not synced")
 		}
-		return syncer.BindErr()
+		return r.BindErr()
 	}
 }
 

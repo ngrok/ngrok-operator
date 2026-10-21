@@ -37,7 +37,7 @@ spec:
       openAPIV3Schema:
         description: |-
           PrivateEndpoint is a read-only mirror of an ngrok private endpoint
-          (*.internal or *.ngrok.direct) that pods in this cluster can reach by URL.
+          (*.ngrok.direct) that pods in this cluster can reach by URL.
         properties:
           apiVersion:
             description: |-
@@ -78,7 +78,7 @@ spec:
                 - tcp
                 type: string
               url:
-                description: URL of the private endpoint, e.g. tcp://bar.internal:6379.
+                description: URL of the private endpoint, e.g. tcp://bar.ngrok.direct:6379.
                 type: string
             required:
             - hostname

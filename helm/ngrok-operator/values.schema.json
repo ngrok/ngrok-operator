@@ -275,12 +275,7 @@
                             "properties": {
                                 "enabled": {
                                     "type": "boolean",
-                                    "description": "(POC) Make ngrok private endpoints (*.ngrok.direct by default) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, UDP/443 egress, and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret",
-                                    "default": false
-                                },
-                                "includeInternal": {
-                                    "type": "boolean",
-                                    "description": "Also mirror *.internal private endpoints (needs a foo.internal CoreDNS rewrite too). Off by default because *.internal names can collide with cloud provider DNS (e.g. GKE metadata.internal) and include the operator's own Ingress/Gateway endpoints",
+                                    "description": "(POC) Make ngrok private endpoints (*.ngrok.direct only; *.internal is not supported) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, UDP/443 egress, and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret",
                                     "default": false
                                 }
                             }

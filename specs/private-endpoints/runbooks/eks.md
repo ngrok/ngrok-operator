@@ -2,8 +2,7 @@
 
 Tracker T7 / decision D7. Goal: prove the rewrite works on EKS when applied through the
 CoreDNS add-on's configuration values (`corefile`), survives add-on updates, and rolls back
-cleanly. The main path uses defaults (D8: `.ngrok.direct` only). §5b opts in to `.internal`
-and measures what it captures on EKS (R15). Test cluster only. ~1–1.5 h.
+cleanly. Only `.ngrok.direct` is mirrored (D9). Test cluster only. ~1–1.5 h.
 
 `VERIFY:` marks claims taken from docs/research that this run should confirm or refute.
 Paste results into a new findings.md section `## EKS — <date>` using the step IDs.
@@ -71,8 +70,8 @@ kubectl get svc -A -o jsonpath='{range .items[?(@.spec.externalName)]}{.metadata
 ```
 
 Expected: no `internal.` zone/rule with single-label records; no ExternalName pointing at a
-single-label `.internal` name. Any hit = don't opt in to `.internal` on this cluster (D8);
-record it. The default `.ngrok.direct` rule only matters if a `ngrok.direct.` zone or rule shows
+single-label `.internal` name. Record any hit (there is no `.internal` rule, D9, so it's
+informational). The default `.ngrok.direct` rule only matters if a `ngrok.direct.` zone or rule shows
 up.
 
 ## 2. Deploy operator and endpoints
@@ -143,7 +142,7 @@ jq --rawfile corefile Corefile.ngrok '. + {corefile: $corefile}' coredns-values.
 jq 'del(.corefile)' coredns-values.before.json; jq 'del(.corefile)' coredns-values.ngrok.json   # other settings unchanged
 ```
 
-This is the default (D8): `.ngrok.direct` only. §5b builds the `.internal` variant.
+`.ngrok.direct` only (D9).
 
 ## 4. Apply via the add-on
 
@@ -171,7 +170,7 @@ CoreDNS build includes `rewrite`; it's a default plugin).
 nx "curl -s -o /dev/null -w '%{http_code}\n' http://pe-web-$U.ngrok.direct"
 nx "curl -s -o /dev/null -w '%{http_code} ssl_verify=%{ssl_verify_result}\n' https://pe-web-$U.ngrok.direct"
 nx "printf 'PING\r\n' | nc -w 3 pe-redis-$U.ngrok.direct 6379"
-# E5b: .internal is not mirrored or resolved by default
+# E5b: .internal is not mirrored or resolved (D9)
 kubectl -n $NS get privateendpoints -o jsonpath='{range .items[*]}{.spec.url}{"\n"}{end}' | grep -c "pe-web-$U.internal"
 nx "dig pe-web-$U.internal | grep status"
 # E6: every CoreDNS replica has it
@@ -203,59 +202,6 @@ Firewall, Squid, etc.) for UDP 443 to `quic.connect-endpoint.ngrok.com`. Default
 SGs allow all egress (VERIFY for this cluster). Record which path the cluster uses (NAT GW /
 firewall) and whether anything had to be opened. Also note whether the quic-go receive-buffer
 warning appears.
-
-## 5b. Opt-in `.internal` and apex capture (D8, R15)
-
-Skip if §1 found collisions; record that instead.
-
-```sh
-( cd /workspaces/ngrok-operator
-  helm upgrade ngrok-operator helm/ngrok-operator -n $NS --reuse-values --set ngrok.features.privateEndpoints.includeInternal=true )
-cat > ngrok-internal-rule.txt <<EOF
-    rewrite stop name regex ^([a-z][a-z0-9-]*)\.internal\.$ {1}-internal.$NSD. answer auto
-EOF
-awk 'NR==FNR{r=r $0 "\n"; next} /# ngrok-private-endpoints end/ {printf "%s", r} {print}' \
-  ngrok-internal-rule.txt Corefile.ngrok > Corefile.ngrok-internal
-diff Corefile.ngrok Corefile.ngrok-internal        # exactly 1 added line
-jq --rawfile corefile Corefile.ngrok-internal '. + {corefile: $corefile}' coredns-values.before.json > coredns-values.ngrok-internal.json
-aws eks update-addon --cluster-name $CLUSTER --addon-name coredns --addon-version $V \
-  --configuration-values file://coredns-values.ngrok-internal.json --resolve-conflicts PRESERVE | tee update1b.json
-aws eks wait addon-active --cluster-name $CLUSTER --addon-name coredns
-```
-
-Start `tcp://pe-redis-$U.internal:6379` too (kind-e2e §4b). After CoreDNS reloads (see §4):
-
-```sh
-# E11: .internal works (kind-e2e I1, I2, I4–I6)
-sleep 15; pes | grep -E "NAME|\.internal"
-nx "curl -s -o /dev/null -w '%{http_code}\n' http://pe-web-$U.internal"
-nx "printf 'PING\r\n' | nc -w 3 pe-redis-$U.internal 6379"
-# E12 (R15): what the .internal rule captures on EKS (compare to §1 baseline and E7)
-nx "getent hosts $N1; getent hosts $N1SHORT"
-nx "dig $N1 | grep -E 'status|IN A'"
-nx "dig $APEX SOA | grep status; dig $APEX1 SOA | grep status"
-nx "dig instance-data.ec2.internal | grep -E 'status|IN A'"
-nx "time getent hosts pe-web-$U.internal"
-```
-
-Expected: `.internal` CRs `READY=True`, `200`, `+PONG`. Node names (full and short) resolve as
-in baseline (multi-label → not rewritten). **Known capture:** the apexes `ec2.internal` /
-`compute.internal` are single-label + `.internal`, so the rule rewrites them → NXDOMAIN. Record
-before/after; this matters only if something queries the apex (SOA lookups). Note whether
-anything broke.
-
-Back to the default before §6:
-
-```sh
-aws eks update-addon --cluster-name $CLUSTER --addon-name coredns --addon-version $V \
-  --configuration-values file://coredns-values.ngrok.json --resolve-conflicts PRESERVE | tee update1c.json
-aws eks wait addon-active --cluster-name $CLUSTER --addon-name coredns
-( cd /workspaces/ngrok-operator
-  helm upgrade ngrok-operator helm/ngrok-operator -n $NS --reuse-values --set ngrok.features.privateEndpoints.includeInternal=false )
-sleep 15; pes | grep -cE "\.internal"            # 0
-```
-
-Stop the extra `.internal` agent.
 
 ## 6. Survives add-on updates
 
@@ -327,10 +273,10 @@ Paste into findings.md `## EKS — <date>`:
 4. `diff Corefile.before Corefile.ngrok`.
 5. E4 update status; whether CoreDNS reloaded on its own or needed a restart (and how long).
 6. E5/E6 outputs; kind-e2e D results with timings.
-7. §1 baseline vs E7 (default) vs E12 (`.internal` opted in) side by side; Route 53 zones/resolver rules found.
-7b. E5b and E11 outputs; whether §5b was skipped and why.
+7. §1 baseline vs E7 side by side; Route 53 zones/resolver rules found.
+7b. E5b output.
 8. E8 egress path, anything opened, forwarder log excerpt.
 9. E9/E10 counts and verdict.
 10. Rollback diff result; what happened to operator Services after uninstall.
 11. Every VERIFY: confirmed / refuted / not reached.
-12. Update README.md: T7 (EKS part), R4/R15 rows (EKS `.internal` opt-in verdict).
+12. Update README.md: T7 (EKS part), any `.ngrok.direct` collisions found.

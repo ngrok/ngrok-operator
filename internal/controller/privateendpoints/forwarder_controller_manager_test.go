@@ -1,4 +1,4 @@
-package forwarder
+package privateendpoints
 
 import (
 	"context"
@@ -22,15 +22,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 )
 
-// TestSyncerStartupBindFailureKeepsManagerRunning covers the path in
+// TestForwarderReconcilerStartupBindFailureKeepsManagerRunning covers the path in
 // SetupWithManager where the first sync can't bind a port: the manager must
 // keep running (not crashloop), report the failure, and bind once the port
 // frees up.
-func TestSyncerStartupBindFailureKeepsManagerRunning(t *testing.T) {
+func TestForwarderReconcilerStartupBindFailureKeepsManagerRunning(t *testing.T) {
 	env := &envtest.Environment{
 		CRDDirectoryPaths:     []string{testutils.OperatorCRDPath("..", "..", "..")},
 		ErrorIfCRDPathMissing: true,
@@ -52,8 +53,8 @@ func TestSyncerStartupBindFailureKeepsManagerRunning(t *testing.T) {
 
 	blocker := listen(t)
 	port := int32(blocker.Addr().(*net.TCPAddr).Port)
-	cr := peCR("b", ns.Name, "bar.internal", 6379, "", 0)
-	cr.Spec.URL, cr.Spec.Scheme = "tcp://bar.internal:6379", ngrokv1.PrivateEndpointSchemeTCP
+	cr := peCR("b", ns.Name, "bar.ngrok.direct", 6379, "", 0)
+	cr.Spec.URL, cr.Spec.Scheme = "tcp://bar.ngrok.direct:6379", ngrokv1.PrivateEndpointSchemeTCP
 	require.NoError(t, c.Create(ctx, cr))
 	cr.Status = ngrokv1.PrivateEndpointStatus{ClusterIP: "10.0.0.2", ForwarderPort: port}
 	require.NoError(t, c.Status().Update(ctx, cr))
@@ -67,10 +68,10 @@ func TestSyncerStartupBindFailureKeepsManagerRunning(t *testing.T) {
 		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
 	})
 	require.NoError(t, err)
-	sy := &Syncer{
+	sy := &ForwarderReconciler{
 		Client:       mgr.GetClient(),
 		Namespace:    ns.Name,
-		Table:        NewTable(),
+		Table:        forwarder.NewTable(),
 		Listeners:    bindingsdriver.New(),
 		Dial:         echoDial,
 		DrainTimeout: time.Second,

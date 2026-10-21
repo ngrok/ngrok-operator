@@ -30,13 +30,6 @@ func listen(t *testing.T) net.Listener {
 	return l
 }
 
-func freePort(t *testing.T) int32 {
-	t.Helper()
-	l := listen(t)
-	defer l.Close()
-	return int32(l.Addr().(*net.TCPAddr).Port)
-}
-
 func readN(t *testing.T, c net.Conn, n int) string {
 	t.Helper()
 	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))

@@ -2,8 +2,7 @@
 
 Tracker T7 / decision D7 (k3s = ngrok devboxes). Goal: apply the rewrite through k3s's
 `coredns-custom` ConfigMap (never the packaged `coredns` ConfigMap), confirm it survives a
-k3s restart, roll back. The main path uses defaults (D8: `.ngrok.direct` only). §4b opts in to
-`.internal` and checks what it captures on this devbox (R15). ~45 min.
+k3s restart, roll back. Only `.ngrok.direct` is mirrored (D9). ~45 min.
 
 `VERIFY:` marks claims from research/docs that this run should confirm or refute. Paste
 results into a new findings.md section `## k3s — <date>` using the step IDs.
@@ -60,9 +59,9 @@ N1=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}'); nx "getent host
 ```
 
 For each search domain in resolv.conf ending in `.internal` (e.g. GCE `c.<proj>.internal google.internal`),
-also `nx "dig <domain> SOA | grep status"` — single-label ones (`google.internal`) get captured
-by the `.internal` rule if you opt in (§4b). A NodeHosts hit would be shadowed (rewrite runs
-before `hosts`). Record all hits; any `.internal` hit means don't opt in on this devbox (D8).
+also `nx "dig <domain> SOA | grep status"` to confirm it is untouched after the
+rewrite (there is no `.internal` rule, D9). A NodeHosts `.ngrok.direct` hit would be shadowed
+(rewrite runs before `hosts`). Record all hits.
 
 ## 2. Deploy operator and endpoints
 
@@ -106,7 +105,7 @@ fi
 kubectl -n kube-system get cm coredns-custom -o jsonpath='{.data}' | jq 'keys'   # other keys still there
 ```
 
-This is the default (D8): `.ngrok.direct` only; §4b adds the `.internal` line. If another `*.override` key already has `rewrite` rules, note it: rule order across imported
+`.ngrok.direct` only (D9). If another `*.override` key already has `rewrite` rules, note it: rule order across imported
 files depends on glob order (VERIFY).
 
 **K4 — does it load without a restart?** Wait 90s, then:
@@ -132,7 +131,7 @@ nx "curl -s -o /dev/null -w '%{http_code}\n' http://pe-web-$U.ngrok.direct"
 nx "curl -s -o /dev/null -w '%{http_code} ssl_verify=%{ssl_verify_result}\n' https://pe-web-$U.ngrok.direct"
 nx "printf 'PING\r\n' | nc -w 3 pe-redis-$U.ngrok.direct 6379"
 nx "dig +noall +answer pe-web-$U.ngrok.direct; dig nope-$U.ngrok.direct | grep status; dig metadata.google.internal | grep status"
-# K5b: .internal not mirrored or resolved by default (kind-e2e B11, B12)
+# K5b: .internal not mirrored or resolved (D9) (kind-e2e B11, B12)
 kubectl -n $NS get privateendpoints -o jsonpath='{range .items[*]}{.spec.url}{"\n"}{end}' | grep -c "pe-web-$U.internal"
 nx "dig pe-web-$U.internal | grep status"
 # K6: collision re-check vs §1
@@ -142,57 +141,6 @@ nx "dig +short kubernetes.default.svc.cluster.local; getent hosts $N1"
 Expected: `200`, `200 ssl_verify=0`, `+PONG`, answer carries the queried name, `NXDOMAIN`,
 upstream `NXDOMAIN` (not SERVFAIL); K5b `0` and upstream `NXDOMAIN`; cluster/node names and
 `.internal` search domains same as baseline. Also run kind-e2e §4 D (musl/glibc).
-
-### 4b. Opt-in `.internal` and capture check (D8, R15)
-
-Skip if §1 found `.internal` hits; record that instead.
-
-```sh
-( cd /workspaces/ngrok-operator
-  helm upgrade ngrok-operator helm/ngrok-operator -n $NS --reuse-values --set ngrok.features.privateEndpoints.includeInternal=true )
-printf '%s\n' 'rewrite stop name regex ^([a-z][a-z0-9-]*)\.internal\.$ {1}-internal.'"$NS"'.svc.cluster.local. answer auto' >> ngrok.override
-kubectl -n kube-system patch cm coredns-custom --type merge \
-  -p "$(jq -n --rawfile v ngrok.override '{data:{"ngrok.override":$v}}')"
-kubectl -n kube-system rollout restart deploy/coredns
-kubectl -n kube-system rollout status deploy/coredns --timeout=120s
-```
-
-Start `tcp://pe-redis-$U.internal:6379` too (kind-e2e §4b), then:
-
-```sh
-# K10: .internal works (kind-e2e I1, I2, I4–I6)
-sleep 15; pes | grep -E "NAME|\.internal"
-nx "curl -s -o /dev/null -w '%{http_code}\n' http://pe-web-$U.internal"
-nx "printf 'PING\r\n' | nc -w 3 pe-redis-$U.internal 6379"
-nx "dig +noall +answer pe-web-$U.internal; dig nope-$U.internal | grep status; dig metadata.google.internal | grep status"
-# K11 (R15): capture vs §1 baseline
-nx "dig +short kubernetes.default.svc.cluster.local; getent hosts $N1"
-```
-
-For each `.internal` search domain from §1, rerun `nx "dig <domain> SOA | grep status"`.
-Expected: `.internal` CRs `READY=True`, `200`, `+PONG`, `nope` `NXDOMAIN`, multi-label
-`.internal` names unchanged. Single-label search domains (`google.internal`) now `NXDOMAIN`:
-record each before/after and whether anything broke.
-
-Back to the default before §5:
-
-```sh
-sed -i '/-internal\./d' ngrok.override; cat ngrok.override      # only the .ngrok.direct rule left
-kubectl -n kube-system patch cm coredns-custom --type merge \
-  -p "$(jq -n --rawfile v ngrok.override '{data:{"ngrok.override":$v}}')"
-kubectl -n kube-system rollout restart deploy/coredns
-( cd /workspaces/ngrok-operator
-  helm upgrade ngrok-operator helm/ngrok-operator -n $NS --reuse-values --set ngrok.features.privateEndpoints.includeInternal=false )
-sleep 15; pes | grep -cE "\.internal"            # 0
-```
-
-Stop the extra `.internal` agent.
-
-**UDP/443 egress (K7).** QUIC-only. If DNS is right but traffic times out, check
-forwarder logs (`kubectl -n $NS logs -l app.kubernetes.io/component=private-endpoint-forwarder --tail=100`)
-and the devbox's host firewall / cloud egress rules for UDP 443 to
-`quic.connect-endpoint.ngrok.com`. Record whether the quic-go receive-buffer warning shows
-(`sysctl net.core.rmem_max` on the node).
 
 ## 5. Persistence
 
@@ -243,9 +191,8 @@ Paste into findings.md `## k3s — <date>`:
 4. Whether `coredns-custom` pre-existed and its keys.
 5. K4 reload-without-restart result and time.
 6. K5/K5b/K6 outputs; kind-e2e D results.
-6b. §4b: K10 outputs, K11 and search-domain SOA before/after, or why it was skipped.
 7. K7 egress notes.
 8. K8 (and K9 if run) results.
 9. Rollback result.
 10. Every VERIFY: confirmed / refuted / not reached.
-11. Update README.md: T7 (k3s part), R4/R15 rows (k3s `.internal` opt-in verdict).
+11. Update README.md: T7 (k3s part), any `.ngrok.direct` collisions found.

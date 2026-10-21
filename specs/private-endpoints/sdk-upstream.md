@@ -17,13 +17,13 @@ written `pd/client.go:N`. Everything here was read from code, not run, unless it
 | Bidirectional copy with half-close + drain (`join`, `closeWrite` — `internal/privateendpoints/forwarder/privatedial_forward.go:68-95`) | **Moves** | ngrok-go `privatedial` (`Join`) | Reimplemented, unexported, with different semantics in agent v4, ngrok-go v2 (`forwarder.go:152-171`, full close, no half-close), bindings (`internal/controller/bindings/forwarder_controller.go:331`, full close), and here. The contract (half-close, drain, idle) belongs next to the conn whose `CloseWrite` semantics it relies on |
 | Dial-then-join (`ForwardConn`, `privatedial_forward.go:57-66`) | **Moves** | `privatedial` (`Forwarder`) | Same reason; also where dial-error → client signal (RST vs FIN) should be decided |
 | Accept loop (`pkg/bindingsdriver/driver.go:98-112`) | **Moves for PE**, stays for bindings | `privatedial` (`Forwarder.Serve`) | Generic; current loop has no backoff on accept errors (`driver.go:107`, R9) and binds `0.0.0.0` only (`driver.go:32`). Bindings keeps its own copy until bindings is removed |
-| Per-accept target lookup (`Syncer.handler`, `syncer.go:100-114`) | Stays (as a callback) | operator | Routing table is k8s state. SDK must accept a resolver func, not a fixed target string, or we lose "port reassigned → new target without reopening" |
-| `Syncer`, `Table` (`syncer.go`, `table.go`) | Stays | operator | Driven by `PrivateEndpoint` CR status |
+| Per-accept target lookup (`ForwarderReconciler.handler`, `privateendpoints/forwarder_controller.go:100-114`) | Stays (as a callback) | operator | Routing table is k8s state. SDK must accept a resolver func, not a fixed target string, or we lose "port reassigned → new target without reopening" |
+| `ForwarderReconciler`, `Table` (`privateendpoints/forwarder_controller.go`, `table.go`) | Stays | operator | Driven by `PrivateEndpoint` CR status |
 | `naming.go` `ServiceName`, `CRName`, `HostKey`, labels (`naming.go:18-23, 67-105`) | Stays | operator | Service/CR naming, k8s label rules (`validation.IsDNS1035Label`) |
 | `naming.go` `ParseURL`, `IsPrivateHostname` (`naming.go:31-65`) | Stays for now | maybe `privatedial` later | Generic logic, but `ParseURL` returns a CRD type, and private TLDs are hard-coded (`naming.go:62-65`). Move only if a second consumer appears or the SDK exports the TLD list |
-| Port allocator (`controller.go:205-234`) | Stays | operator | Allocates Service targetPorts; only meaningful with k8s Services + forwarder replicas |
-| Poller list + filter (`poller.go:58-66, 138-158`) | Stays; **ask** for server-side support | ngrok-api-go / API; or `privatedial` | Lists *all* endpoints and filters client-side because v9 `Paging` has no filter (design.md:216-217). Real fix is an API filter or a dial-side "what can I reach" list/watch, not moving our filter |
-| Dialer config: QUIC forced, 5s budget, no ClientVersion/Logger (`cmd/private-endpoint-forwarder.go:98-102`) | Stays; SDK fixes unblock changes | operator | Wiring. Forcing QUIC is a workaround for the HTTP/2 panic on Go 1.27 (`cmd/private-endpoint-forwarder.go:62-63`) |
+| Port allocator (`privateendpoint_controller.go:205-234`) | Stays | operator | Allocates Service targetPorts; only meaningful with k8s Services + forwarder replicas |
+| Poller list + filter (`privateendpoint_poller.go:58-66, 138-158`) | Stays; **ask** for server-side support | ngrok-api-go / API; or `privatedial` | Lists *all* endpoints and filters client-side because v9 `Paging` has no filter (design.md:216-217). Real fix is an API filter or a dial-side "what can I reach" list/watch, not moving our filter |
+| Dialer config: QUIC forced, 5s budget, no ClientVersion/Logger (`cmd/private-endpoint-forwarder-manager.go:98-102`) | Stays; SDK fixes unblock changes | operator | Wiring. Forcing QUIC is a workaround for the HTTP/2 panic on Go 1.27 (`cmd/private-endpoint-forwarder-manager.go:62-63`) |
 | Per-connection identity | **Ask** | `privatedial` + backend | `Config.Metadata` is per session (`pd/client.go:208-211, 459-461`); `DialReq` carries only host and port (`pd/client.go:1260-1263`). GAT-475 |
 
 ## 2. What `privatedial` exposes today, and gaps
@@ -129,7 +129,7 @@ func (d *Dialer) Forward(ctx context.Context, l net.Listener, target string, opt
 ```
 
 This replaces the strategy.md sketch `Join(a, b, drain) error` / `Forward(ctx, l, target)`:
-a fixed `target` can't express our accept-time lookup (`syncer.go:100-114`), and `drain`
+a fixed `target` can't express our accept-time lookup (`privateendpoints/forwarder_controller.go:100-114`), and `drain`
 alone can't carry idle timeout or ctx cancellation.
 
 ### Behavior contract

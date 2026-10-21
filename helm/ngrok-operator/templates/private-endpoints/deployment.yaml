@@ -79,7 +79,7 @@ spec:
         command:
         - /ngrok-operator
         args:
-        - private-endpoint-forwarder
+        - private-endpoint-forwarder-manager
         - --release-name={{ .Release.Name }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080

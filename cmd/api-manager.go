@@ -37,7 +37,6 @@ import (
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -120,10 +119,6 @@ type apiManagerOpts struct {
 	enableFeaturePrivateEndpoints bool
 	disableGatewayReferenceGrants bool
 
-	privateEndpoints struct {
-		includeInternal bool
-	}
-
 	bindings struct {
 		endpointSelectors  []string
 		serviceAnnotations map[string]string
@@ -168,7 +163,6 @@ func apiCmd() *cobra.Command {
 	flags.GatewayDisableReferenceGrants(fs, &opts.disableGatewayReferenceGrants)
 	flags.BindingsEnabled(fs, &opts.enableFeatureBindings)
 	flags.PrivateEndpointsEnabled(fs, &opts.enableFeaturePrivateEndpoints)
-	flags.PrivateEndpointsIncludeInternal(fs, &opts.privateEndpoints.includeInternal)
 	flags.BindingsEndpointSelectors(fs, &opts.bindings.endpointSelectors)
 	flags.BindingsServiceAnnotations(fs, &opts.bindings.serviceAnnotations)
 	flags.BindingsServiceLabels(fs, &opts.bindings.serviceLabels)
@@ -259,23 +253,6 @@ func startOperator(ctx context.Context, opts apiManagerOpts) error {
 				setupLog.Info("TLSRoute CRD not detected, disabling TLSRoute support. If you would like to use TLSRoutes, make sure they are installed using the experimental CRD channel when installing the Gateway API CRDs")
 			}
 
-		}
-	}
-
-	// The PrivateEndpoint cache pin fails NewManager when the CRD is missing,
-	// which would take every other feature set down with it.
-	if opts.enableFeaturePrivateEndpoints {
-		discoveryClient, err := discovery.NewDiscoveryClientForConfig(k8sConfig)
-		if err != nil {
-			return fmt.Errorf("unable to create discovery client: %w", err)
-		}
-		installed, err := privateEndpointCRDInstalled(discoveryClient)
-		if err != nil {
-			return fmt.Errorf("unable to check if the PrivateEndpoint CRD is installed: %w", err)
-		}
-		if !installed {
-			setupLog.Info("WARNING: --features-private-endpoints-enabled is set but the PrivateEndpoint CRD (privateendpoints.ngrok.com/v1) is not installed, Private Endpoints feature set will be disabled. Install or upgrade the ngrok-crds chart to enable it")
-			opts.enableFeaturePrivateEndpoints = false
 		}
 	}
 
@@ -503,8 +480,6 @@ func managerCacheOptions(opts apiManagerOpts) cache.Options {
 			opts.ingressWatchNamespace: {},
 		}
 	}
-	// Only when enabled: ByObject entries are resolved at manager start, so
-	// pinning a kind whose CRD isn't installed would fail every install.
 	if opts.enableFeaturePrivateEndpoints {
 		o.ByObject[&ngrokv1.PrivateEndpoint{}] = cache.ByObject{
 			Namespaces: map[string]cache.Config{opts.namespace: {}},
@@ -846,7 +821,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 // enablePrivateEndpointsFeatureSet mirrors private endpoints into the cluster
 // for the private-endpoint-forwarder.
 func enablePrivateEndpointsFeatureSet(opts apiManagerOpts, mgr ctrl.Manager, ngrokClientset ngrokapi.Clientset) error {
-	if err := (&privateendpointscontroller.Reconciler{
+	if err := (&privateendpointscontroller.PrivateEndpointReconciler{
 		Client:            mgr.GetClient(),
 		APIReader:         mgr.GetAPIReader(),
 		Log:               ctrl.Log.WithName("controllers").WithName("PrivateEndpoint"),
@@ -857,32 +832,13 @@ func enablePrivateEndpointsFeatureSet(opts apiManagerOpts, mgr ctrl.Manager, ngr
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("setting up PrivateEndpoint controller: %w", err)
 	}
-	return mgr.Add(&privateendpointscontroller.Poller{
-		Client:          mgr.GetClient(),
-		Log:             ctrl.Log.WithName("controllers").WithName("PrivateEndpointPoller"),
-		Namespace:       opts.namespace,
-		Endpoints:       ngrokClientset.Endpoints(),
-		Interval:        10 * time.Second,
-		IncludeInternal: opts.privateEndpoints.includeInternal,
+	return mgr.Add(&privateendpointscontroller.PrivateEndpointPoller{
+		Client:    mgr.GetClient(),
+		Log:       ctrl.Log.WithName("controllers").WithName("PrivateEndpointPoller"),
+		Namespace: opts.namespace,
+		Endpoints: ngrokClientset.Endpoints(),
+		Interval:  10 * time.Second,
 	})
-}
-
-// privateEndpointCRDInstalled reports whether the API server serves
-// privateendpoints in ngrok.com/v1.
-func privateEndpointCRDInstalled(dc discovery.ServerResourcesInterface) (bool, error) {
-	resourceList, err := dc.ServerResourcesForGroupVersion(ngrokv1.GroupVersion.String())
-	if apierrors.IsNotFound(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	for _, r := range resourceList.APIResources {
-		if r.Name == "privateendpoints" {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func createKubernetesOperator(ctx context.Context, client client.Client, opts apiManagerOpts) error {

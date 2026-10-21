@@ -1,4 +1,4 @@
-package forwarder
+package privateendpoints
 
 import (
 	"context"
@@ -15,21 +15,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 )
 
 // +kubebuilder:rbac:groups=ngrok.com,resources=privateendpoints,verbs=get;list;watch
 
-// Syncer keeps one listener open per Ready PrivateEndpoint's forwarder port
+// ForwarderReconciler keeps one listener open per Ready PrivateEndpoint's forwarder port
 // and forwards each connection to that endpoint's host:port.
-type Syncer struct {
+type ForwarderReconciler struct {
 	client.Client
 	Namespace string
-	Table     *Table
+	Table     *forwarder.Table
 	// Listeners opens and closes the per-port listeners. It predates this
 	// feature (the bindings forwarder uses it too) but is generic.
 	Listeners    *bindingsdriver.BindingsDriver
-	Dial         DialFunc
+	Dial         forwarder.DialFunc
 	DrainTimeout time.Duration
 	Log          logr.Logger
 
@@ -39,25 +40,25 @@ type Syncer struct {
 	dupes   []int32
 }
 
-func (s *Syncer) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
+func (s *ForwarderReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, s.Sync(ctx)
 }
 
 // Sync rebuilds the routing table from all PrivateEndpoints and opens or
 // closes listeners to match. ctx is used for the dials of connections the
 // listeners accept, so it must outlive this call.
-func (s *Syncer) Sync(ctx context.Context) error {
+func (s *ForwarderReconciler) Sync(ctx context.Context) error {
 	var list ngrokv1.PrivateEndpointList
 	if err := s.List(ctx, &list, client.InNamespace(s.Namespace)); err != nil {
 		return fmt.Errorf("listing PrivateEndpoints: %w", err)
 	}
-	var entries []Entry
+	var entries []forwarder.Entry
 	want := map[int32]string{} // forwarder port -> hostname, for error reporting
 	for _, cr := range list.Items {
 		if cr.Status.ClusterIP == "" || cr.Status.ForwarderPort == 0 {
 			continue // not wired up by the controller yet
 		}
-		entries = append(entries, Entry{Hostname: cr.Spec.Hostname, Port: cr.Spec.Port, ForwarderPort: cr.Status.ForwarderPort})
+		entries = append(entries, forwarder.Entry{Hostname: cr.Spec.Hostname, Port: cr.Spec.Port, ForwarderPort: cr.Status.ForwarderPort})
 		want[cr.Status.ForwarderPort] = cr.Spec.Hostname
 	}
 	dupes := s.Table.Replace(entries)
@@ -96,7 +97,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 // BindErr reports the listeners the last Sync wanted but could not bind, or
 // nil. It reflects only local state, never ngrok reachability, so it is safe
 // to gate readiness on.
-func (s *Syncer) BindErr() error {
+func (s *ForwarderReconciler) BindErr() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.bindErr
@@ -104,13 +105,13 @@ func (s *Syncer) BindErr() error {
 
 // handler resolves the target at accept time, so a port reassigned to a
 // different endpoint routes to the new one without reopening the listener.
-func (s *Syncer) handler(ctx context.Context, port int32) bindingsdriver.ConnectionHandler {
+func (s *ForwarderReconciler) handler(ctx context.Context, port int32) bindingsdriver.ConnectionHandler {
 	return func(c net.Conn) error {
 		target, ok := s.Table.PortTarget(port)
 		if !ok {
 			return c.Close()
 		}
-		err := ForwardConn(ctx, s.Dial, c, target, s.DrainTimeout)
+		err := forwarder.ForwardConn(ctx, s.Dial, c, target, s.DrainTimeout)
 		if err != nil {
 			s.Log.Error(err, "forwarding connection", "port", port)
 		}
@@ -118,7 +119,7 @@ func (s *Syncer) handler(ctx context.Context, port int32) bindingsdriver.Connect
 	}
 }
 
-func (s *Syncer) Ports() []int32 {
+func (s *ForwarderReconciler) Ports() []int32 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []int32
@@ -130,7 +131,7 @@ func (s *Syncer) Ports() []int32 {
 }
 
 // Close closes every listener.
-func (s *Syncer) Close() {
+func (s *ForwarderReconciler) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for port := range s.open {
@@ -145,7 +146,7 @@ func (s *Syncer) Close() {
 //
 // Listeners opened from Reconcile use the ctx controller-runtime passes to
 // reconcilers, which is the controller's run ctx, not a per-request one.
-func (s *Syncer) SetupWithManager(mgr ctrl.Manager) error {
+func (s *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		if !mgr.GetCache().WaitForCacheSync(ctx) {
 			return errors.New("PrivateEndpoint cache did not sync")

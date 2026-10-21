@@ -171,8 +171,7 @@ Caveats (accepted for now):
 ## 6. Control plane
 
 - **Poller** (api-manager, leader only): lists all endpoints every 10s; keeps those whose
-  hostname ends in `.ngrok.direct` (plus `.internal` only with
-  `--features-private-endpoints-include-internal`, D8) and that aren't `kubernetes`-bound; creates and
+  hostname ends in `.ngrok.direct` (D9: no `.internal`) and that aren't `kubernetes`-bound; creates and
   deletes `PrivateEndpoint` resources (only ones carrying its label). Any list error → change
   nothing that tick.
 - **Controller** (api-manager): keyed by hostname, because every endpoint on a hostname must
@@ -192,23 +191,26 @@ Caveats (accepted for now):
 |---|---|
 | Real work, but backend gaps (pod identity) can be hand-waved for the POC | Get the shape right first |
 | Support both `.ngrok.direct` (primary) and `.internal` (*superseded by D8*) | `.ngrok.direct` gets real certs; `.internal` is the private-use TLD |
-| D8: mirror `.ngrok.direct` only by default; `.internal` opt-in (Helm `ngrok.features.privateEndpoints.includeInternal`, kind `PE_INCLUDE_INTERNAL=true`) | PM (2026-10-12): `.ngrok.direct` is the prescribed pattern; `.internal` stays supported but secondary. Avoids `.internal` collisions (R4, R15, R18) by default |
+| D8: mirror `.ngrok.direct` only by default; `.internal` opt-in (*superseded by D9*) | PM (2026-10-12): `.ngrok.direct` is the prescribed pattern; `.internal` stays supported but secondary. Avoids `.internal` collisions (R4, R15, R18) by default |
+| D9: no `.internal` at all in the initial pass (value, flag, env, kind DNS rule removed) | Alex review (2026-10-21): smaller surface. Closes R4, R15, R18 |
+| D10: no missing-CRD guard in the api-manager | Alex review (2026-10-21): the CRD ships in ngrok-crds with no toggle; guarding it was overkill |
+| Names follow bindings: `private-endpoint-forwarder-manager` subcommand, `privateendpoint_controller.go` / `privateendpoint_poller.go`, `ForwarderReconciler` in `forwarder_controller.go` | Alex review (2026-10-21): match existing conventions |
 | Drop endpoint selectors; mirror every private endpoint in the account | Simplicity for the POC; access control comes back later |
 | New `PrivateEndpoint` CRD in `ngrok.com/v1` | Deprecate bindings independently; all CRDs are moving to this group |
 | kind + manual CoreDNS edit for the POC | Provider DNS is a separate research spike |
 | Separate forwarder Deployment | Runs alongside the bindings forwarder |
 | Rev 1 → rev 2: drop own DNS server and Host/SNI routing; CoreDNS rewrite + Service per hostname | Less low-level code we own; matches private dial's (host, port) model and agent v4 |
-| Hostname-to-Service naming with TLD suffix | Same label under both TLDs must not collide |
-| Accept single-label-only, DNS-1035 labels, owning single-label `.internal` | Revisit with own DNS server if needed |
+| Hostname-to-Service naming with TLD suffix (`foo-ngrok-direct`) | Kept after D9 so names don't change if another TLD comes back |
+| Accept single-label-only, DNS-1035 labels | Revisit with own DNS server if needed |
 | Isolate dial/copy code with an upstream proposal | Push common logic into the SDK |
 
 ## 8. Review status
 
 Fixed after review (each with a test that failed first):
 - api-manager crashed on installs without the new CRD even with the feature off (cache entry
-  was unconditional). With the feature **on** and the CRD missing it also failed to start
-  (research/07 PR-1); now a discovery check warns and disables the feature. Fixed in the
-  working tree, unit-tested (`TestPrivateEndpointCRDInstalled`), not run live.
+  was unconditional). With the feature **on** and the CRD missing it also fails to start
+  (research/07 PR-1); a discovery guard was added, then removed by D10 (the CRD can't be
+  toggled off).
 - Back-to-back reconciles could give two hostnames the same forwarder port (stale cache),
   silently cross-routing tcp traffic.
 - With `watchNamespace` set to another namespace, Services in the operator namespace weren't

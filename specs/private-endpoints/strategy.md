@@ -20,8 +20,8 @@ Related docs: [README.md](README.md) (tracker: risks R1–R19, decisions D1–D8
 
 **What.** Any pod in a cluster running the ngrok operator can reach any ngrok private
 endpoint in the operator's account by its real URL, such as `https://foo.ngrok.direct` or
-`tcp://bar.ngrok.direct:6379`. It works for http, https, tls and tcp. `.ngrok.direct` endpoints
-are mirrored by default; `.internal` ones (`http://foo.internal`) are opt-in (D8). Users don't
+`tcp://bar.ngrok.direct:6379`. It works for http, https, tls and tcp. Only `.ngrok.direct`
+endpoints are mirrored; `.internal` is not supported (D9). Users don't
 create any per-endpoint Kubernetes config, sidecar or app change. A cluster admin makes one DNS
 change.
 
@@ -57,8 +57,8 @@ Helm token check. DNS setup is documented only for kind. Validation on EKS and k
    per-cluster base domain (`foo.mycluster.ngrok.direct`) would fix this, but needs an agent
    `baseDomain` setting ngrok doesn't have yet, plus multi-label hostname support.
 
-`.internal`'s future was open here; it is now settled by D8 (`.ngrok.direct` is the prescribed
-pattern, `.internal` is opt-in).
+`.internal`'s future was open here; D8 made it opt-in, and D9 (2026-10-21) drops it from the
+initial pass entirely.
 
 ---
 
@@ -161,11 +161,11 @@ Summary below. The full list (R-1–R-18), how each is verified, and the gaps to
 | R-1 | Real hostnames; `*.ngrok.direct` TLS verifies with ngrok's public cert | Verified in kind |
 | R-2 | All schemes: http, https, tls, tcp | Verified in kind |
 | R-3 | No per-endpoint K8s config, sidecar or app change (one-time admin DNS step) | Met |
-| R-4 | New CRD that coexists with bindings; `kubernetes`-bound endpoints are never picked up | Met (`poller.go` `desiredSpecs`) |
+| R-4 | New CRD that coexists with bindings; `kubernetes`-bound endpoints are never picked up | Met (`privateendpoint_poller.go` `desiredSpecs`) |
 | R-5 | Forwarder is bytes-only: no DNS server, no Host/SNI parsing, no TLS | Met |
 | R-6 | Poller never mass-deletes on an API error | Met, tested |
-| R-7 | Feature is off by default and does nothing without the CRD installed | Off by default: met. On without the CRD: the api-manager used to fail to start (research/07 PR-1); now it warns and disables the feature. Fixed (working tree), unit-tested, not run live |
-| R-8 | Only `.ngrok.direct` is mirrored by default; `.internal` is opt-in (D8) | Working tree, unit + Helm tests |
+| R-7 | Feature is off by default | Met. The CRD can't be toggled off in the ngrok-crds chart, so the feature-on-without-CRD case isn't guarded (D10) |
+| R-8 | Only `.ngrok.direct` is mirrored; `.internal` is not supported (D9) | Unit tests, chainsaw `dns` test |
 
 ---
 
@@ -211,9 +211,9 @@ There are three components, plus one admin-owned DNS change:
 
 | Component | Where it runs | Code |
 |---|---|---|
-| Poller | api-manager, leader only | `internal/controller/privateendpoints/poller.go` |
-| PrivateEndpoint controller | api-manager | `internal/controller/privateendpoints/controller.go` |
-| Forwarder | new `private-endpoint-forwarder` subcommand and Deployment | `cmd/private-endpoint-forwarder.go`, `internal/privateendpoints/forwarder/` |
+| Poller | api-manager, leader only | `internal/controller/privateendpoints/privateendpoint_poller.go` |
+| PrivateEndpoint controller | api-manager | `internal/controller/privateendpoints/privateendpoint_controller.go` |
+| Forwarder | new `private-endpoint-forwarder-manager` subcommand and Deployment | `cmd/private-endpoint-forwarder-manager.go`, `internal/privateendpoints/forwarder/` |
 | Naming and URL rules | shared | `internal/privateendpoints/naming.go` |
 | CoreDNS rewrite | kube-system, installed by an admin | kind helper: `scripts/kind-private-endpoints-dns.sh` |
 
@@ -254,13 +254,13 @@ tree (R17).
 
 #### Poller
 
-`poller.go` runs as a manager runnable. That means it runs on the leader only, because it
+`privateendpoint_poller.go` runs as a manager runnable. That means it runs on the leader only, because it
 doesn't opt out of leader election. On each tick:
 
 1. It lists all endpoints in the account (`Endpoints.List`, paginated). **If the list fails,
    it changes nothing.** An API outage can't delete resources (R-6).
-2. It keeps endpoints whose hostname ends in `.ngrok.direct`, or `.internal` when opted in
-   (`--features-private-endpoints-include-internal`, D8), and that are **not** `kubernetes`-bound. Pooled
+2. It keeps endpoints whose hostname ends in `.ngrok.direct` (D9) and that are **not**
+   `kubernetes`-bound. Pooled
    endpoints collapse into one entry per URL.
 3. It compares that set to the `PrivateEndpoint` resources carrying its managed-by label, then:
    - creates the missing ones;
@@ -274,7 +274,7 @@ The interval is fixed at 10s in `cmd/api-manager.go`.
 
 #### Controller
 
-`controller.go` is **keyed by hostname, not by resource**. Every endpoint on one hostname must
+`privateendpoint_controller.go` is **keyed by hostname, not by resource**. Every endpoint on one hostname must
 share the single IP that DNS returns, so the hostname is the unit of work. The request name is
 `HostKey(hostname)`, and the controller is fed by watches on `PrivateEndpoint` and Service
 objects that map through the `ngrok.com/private-endpoint-host` label.
@@ -351,16 +351,16 @@ This is a deliberate POC limitation (research M1).
 
 #### Forwarder
 
-`cmd/private-endpoint-forwarder.go`, `internal/privateendpoints/forwarder/syncer.go`:
+`cmd/private-endpoint-forwarder-manager.go`, `internal/controller/privateendpoints/forwarder_controller.go`:
 
 - It watches `PrivateEndpoint` resources in its own namespace only, through a namespace-scoped
   cache. It runs without leader election, so every replica serves every port.
-- On each change, `Syncer.Sync` rebuilds a `forwarderPort → host:port` table from every
+- On each change, `ForwarderReconciler.Sync` rebuilds a `forwarderPort → host:port` table from every
   resource that has both `status.clusterIP` and `status.forwarderPort` set. It then opens
   listeners for new ports and closes listeners for ports that are gone. Listeners come from the
   existing `pkg/bindingsdriver`, which binds `0.0.0.0:<port>`.
 - **The target is looked up when a connection is accepted, not when the listener opens**
-  (`Syncer.handler`). A port reassigned to a different endpoint routes to the new target
+  (`ForwarderReconciler.handler`). A port reassigned to a different endpoint routes to the new target
   without reopening the listener. If the port isn't in the table, the connection is closed.
 - Readiness (`/readyz`) requires the table to have synced at least once **and** that the last
   sync hit no listener bind errors (working tree, R5). A startup bind failure no longer
@@ -407,13 +407,11 @@ rewrite stop name regex ^([a-z][a-z0-9-]*)\.ngrok\.direct\.$ {1}-ngrok-direct.<n
   exists. That is how a name that isn't one of ours stops resolving through its old path (§6).
 - Unknown `.ngrok.direct` names also get NXDOMAIN. Because ngrok owns that domain, this is the
   same answer they'd get anyway, apart from caching.
-- Search-path expansion runs first. With the default `ndots:5`, `foo.internal` is tried as
-  `foo.internal.<ns>.svc.cluster.local` and similar names before the absolute name, which costs a
+- Search-path expansion runs first. With the default `ndots:5`, `foo.ngrok.direct` is tried as
+  `foo.ngrok.direct.<ns>.svc.cluster.local` and similar names before the absolute name, which costs a
   few extra NXDOMAINs per lookup.
 
-Per D8, the kind helper installs only the `.ngrok.direct` rule by default and adds the
-`.internal` rule with `PE_INCLUDE_INTERNAL=true`, matching the operator's `includeInternal`
-setting. This is also what the research playbooks recommended.
+The kind helper installs only the `.ngrok.direct` rule (D9).
 
 #### Why not our own DNS server (revision 1 history)
 
@@ -438,8 +436,6 @@ routing, is the leading option for portability (§8, D1).
 `helm/ngrok-operator/templates/private-endpoints/`:
 
 - **`ngrok.features.privateEndpoints.enabled`** (default `false`) gates everything.
-- **`ngrok.features.privateEndpoints.includeInternal`** (default `false`) also mirrors `.internal` endpoints
-  (D8). It must be paired with an `.internal` rewrite in cluster DNS.
 - **Forwarder Deployment** (`deployment.yaml`), configured under `components.privateEndpointForwarder`
   (inherits `components.common`), with `replicaCount` defaulting to 1, plus a
   ServiceAccount and a namespace-scoped Role that can only read `privateendpoints`.
@@ -453,9 +449,8 @@ routing, is the leading option for portability (§8, D1).
   time, so the key requirement is documented instead.
 - **CRD** lives in the ngrok-crds chart (`ngrok.com_privateendpoints.yaml`), which the operator
   chart pulls in as a subchart when `installCRDs=true` (the default). Shipping it needs a
-  ngrok-crds chart version bump. With the feature on and the CRD missing, the api-manager
-  logs a warning and disables the feature (PR-1; fixed in the working tree, unit-tested, not
-  run live).
+  ngrok-crds chart version bump. The CRD can't be toggled off, so the api-manager assumes it
+  is installed (D10).
 - **DNS is not in the chart.** The operator never edits cluster DNS (decision D4).
 
 Install privileges: the Helm release needs only namespace-scoped RBAC for this feature. The
@@ -533,7 +528,7 @@ out** instead of being refused, because the Service has no such port (R7, accept
 | Aspect | Bindings (`BoundEndpoint`) | Private endpoints (this design) |
 |---|---|---|
 | **Opt-in model** | Per endpoint, on the ngrok side: the endpoint is created with the `kubernetes` binding and must match the operator's `endpointSelectors` CEL | None. Every private endpoint in the account is mirrored. `kubernetes`-bound endpoints are excluded |
-| **Discovery** | Poller every 10s lists bound endpoints for this registered operator (`boundendpoint_poller.go`) | Poller every 10s lists all account endpoints and filters on the client side (`poller.go`) |
+| **Discovery** | Poller every 10s lists bound endpoints for this registered operator (`boundendpoint_poller.go`) | Poller every 10s lists all account endpoints and filters on the client side (`privateendpoint_poller.go`) |
 | **Hostname clients use** | `service.namespace` from the endpoint URL convention, not the endpoint's real name | The endpoint's real URL (`foo.internal`, `foo.ngrok.direct`) |
 | **K8s objects per endpoint** | One `BoundEndpoint`. An ExternalName "target" Service in the target namespace, pointing at a ClusterIP "upstream" Service in the operator namespace | One `PrivateEndpoint` per URL. One ClusterIP Service per **hostname** in the operator namespace, with one port per endpoint |
 | **DNS requirements** | None. Normal Kubernetes Service DNS | One admin-installed CoreDNS rewrite. Platform-specific, and not possible on some platforms today |
@@ -611,10 +606,8 @@ listeners, and they select disjoint sets of endpoints.
 | **Hand-made resources are wired** | The controller and forwarder act on any `PrivateEndpoint` in the namespace and trust its host label. A hand-made resource can take a hostname's port and send its traffic elsewhere | PR-7 |
 | **No graceful shutdown** | SIGTERM drops in-flight connections. No PDB, one replica by default, none of the bindings-forwarder scheduling knobs | PR-5 |
 | **No pod identity** | Private dial metadata is per session and Traffic Policy can't see it, so `conn.k8s.pod.*`-style policies don't match | GAT-475 |
-| **Single-label hostnames only** | `api.foo.internal` → `UnsupportedHostname`. The label must be DNS-1035 and ≤54 (`.internal`) or ≤50 (`.ngrok.direct`) characters | design.md |
-| **We own every single-label `.internal` name** (opt-in only) | With `.internal` enabled, the rewrite catches `<x>.internal` whether or not `x` is an ngrok endpoint. A cluster already using `db.internal` for something else breaks. Off by default (D8) | R4 |
-| **Platform apex capture** (opt-in only) | With `.internal` enabled, single-label apexes are caught too: `ec2.internal` and `compute.internal` on EKS, `google.internal` as a GCE search domain. Queries for them (for example SOA lookups) return NXDOMAIN. Node names such as `ip-x.ec2.internal` are multi-label and unaffected. GKE's single-label `metadata.internal` is caught | R15, R4; being measured in [runbooks/eks.md](runbooks/eks.md), [runbooks/k3s.md](runbooks/k3s.md) |
-| **Operator's own `.internal` endpoints mirrored** (opt-in only) | Ingress/Gateway translation creates single-label `*.internal` AgentEndpoints. With `.internal` enabled these are mirrored, so in-cluster traffic to them hairpins out through private dial and back. Off by default (D8); the real fix is the Ingress/Gateway move to `.ngrok.direct` (§10) | R18 |
+| **Single-label hostnames only** | `api.foo.ngrok.direct` → `UnsupportedHostname`. The label must be DNS-1035 and ≤50 characters | design.md |
+| **No `.internal`** | `.internal` private endpoints aren't reachable from pods (D9). Supporting them would mean owning every single-label `.internal` name in the cluster (R4), catching platform apexes like `ec2.internal` and GKE `metadata.internal` (R15), and mirroring the operator's own Ingress/Gateway `*.internal` AgentEndpoints (R18) | D9 |
 | **QUIC only** | Requires UDP/443 egress to `connect-endpoint.ngrok.com`. Clusters that block UDP don't work at all. quic-go also warns about the UDP receive buffer size | design.md |
 | **Scale** | 1000 endpoint-ports per cluster (fixed range), one Service per hostname. Every replica listens on every port. List-everything reconciles may get expensive. Not load-tested | research M2 |
 | **Ready means configured** | Not "listener bound", not "DNS installed", not "endpoint reachable" | research M1 |
@@ -806,7 +799,9 @@ would do DNS only.
 | D3 | *(Partly superseded by D8.)* Support both TLDs out of the box. `.ngrok.direct` is primary. `.internal` is secondary: hold it back, or mark it unsupported, on any platform where it collides (for example GKE `metadata.internal`) | Private endpoints are trending to `.ngrok.direct` for browsers, but `.internal` endpoints exist and are used outside browsers. Unclear whether they go away |
 | D4 | The operator doesn't edit cluster DNS. Docs first; automation later only to prove things out. The kind script stays as a dev helper | DNS belongs to the admin. Matches the research recommendation |
 | D7 | Platform order: kind → EKS → k3s. AKS, GKE, OpenShift, RKE2 get "how it works" docs only, with no tested support claim | Platforms we run ourselves first |
-| D8 | `.ngrok.direct` only by default. `.internal` is opt-in: Helm `ngrok.features.privateEndpoints.includeInternal`, api-manager `--features-private-endpoints-include-internal`, kind DNS `PE_INCLUDE_INTERNAL=true`. Supersedes the "both out of the box" half of D3 | PM (Slack 2026-10-12): `.ngrok.direct` is the prescribed pattern going forward; `.internal` stays supported but secondary. Defuses R4, R15 and R18 by default |
+| D8 | *(Superseded by D9.)* `.ngrok.direct` only by default. `.internal` is opt-in: Helm `ngrok.features.privateEndpoints.includeInternal`, api-manager `--features-private-endpoints-include-internal`, kind DNS `PE_INCLUDE_INTERNAL=true`. Supersedes the "both out of the box" half of D3 | PM (Slack 2026-10-12): `.ngrok.direct` is the prescribed pattern going forward; `.internal` stays supported but secondary. Defuses R4, R15 and R18 by default |
+| D9 | `.internal` is not supported in the initial pass. No Helm value, flag or kind DNS rule. Supersedes D8's opt-in | Alex review 2026-10-21: smaller first pass. Closes R4, R15, R18 |
+| D10 | No missing-CRD guard in the api-manager | Alex review 2026-10-21: the CRD ships in ngrok-crds with no toggle |
 
 ---
 
@@ -831,8 +826,7 @@ Phases are defined by content and exit criteria, not dates.
 
 - User setup guides tested on kind, EKS and k3s. "How it would work" notes for AKS, GKE,
   OpenShift and RKE2.
-- `.ngrok.direct`-first DNS snippets. `.internal` documented as opt-in, with a collision
-  preflight and rollback.
+- `.ngrok.direct` DNS snippets.
 - Document the preview contract:
   - account-wide exposure and no identity;
   - Ready semantics, capacity and UDP/443;
@@ -890,8 +884,8 @@ for users who opt in to `.internal`. Plan: [migration.md](migration.md).
 
 ## 11. Open questions for product
 
-1. ~~**Future of `.internal`.**~~ **Answered (D8):** `.ngrok.direct` is the prescribed pattern;
-   `.internal` stays supported but secondary, so it's opt-in here.
+1. ~~**Future of `.internal`.**~~ **Answered (D8, D9):** `.ngrok.direct` is the prescribed pattern;
+   `.internal` is not supported in the initial pass.
 2. **Account-wide exposure.** Is "every private endpoint in the account is reachable from every
    pod in the cluster" acceptable for a preview? For GA? Who in a customer org should be able to
    widen or narrow that?
@@ -949,7 +943,7 @@ for users who opt in to `.internal`. Plan: [migration.md](migration.md).
   [06 open questions](research/06-open-questions.md)
 - Runbooks: [kind-e2e](runbooks/kind-e2e.md), [eks](runbooks/eks.md), [k3s](runbooks/k3s.md)
 - Code: `api/ngrok/v1/privateendpoint_types.go`, `internal/privateendpoints/`,
-  `internal/controller/privateendpoints/`, `cmd/private-endpoint-forwarder.go`,
+  `internal/controller/privateendpoints/`, `cmd/private-endpoint-forwarder-manager.go`,
   `cmd/api-manager.go`, `helm/ngrok-operator/templates/private-endpoints/`,
   `scripts/kind-private-endpoints-dns.sh`
 - Bindings code: `api/bindings/v1alpha1/`, `internal/controller/bindings/`

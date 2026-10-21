@@ -165,7 +165,7 @@ EOF
   local before svc_before
   before="$(pe_line "$REDIS_HOST")"
   svc_before="$(svc_line "$REDIS_SVC")"
-  [[ -n "$before" && -n "$svc_before" ]] || { echo "no PrivateEndpoint/Service for $REDIS_HOST yet; run make pe-demo-up / pe-demo-test first" >&2; exit 1; }
+  [[ -n "$before" && -n "$svc_before" ]] || { echo "no PrivateEndpoint/Service for $REDIS_HOST yet; run make pe-demo-up first" >&2; exit 1; }
   echo "before:  PrivateEndpoint $before"
   echo "         Service $REDIS_SVC $svc_before"
 
@@ -352,7 +352,7 @@ Dry run. Rerun with --yes (make pe-demo-faults FAULT=uninstall FAULT_ARGS=--yes)
   helm upgrade $RELEASE $CHART -n $OP_NS --reuse-values --set ngrok.features.privateEndpoints.enabled=true --wait --timeout 5m
   kubectl -n $OP_NS rollout status deploy/$FWD_DEPLOY --timeout=180s
   ./scripts/private-endpoints-demo/demo.sh wait
-  ./scripts/private-endpoints-demo/demo.sh test
+  make pe-demo-test
 EOF
     return
   fi
@@ -426,7 +426,7 @@ dashboard.
 
 Expects: the forwarder notices a terminal auth failure and stops claiming Ready; after a valid
          token is in the Secret, a container restart recovers it.
-Today:   the R28 fix in cmd/private-endpoint-forwarder.go: on a terminal session end (401/403 on
+Today:   the R28 fix in cmd/private-endpoint-forwarder-manager.go: on a terminal session end (401/403 on
          reconnect) the forwarder logs "private dial session ended permanently, exiting so the
          pod restarts" and exits. The restarted container re-reads the token, cannot Connect,
          and sits not-Ready (no crashloop). Caveat: if the token was already bad at startup the

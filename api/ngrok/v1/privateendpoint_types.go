@@ -44,7 +44,7 @@ const (
 // PrivateEndpointSpec mirrors one private endpoint URL in the ngrok account.
 // It is written by the operator; users do not author PrivateEndpoints.
 type PrivateEndpointSpec struct {
-	// URL of the private endpoint, e.g. tcp://bar.internal:6379.
+	// URL of the private endpoint, e.g. tcp://bar.ngrok.direct:6379.
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 
@@ -90,7 +90,7 @@ type PrivateEndpointStatus struct {
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // PrivateEndpoint is a read-only mirror of an ngrok private endpoint
-// (*.internal or *.ngrok.direct) that pods in this cluster can reach by URL.
+// (*.ngrok.direct) that pods in this cluster can reach by URL.
 type PrivateEndpoint struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

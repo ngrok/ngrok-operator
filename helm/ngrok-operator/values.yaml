@@ -87,8 +87,7 @@ installCRDs: true
 ## @param ngrok.features.bindings.serviceAnnotations Annotations applied to projected services
 ## @param ngrok.features.bindings.serviceLabels Labels applied to projected services
 ## @param ngrok.features.bindings.ingressEndpoint Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`
-## @param ngrok.features.privateEndpoints.enabled (POC) Make ngrok private endpoints (*.ngrok.direct by default) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, UDP/443 egress, and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret
-## @param ngrok.features.privateEndpoints.includeInternal Also mirror *.internal private endpoints (needs a foo.internal CoreDNS rewrite too). Off by default because *.internal names can collide with cloud provider DNS (e.g. GKE metadata.internal) and include the operator's own Ingress/Gateway endpoints
+## @param ngrok.features.privateEndpoints.enabled (POC) Make ngrok private endpoints (*.ngrok.direct only; *.internal is not supported) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, UDP/443 egress, and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret
 ## @param ngrok.features.domains.defaultReclaimPolicy Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`
 ## @param ngrok.features.cleanup.enabled Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed
 ## @param ngrok.features.cleanup.timeout Seconds the hook waits for the drain to finish
@@ -140,7 +139,6 @@ ngrok:
       ingressEndpoint: ""
     privateEndpoints:
       enabled: false
-      includeInternal: false
     domains:
       defaultReclaimPolicy: ""
     cleanup:

@@ -22,8 +22,7 @@ pe-demo-status: ## Show PrivateEndpoints, per-host Services, forwarder pods, dem
 	@KUBE_NAMESPACE=$(KUBE_NAMESPACE) $(PE_DEMO_SCRIPT) status
 
 .PHONY: pe-demo-test
-pe-demo-test: ## Run PASS/FAIL checks against the demo endpoints from a client pod.
-	@KUBE_NAMESPACE=$(KUBE_NAMESPACE) $(PE_DEMO_SCRIPT) test
+pe-demo-test: e2e-tests-private-endpoints ## Run the private endpoints chainsaw tests against the demo cluster.
 
 .PHONY: pe-demo-shell
 pe-demo-shell: ## Open a shell in the demo client pod (netshoot).

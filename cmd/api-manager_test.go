@@ -1,16 +1,10 @@
 package cmd
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	discoveryfake "k8s.io/client-go/discovery/fake"
-	clienttesting "k8s.io/client-go/testing"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
@@ -80,58 +74,6 @@ func TestManagerCacheOptions(t *testing.T) {
 			assert.ElementsMatch(t, tt.wantService, svc)
 
 			assert.Equal(t, tt.wantDefaultNS, got.DefaultNamespaces != nil)
-		})
-	}
-}
-
-func TestPrivateEndpointCRDInstalled(t *testing.T) {
-	tests := []struct {
-		name      string
-		resources []*metav1.APIResourceList
-		reactErr  error
-		want      bool
-		wantErr   bool
-	}{
-		{
-			name: "group version not served",
-		},
-		{
-			name: "group version served without privateendpoints",
-			resources: []*metav1.APIResourceList{{
-				GroupVersion: "ngrok.com/v1",
-				APIResources: []metav1.APIResource{{Name: "trafficpolicies"}},
-			}},
-		},
-		{
-			name: "privateendpoints served",
-			resources: []*metav1.APIResourceList{{
-				GroupVersion: "ngrok.com/v1",
-				APIResources: []metav1.APIResource{{Name: "trafficpolicies"}, {Name: "privateendpoints"}},
-			}},
-			want: true,
-		},
-		{
-			name:     "discovery error is returned",
-			reactErr: errors.New("boom"),
-			wantErr:  true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dc := &discoveryfake.FakeDiscovery{Fake: &clienttesting.Fake{Resources: tt.resources}}
-			if tt.reactErr != nil {
-				dc.AddReactor("*", "*", func(clienttesting.Action) (bool, runtime.Object, error) {
-					return true, nil, tt.reactErr
-				})
-			}
-
-			got, err := privateEndpointCRDInstalled(dc)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
 		})
 	}
 }

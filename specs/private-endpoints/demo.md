@@ -2,13 +2,11 @@
 
 A canned, one-command demo of the POC: a kind cluster with the operator (private endpoints
 on), the CoreDNS rewrite, and demo apps published as private endpoints by the operator's own
-`AgentEndpoint` CRD. It follows D8: only `*.ngrok.direct` endpoints are mirrored by default,
-and one `.internal` endpoint is there to show it is *not* mirrored. No ngrok CLI on the
-host. For the full manual test plan see [runbooks/kind-e2e.md](runbooks/kind-e2e.md).
+`AgentEndpoint` CRD. Only `*.ngrok.direct` endpoints are mirrored; `.internal` is not
+supported (D9). No ngrok CLI on the host. For the full manual test plan see [runbooks/kind-e2e.md](runbooks/kind-e2e.md).
 
-Status: the first version (tls/tcp on `.internal`) was run live on kind 2026-10-12. The D8
-rework (`.ngrok.direct` for every protocol, `.internal` negative check, wait timeout, token
-preflight) has not been run live yet; see "Untested" at the end.
+Status: demo run live on kind 2026-10-12 and 2026-10-13. Chainsaw suite (`make pe-demo-test`)
+run on `kind-pe-demo` 2026-10-21 against the D9 build: 4/4 pass in parallel, ~50s.
 
 ## What it builds
 
@@ -18,7 +16,6 @@ pe-demo ns: web (http-echo), redis, tls (openssl s_server, self-signed CN=<prefi
      ▼
 ngrok cloud: http+https://<p>-web.ngrok.direct
              tls://<p>-tls.ngrok.direct   tcp://<p>-redis.ngrok.direct:6379
-             http://<p>-web.internal      (negative case: not mirrored by default)
      │  poller (10s) → PrivateEndpoint CRs → per-host Services → forwarder → private dial
      ▼
 pe-demo-client pod (netshoot) dials the real hostnames
@@ -48,7 +45,7 @@ selectors yet), and a fair thing to point out in a demo.
 ```sh
 export NGROK_ACCESS_TOKEN=<token>
 make pe-demo-up        # token check + kind cluster (if missing) + build/deploy + DNS + demo apps; waits for Ready
-make pe-demo-test      # automated PASS/FAIL checks
+make pe-demo-test      # chainsaw e2e suite (tests/chainsaw-private-endpoints), in parallel
 make pe-demo-shell     # interactive client pod
 make pe-demo-down      # remove demo apps (PE_DEMO_DELETE_CLUSTER=true also deletes the cluster)
 ```
@@ -61,7 +58,7 @@ make pe-demo-down      # remove demo apps (PE_DEMO_DELETE_CLUSTER=true also dele
 2. kind cluster (`KIND_CLUSTER_NAME`, default `ngrok-operator`) if missing; switches kubectl to
    `kind-$KIND_CLUSTER_NAME`.
 3. Build + `helm upgrade --install` with `ngrok.features.privateEndpoints.enabled=true`, then the CoreDNS
-   rewrite (`.ngrok.direct` only by default).
+   rewrite for `.ngrok.direct`.
 4. Apply the demo (`demo.sh apply`).
 5. Wait (`demo.sh wait`) up to `PE_DEMO_TIMEOUT` seconds (default 180) for the origins, every
    AgentEndpoint `Ready`, and a `Ready` PrivateEndpoint for each `.ngrok.direct` URL. Prints
@@ -80,7 +77,7 @@ prefix filled in; `P` below is your prefix).
 1. **What exists.** Host: `kubectl -n ngrok-operator get privateendpoints`.
    Point out: one CR per endpoint URL, created by the poller from the ngrok API, nobody wrote
    them. Each has a ClusterIP and a forwarder port. Other people's `.ngrok.direct` endpoints in
-   the account show up too. No `.internal` rows (see step 7).
+   the account show up too.
 2. **Real hostnames, plain curl.** Client: `curl http://$P-web.ngrok.direct`.
    No sidecar, no proxy env, no app change. Show `dig +noall +answer $P-web.ngrok.direct`: the
    answer is the queried name (CoreDNS rewrite) pointing at the per-host Service.
@@ -96,58 +93,28 @@ prefix filled in; `P` below is your prefix).
    disappear; in the client, `dig $P-redis.ngrok.direct` turns NXDOMAIN (after the short DNS
    TTL). Bring it back with `./scripts/private-endpoints-demo/demo.sh apply`; it reappears
    within a poll.
-7. **`.ngrok.direct` only by default.** Host: `kubectl -n pe-demo get agentendpoint web-internal`
-   is Ready in ngrok, but there is no PrivateEndpoint or Service for it. Client:
-   `dig +short $P-web.internal` is empty. `.ngrok.direct` is the supported pattern; `.internal`
-   is opt-in (below) because it collides with cloud DNS (`ec2.internal`, GKE
-   `metadata.internal`) and with the operator's own Ingress/Gateway endpoints.
-8. **Unknown names still fail fast.** Client: `dig nope-123.ngrok.direct` → NXDOMAIN;
+7. **Unknown names still fail fast.** Client: `dig nope-123.ngrok.direct` → NXDOMAIN;
    `dig kubernetes.default.svc.cluster.local` still works.
-
-## Opting in to `.internal`
-
-Off by default (D8). To mirror `.internal` endpoints too, on a running demo cluster:
-
-```sh
-helm upgrade ngrok-operator ./helm/ngrok-operator -n ngrok-operator --reuse-values \
-  --set ngrok.features.privateEndpoints.includeInternal=true     # api-manager --features-private-endpoints-include-internal
-PE_INCLUDE_INTERNAL=true make kind-private-endpoints-dns   # add the .internal CoreDNS rewrite
-PE_INCLUDE_INTERNAL=true make pe-demo-test
-```
-
-What changes: the poller creates a PrivateEndpoint + Service for `http://$P-web.internal`
-(and any other `.internal` endpoint in the account, including ones the operator itself creates
-for Ingress/Gateway), `$P-web.internal` resolves to that Service, and with
-`PE_INCLUDE_INTERNAL=true` the `.internal` checks flip from "not mirrored" to "resolves and
-returns 200". Running `make pe-demo-test` *without* the env var after opting in fails the
-negative check, as intended. `make pe-demo-up` always deploys the defaults, so it undoes the
-Helm opt-in (rerun the `helm upgrade` afterwards).
 
 ## Tests
 
-`make pe-demo-test` runs one check on the host, then pipes
-`scripts/private-endpoints-demo/checks.sh` into the client pod. Each in-pod check retries for
-~18s (poll interval + negative cache) then prints `PASS`/`FAIL`; the target exits nonzero if
-any fail.
+`make pe-demo-test` (same as `make e2e-tests-private-endpoints`) runs the chainsaw suite in
+`tests/chainsaw-private-endpoints/` against the current cluster, 4 tests at a time. It needs
+the feature on and the kind CoreDNS rewrite, so run `make pe-demo-up` first. It doesn't use the
+`pe-demo` namespace or demo prefix: each test gets its own random chainsaw namespace, uses it
+as the hostname prefix, brings up its own origin, `AgentEndpoint` and netshoot client pod, and
+deletes them at the end. So tests don't step on each other or on the live demo.
 
-| Check | Pass condition | Proves |
+| Test | Asserts | Proves |
 |---|---|---|
-| host: `.internal` not mirrored | no PrivateEndpoint with URL `http://<p>-web.internal`, no Service `<p>-web-internal` | D8 default: poller skips `.internal` |
-| dns `<p>-web` / `<p>-tls` `.ngrok.direct` | resolves to the same IP as `<p>-web-ngrok-direct.<ns>.svc` / `<p>-tls-ngrok-direct.<ns>.svc` | CoreDNS rewrite → per-host Service |
-| dns unknown | random `<p>-nope-N.ngrok.direct` → NXDOMAIN | no wildcard answer for names that aren't mirrored |
-| dns cluster | `kubernetes.default.svc.cluster.local` → NOERROR | rewrite doesn't break cluster DNS |
-| http `.ngrok.direct` | 200 and body `hello from <p>-web` | forwarder → private dial → agent → origin |
-| https `.ngrok.direct` | 200, `ssl_verify_result=0` (verification on) | public cert, no `-k` |
-| tls `.ngrok.direct` | `openssl s_client` subject `CN=<p>-tls.ngrok.direct` | TLS passthrough (origin's own cert) |
-| tcp redis | `PING` → `+PONG` | raw TCP on a non-HTTP port |
-| dns `<p>-web.internal` | empty answer (NXDOMAIN or nothing) | no `.internal` rewrite by default |
+| `http` | http + https PrivateEndpoints on one host `Ready`, one Service with 2 ports; name resolves to the Service IP; body `hello from <ns>`; https `200 ssl_verify=0` | CoreDNS rewrite → per-host Service → forwarder → private dial → agent → origin; public cert, no `-k` |
+| `tls` | PrivateEndpoint `Ready`; `openssl s_client` subject `CN=<ns>-tls.ngrok.direct` | TLS passthrough (origin's own cert) |
+| `tcp` | PrivateEndpoint `Ready`; redis `PING` → `+PONG` | raw TCP on a non-HTTP port |
+| `dns` | `.internal` AgentEndpoint gets no PrivateEndpoint after two polls; unknown `.ngrok.direct` name NXDOMAIN; `kubernetes.default.svc.cluster.local` NOERROR | `.internal` not mirrored; no wildcard answer; cluster DNS intact |
 
-With `PE_INCLUDE_INTERNAL=true` the two `.internal` rows flip: the CR and Service must exist,
-the name must resolve to the Service IP, and `http://<p>-web.internal` must return 200.
-
-Knobs: `RETRIES` (in checks.sh), `PE_DEMO_TIMEOUT` (seconds for Ready waits, default 180),
-`PE_DEMO_NS` (default `pe-demo`), `KUBE_NAMESPACE` (operator, default `ngrok-operator`),
-`PE_INCLUDE_INTERNAL` (default `false`).
+In-pod checks go through `tests/chainsaw-private-endpoints/_fixtures/check.sh`, which retries
+(`RETRIES`, default 20, 3s apart) to ride out the poll interval and CoreDNS negative cache.
+`KUBE_NAMESPACE` sets the operator namespace (default `ngrok-operator`).
 
 ## Fault scenarios
 
@@ -226,11 +193,11 @@ just the wait with `./scripts/private-endpoints-demo/demo.sh wait` (or a longer
 | Pending: AgentEndpoints not Ready | AgentEndpoint conditions + agent logs in the diagnostics. Agent pod not Running → token/secret |
 | AgentEndpoints Ready, PrivateEndpoints missing | api-manager poller/error lines; manager pod restarts (bad token → crashloop); poller only lists every ~10s |
 | PrivateEndpoint `Ready=False` | `REASON` column: `ServiceConflict` (a Service with that name already exists), `PortsExhausted` |
-| `.internal` check fails by default | a leftover CR/Service from before D8 or from an opt-in; the poller should delete it within a poll. Check the manager has the D8 build |
+| `dns` test finds a `.internal` PrivateEndpoint | the api-manager runs a build from before D9 (`.internal` support removed); redeploy with `make pe-demo-up` |
 | dig works, curl/nc hang | forwarder logs: bind errors, or QUIC blocked (UDP/443 egress) |
 | name doesn't resolve at all | `make kind-private-endpoints-dns` again; check `kubectl -n kube-system get cm coredns -o yaml` has the `ngrok-private-endpoints` block |
-| https verify fails | you hit `.internal` with https (no public cert there), or a middlebox intercepts TLS |
-| other people's endpoints in the list | expected: the poller mirrors the whole account (`.ngrok.direct` only by default) |
+| https verify fails | a middlebox intercepts TLS |
+| other people's endpoints in the list | expected: the poller mirrors every `.ngrok.direct` endpoint in the account |
 
 ## Untested / assumptions
 

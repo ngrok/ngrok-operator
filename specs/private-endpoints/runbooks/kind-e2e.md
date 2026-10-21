@@ -2,12 +2,11 @@
 
 Full rerun of the rev-2 e2e ([findings.md](../findings.md) "E2E, revision 2") plus the new checks
 from T1/T2/T3/T6. Manual; ~60 min. Paste results into a new findings.md section
-`## E2E rerun — <date>` using the check IDs below (B1…, A…F, I1…).
+`## E2E rerun — <date>` using the check IDs below (B1…, A…F).
 
-The main path tests **defaults (D8)**: only `.ngrok.direct` is mirrored and rewritten, every
-scheme runs on `.ngrok.direct`, and one `.internal` endpoint is started as a negative control
-that must *not* be mirrored or resolved. §4b turns `.internal` on and reruns the `.internal`
-checks.
+Only `.ngrok.direct` is mirrored and rewritten (D9): every scheme runs on `.ngrok.direct`,
+and one `.internal` endpoint is started as a negative control that must *not* be mirrored or
+resolved.
 
 Checks for fixed bugs. If a run shows the "before fix" behavior, the fix regressed:
 
@@ -44,13 +43,10 @@ make deploy_with_private_endpoints
 make kind-private-endpoints-dns
 make kind-private-endpoints-dns          # second run must be a no-op
 kubectl -n kube-system get cm coredns -o jsonpath='{.data.Corefile}' | grep -c 'ngrok-private-endpoints begin'
-kubectl -n kube-system get cm coredns -o jsonpath='{.data.Corefile}' | grep -c -- '-internal\.'
-kubectl -n $NS get deploy ngrok-operator-manager -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' | grep INCLUDE_INTERNAL
 kubectl -n $NS get pods
 ```
 
-Expected: `1` (exactly one managed block); `0` (no `.internal` rewrite by default);
-`NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__INCLUDE_INTERNAL=false`; api-manager, agent, and
+Expected: `1` (exactly one managed block); api-manager, agent, and
 `*-private-endpoint-forwarder` pods Running.
 
 Record versions:
@@ -77,7 +73,7 @@ ngrok http 18080 --url http://pe-web-$U.ngrok.direct
 ngrok http 18080 --url https://pe-web-$U.ngrok.direct
 ngrok tls 19443 --url tls://pe-tls-$U.ngrok.direct
 ngrok tcp 16379 --url tcp://pe-redis-$U.ngrok.direct:6379
-# negative control: must NOT be mirrored by default (also used in §4b)
+# negative control: must NOT be mirrored (D9)
 ngrok http 18080 --url http://pe-web-$U.internal
 ```
 
@@ -126,8 +122,8 @@ echo B12; nx "dig pe-web-$U.internal | grep status; curl -s -m 5 -o /dev/null -w
 | B8 | `NXDOMAIN` |
 | B9 | `NXDOMAIN` from upstream, not SERVFAIL (multi-label not rewritten) |
 | B10 | `10.96.0.1` |
-| B11 | `0`, then `NotFound` (D8: `.internal` not mirrored) |
-| B12 | `NXDOMAIN` from upstream (no `.internal` rewrite), curl `000` (D8: `.internal` not resolved) |
+| B11 | `0`, then `NotFound` (D9: `.internal` not mirrored) |
+| B12 | `NXDOMAIN` from upstream (no `.internal` rewrite), curl `000` (D9: `.internal` not resolved) |
 
 (B9 stronger variant, as in findings: temporarily add `hosts { 169.254.169.254 metadata.google.internal fallthrough }`
 after the rewrites; expect that IP. Remove afterwards.)
@@ -233,57 +229,6 @@ Then stop the `pe-clash` agent and check the unowned Service still exists
 (`kubectl -n $NS get svc pe-clash-$U-ngrok-direct`) — operator must not delete what it doesn't
 own. Delete it yourself afterwards.
 
-## 4b. Opt-in `.internal` (D8)
-
-Turn `.internal` on in both places (operator and DNS), rerun the `.internal` checks, then turn
-it off again. Keep the §2 agents running, including `http://pe-web-$U.internal`.
-
-```sh
-helm upgrade ngrok-operator helm/ngrok-operator -n $NS --reuse-values --set ngrok.features.privateEndpoints.includeInternal=true   # from the repo root
-PE_INCLUDE_INTERNAL=true make kind-private-endpoints-dns
-kubectl -n kube-system get cm coredns -o jsonpath='{.data.Corefile}' | grep -c -- '-internal\.'
-# extra .internal agents
-ngrok tls 19443 --url tls://pe-tls-$U.internal
-ngrok tcp 16379 --url tcp://pe-redis-$U.internal:6379
-sleep 15; pes | grep -E "NAME|\.internal"
-```
-
-`pe-tls-$U.internal` gets the origin cert for `CN=pe-tls-$U.ngrok.direct`; I3 only checks
-that TLS passes through, so a name mismatch is expected.
-
-```sh
-echo I1; nx "curl -s -o /dev/null -w '%{http_code}\n' http://pe-web-$U.internal"
-echo I2; nx "printf 'PING\r\n' | nc -w 3 pe-redis-$U.internal 6379"
-echo I3; nx "echo | openssl s_client -connect pe-tls-$U.internal:443 -servername pe-tls-$U.internal 2>/dev/null | grep subject="
-echo I4; nx "dig +noall +answer pe-web-$U.internal; dig +noall +answer PE-WEB-$U.Internal"
-echo I5; nx "dig nope-$U.internal | grep status"
-echo I6; nx "dig metadata.google.internal | grep status"
-echo I7; nx "dig internal. SOA | grep status; dig foo.internal SOA | grep status"
-```
-
-| ID | Expected |
-|---|---|
-| (setup) | Corefile count `1`; CRs for the three `.internal` URLs, `READY=True` |
-| I1 | `200` |
-| I2 | `+PONG` |
-| I3 | `subject=CN=pe-tls-$U.ngrok.direct` (origin cert passed through) |
-| I4 | queried name in the answer, same IP both lines, IP of `pe-web-$U-internal` |
-| I5 | `NXDOMAIN` (captured by the rewrite: we own single-label `.internal`) |
-| I6 | upstream `NXDOMAIN`, not SERVFAIL (multi-label not rewritten) |
-| I7 | `internal.` upstream as before; `foo.internal` `NXDOMAIN` from the rewrite. The real apex capture (R15: `ec2.internal`, `compute.internal`, `google.internal`) is measured on EKS/k3s |
-
-Turn it off again and check the cleanup:
-
-```sh
-helm upgrade ngrok-operator helm/ngrok-operator -n $NS --reuse-values --set ngrok.features.privateEndpoints.includeInternal=false
-make kind-private-endpoints-dns
-sleep 15; pes | grep -cE "\.internal"; kubectl -n $NS get svc -l ngrok.com/managed-by=private-endpoint-poller | grep -c -- '-internal '
-nx "dig pe-web-$U.internal | grep status"
-```
-
-Expected: `0`, `0` (the poller deletes managed `.internal` CRs and the controller deletes their
-Services within a poll); upstream `NXDOMAIN`. Stop the extra `.internal` agents.
-
 ## 5. Health, uninstall (R16), teardown
 
 Collect logs first; F removes the pods.
@@ -378,6 +323,5 @@ Paste into findings.md `## E2E rerun — <date>`:
 7. B: OLD_FWD, NEW_FWD, Service-gone timestamp vs agent-stop time.
 8. A: `pes` line, diff result, unowned Service survived deletion (y/n).
 9. Unexpected log lines.
-9b. §4b: setup counts, I1–I7, cleanup counts and how long cleanup took.
 10. F (R16): `/tmp/r16.before`, `/tmp/r16.disabled`, `/tmp/r16.uninstalled` side by side; disabled-state connect result (refused / timeout, seconds); F2 re-adopt result (same names and ports, y/n); CRD and CoreDNS block after uninstall.
-11. Update README.md tracker: R1/R2/R3/R19 status, R16 (verified: what's orphaned), D8 verified live, T6/T10 checkboxes.
+11. Update README.md tracker: R1/R2/R3/R19 status, R16 (verified: what's orphaned), D9 negative control verified live, T6/T10 checkboxes.

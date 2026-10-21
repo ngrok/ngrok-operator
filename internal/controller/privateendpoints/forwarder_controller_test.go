@@ -1,4 +1,4 @@
-package forwarder
+package privateendpoints
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 )
 
@@ -31,15 +32,15 @@ func peCR(name, ns, host string, port int32, ip string, fwd int32) *ngrokv1.Priv
 	}
 }
 
-func newSyncer(t *testing.T, objs ...client.Object) (*Syncer, client.Client) {
+func newForwarderReconciler(t *testing.T, objs ...client.Object) (*ForwarderReconciler, client.Client) {
 	t.Helper()
 	s := runtime.NewScheme()
 	require.NoError(t, ngrokv1.AddToScheme(s))
 	c := fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).WithStatusSubresource(&ngrokv1.PrivateEndpoint{}).Build()
-	return &Syncer{
+	return &ForwarderReconciler{
 		Client:       c,
 		Namespace:    "op",
-		Table:        NewTable(),
+		Table:        forwarder.NewTable(),
 		Listeners:    bindingsdriver.New(),
 		Dial:         echoDial,
 		DrainTimeout: time.Second,
@@ -52,12 +53,12 @@ func dialPort(t *testing.T, port int32) (net.Conn, error) {
 	return net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
 }
 
-func TestSyncerSync(t *testing.T) {
+func TestForwarderReconcilerSync(t *testing.T) {
 	port := freePort(t)
-	sy, _ := newSyncer(t,
-		peCR("a", "op", "foo.internal", 80, "", 0),                  // not wired yet
-		peCR("b", "op", "bar.internal", 6379, "10.0.0.2", port),     // ready
-		peCR("c", "other", "else.internal", 80, "10.0.0.9", port+1), // other namespace
+	sy, _ := newForwarderReconciler(t,
+		peCR("a", "op", "foo.ngrok.direct", 80, "", 0),                  // not wired yet
+		peCR("b", "op", "bar.ngrok.direct", 6379, "10.0.0.2", port),     // ready
+		peCR("c", "other", "else.ngrok.direct", 80, "10.0.0.9", port+1), // other namespace
 	)
 	defer sy.Close()
 
@@ -68,13 +69,13 @@ func TestSyncerSync(t *testing.T) {
 	c, err := dialPort(t, port)
 	require.NoError(t, err)
 	defer c.Close()
-	assert.Equal(t, "[bar.internal:6379]", readN(t, c, len("[bar.internal:6379]")))
+	assert.Equal(t, "[bar.ngrok.direct:6379]", readN(t, c, len("[bar.ngrok.direct:6379]")))
 }
 
-func TestSyncerFollowsChanges(t *testing.T) {
+func TestForwarderReconcilerFollowsChanges(t *testing.T) {
 	ctx := context.Background()
 	port := freePort(t)
-	sy, c := newSyncer(t, peCR("old", "op", "old.internal", 6379, "10.0.0.2", port))
+	sy, c := newForwarderReconciler(t, peCR("old", "op", "old.ngrok.direct", 6379, "10.0.0.2", port))
 	defer sy.Close()
 	require.NoError(t, sy.Sync(ctx))
 
@@ -86,25 +87,25 @@ func TestSyncerFollowsChanges(t *testing.T) {
 	assert.Error(t, err, "listener should be closed")
 
 	// Port reallocated to a different endpoint: new connections go to it.
-	require.NoError(t, c.Create(ctx, peCR("new", "op", "new.internal", 5432, "10.0.0.3", port)))
+	require.NoError(t, c.Create(ctx, peCR("new", "op", "new.ngrok.direct", 5432, "10.0.0.3", port)))
 	require.NoError(t, sy.Sync(ctx))
 	conn, err := dialPort(t, port)
 	require.NoError(t, err)
 	defer conn.Close()
-	assert.Equal(t, "[new.internal:5432]", readN(t, conn, len("[new.internal:5432]")))
+	assert.Equal(t, "[new.ngrok.direct:5432]", readN(t, conn, len("[new.ngrok.direct:5432]")))
 }
 
-func TestSyncerReportsBindFailures(t *testing.T) {
+func TestForwarderReconcilerReportsBindFailures(t *testing.T) {
 	ctx := context.Background()
 	blocker := listen(t)
 	port := int32(blocker.Addr().(*net.TCPAddr).Port)
-	sy, _ := newSyncer(t, peCR("b", "op", "bar.internal", 6379, "10.0.0.2", port))
+	sy, _ := newForwarderReconciler(t, peCR("b", "op", "bar.ngrok.direct", 6379, "10.0.0.2", port))
 	defer sy.Close()
 
 	err := sy.Sync(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), fmt.Sprint(port))
-	assert.Contains(t, err.Error(), "bar.internal")
+	assert.Contains(t, err.Error(), "bar.ngrok.direct")
 	require.Error(t, sy.BindErr(), "a desired listener that failed to bind must be reported")
 	assert.Contains(t, sy.BindErr().Error(), fmt.Sprint(port))
 	assert.Empty(t, sy.Ports())
@@ -116,12 +117,12 @@ func TestSyncerReportsBindFailures(t *testing.T) {
 	assert.Equal(t, []int32{port}, sy.Ports())
 }
 
-func TestSyncerBindFailureClearsWhenNoLongerWanted(t *testing.T) {
+func TestForwarderReconcilerBindFailureClearsWhenNoLongerWanted(t *testing.T) {
 	ctx := context.Background()
 	blocker := listen(t)
 	defer blocker.Close()
 	port := int32(blocker.Addr().(*net.TCPAddr).Port)
-	sy, c := newSyncer(t, peCR("b", "op", "bar.internal", 6379, "10.0.0.2", port))
+	sy, c := newForwarderReconciler(t, peCR("b", "op", "bar.ngrok.direct", 6379, "10.0.0.2", port))
 	defer sy.Close()
 
 	require.Error(t, sy.Sync(ctx))
@@ -132,12 +133,12 @@ func TestSyncerBindFailureClearsWhenNoLongerWanted(t *testing.T) {
 	assert.NoError(t, sy.BindErr())
 }
 
-func TestSyncerAmbiguousPort(t *testing.T) {
+func TestForwarderReconcilerAmbiguousPort(t *testing.T) {
 	ctx := context.Background()
 	port := freePort(t)
-	sy, c := newSyncer(t,
-		peCR("a", "op", "a.internal", 5432, "10.0.0.2", port),
-		peCR("b", "op", "b.internal", 5432, "10.0.0.3", port),
+	sy, c := newForwarderReconciler(t,
+		peCR("a", "op", "a.ngrok.direct", 5432, "10.0.0.2", port),
+		peCR("b", "op", "b.ngrok.direct", 5432, "10.0.0.3", port),
 	)
 	defer sy.Close()
 	var dials atomic.Int32
@@ -174,25 +175,25 @@ func TestSyncerAmbiguousPort(t *testing.T) {
 	conn, err = dialPort(t, port)
 	require.NoError(t, err)
 	defer conn.Close()
-	assert.Equal(t, "[a.internal:5432]", readN(t, conn, len("[a.internal:5432]")))
+	assert.Equal(t, "[a.ngrok.direct:5432]", readN(t, conn, len("[a.ngrok.direct:5432]")))
 }
 
 // A replica with a stale mapping routes correctly as soon as its table is
 // replaced: the target is resolved per connection, not per listener.
-func TestSyncerRetargetsOpenListener(t *testing.T) {
+func TestForwarderReconcilerRetargetsOpenListener(t *testing.T) {
 	ctx := context.Background()
 	port := freePort(t)
-	sy, c := newSyncer(t, peCR("a", "op", "a.internal", 5432, "10.0.0.2", port))
+	sy, c := newForwarderReconciler(t, peCR("a", "op", "a.ngrok.direct", 5432, "10.0.0.2", port))
 	defer sy.Close()
 	require.NoError(t, sy.Sync(ctx))
 
 	require.NoError(t, c.Delete(ctx, peCR("a", "op", "", 0, "", 0)))
-	require.NoError(t, c.Create(ctx, peCR("b", "op", "b.internal", 6379, "10.0.0.3", port)))
+	require.NoError(t, c.Create(ctx, peCR("b", "op", "b.ngrok.direct", 6379, "10.0.0.3", port)))
 	require.NoError(t, sy.Sync(ctx))
 	assert.Equal(t, []int32{port}, sy.Ports())
 
 	conn, err := dialPort(t, port)
 	require.NoError(t, err)
 	defer conn.Close()
-	assert.Equal(t, "[b.internal:6379]", readN(t, conn, len("[b.internal:6379]")))
+	assert.Equal(t, "[b.ngrok.direct:6379]", readN(t, conn, len("[b.ngrok.direct:6379]")))
 }

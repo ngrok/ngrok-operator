@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	privateendpointscontroller "github.com/ngrok/ngrok-operator/internal/controller/privateendpoints"
 	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 )
@@ -46,17 +47,17 @@ func TestForwarderReadyz(t *testing.T) {
 			require.NoError(t, ngrokv1.AddToScheme(s))
 			c := fake.NewClientBuilder().WithScheme(s).WithObjects(&ngrokv1.PrivateEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "op"},
-				Spec:       ngrokv1.PrivateEndpointSpec{Hostname: "a.internal", Port: 80},
+				Spec:       ngrokv1.PrivateEndpointSpec{Hostname: "a.ngrok.direct", Port: 80},
 				Status:     ngrokv1.PrivateEndpointStatus{ClusterIP: "10.0.0.1", ForwarderPort: port},
 			}).Build()
 			table := forwarder.NewTable()
-			syncer := &forwarder.Syncer{Client: c, Namespace: "op", Table: table, Listeners: bindingsdriver.New(), Log: logr.Discard()}
-			defer syncer.Close()
+			r := &privateendpointscontroller.ForwarderReconciler{Client: c, Namespace: "op", Table: table, Listeners: bindingsdriver.New(), Log: logr.Discard()}
+			defer r.Close()
 			if tt.sync {
-				_ = syncer.Sync(context.Background())
+				_ = r.Sync(context.Background())
 			}
 
-			err = forwarderReadyz(table, syncer)(nil)
+			err = forwarderReadyz(table, r)(nil)
 			if tt.wantReady {
 				assert.NoError(t, err)
 			} else {
