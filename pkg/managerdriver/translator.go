@@ -288,7 +288,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 			// Drop the `Policy` write in the cleanup release.
 			cloudEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 				Inline: json.RawMessage(listenerPolicyJSON),
-				Policy: json.RawMessage(listenerPolicyJSON),
+				Policy: json.RawMessage(listenerPolicyJSON), //nolint:staticcheck // SA1019: deliberate legacy dual-write, see above
 			}
 			cloudEndpoints[types.NamespacedName{
 				Name:      cloudEndpoint.Name,
