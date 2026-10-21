@@ -5,6 +5,14 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.24.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.24.1...helm-chart-ngrok-operator-0.24.2
+
+- Update ngrok-operator image version to `0.22.2`
+- Update Helm chart version to `0.24.2`
+
+No chart or values changes. See the container [0.22.2 notes](../../CHANGELOG.md#0222) for the security fix.
+
 ## 0.24.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.24.0...helm-chart-ngrok-operator-0.24.1
 
