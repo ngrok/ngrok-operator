@@ -316,8 +316,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 	if err != nil {
 		errMessage = err.Error()
 
-		var ngrokErr *ngrok.Error
-		if errors.As(err, &ngrokErr) {
+		if ngrokErr, ok := errors.AsType[*ngrok.Error](err); ok {
 			if ngrokErr.Msg != "" {
 				errMessage = ngrokErr.Msg
 			}

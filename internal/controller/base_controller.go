@@ -207,8 +207,7 @@ func (self *BaseController[T]) ReconcileStatus(ctx context.Context, obj T, origE
 
 // CtrlResultForErr is a helper function to convert an error into a ctrl.Result passing through ngrok error mappings
 func CtrlResultForErr(err error) (ctrl.Result, error) {
-	var nerr *ngrok.Error
-	if errors.As(err, &nerr) {
+	if nerr, ok := errors.AsType[*ngrok.Error](err); ok {
 		switch {
 		case nerr.StatusCode >= 500:
 			return ctrl.Result{}, err
@@ -229,8 +228,7 @@ func CtrlResultForErr(err error) (ctrl.Result, error) {
 	}
 
 	// if error was because of status update, requeue for 10 seconds
-	var serr StatusError
-	if errors.As(err, &serr) {
+	if serr, ok := errors.AsType[StatusError](err); ok {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, serr
 	}
 

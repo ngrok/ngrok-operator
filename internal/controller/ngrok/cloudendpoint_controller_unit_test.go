@@ -448,7 +448,7 @@ func TestUpdate_RecreateOn404_DoesNotDoubleNormalizeLegacyPolicy(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "legacy-only", Namespace: "ns"},
 		Spec: ngrokv1alpha1.CloudEndpointSpec{
 			URL:               "https://legacy-only.internal",
-			TrafficPolicyName: "my-policy",
+			TrafficPolicyName: "my-policy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 		},
 		// A Status.ID the mock ngrok clientset doesn't know about, so
 		// Endpoints().Get returns 404 and update() falls through to create.

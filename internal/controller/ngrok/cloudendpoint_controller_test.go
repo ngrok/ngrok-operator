@@ -215,7 +215,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 					URL:               "https://policy-test.internal",
 					Description:       "Endpoint with policy",
 					Metadata:          commonv1alpha1.MetadataFromLegacyString("{}"),
-					TrafficPolicyName: "test-policy",
+					TrafficPolicyName: "test-policy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 				},
 			}
 
@@ -285,7 +285,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://legacy-policy.internal",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
-						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy"}]}`),
+						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy"}]}`), //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 					},
 				},
 			}
@@ -412,7 +412,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 					URL:               "https://both-fields.internal",
 					Description:       "Both legacy and canonical fields set",
 					Metadata:          commonv1alpha1.MetadataFromLegacyString("{}"),
-					TrafficPolicyName: "ignored-legacy-name",
+					TrafficPolicyName: "ignored-legacy-name", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "canonical-policy"},
 					},
@@ -477,7 +477,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 					URL: "https://policy-and-inline.internal",
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
 						Inline: json.RawMessage(`{"on_http_request":[{"name":"canonical-inline"}]}`),
-						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy-policy"}]}`),
+						Policy: json.RawMessage(`{"on_http_request":[{"name":"legacy-policy"}]}`), //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 					},
 				},
 			}
@@ -513,7 +513,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{Name: "fallback-endpoint", Namespace: namespace},
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://fallback.internal",
-					TrafficPolicyName: "fallback-legacy",
+					TrafficPolicyName: "fallback-legacy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 					// Empty struct mimics a templating system emitting `{}`.
 					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{},
 				},
@@ -559,7 +559,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{Name: "transition-endpoint", Namespace: namespace},
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://transition.internal",
-					TrafficPolicyName: "transition-legacy",
+					TrafficPolicyName: "transition-legacy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 				},
 			}
 
@@ -727,7 +727,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 					URL:               "https://policy-update.internal",
 					Description:       "Endpoint with updatable policy",
 					Metadata:          commonv1alpha1.MetadataFromLegacyString("{}"),
-					TrafficPolicyName: "policy-v1",
+					TrafficPolicyName: "policy-v1", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 				},
 			}
 
@@ -853,7 +853,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				},
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:               "https://recreate-legacy.internal",
-					TrafficPolicyName: "recreate-legacy-policy",
+					TrafficPolicyName: "recreate-legacy-policy", //nolint:staticcheck // SA1019: exercises the deprecated field's migration path
 				},
 			}
 
