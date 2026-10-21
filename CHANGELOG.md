@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Security patch release cut from `0.22.1`. It contains only the change below and none of the unreleased changes on `main`. All 0.22.x users should upgrade.
 
 ### Security
-- Build with Go 1.26.10, which no longer trusts certificates issued under the compromised eMudhra intermediate CAs ("emSign ECC Root CA - G3" and "AAA Certificate Services" chains). 0.22.1 and earlier were built with a Go version that still trusts them, so the operator's outbound TLS connections (for example to the ngrok API) could accept a forged certificate by @alex-bezek in [#907](https://github.com/ngrok/ngrok-operator/pull/907)
+- Build with Go 1.26.10, which no longer trusts certificates issued under the compromised eMudhra intermediate CAs ("emSign ECC Root CA - G3" and "AAA Certificate Services" chains). 0.22.1 and earlier were built with a Go version that still trusts them, so the operator's outbound TLS connections (for example to the ngrok API) could accept a forged certificate by @alex-bezek in [#908](https://github.com/ngrok/ngrok-operator/pull/908)
 
 ## 0.22.1
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.22.0...ngrok-operator-0.22.1
