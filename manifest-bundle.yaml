@@ -55,7 +55,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: boundendpoints.bindings.k8s.ngrok.com
 spec:
   group: bindings.k8s.ngrok.com
@@ -345,7 +345,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: domains.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -671,7 +671,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: ippolicies.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -866,7 +866,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: trafficpolicies.ngrok.com
 spec:
   group: ngrok.com
@@ -1019,7 +1019,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: agentendpoints.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1389,7 +1389,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: cloudendpoints.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1648,7 +1648,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: kubernetesoperators.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1927,7 +1927,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: ngroktrafficpolicies.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
