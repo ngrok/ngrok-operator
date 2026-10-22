@@ -13,7 +13,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
@@ -82,8 +81,8 @@ func (p *PrivateEndpointPoller) Sync(ctx context.Context) error {
 	}
 	for name, spec := range desired {
 		cr := &ngrokv1.PrivateEndpoint{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: p.Namespace, Labels: managedLabels(spec)},
-			Spec:       spec,
+			Name: name, Namespace: p.Namespace, Labels: managedLabels(spec),
+			Spec: spec,
 		}
 		err := p.Create(ctx, cr)
 		switch {

@@ -11,7 +11,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -46,9 +45,9 @@ func TestForwarderReadyz(t *testing.T) {
 			s := runtime.NewScheme()
 			require.NoError(t, ngrokv1.AddToScheme(s))
 			c := fake.NewClientBuilder().WithScheme(s).WithObjects(&ngrokv1.PrivateEndpoint{
-				ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "op"},
-				Spec:       ngrokv1.PrivateEndpointSpec{Hostname: "a.ngrok.direct", Port: 80},
-				Status:     ngrokv1.PrivateEndpointStatus{ClusterIP: "10.0.0.1", ForwarderPort: port},
+				Name: "a", Namespace: "op",
+				Spec:   ngrokv1.PrivateEndpointSpec{Hostname: "a.ngrok.direct", Port: 80},
+				Status: ngrokv1.PrivateEndpointStatus{ClusterIP: "10.0.0.1", ForwarderPort: port},
 			}).Build()
 			table := forwarder.NewTable()
 			r := &privateendpointscontroller.ForwarderReconciler{Client: c, Namespace: "op", Table: table, Listeners: bindingsdriver.New(), Log: logr.Discard()}

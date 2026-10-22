@@ -9,7 +9,6 @@ import (
 	"github.com/ngrok/ngrok-api-go/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -40,8 +39,8 @@ func existingCR(url string, managed bool) *ngrokv1.PrivateEndpoint {
 		labels[pe.ManagedByLabel] = pe.ManagedByValue
 	}
 	return &ngrokv1.PrivateEndpoint{
-		ObjectMeta: metav1.ObjectMeta{Name: crName(url), Namespace: testNS, Labels: labels},
-		Spec:       spec,
+		Name: crName(url), Namespace: testNS, Labels: labels,
+		Spec: spec,
 	}
 }
 

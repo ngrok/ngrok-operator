@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 
 func setupNS(t *testing.T) (string, *PrivateEndpointReconciler) {
 	t.Helper()
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "pe-test-"}}
+	ns := &corev1.Namespace{GenerateName: "pe-test-"}
 	require.NoError(t, envClient.Create(context.Background(), ns))
 	return ns.Name, &PrivateEndpointReconciler{
 		Client: envClient, APIReader: envClient, Log: logr.Discard(), Namespace: ns.Name,
@@ -65,11 +65,9 @@ func createCR(t *testing.T, ns, url string) {
 	spec, err := pe.ParseURL(url)
 	require.NoError(t, err)
 	require.NoError(t, envClient.Create(context.Background(), &ngrokv1.PrivateEndpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: crName(url), Namespace: ns,
-			Labels: map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey(spec.Hostname)},
-		},
-		Spec: spec,
+		Name: crName(url), Namespace: ns,
+		Labels: map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey(spec.Hostname)},
+		Spec:   spec,
 	}))
 }
 
@@ -82,7 +80,7 @@ func getCR(t *testing.T, ns, url string) ngrokv1.PrivateEndpoint {
 
 func reconcileHost(t *testing.T, r *PrivateEndpointReconciler, host string) ctrl.Result {
 	t.Helper()
-	res, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: r.Namespace, Name: pe.HostKey(host)}})
+	res, err := r.Reconcile(context.Background(), ctrl.Request{Namespace: r.Namespace, Name: pe.HostKey(host)})
 	require.NoError(t, err)
 	return res
 }
@@ -219,7 +217,7 @@ func TestReconcile(t *testing.T) {
 	t.Run("unmanaged service with the same name is left alone", func(t *testing.T) {
 		ns, r := setupNS(t)
 		foreign := &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{Name: "taken-ngrok-direct", Namespace: ns, Labels: map[string]string{"app": "someone-else"}},
+			Name: "taken-ngrok-direct", Namespace: ns, Labels: map[string]string{"app": "someone-else"},
 			Spec: corev1.ServiceSpec{
 				Selector: map[string]string{"app": "someone-else"},
 				Ports:    []corev1.ServicePort{{Name: "web", Port: 8080, TargetPort: intstr.FromInt32(8080)}},
@@ -440,7 +438,7 @@ func TestRoutingSafety(t *testing.T) {
 				},
 			})
 			createCR(t, ns, urlA)
-			_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: pe.HostKey("sw-a.ngrok.direct")}})
+			_, err := r.Reconcile(context.Background(), ctrl.Request{Namespace: ns, Name: pe.HostKey("sw-a.ngrok.direct")})
 			require.Error(t, err)
 			svcA, ok := hostService(t, ns, "sw-a.ngrok.direct")
 			require.True(t, ok)

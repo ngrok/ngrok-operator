@@ -17,7 +17,7 @@ func echoDial(_ context.Context, target string) (net.Conn, error) {
 	a, b := net.Pipe()
 	go func() {
 		defer b.Close()
-		fmt.Fprintf(b, "[%s]", target)
+		_, _ = fmt.Fprintf(b, "[%s]", target)
 		_, _ = io.Copy(b, b)
 	}()
 	return a, nil

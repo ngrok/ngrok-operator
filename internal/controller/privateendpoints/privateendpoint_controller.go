@@ -13,7 +13,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -181,7 +180,7 @@ func (r *PrivateEndpointReconciler) reconcileService(ctx context.Context, hostKe
 		return res, errors.Join(errs...)
 	}
 
-	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: svcName, Namespace: r.Namespace}}
+	svc := &corev1.Service{Name: svcName, Namespace: r.Namespace}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
 		if !svc.CreationTimestamp.IsZero() && (svc.Labels[pe.ManagedByLabel] != pe.ManagedByValue || svc.Labels[pe.HostLabel] != hostKey) {
 			return errServiceConflict
@@ -282,7 +281,7 @@ func (r *PrivateEndpointReconciler) deleteHostServices(ctx context.Context, host
 }
 
 func (r *PrivateEndpointReconciler) hostRequest(key string) reconcile.Request {
-	return reconcile.Request{NamespacedName: types.NamespacedName{Namespace: r.Namespace, Name: key}}
+	return reconcile.Request{Namespace: r.Namespace, Name: key}
 }
 
 func (r *PrivateEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {

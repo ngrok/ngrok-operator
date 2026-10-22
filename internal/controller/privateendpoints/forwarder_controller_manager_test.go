@@ -10,10 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,7 +46,7 @@ func TestForwarderReconcilerStartupBindFailureKeepsManagerRunning(t *testing.T) 
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "fwd-test-"}}
+	ns := &corev1.Namespace{GenerateName: "fwd-test-"}
 	require.NoError(t, c.Create(ctx, ns))
 
 	blocker := listen(t)
@@ -65,7 +63,7 @@ func TestForwarderReconcilerStartupBindFailureKeepsManagerRunning(t *testing.T) 
 		Metrics:                server.Options{BindAddress: "0"},
 		HealthProbeBindAddress: "0",
 		// -count=N reuses the global controller name registry.
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	})
 	require.NoError(t, err)
 	sy := &ForwarderReconciler{
