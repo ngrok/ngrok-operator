@@ -61,8 +61,7 @@ func privateEndpointForwarderCmd() *cobra.Command {
 		},
 	}
 	flags.Manager(c.Flags(), &opts.ManagerOptions, "private-endpoint-forwarder-manager")
-	c.Flags().StringVar(&opts.privateDialServer, "private-dial-server", "quic.connect-endpoint.ngrok.com:443",
-		"Private dial gateway (host:port). QUIC is forced: privatedial's HTTP/2 transport panics on Go 1.27, so UDP/443 egress is required.")
+	flags.PrivateEndpointsDialServer(c.Flags(), &opts.privateDialServer)
 	opts.log = flags.Log(c.Flags())
 	return c
 }
@@ -100,8 +99,9 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderManagerOpts) error
 
 	dialer := privatedial.New(privatedial.Config{
 		QUICServerAddr: opts.privateDialServer,
-		ForceProtocol:  privatedial.ProtocolQUIC,
-		AuthToken:      token,
+		// privatedial's HTTP/2 transport panics on Go 1.27, so force QUIC.
+		ForceProtocol: privatedial.ProtocolQUIC,
+		AuthToken:     token,
 	})
 	table := forwarder.NewTable()
 	forwarderReconciler := &privateendpointscontroller.ForwarderReconciler{

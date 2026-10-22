@@ -16,6 +16,7 @@ The credential is stored in a Kubernetes Secret in the operator's namespace. Eac
 |---|---|---|
 | `AGENT_ACCESS_TOKEN` | agent-manager | ngrok access token for the tunnel session |
 | `API_MANAGER_ACCESS_TOKEN` | api-manager | ngrok access token for the ngrok API |
+| `PRIVATE_ENDPOINTS_ACCESS_TOKEN` | private-endpoint-forwarder | ngrok access token for private dial. Only when `ngrok.features.privateEndpoints.enabled: true`; set by `ngrok.credentials.privateEndpointForwarder.accessToken`, falling back to `ngrok.credentials.accessToken` |
 
 Both keys hold the same value unless a per-component token is configured.
 

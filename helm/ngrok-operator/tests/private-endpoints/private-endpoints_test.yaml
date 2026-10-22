@@ -32,7 +32,7 @@ tests:
       value: private-endpoint-forwarder
   - contains:
       path: spec.template.spec.containers[0].args
-      content: private-endpoint-forwarder
+      content: private-endpoint-forwarder-manager
   - contains:
       path: spec.template.spec.containers[0].env
       content:
@@ -52,6 +52,18 @@ tests:
       content:
         name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
         value: "true"
+- it: forwarder gets the private dial server as env
+  set:
+    ngrok.credentials.accessToken: abc123
+    ngrok.features.privateEndpoints.enabled: true
+    ngrok.features.privateEndpoints.privateDialServer: quic.eu.example.com:443
+  template: private-endpoints/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__PRIVATE_DIAL_SERVER
+        value: quic.eu.example.com:443
 - it: renders nothing in one-click demo mode
   set:
     ngrok.features.privateEndpoints.enabled: true

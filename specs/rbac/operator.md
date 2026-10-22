@@ -13,6 +13,7 @@ Roles bound to this ServiceAccount:
 - a release-namespace leader-election Role
 - a release-namespace operator-state Role
 - an unconditional cluster-wide bindings ClusterRole
+- a release-namespace private endpoints Role (only when `ngrok.features.privateEndpoints.enabled: true`)
 
 ## Cluster-scoped resources (always ClusterRole)
 
@@ -154,3 +155,20 @@ These rules are **not** gated on `ngrok.features.bindings.enabled`. The BoundEnd
 | `services` | create, delete, get, list, patch, update, watch | Binding poller creates Services for bound endpoints in any namespace |
 | `services/finalizers` | patch, update | Binding poller |
 | `services/status` | get, list, patch, update, watch | Binding poller |
+
+## Private endpoints (Role in release namespace, conditional)
+
+The PrivateEndpoint poller and controller act only in the release namespace: the CRs and the per-hostname Services both live there, regardless of `watchNamespace`. The Role (`<fullname>-private-endpoints-manager`, in `templates/private-endpoints/rbac.yaml`) is rendered only when `ngrok.features.privateEndpoints.enabled: true`, because nothing else reads PrivateEndpoints.
+
+### ngrok API (`ngrok.com`)
+
+| Resource | Verbs | Used by |
+|---|---|---|
+| `privateendpoints` | create, delete, get, list, update, watch | Poller (create, delete stale CRs, restore drifted spec and labels); controller reads, uncached for port allocation |
+| `privateendpoints/status` | get, patch, update | PrivateEndpoint controller (`clusterIP`, `forwarderPort`, `Ready`) |
+
+### Core API (`""`)
+
+| Resource | Verbs | Used by |
+|---|---|---|
+| `services` | create, delete, get, list, patch, update, watch | PrivateEndpoint controller creates, updates and deletes the per-hostname Services |

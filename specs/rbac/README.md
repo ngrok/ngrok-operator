@@ -2,21 +2,23 @@
 
 ## Overview
 
-The ngrok-operator uses Kubernetes Role-Based Access Control (RBAC) to authorize its components to interact with the Kubernetes API. Three separate components each have their own ServiceAccount and RBAC configuration:
+The ngrok-operator uses Kubernetes Role-Based Access Control (RBAC) to authorize its components to interact with the Kubernetes API. Four separate components each have their own ServiceAccount and RBAC configuration:
 
 | Component              | Scope               | Purpose                                            |
 |------------------------|---------------------|----------------------------------------------------|
 | Operator (api-manager) | Cluster + Namespace | Main controller managing all CRDs and resources    |
 | Agent                  | Cluster             | Agent tunnel management                            |
 | Bindings Forwarder     | Cluster + Namespace | Endpoint binding forwarding                        |
+| Private Endpoint Forwarder | Namespace       | Private endpoint forwarding                        |
 
 ## Architecture
 
 | Deployment          | ServiceAccount                          | Controllers                                                                                                                                                            | Conditional?          |
 |---------------------|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|
-| api-manager         | `ngrok-operator`                        | Ingress, Domain, IPPolicy, CloudEndpoint, TrafficPolicy, KubernetesOperator, BoundEndpoint, Gateway, HTTPRoute, TCPRoute, TLSRoute, GatewayClass, Namespace, ReferenceGrant, Service + Drain | No |
+| api-manager         | `ngrok-operator`                        | Ingress, Domain, IPPolicy, CloudEndpoint, TrafficPolicy, KubernetesOperator, BoundEndpoint, Gateway, HTTPRoute, TCPRoute, TLSRoute, GatewayClass, Namespace, ReferenceGrant, Service, PrivateEndpoint (when enabled) + Drain | No |
 | agent-manager       | `ngrok-operator-agent`                  | AgentEndpoint                                                                                                                                                          | Yes (`ngrok.features.ingress.enabled`) |
 | bindings-forwarder  | `ngrok-operator-bindings-forwarder`     | Forwarder                                                                                                                                                              | Yes (`ngrok.features.bindings.enabled`) |
+| private-endpoint-forwarder | `ngrok-operator-private-endpoint-forwarder` | Private Endpoint Forwarder                                                                                                                                  | Yes (`ngrok.features.privateEndpoints.enabled`) |
 
 ### Management approach
 
@@ -40,6 +42,8 @@ Cluster-scoped K8s resources (namespaces, ingressclasses, gatewayclasses) always
 | agent-manager: user workloads | ClusterRole + ClusterRoleBinding | Role + RoleBinding (in watchNamespace) |
 | agent-manager: operator state (KubernetesOperator drain reads) | Role + RoleBinding (always release ns) | No change |
 | bindings-forwarder | Role + RoleBinding (namespaced) **plus** ClusterRole + ClusterRoleBinding (pods only) | No change — Pod watch is cluster-wide by design |
+| api-manager: private endpoints (PrivateEndpoint + per-hostname Services) | Role + RoleBinding (always release ns, only when enabled) | No change |
+| private-endpoint-forwarder | Role + RoleBinding (always release ns) | No change |
 | leader-election | Role + RoleBinding (always release ns) | No change |
 
 > **Note**: the `bindings-forwarder` ClusterRole and the api-manager `bindings-cluster-role` both exist because the binding feature is inherently cluster-wide on both sides — the forwarder watches Pods anywhere that consumes the binding Service, and the poller creates the corresponding Service anywhere the BoundEndpoint targets. `watchNamespace` does not constrain either of these.
@@ -62,6 +66,7 @@ agent/              role.yaml (watchNamespace-following Role/ClusterRole)
                     rolebinding.yaml
                     release-namespace-role.yaml (always release ns — KubernetesOperator drain reads)
 bindings-forwarder/ role.yaml (Role + RoleBinding + ClusterRole + ClusterRoleBinding)
+private-endpoints/  rbac.yaml (forwarder Role + api-manager private endpoints Role, with bindings; only when features.privateEndpoints.enabled)
 rbac/crd-access/    editor/viewer ClusterRoles for end-users
 ```
 
@@ -79,6 +84,7 @@ Each component's full permission tables — with per-rule `Used by` attribution 
 - **api-manager** — [operator.md](operator.md): the broadest set. A watchNamespace-following Role/ClusterRole, an always-cluster-scoped ClusterRole, plus release-namespace leader-election and operator-state Roles and an unconditional cluster-wide bindings ClusterRole.
 - **agent-manager** — [agent.md](agent.md): AgentEndpoint controller. A watchNamespace-following Role/ClusterRole plus a release-namespace operator-state Role.
 - **bindings-forwarder** — [bindings-forwarder.md](bindings-forwarder.md): Forwarder controller. A namespaced Role plus a cluster-wide Pods ClusterRole.
+- **private-endpoint-forwarder** — [private-endpoint-forwarder.md](private-endpoint-forwarder.md): Private Endpoint Forwarder controller. A single release-namespace Role reading PrivateEndpoints.
 
 ## Cleanup hook
 

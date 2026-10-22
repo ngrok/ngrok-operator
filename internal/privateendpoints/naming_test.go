@@ -93,10 +93,34 @@ func TestServiceName(t *testing.T) {
 	}
 }
 
-func TestNames(t *testing.T) {
-	assert.Equal(t, CRName("http://foo.ngrok.direct"), CRName("http://foo.ngrok.direct"))
-	assert.NotEqual(t, CRName("http://foo.ngrok.direct"), CRName("https://foo.ngrok.direct"))
-	assert.Regexp(t, `^pe-[0-9a-f]{16}$`, CRName("http://foo.ngrok.direct"))
+func TestCRName(t *testing.T) {
+	tests := []struct {
+		url    string
+		want   string
+		hashed bool
+	}{
+		{url: "http://foo.ngrok.direct", want: "foo.ngrok.direct-http-80"},
+		{url: "http://FOO.ngrok.direct:80", want: "foo.ngrok.direct-http-80"}, // case and default port normalized
+		{url: "https://foo.ngrok.direct", want: "foo.ngrok.direct-https-443"},
+		{url: "tls://foo.ngrok.direct", want: "foo.ngrok.direct-tls-443"},
+		{url: "tcp://bar.ngrok.direct:6379", want: "bar.ngrok.direct-tcp-6379"},
+		{url: "tcp://foo_bar.ngrok.direct:6379", hashed: true}, // not a valid object name
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			spec, err := ParseURL(tt.url)
+			require.NoError(t, err)
+			got := CRName(spec)
+			if tt.hashed {
+				assert.Regexp(t, `^pe-[0-9a-f]{16}$`, got)
+				return
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestHostKey(t *testing.T) {
 	assert.Equal(t, HostKey("FOO.ngrok.direct"), HostKey("foo.ngrok.direct."))
 	assert.Regexp(t, `^[0-9a-f]{16}$`, HostKey("foo.ngrok.direct"))
 }

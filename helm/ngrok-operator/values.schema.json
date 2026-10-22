@@ -119,7 +119,7 @@
                             "properties": {
                                 "accessToken": {
                                     "type": "string",
-                                    "description": "Optional access token for the private-endpoint-forwarder only. Falls back to ngrok.credentials.accessToken. With ngrok.features.privateEndpoints.enabled and no ngrok.credentials.secret.name, one of the two must be set or rendering fails. A custom secret is not checked at render time; it must hold a PRIVATE_ENDPOINTS_ACCESS_TOKEN key (the forwarder exits at startup without it).",
+                                    "description": "Optional access token for the private-endpoint-forwarder only. Falls back to ngrok.credentials.accessToken. With ngrok.features.privateEndpoints.enabled and no ngrok.credentials.secret.name, one of the two must be set or rendering fails. A custom secret is not checked at render time; it must hold a PRIVATE_ENDPOINTS_ACCESS_TOKEN key (without it the forwarder container never starts).",
                                     "default": ""
                                 }
                             }
@@ -277,6 +277,11 @@
                                     "type": "boolean",
                                     "description": "(POC) Make ngrok private endpoints (*.ngrok.direct only; *.internal is not supported) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, UDP/443 egress, and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret",
                                     "default": false
+                                },
+                                "privateDialServer": {
+                                    "type": "string",
+                                    "description": "Private dial server (host:port) the private-endpoint-forwarder connects through. QUIC only, so UDP/443 egress to it is required. Default: `quic.connect-endpoint.ngrok.com:443`",
+                                    "default": ""
                                 }
                             }
                         },

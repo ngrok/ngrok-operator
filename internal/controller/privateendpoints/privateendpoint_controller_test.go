@@ -66,7 +66,7 @@ func createCR(t *testing.T, ns, url string) {
 	require.NoError(t, err)
 	require.NoError(t, envClient.Create(context.Background(), &ngrokv1.PrivateEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: pe.CRName(url), Namespace: ns,
+			Name: crName(url), Namespace: ns,
 			Labels: map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey(spec.Hostname)},
 		},
 		Spec: spec,
@@ -76,7 +76,7 @@ func createCR(t *testing.T, ns, url string) {
 func getCR(t *testing.T, ns, url string) ngrokv1.PrivateEndpoint {
 	t.Helper()
 	var cr ngrokv1.PrivateEndpoint
-	require.NoError(t, envClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: pe.CRName(url)}, &cr))
+	require.NoError(t, envClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: crName(url)}, &cr))
 	return cr
 }
 
@@ -418,7 +418,7 @@ func failover(r *PrivateEndpointReconciler) *PrivateEndpointReconciler {
 }
 
 func TestRoutingSafety(t *testing.T) {
-	// FT-1a / FT-1c: A's Service is published but its status write fails.
+	// A's Service is published but its status write fails.
 	tests := []struct {
 		name     string
 		failover bool
@@ -433,7 +433,7 @@ func TestRoutingSafety(t *testing.T) {
 			failA := true
 			r.Client = interceptor.NewClient(envClient, interceptor.Funcs{
 				SubResourceUpdate: func(ctx context.Context, c client.Client, sub string, obj client.Object, opts ...client.SubResourceUpdateOption) error {
-					if failA && obj.GetName() == pe.CRName(urlA) {
+					if failA && obj.GetName() == crName(urlA) {
 						return apierrors.NewConflict(ngrokv1.GroupVersion.WithResource("privateendpoints").GroupResource(), obj.GetName(), nil)
 					}
 					return c.SubResource(sub).Update(ctx, obj, opts...)
@@ -464,7 +464,7 @@ func TestRoutingSafety(t *testing.T) {
 		})
 	}
 
-	// FT-1b: CR A is deleted but the leader dies before removing its Service.
+	// CR A is deleted but the leader dies before removing its Service.
 	t.Run("port stays reserved while a deleted endpoint's service survives", func(t *testing.T) {
 		ns, r := setupNS(t)
 		r.PortMin, r.PortMax = 20000, 20001

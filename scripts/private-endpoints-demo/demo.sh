@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Canned kind demo for private endpoints. See specs/private-endpoints/demo.md.
+# Canned kind demo for private endpoints (make pe-demo-*). See
+# specs/features/private-endpoints.md for how the feature works.
 # Usage: demo.sh preflight|apply|wait|status|shell|down
 #
 # Env:
@@ -147,7 +148,6 @@ diagnose() {
     logs_tail agent app.kubernetes.io/component=agent
   fi
   echo "======== end diagnostics ========"
-  echo "See 'Troubleshooting' in specs/private-endpoints/demo.md"
 }
 
 cmd_wait() {

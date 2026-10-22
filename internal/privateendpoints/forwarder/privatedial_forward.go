@@ -21,18 +21,18 @@ package forwarder
 // half-close propagation, how long the second direction may keep running
 // after the first finishes, and which errors count as a clean close.
 //
-// Proposed upstream API: privatedial.Join and Forwarder, see
-// specs/private-endpoints/sdk-upstream.md section 3.
+// Proposed upstream API: privatedial.Join (this file's join, exported) and a
+// Forwarder that serves a listener.
 //
 // When that exists: replace ForwardConn/join/closeWrite/abort with privatedial.Join
-// (or have the Syncer hand each listener to Dialer.Forward and drop the
+// (or have the ForwarderReconciler hand each listener to Dialer.Forward and drop the
 // per-connection handler entirely).
 //
 // Behavior today:
 //   - Each direction copies to EOF, then half-closes its destination
 //     (CloseWrite, or Close if unsupported). privatedial's conn implements
 //     CloseWrite by closing the request body; what the endpoint's origin
-//     sees then is up to the server (sdk-upstream.md Ask A2).
+//     sees then is up to the server.
 //   - A client half-close starts no timer: the response may take as long as
 //     the endpoint needs. Only when the endpoint finishes first does the
 //     client get drain to finish sending, so a client that never closes

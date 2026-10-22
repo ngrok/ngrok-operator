@@ -93,6 +93,16 @@ func shortHash(s string) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
-func CRName(url string) string { return "pe-" + shortHash(url) }
+// CRName names the PrivateEndpoint for spec as <hostname>-<scheme>-<port>,
+// e.g. foo.ngrok.direct-https-443, so it reads like the URL it mirrors. URLs
+// that differ only in case or an explicit default port share a name. A
+// hostname that can't form a valid object name falls back to a hash.
+func CRName(spec ngrokv1.PrivateEndpointSpec) string {
+	name := fmt.Sprintf("%s-%s-%d", spec.Hostname, spec.Scheme, spec.Port)
+	if len(validation.IsDNS1123Subdomain(name)) > 0 {
+		return "pe-" + shortHash(name)
+	}
+	return name
+}
 
 func HostKey(hostname string) string { return shortHash(NormalizeHost(hostname)) }

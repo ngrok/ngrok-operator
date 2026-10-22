@@ -28,6 +28,11 @@ func newScheme(t *testing.T) *runtime.Scheme {
 	return s
 }
 
+func crName(url string) string {
+	spec, _ := pe.ParseURL(url)
+	return pe.CRName(spec)
+}
+
 func existingCR(url string, managed bool) *ngrokv1.PrivateEndpoint {
 	spec, _ := pe.ParseURL(url)
 	labels := map[string]string{pe.HostLabel: pe.HostKey(spec.Hostname)}
@@ -35,7 +40,7 @@ func existingCR(url string, managed bool) *ngrokv1.PrivateEndpoint {
 		labels[pe.ManagedByLabel] = pe.ManagedByValue
 	}
 	return &ngrokv1.PrivateEndpoint{
-		ObjectMeta: metav1.ObjectMeta{Name: pe.CRName(url), Namespace: testNS, Labels: labels},
+		ObjectMeta: metav1.ObjectMeta{Name: crName(url), Namespace: testNS, Labels: labels},
 		Spec:       spec,
 	}
 }
@@ -144,7 +149,7 @@ func TestPollerSyncLabelsAndDedupe(t *testing.T) {
 	require.NoError(t, (&PrivateEndpointPoller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps}).Sync(ctx))
 
 	var got ngrokv1.PrivateEndpoint
-	require.NoError(t, c.Get(ctx, client.ObjectKey{Namespace: testNS, Name: pe.CRName("tcp://bar.ngrok.direct:6379")}, &got))
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Namespace: testNS, Name: crName("tcp://bar.ngrok.direct:6379")}, &got))
 	assert.Equal(t, pe.ManagedByValue, got.Labels[pe.ManagedByLabel])
 	assert.Equal(t, pe.HostKey("bar.ngrok.direct"), got.Labels[pe.HostLabel])
 	assert.Equal(t, int32(6379), got.Spec.Port)
@@ -215,7 +220,7 @@ func TestPollerSyncHealsDrift(t *testing.T) {
 			require.NoError(t, p.Sync(ctx))
 
 			var got ngrokv1.PrivateEndpoint
-			require.NoError(t, c.Get(ctx, client.ObjectKey{Namespace: testNS, Name: pe.CRName(url)}, &got))
+			require.NoError(t, c.Get(ctx, client.ObjectKey{Namespace: testNS, Name: crName(url)}, &got))
 			assert.Equal(t, tt.wantSpec, got.Spec)
 			assert.Equal(t, tt.wantLabels, got.Labels)
 		})

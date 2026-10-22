@@ -143,7 +143,7 @@ func desiredSpecs(log logr.Logger, eps []*ngrok.Endpoint) map[string]ngrokv1.Pri
 		if !pe.IsPrivateHostname(spec.Hostname) {
 			continue
 		}
-		out[pe.CRName(ep.URL)] = spec
+		out[pe.CRName(spec)] = spec
 	}
 	return out
 }
