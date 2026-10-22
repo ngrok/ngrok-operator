@@ -18,7 +18,7 @@ The credential is stored in a Kubernetes Secret in the operator's namespace. Eac
 | `API_MANAGER_ACCESS_TOKEN` | api-manager | ngrok access token for the ngrok API |
 | `PRIVATE_ENDPOINTS_ACCESS_TOKEN` | private-endpoint-forwarder | ngrok access token for private dial. Only when `ngrok.features.privateEndpoints.enabled: true`; set by `ngrok.credentials.privateEndpointForwarder.accessToken`, falling back to `ngrok.credentials.accessToken` |
 
-Both keys hold the same value unless a per-component token is configured.
+All keys hold the same value unless a per-component token is configured.
 
 ## Providing Credentials
 
@@ -67,9 +67,11 @@ type: Opaque
 data:
   AGENT_ACCESS_TOKEN: <base64-encoded-access-token>
   API_MANAGER_ACCESS_TOKEN: <base64-encoded-access-token>
+  # Only with ngrok.features.privateEndpoints.enabled: true
+  PRIVATE_ENDPOINTS_ACCESS_TOKEN: <base64-encoded-access-token>
 ```
 
-Both keys are required, and may hold the same token.
+`AGENT_ACCESS_TOKEN` and `API_MANAGER_ACCESS_TOKEN` are required, and may hold the same token. `PRIVATE_ENDPOINTS_ACCESS_TOKEN` is also required when private endpoints are enabled: the chart can't inspect an existing Secret, and without the key the private-endpoint-forwarder container never starts.
 
 Then reference it in Helm values:
 
@@ -84,10 +86,11 @@ When `ngrok.credentials.accessToken` is empty, the Helm chart does not create a 
 
 ## Credential Consumption
 
-The two pods that need the credential mount their own key as `NGROK_ACCESS_TOKEN`:
+The pods that need the credential mount their own key as `NGROK_ACCESS_TOKEN`:
 
 - The **api-manager** (main controller) uses it for all ngrok API operations.
 - The **agent-manager** uses it for establishing agent tunnels.
+- The **private-endpoint-forwarder**, when private endpoints are enabled, uses it to authenticate private dial.
 
 The **bindings-forwarder** does not receive it. Its data path authenticates with the mTLS client certificate described below. It becomes a credential consumer when its egress moves to private dial, which is access token-only; the credential gets plumbed in as part of that work.
 

@@ -25,7 +25,9 @@ func echoDial(_ context.Context, target string) (net.Conn, error) {
 
 func listen(t *testing.T) net.Listener {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	// Wildcard, like bindingsdriver: on BSD/macOS a wildcard bind can succeed
+	// next to a loopback-only listener, so a loopback blocker blocks nothing.
+	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	return l
 }

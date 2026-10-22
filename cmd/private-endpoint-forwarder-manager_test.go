@@ -33,7 +33,7 @@ func TestForwarderReadyz(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l, err := net.Listen("tcp", "127.0.0.1:0")
+			l, err := net.Listen("tcp", ":0") // wildcard, like bindingsdriver
 			require.NoError(t, err)
 			port := int32(l.Addr().(*net.TCPAddr).Port)
 			if tt.holdPort {
