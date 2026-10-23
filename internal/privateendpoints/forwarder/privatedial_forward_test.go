@@ -11,12 +11,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 )
 
 func TestForwardConnJoinsBothWays(t *testing.T) {
 	client, server := net.Pipe()
 	defer client.Close()
-	go func() { _ = ForwardConn(context.Background(), echoDial, server, "foo.ngrok.direct:80", time.Second) }()
+	go func() {
+		_ = ForwardConn(context.Background(), testutils.EchoDial, server, "foo.ngrok.direct:80", time.Second)
+	}()
 
 	assert.Equal(t, "[foo.ngrok.direct:80]", readN(t, client, len("[foo.ngrok.direct:80]")))
 	_, err := io.WriteString(client, "ping")

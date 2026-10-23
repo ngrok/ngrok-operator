@@ -1,8 +1,6 @@
 package forwarder
 
 import (
-	"context"
-	"fmt"
 	"io"
 	"net"
 	"testing"
@@ -10,18 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
-
-// echoDial stands in for private dial: the "endpoint" writes back the target
-// it was dialed with, then echoes whatever it receives.
-func echoDial(_ context.Context, target string) (net.Conn, error) {
-	a, b := net.Pipe()
-	go func() {
-		defer b.Close()
-		_, _ = fmt.Fprintf(b, "[%s]", target)
-		_, _ = io.Copy(b, b)
-	}()
-	return a, nil
-}
 
 func listen(t *testing.T) net.Listener {
 	t.Helper()

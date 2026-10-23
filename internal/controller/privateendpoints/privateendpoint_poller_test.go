@@ -3,225 +3,445 @@ package privateendpoints
 import (
 	"context"
 	"errors"
-	"testing"
+	"slices"
+	"strings"
+	"sync"
+	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/runtime"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	pe "github.com/ngrok/ngrok-operator/internal/privateendpoints"
 )
 
-const testNS = "ngrok-operator"
-
-func newScheme(t *testing.T) *runtime.Scheme {
-	t.Helper()
-	s := runtime.NewScheme()
-	require.NoError(t, ngrokv1.AddToScheme(s))
-	return s
+// endpointLister guards the mock API, which isn't safe for concurrent use,
+// so a running poller can read it while the spec changes it. With err set,
+// List yields the endpoints and then reports err, as a list that fails on a
+// later page would.
+type endpointLister struct {
+	mu    sync.Mutex
+	eps   *nmockapi.EndpointsClient
+	err   error
+	lists int
 }
 
-func crName(url string) string {
-	spec, _ := pe.ParseURL(url)
-	return pe.CRName(spec)
+func (l *endpointLister) List(paging *ngrok.Paging) ngrok.Iter[*ngrok.Endpoint] {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.lists++
+	it := l.eps.List(paging)
+	if l.err == nil {
+		return it
+	}
+	var items []*ngrok.Endpoint
+	for it.Next(context.Background()) {
+		items = append(items, it.Item())
+	}
+	return &itemsThenErr{items: items, err: l.err}
 }
 
-func existingCR(url string, managed bool) *ngrokv1.PrivateEndpoint {
-	spec, _ := pe.ParseURL(url)
-	labels := map[string]string{pe.HostLabel: pe.HostKey(spec.Hostname)}
-	if managed {
-		labels[pe.ManagedByLabel] = pe.ManagedByValue
-	}
-	return &ngrokv1.PrivateEndpoint{
-		Name: crName(url), Namespace: testNS, Labels: labels,
-		Spec: spec,
-	}
+func (l *endpointLister) add(url string, bindings ...string) *ngrok.Endpoint {
+	GinkgoHelper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	ep, err := l.eps.Create(ctx, &ngrok.EndpointCreate{URL: url, Bindings: bindings})
+	Expect(err).NotTo(HaveOccurred())
+	return ep
 }
 
-func crURLs(t *testing.T, c client.Client) []string {
-	t.Helper()
-	var list ngrokv1.PrivateEndpointList
-	require.NoError(t, c.List(context.Background(), &list, client.InNamespace(testNS)))
-	var urls []string
-	for _, item := range list.Items {
-		urls = append(urls, item.Spec.URL)
-	}
-	return urls
+func (l *endpointLister) remove(ep *ngrok.Endpoint) {
+	GinkgoHelper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	Expect(l.eps.Delete(ctx, ep.ID)).To(Succeed())
 }
 
-func TestPollerSync(t *testing.T) {
-	mixed := []ngrok.EndpointCreate{
-		{URL: "http://foo.internal", Bindings: []string{"internal"}},
-		{URL: "https://foo.ngrok.direct", Bindings: []string{"internal"}},
-		{URL: "tcp://bar.ngrok.direct:6379", Bindings: []string{"internal"}},
-		{URL: "tls://baz.ngrok.direct", Bindings: []string{"internal"}},
-		{URL: "https://public.ngrok.app", Bindings: []string{"public"}},
-		{URL: "http://svc.ns", Bindings: []string{"kubernetes"}},
-		{URL: "http://legacy.ngrok.direct", Bindings: []string{"kubernetes"}},
-		{URL: "tcp://noport.ngrok.direct"},
+func (l *endpointLister) failWith(err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.err = err
+}
+
+func (l *endpointLister) listCount() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lists
+}
+
+type itemsThenErr struct {
+	items []*ngrok.Endpoint
+	err   error
+	n     int
+}
+
+func (it *itemsThenErr) Next(context.Context) bool {
+	it.n++
+	return it.n <= len(it.items)
+}
+
+func (it *itemsThenErr) Item() *ngrok.Endpoint { return it.items[it.n-1] }
+
+func (it *itemsThenErr) Err() error {
+	if it.n > len(it.items) {
+		return it.err
 	}
-	tests := []struct {
-		name      string
-		endpoints []ngrok.EndpointCreate
-		existing  []*ngrokv1.PrivateEndpoint
-		listErr   error
-		wantURLs  []string
-		wantErr   bool
-	}{
-		{
-			name:      "creates only ngrok.direct endpoints, skips internal, public and kubernetes-bound",
-			endpoints: mixed,
-			wantURLs:  []string{"https://foo.ngrok.direct", "tcp://bar.ngrok.direct:6379", "tls://baz.ngrok.direct"},
-		},
-		{
-			name:      "deletes managed CRs that are gone, keeps unmanaged ones",
-			endpoints: []ngrok.EndpointCreate{{URL: "http://foo.ngrok.direct"}},
-			existing: []*ngrokv1.PrivateEndpoint{
-				existingCR("http://foo.ngrok.direct", true),
-				existingCR("http://gone.ngrok.direct", true),
-				existingCR("http://foo.internal", true),
-				existingCR("http://handmade.ngrok.direct", false),
-			},
-			wantURLs: []string{"http://foo.ngrok.direct", "http://handmade.ngrok.direct"},
-		},
-		{
-			name:    "list error keeps CRs",
-			listErr: errors.New("api down"),
-			existing: []*ngrokv1.PrivateEndpoint{
-				existingCR("http://foo.ngrok.direct", true),
-				existingCR("https://foo.ngrok.direct", true),
-			},
-			wantURLs: []string{"http://foo.ngrok.direct", "https://foo.ngrok.direct"},
-			wantErr:  true,
-		},
+	return nil
+}
+
+// The poller isn't a reconciler: it is a runnable that calls Sync on a
+// ticker. Like the bindings poller suite, most specs trigger Sync by hand
+// against envtest for deterministic API fixtures; the last one runs the
+// ticker.
+var _ = Describe("PrivateEndpoint poller", func() {
+	var (
+		ns     string
+		api    *endpointLister
+		calls  *boundary
+		poller *PrivateEndpointPoller
+	)
+
+	BeforeEach(func() {
+		ns = createNamespace()
+		api = &endpointLister{eps: nmockapi.NewEndpointsClient()}
+		calls = &boundary{}
+		poller = &PrivateEndpointPoller{
+			Client:    interceptor.NewClient(k8sClient, calls.funcs("")),
+			Log:       GinkgoLogr,
+			Namespace: ns,
+			Endpoints: api,
+			Interval:  time.Hour,
+		}
+	})
+
+	crURLs := func() []string {
+		GinkgoHelper()
+		var list ngrokv1.PrivateEndpointList
+		Expect(k8sClient.List(ctx, &list, client.InNamespace(ns))).To(Succeed())
+		var urls []string
+		for _, cr := range list.Items {
+			urls = append(urls, cr.Spec.URL)
+		}
+		return urls
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			eps := nmockapi.NewEndpointsClient()
-			for _, e := range tt.endpoints {
-				_, err := eps.Create(ctx, &e)
-				require.NoError(t, err)
+	writes := func() []call {
+		var out []call
+		for _, c := range calls.snapshot() {
+			if c.Op != "Get" && c.Op != "List" {
+				out = append(out, c)
 			}
-			if tt.listErr != nil {
-				eps.SetListError(tt.listErr)
-			}
-			b := fake.NewClientBuilder().WithScheme(newScheme(t))
-			for _, cr := range tt.existing {
-				b = b.WithObjects(cr)
-			}
-			c := b.Build()
-			p := &PrivateEndpointPoller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps}
-
-			err := p.Sync(ctx)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.ElementsMatch(t, tt.wantURLs, crURLs(t, c))
-		})
+		}
+		return out
 	}
+	// indexOf returns the position of the first recorded call matching op
+	// and name.
+	indexOf := func(op, name string) int {
+		GinkgoHelper()
+		i := slices.IndexFunc(calls.snapshot(), func(c call) bool { return c.Op == op && c.Name == name })
+		Expect(i).NotTo(Equal(-1), "no %s of %s recorded", op, name)
+		return i
+	}
+	drift := func(url string) {
+		GinkgoHelper()
+		cr := getCR(ns, url)
+		cr.Spec.Port = 1
+		cr.Labels["team"] = "a"
+		Expect(k8sClient.Update(ctx, cr)).To(Succeed())
+	}
+
+	It("mirrors only ngrok.direct endpoints that aren't kubernetes-bound", func() {
+		api.add("https://foo.ngrok.direct", "internal")
+		api.add("tcp://bar.ngrok.direct:6379", "internal")
+		api.add("tls://baz.ngrok.direct")
+		api.add("http://foo.internal", "internal")
+		api.add("https://public.ngrok.app", "public")
+		api.add("http://svc.ns", "kubernetes")
+		api.add("http://legacy.ngrok.direct", "kubernetes")
+		api.add("tcp://noport.ngrok.direct")
+
+		Expect(poller.Sync(ctx)).To(Succeed())
+
+		Expect(crURLs()).To(ConsistOf("https://foo.ngrok.direct", "tcp://bar.ngrok.direct:6379", "tls://baz.ngrok.direct"))
+	})
+
+	It("labels the CRs it creates and fills in the parsed spec", func() {
+		api.add("tcp://Bar.ngrok.direct:6379")
+
+		Expect(poller.Sync(ctx)).To(Succeed())
+
+		cr := getCR(ns, "tcp://bar.ngrok.direct:6379")
+		Expect(cr.Labels).To(Equal(map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey("bar.ngrok.direct")}))
+		Expect(cr.Spec).To(Equal(ngrokv1.PrivateEndpointSpec{
+			URL: "tcp://Bar.ngrok.direct:6379", Scheme: ngrokv1.PrivateEndpointSchemeTCP, Hostname: "bar.ngrok.direct", Port: 6379,
+		}))
+	})
+
+	It("writes nothing when the CRs already match", func() {
+		api.add("tcp://bar.ngrok.direct:6379")
+		Expect(poller.Sync(ctx)).To(Succeed())
+		cr := getCR(ns, "tcp://bar.ngrok.direct:6379")
+		Expect(writes()).To(HaveLen(1), "the first sync creates the CR")
+
+		Expect(poller.Sync(ctx)).To(Succeed())
+
+		Expect(writes()).To(HaveLen(1))
+		Expect(calls.count("List", "PrivateEndpointList", "")).To(Equal(2), "the second sync ran")
+		Expect(getCR(ns, "tcp://bar.ngrok.direct:6379").ResourceVersion).To(Equal(cr.ResourceVersion))
+	})
+
+	It("deletes managed CRs whose endpoint is gone and keeps hand-made ones", func() {
+		ep := api.add("http://foo.ngrok.direct")
+		api.add("http://gone.ngrok.direct")
+		Expect(poller.Sync(ctx)).To(Succeed())
+		handmade := newCR(ns, "http://handmade.ngrok.direct")
+		delete(handmade.Labels, pe.ManagedByLabel)
+		Expect(k8sClient.Create(ctx, handmade)).To(Succeed())
+
+		api.remove(ep)
+		Expect(poller.Sync(ctx)).To(Succeed())
+
+		Expect(crURLs()).To(ConsistOf("http://gone.ngrok.direct", "http://handmade.ngrok.direct"))
+	})
+
+	DescribeTable("changes nothing when the API list fails",
+		func(fail func()) {
+			api.add("http://foo.ngrok.direct")
+			gone := api.add("https://foo.ngrok.direct")
+			Expect(poller.Sync(ctx)).To(Succeed())
+			synced := len(writes())
+
+			By("changing the API so a successful sync would delete one CR and create another")
+			api.remove(gone)
+			api.add("tcp://new.ngrok.direct:5432")
+			fail()
+
+			Expect(poller.Sync(ctx)).To(MatchError(ContainSubstring("listing endpoints")))
+
+			Expect(writes()).To(HaveLen(synced))
+			Expect(crURLs()).To(ConsistOf("http://foo.ngrok.direct", "https://foo.ngrok.direct"))
+		},
+		Entry("before yielding any endpoints", func() { api.eps.SetListError(errors.New("api down")) }),
+		Entry("after yielding some endpoints", func() { api.failWith(errors.New("page 2 failed")) }),
+	)
+
+	It("doesn't adopt a hand-made CR with the name it would use", func() {
+		handmade := newCR(ns, "tcp://bar.ngrok.direct:6379")
+		delete(handmade.Labels, pe.ManagedByLabel)
+		handmade.Spec.Port = 22
+		Expect(k8sClient.Create(ctx, handmade)).To(Succeed())
+		api.add("tcp://bar.ngrok.direct:6379")
+
+		Expect(poller.Sync(ctx)).To(Succeed())
+
+		got := getCR(ns, "tcp://bar.ngrok.direct:6379")
+		Expect(got.Labels).NotTo(HaveKey(pe.ManagedByLabel))
+		Expect(got.Spec.Port).To(Equal(int32(22)))
+		Expect(got.ResourceVersion).To(Equal(handmade.ResourceVersion))
+	})
+
+	DescribeTable("puts a managed CR back when it drifts",
+		func(mutate func(*ngrokv1.PrivateEndpoint), wantExtraLabels map[string]string) {
+			const url = "tcp://bar.ngrok.direct:6379"
+			api.add(url)
+			Expect(poller.Sync(ctx)).To(Succeed())
+			want := getCR(ns, url)
+
+			cr := getCR(ns, url)
+			mutate(cr)
+			Expect(k8sClient.Update(ctx, cr)).To(Succeed())
+
+			Expect(poller.Sync(ctx)).To(Succeed())
+
+			got := getCR(ns, url)
+			Expect(got.Spec).To(Equal(want.Spec))
+			wantLabels := map[string]string{}
+			for k, v := range want.Labels {
+				wantLabels[k] = v
+			}
+			for k, v := range wantExtraLabels {
+				wantLabels[k] = v
+			}
+			Expect(got.Labels).To(Equal(wantLabels))
+		},
+		Entry("edited spec", func(cr *ngrokv1.PrivateEndpoint) {
+			cr.Spec = ngrokv1.PrivateEndpointSpec{URL: "http://evil.ngrok.direct", Scheme: ngrokv1.PrivateEndpointSchemeHTTP, Hostname: "evil.ngrok.direct", Port: 80}
+		}, nil),
+		Entry("edited host label, keeping foreign labels", func(cr *ngrokv1.PrivateEndpoint) {
+			cr.Labels[pe.HostLabel] = "wrong"
+			cr.Labels["team"] = "a"
+		}, map[string]string{"team": "a"}),
+	)
+
+	It("leaves a CR alone once its managed-by label is removed", func() {
+		// Without the label it is indistinguishable from a hand-made CR.
+		const url = "tcp://bar.ngrok.direct:6379"
+		api.add(url)
+		Expect(poller.Sync(ctx)).To(Succeed())
+		cr := getCR(ns, url)
+		delete(cr.Labels, pe.ManagedByLabel)
+		cr.Spec.Port = 22
+		Expect(k8sClient.Update(ctx, cr)).To(Succeed())
+
+		Expect(poller.Sync(ctx)).To(Succeed())
+
+		got := getCR(ns, url)
+		Expect(got.Spec.Port).To(Equal(int32(22)))
+		Expect(got.ResourceVersion).To(Equal(cr.ResourceVersion))
+	})
+
+	It("leaves status alone when healing", func() {
+		const url = "tcp://bar.ngrok.direct:6379"
+		api.add(url)
+		Expect(poller.Sync(ctx)).To(Succeed())
+		cr := getCR(ns, url)
+		wireCR(cr, "10.0.0.5", 21000)
+		cr.Spec.Port = 1
+		Expect(k8sClient.Update(ctx, cr)).To(Succeed())
+
+		Expect(poller.Sync(ctx)).To(Succeed())
+
+		got := getCR(ns, url)
+		Expect(got.Spec.Port).To(Equal(int32(6379)))
+		Expect(got.Status.ClusterIP).To(Equal("10.0.0.5"))
+		Expect(got.Status.ForwarderPort).To(Equal(int32(21000)))
+	})
+
+	errBoom := errors.New("boom")
+
+	It("aborts without writing when listing CRs fails", func() {
+		api.add("http://new.ngrok.direct")
+		list := calls.inject(&fault{op: "List", kind: "PrivateEndpointList", err: errBoom})
+
+		err := poller.Sync(ctx)
+
+		Expect(err).To(MatchError(ContainSubstring("listing PrivateEndpoints")))
+		Expect(err).To(MatchError(errBoom))
+		Expect(list.Hits()).To(Equal(int32(1)))
+		Expect(writes()).To(BeEmpty())
+		Expect(crURLs()).To(BeEmpty())
+	})
+
+	// Existing CRs are healed or deleted in list order (by name), then
+	// missing ones are created. Each spec fails an operation that runs before
+	// the one it requires to succeed, so an early return can't pass.
+	It("creates missing CRs after failing to heal one", func() {
+		api.add("http://a.ngrok.direct")
+		Expect(poller.Sync(ctx)).To(Succeed())
+		wireCR(getCR(ns, "http://a.ngrok.direct"), "10.0.0.5", 21000)
+		drift("http://a.ngrok.direct")
+		api.add("http://b.ngrok.direct")
+		heal := calls.inject(&fault{op: "Update", name: crName("http://a.ngrok.direct"), err: errBoom})
+
+		err := poller.Sync(ctx)
+
+		Expect(err).To(MatchError(ContainSubstring("restoring PrivateEndpoint " + crName("http://a.ngrok.direct"))))
+		Expect(heal.Hits()).To(Equal(int32(1)))
+		Expect(indexOf("Update", crName("http://a.ngrok.direct"))).To(BeNumerically("<", indexOf("Create", crName("http://b.ngrok.direct"))))
+		Expect(crURLs()).To(ConsistOf("http://a.ngrok.direct", "http://b.ngrok.direct"))
+		a := getCR(ns, "http://a.ngrok.direct")
+		Expect(a.Spec.Port).To(Equal(int32(1)), "the failed heal changed nothing")
+		Expect(a.Labels).To(HaveKeyWithValue("team", "a"))
+		Expect(a.Status.ClusterIP).To(Equal("10.0.0.5"))
+	})
+
+	It("heals and deletes later CRs after failing to delete one", func() {
+		for _, url := range []string{"http://a-gone.ngrok.direct", "http://m.ngrok.direct", "http://z-gone.ngrok.direct"} {
+			api.add(url)
+		}
+		Expect(poller.Sync(ctx)).To(Succeed())
+		drift("http://m.ngrok.direct")
+		api.eps.Reset()
+		api.add("http://m.ngrok.direct")
+		del := calls.inject(&fault{op: "Delete", name: crName("http://a-gone.ngrok.direct"), err: errBoom})
+
+		err := poller.Sync(ctx)
+
+		Expect(err).To(MatchError(ContainSubstring("deleting PrivateEndpoint " + crName("http://a-gone.ngrok.direct"))))
+		Expect(del.Hits()).To(Equal(int32(1)))
+		failed := indexOf("Delete", crName("http://a-gone.ngrok.direct"))
+		Expect(failed).To(BeNumerically("<", indexOf("Update", crName("http://m.ngrok.direct"))))
+		Expect(failed).To(BeNumerically("<", indexOf("Delete", crName("http://z-gone.ngrok.direct"))))
+		Expect(crURLs()).To(ConsistOf("http://a-gone.ngrok.direct", "http://m.ngrok.direct"))
+		Expect(getCR(ns, "http://m.ngrok.direct").Spec.Port).To(Equal(int32(80)))
+	})
+
+	It("creates the other missing CRs after failing to create one", func() {
+		urls := []string{"http://c1.ngrok.direct", "http://c2.ngrok.direct", "http://c3.ngrok.direct"}
+		for _, url := range urls {
+			api.add(url)
+		}
+		// Creates run in map order, so fail whichever comes first.
+		create := calls.inject(&fault{op: "Create", kind: "PrivateEndpoint", err: errBoom, first: true})
+
+		err := poller.Sync(ctx)
+
+		Expect(err).To(MatchError(errBoom))
+		Expect(create.Hits()).To(Equal(int32(1)))
+		creates := slices.DeleteFunc(calls.snapshot(), func(c call) bool { return c.Op != "Create" })
+		Expect(creates).To(HaveLen(3))
+		Expect(creates[0].Err).To(MatchError(errBoom))
+		Expect(creates[1].Err).NotTo(HaveOccurred())
+		Expect(creates[2].Err).NotTo(HaveOccurred())
+		failedURL := "http://" + getCRHost(creates[0].Name) + ".ngrok.direct"
+		Expect(err).To(MatchError(ContainSubstring("creating PrivateEndpoint for " + failedURL)))
+		Expect(crURLs()).To(ConsistOf(slices.DeleteFunc(slices.Clone(urls), func(u string) bool { return u == failedURL })))
+	})
+
+	It("keeps syncing on its interval through API errors until stopped", func() {
+		api.failWith(errors.New("api down"))
+		poller.Interval = 50 * time.Millisecond
+		pctx, pcancel := context.WithCancel(ctx)
+		done := make(chan error, 1)
+		go func() { done <- poller.Start(pctx) }()
+		DeferCleanup(pcancel)
+
+		Eventually(api.listCount).Should(BeNumerically(">=", 3), "failed syncs don't stop the ticker")
+		Expect(crURLs()).To(BeEmpty())
+
+		By("recovering once the API does")
+		api.add("tcp://tick.ngrok.direct:5432")
+		api.failWith(nil)
+		Eventually(crURLs).Should(ConsistOf("tcp://tick.ngrok.direct:5432"))
+
+		By("recreating a deleted CR on a later tick")
+		deleteCR(ns, "tcp://tick.ngrok.direct:5432")
+		Eventually(crURLs).Should(ConsistOf("tcp://tick.ngrok.direct:5432"))
+
+		pcancel()
+		Eventually(done).Should(Receive(BeNil()))
+	})
+})
+
+// getCRHost returns the first DNS label of a CR name such as
+// "c1.ngrok.direct-http-80".
+func getCRHost(name string) string {
+	host, _, _ := strings.Cut(name, ".")
+	return host
 }
 
-func TestPollerSyncLabelsAndDedupe(t *testing.T) {
-	ctx := context.Background()
-	// Pooled endpoints share a URL. The mock rejects duplicate URLs on Create,
-	// so feed desiredSpecs directly.
-	pooled := []*ngrok.Endpoint{
-		{ID: "ep_1", URL: "tcp://bar.ngrok.direct:6379"},
-		{ID: "ep_2", URL: "tcp://bar.ngrok.direct:6379"},
-	}
-	desired := desiredSpecs(logr.Discard(), pooled)
-	require.Len(t, desired, 1)
-
-	eps := nmockapi.NewEndpointsClient()
-	_, err := eps.Create(ctx, &ngrok.EndpointCreate{URL: "tcp://bar.ngrok.direct:6379"})
-	require.NoError(t, err)
-	c := fake.NewClientBuilder().WithScheme(newScheme(t)).Build()
-	require.NoError(t, (&PrivateEndpointPoller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps}).Sync(ctx))
-
-	var got ngrokv1.PrivateEndpoint
-	require.NoError(t, c.Get(ctx, client.ObjectKey{Namespace: testNS, Name: crName("tcp://bar.ngrok.direct:6379")}, &got))
-	assert.Equal(t, pe.ManagedByValue, got.Labels[pe.ManagedByLabel])
-	assert.Equal(t, pe.HostKey("bar.ngrok.direct"), got.Labels[pe.HostLabel])
-	assert.Equal(t, int32(6379), got.Spec.Port)
-}
-
-func TestPollerSyncHealsDrift(t *testing.T) {
-	const url = "tcp://bar.ngrok.direct:6379"
-	want, err := pe.ParseURL(url)
-	require.NoError(t, err)
-	wantLabels := map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey(want.Hostname)}
-	unmanagedSpec := want
-	unmanagedSpec.Port = 22
-
-	tests := []struct {
-		name       string
-		mutate     func(*ngrokv1.PrivateEndpoint)
-		wantSpec   ngrokv1.PrivateEndpointSpec
-		wantLabels map[string]string
-	}{
-		{
-			name:       "no drift leaves CR as is",
-			mutate:     func(*ngrokv1.PrivateEndpoint) {},
-			wantSpec:   want,
-			wantLabels: wantLabels,
-		},
-		{
-			name: "restores edited spec",
-			mutate: func(cr *ngrokv1.PrivateEndpoint) {
-				cr.Spec.URL = "http://evil.ngrok.direct"
-				cr.Spec.Scheme = ngrokv1.PrivateEndpointSchemeHTTP
-				cr.Spec.Hostname = "evil.ngrok.direct"
-				cr.Spec.Port = 80
-			},
-			wantSpec:   want,
-			wantLabels: wantLabels,
-		},
-		{
-			name: "restores edited host label and keeps foreign labels",
-			mutate: func(cr *ngrokv1.PrivateEndpoint) {
-				cr.Labels[pe.HostLabel] = "wrong"
-				cr.Labels["team"] = "a"
-			},
-			wantSpec:   want,
-			wantLabels: map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey(want.Hostname), "team": "a"},
-		},
-		{
-			// Without the label it is indistinguishable from a hand-made CR.
-			name: "leaves CR without managed-by label alone",
-			mutate: func(cr *ngrokv1.PrivateEndpoint) {
-				delete(cr.Labels, pe.ManagedByLabel)
-				cr.Spec.Port = 22
-			},
-			wantSpec:   unmanagedSpec,
-			wantLabels: map[string]string{pe.HostLabel: pe.HostKey(want.Hostname)},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			eps := nmockapi.NewEndpointsClient()
-			_, err := eps.Create(ctx, &ngrok.EndpointCreate{URL: url})
-			require.NoError(t, err)
-			cr := existingCR(url, true)
-			tt.mutate(cr)
-			c := fake.NewClientBuilder().WithScheme(newScheme(t)).WithObjects(cr).Build()
-			p := &PrivateEndpointPoller{Client: c, Log: logr.Discard(), Namespace: testNS, Endpoints: eps}
-
-			require.NoError(t, p.Sync(ctx))
-
-			var got ngrokv1.PrivateEndpoint
-			require.NoError(t, c.Get(ctx, client.ObjectKey{Namespace: testNS, Name: crName(url)}, &got))
-			assert.Equal(t, tt.wantSpec, got.Spec)
-			assert.Equal(t, tt.wantLabels, got.Labels)
-		})
-	}
-}
+var _ = DescribeTable("desiredSpecs",
+	func(eps []*ngrok.Endpoint, want map[string]string) {
+		got := map[string]string{}
+		for name, spec := range desiredSpecs(GinkgoLogr, eps) {
+			got[name] = spec.URL
+		}
+		Expect(got).To(Equal(want))
+	},
+	Entry("no endpoints", nil, map[string]string{}),
+	Entry("pooled endpoints sharing a URL collapse into one",
+		[]*ngrok.Endpoint{{ID: "ep_1", URL: "tcp://bar.ngrok.direct:6379"}, {ID: "ep_2", URL: "tcp://bar.ngrok.direct:6379"}},
+		map[string]string{"bar.ngrok.direct-tcp-6379": "tcp://bar.ngrok.direct:6379"}),
+	Entry("URLs differing only in case and default port collapse into one",
+		[]*ngrok.Endpoint{{ID: "ep_1", URL: "http://foo.ngrok.direct"}, {ID: "ep_2", URL: "http://FOO.ngrok.direct:80"}},
+		map[string]string{"foo.ngrok.direct-http-80": "http://FOO.ngrok.direct:80"}),
+	Entry("a kubernetes binding alongside others still skips the endpoint",
+		[]*ngrok.Endpoint{{ID: "ep_1", URL: "http://foo.ngrok.direct", Bindings: []string{"internal", "kubernetes"}}},
+		map[string]string{}),
+	Entry("unparseable and non-private URLs are skipped",
+		[]*ngrok.Endpoint{{ID: "ep_1", URL: "://"}, {ID: "ep_2", URL: "udp://foo.ngrok.direct:53"}, {ID: "ep_3", URL: "https://foo.ngrok.app"}, {ID: "ep_4", URL: "https://ngrok.direct"}},
+		map[string]string{}),
+)

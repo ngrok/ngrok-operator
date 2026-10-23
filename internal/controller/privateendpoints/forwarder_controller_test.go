@@ -1,256 +1,248 @@
 package privateendpoints
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net"
-	"strings"
-	"sync/atomic"
-	"testing"
 	"time"
 
-	"github.com/go-logr/logr"
-	"github.com/go-logr/logr/funcr"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
-
-	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
-	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
-	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func peCR(name, ns, host string, port int32, ip string, fwd int32) *ngrokv1.PrivateEndpoint {
-	return &ngrokv1.PrivateEndpoint{
-		Name: name, Namespace: ns,
-		Spec:   ngrokv1.PrivateEndpointSpec{Hostname: host, Port: port},
-		Status: ngrokv1.PrivateEndpointStatus{ClusterIP: ip, ForwarderPort: fwd},
-	}
-}
-
-func newForwarderReconciler(t *testing.T, objs ...client.Object) (*ForwarderReconciler, client.Client) {
-	t.Helper()
-	s := runtime.NewScheme()
-	require.NoError(t, ngrokv1.AddToScheme(s))
-	c := fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).WithStatusSubresource(&ngrokv1.PrivateEndpoint{}).Build()
-	return &ForwarderReconciler{
-		Client:       c,
-		Namespace:    "op",
-		Table:        forwarder.NewTable(),
-		Listeners:    bindingsdriver.New(),
-		Dial:         echoDial,
-		DrainTimeout: time.Second,
-		Log:          logr.Discard(),
-	}, c
-}
-
-func dialPort(t *testing.T, port int32) (net.Conn, error) {
-	t.Helper()
-	return net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
-}
-
-func TestForwarderReconcilerSync(t *testing.T) {
-	port := freePort(t)
-	sy, _ := newForwarderReconciler(t,
-		peCR("a", "op", "foo.ngrok.direct", 80, "", 0),                  // not wired yet
-		peCR("b", "op", "bar.ngrok.direct", 6379, "10.0.0.2", port),     // ready
-		peCR("c", "other", "else.ngrok.direct", 80, "10.0.0.9", port+1), // other namespace
+// These specs run the forwarder without the PrivateEndpoint controller and
+// write endpoint statuses directly, standing in for it.
+var _ = Describe("Forwarder controller", func() {
+	var (
+		opts peEnvOpts
+		e    *peEnv
 	)
-	defer sy.Close()
 
-	require.NoError(t, sy.Sync(context.Background()))
-	assert.True(t, sy.Table.Synced())
-	assert.Equal(t, []int32{port}, sy.Ports())
-
-	c, err := dialPort(t, port)
-	require.NoError(t, err)
-	defer c.Close()
-	assert.Equal(t, "[bar.ngrok.direct:6379]", readN(t, c, len("[bar.ngrok.direct:6379]")))
-}
-
-func TestForwarderReconcilerSerializesStartupSync(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	sy, c := newForwarderReconciler(t)
-	defer sy.Close()
-
-	captured, resume := make(chan struct{}), make(chan struct{})
-	var calls atomic.Int32
-	sy.Client = interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
-		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
-			err := c.List(ctx, list, opts...)
-			if calls.Add(1) == 1 {
-				// Hold the startup sync after it captures an empty snapshot.
-				close(captured)
-				select {
-				case <-resume:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			}
-			return err
-		},
+	BeforeEach(func() {
+		opts = peEnvOpts{forwarder: true}
 	})
-	startupDone := make(chan error, 1)
-	go func() { startupDone <- sy.Sync(ctx) }()
-	select {
-	case <-captured:
-	case <-ctx.Done():
-		t.Fatal("startup sync did not capture its snapshot")
+
+	JustBeforeEach(func() {
+		e = newPEEnv(opts)
+	})
+
+	// holdPort occupies a forwarder port the way another process would. It
+	// binds the wildcard address like bindingsdriver: on BSD/macOS a wildcard
+	// bind can succeed next to a loopback-only listener, which would block
+	// nothing.
+	holdPort := func(port int32) net.Listener {
+		GinkgoHelper()
+		l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() { _ = l.Close() })
+		return l
 	}
 
-	port := freePort(t)
-	require.NoError(t, c.Create(ctx, peCR("new", "op", "new.ngrok.direct", 80, "10.0.0.1", port)))
-	reconcileDone := make(chan error, 1)
-	go func() { reconcileDone <- sy.Sync(ctx) }()
-	// The newer sync must wait for startup to finish before reading or
-	// applying its snapshot. Previously it completed and startup erased it.
-	select {
-	case err := <-reconcileDone:
-		assert.NoError(t, err)
-		t.Error("newer sync completed while startup still held its snapshot")
-		reconcileDone <- err
-	case <-time.After(100 * time.Millisecond):
-	}
-	close(resume)
-	require.NoError(t, <-startupDone)
-	require.NoError(t, <-reconcileDone)
-	assert.Equal(t, []int32{port}, sy.Ports())
-	target, ok := sy.Table.PortTarget(port)
-	assert.True(t, ok)
-	assert.Equal(t, "new.ngrok.direct:80", target)
-	conn, err := dialPort(t, port)
-	require.NoError(t, err)
-	defer conn.Close()
-	assert.Equal(t, "[new.ngrok.direct:80]", readN(t, conn, len("[new.ngrok.direct:80]")))
-}
+	It("reports synced after the first sync even with no endpoints", func() {
+		Eventually(e.forwarder.Table.Synced).Should(BeTrue())
+		Expect(e.forwarder.Ports()).To(BeEmpty())
+		Expect(e.forwarder.BindErr()).NotTo(HaveOccurred())
+	})
 
-func TestForwarderReconcilerFollowsChanges(t *testing.T) {
-	ctx := context.Background()
-	port := freePort(t)
-	sy, c := newForwarderReconciler(t, peCR("old", "op", "old.ngrok.direct", 6379, "10.0.0.2", port))
-	defer sy.Close()
-	require.NoError(t, sy.Sync(ctx))
+	It("listens only for wired endpoints in its namespace, and routes each port to its endpoint", func() {
+		createCR(e.ns, "http://unwired.ngrok.direct")
+		wireCR(createCR(e.ns, "tcp://bar.ngrok.direct:6379"), "10.0.0.2", e.portMin)
+		wireCR(createCR(e.ns, "https://baz.ngrok.direct"), "10.0.0.3", e.portMin+1)
+		By("wiring an endpoint in another namespace")
+		wireCR(createCR(createNamespace(), "tcp://else.ngrok.direct:80"), "10.0.0.9", e.portMin+2)
+		By("half-wiring endpoints: a port without a ClusterIP, and a ClusterIP without a port")
+		wireCR(createCR(e.ns, "tcp://noip.ngrok.direct:80"), "", e.portMin+3)
+		wireCR(createCR(e.ns, "tcp://noport.ngrok.direct:80"), "10.0.0.4", 0)
 
-	// Endpoint removed: its listener closes.
-	require.NoError(t, c.Delete(ctx, peCR("old", "op", "", 0, "", 0)))
-	require.NoError(t, sy.Sync(ctx))
-	assert.Empty(t, sy.Ports())
-	_, err := dialPort(t, port)
-	assert.Error(t, err, "listener should be closed")
+		Eventually(e.forwarder.Ports).Should(Equal([]int32{e.portMin, e.portMin + 1}))
+		Consistently(e.forwarder.Ports).WithTimeout(time.Second).Should(Equal([]int32{e.portMin, e.portMin + 1}))
+		e.eventuallyRoutes(e.portMin, "bar.ngrok.direct:6379")
+		e.eventuallyRoutes(e.portMin+1, "baz.ngrok.direct:443")
+	})
 
-	// Port reallocated to a different endpoint: new connections go to it.
-	require.NoError(t, c.Create(ctx, peCR("new", "op", "new.ngrok.direct", 5432, "10.0.0.3", port)))
-	require.NoError(t, sy.Sync(ctx))
-	conn, err := dialPort(t, port)
-	require.NoError(t, err)
-	defer conn.Close()
-	assert.Equal(t, "[new.ngrok.direct:5432]", readN(t, conn, len("[new.ngrok.direct:5432]")))
-}
+	It("forwards bytes both ways once routed", func() {
+		wireCR(createCR(e.ns, "tcp://echo.ngrok.direct:7000"), "10.0.0.2", e.portMin)
+		e.eventuallyRoutes(e.portMin, "echo.ngrok.direct:7000")
 
-func TestForwarderReconcilerReportsBindFailures(t *testing.T) {
-	ctx := context.Background()
-	blocker := listen(t)
-	port := int32(blocker.Addr().(*net.TCPAddr).Port)
-	sy, _ := newForwarderReconciler(t, peCR("b", "op", "bar.ngrok.direct", 6379, "10.0.0.2", port))
-	defer sy.Close()
+		c, err := dialForwarder(e.portMin)
+		Expect(err).NotTo(HaveOccurred())
+		defer c.Close()
+		_ = c.SetDeadline(time.Now().Add(2 * time.Second))
+		greeting := make([]byte, len("[echo.ngrok.direct:7000]"))
+		_, err = io.ReadFull(c, greeting)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = io.WriteString(c, "ping")
+		Expect(err).NotTo(HaveOccurred())
+		reply := make([]byte, 4)
+		_, err = io.ReadFull(c, reply)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(reply)).To(Equal("ping"))
+	})
 
-	err := sy.Sync(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), fmt.Sprint(port))
-	assert.Contains(t, err.Error(), "bar.ngrok.direct")
-	require.Error(t, sy.BindErr(), "a desired listener that failed to bind must be reported")
-	assert.Contains(t, sy.BindErr().Error(), fmt.Sprint(port))
-	assert.Empty(t, sy.Ports())
+	It("closes a listener when its endpoint is deleted", func() {
+		wireCR(createCR(e.ns, "tcp://old.ngrok.direct:6379"), "10.0.0.2", e.portMin)
+		e.eventuallyRoutes(e.portMin, "old.ngrok.direct:6379")
 
-	// The port frees up: the next sync binds it and the failure clears.
-	require.NoError(t, blocker.Close())
-	require.NoError(t, sy.Sync(ctx))
-	assert.NoError(t, sy.BindErr())
-	assert.Equal(t, []int32{port}, sy.Ports())
-}
+		deleteCR(e.ns, "tcp://old.ngrok.direct:6379")
 
-func TestForwarderReconcilerBindFailureClearsWhenNoLongerWanted(t *testing.T) {
-	ctx := context.Background()
-	blocker := listen(t)
-	defer blocker.Close()
-	port := int32(blocker.Addr().(*net.TCPAddr).Port)
-	sy, c := newForwarderReconciler(t, peCR("b", "op", "bar.ngrok.direct", 6379, "10.0.0.2", port))
-	defer sy.Close()
+		Eventually(e.forwarder.Ports).Should(BeEmpty())
+		eventuallyNotListening(e.portMin)
+	})
 
-	require.Error(t, sy.Sync(ctx))
-	require.Error(t, sy.BindErr())
+	It("closes a listener when its endpoint is no longer wired", func() {
+		cr := createCR(e.ns, "tcp://unwire.ngrok.direct:6379")
+		wireCR(cr, "10.0.0.2", e.portMin)
+		e.eventuallyRoutes(e.portMin, "unwire.ngrok.direct:6379")
 
-	require.NoError(t, c.Delete(ctx, peCR("b", "op", "", 0, "", 0)))
-	require.NoError(t, sy.Sync(ctx))
-	assert.NoError(t, sy.BindErr())
-}
+		wireCR(cr, "", 0)
 
-func TestForwarderReconcilerAmbiguousPort(t *testing.T) {
-	ctx := context.Background()
-	port := freePort(t)
-	sy, c := newForwarderReconciler(t,
-		peCR("a", "op", "a.ngrok.direct", 5432, "10.0.0.2", port),
-		peCR("b", "op", "b.ngrok.direct", 5432, "10.0.0.3", port),
-	)
-	defer sy.Close()
-	var dials atomic.Int32
-	sy.Dial = func(ctx context.Context, target string) (net.Conn, error) {
-		dials.Add(1)
-		return echoDial(ctx, target)
-	}
-	var logs atomic.Int32
-	sy.Log = funcr.New(func(_, args string) {
-		if strings.Contains(args, "ambiguous") {
-			logs.Add(1)
+		Eventually(e.forwarder.Ports).Should(BeEmpty())
+		eventuallyNotListening(e.portMin)
+	})
+
+	It("moves an endpoint to its new forwarder port", func() {
+		cr := createCR(e.ns, "tcp://mover.ngrok.direct:6379")
+		wireCR(cr, "10.0.0.2", e.portMin)
+		e.eventuallyRoutes(e.portMin, "mover.ngrok.direct:6379")
+
+		wireCR(cr, "10.0.0.2", e.portMin+1)
+
+		Eventually(e.forwarder.Ports).Should(Equal([]int32{e.portMin + 1}))
+		e.eventuallyRoutes(e.portMin+1, "mover.ngrok.direct:6379")
+		eventuallyNotListening(e.portMin)
+	})
+
+	It("refuses connections on a port two endpoints claim, then routes it to whichever keeps it", func() {
+		a := createCR(e.ns, "tcp://a.ngrok.direct:5432")
+		wireCR(a, "10.0.0.2", e.portMin)
+		e.eventuallyRoutes(e.portMin, "a.ngrok.direct:5432")
+
+		By("handing the port to b while a still holds it")
+		wireCR(createCR(e.ns, "tcp://b.ngrok.direct:5432"), "10.0.0.3", e.portMin)
+
+		Eventually(e.ambiguousLogs.Load).Should(Equal(int32(1)))
+		// The earlier dials to a were valid; the forbidden window opens once
+		// a connection is refused, which proves the forwarder sees both.
+		Eventually(func(g Gomega) { expectRefused(g, e.portMin) }).Should(Succeed())
+		dials := len(e.dialer.Targets())
+		for range 3 {
+			expectRefused(Default, e.portMin)
 		}
-	}, funcr.Options{})
+		Expect(e.dialer.Targets()[dials:]).To(BeEmpty(), "an ambiguous port must not dial")
 
-	require.NoError(t, sy.Sync(ctx))
-	require.NoError(t, sy.Sync(ctx))
-	assert.Equal(t, int32(1), logs.Load(), "a duplicate is logged once per change, not per sync")
-	assert.Equal(t, []int32{port}, sy.Ports(), "the listener stays open")
+		By("syncing again without changing the duplicate")
+		lists := e.fwdBoundary.count("List", "PrivateEndpointList", "")
+		a.Annotations = map[string]string{"touched": "yes"}
+		Expect(k8sClient.Update(ctx, a)).To(Succeed())
+		Eventually(func() int { return e.fwdBoundary.count("List", "PrivateEndpointList", "") }).Should(BeNumerically(">", lists))
+		Expect(e.ambiguousLogs.Load()).To(Equal(int32(1)), "a duplicate is logged once per change, not per sync")
+		Expect(e.dialer.Targets()[dials:]).To(BeEmpty())
 
-	conn, err := dialPort(t, port)
-	require.NoError(t, err)
-	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	_, err = conn.Read(make([]byte, 1))
-	assert.ErrorIs(t, err, io.EOF, "connection to an ambiguous port is closed")
-	_ = conn.Close()
-	assert.Zero(t, dials.Load(), "an ambiguous port must not dial")
+		By("unwiring a, leaving b the port")
+		wireCR(a, "", 0)
 
-	// The controller reallocates the loser: the port routes again, without
-	// reopening the listener.
-	b := peCR("b", "op", "", 0, "", 0)
-	require.NoError(t, c.Delete(ctx, b))
-	require.NoError(t, sy.Sync(ctx))
-	assert.Equal(t, []int32{port}, sy.Ports())
-	conn, err = dialPort(t, port)
-	require.NoError(t, err)
-	defer conn.Close()
-	assert.Equal(t, "[a.ngrok.direct:5432]", readN(t, conn, len("[a.ngrok.direct:5432]")))
-}
+		e.eventuallyRoutes(e.portMin, "b.ngrok.direct:5432")
+		Expect(e.forwarder.Ports()).To(Equal([]int32{e.portMin}))
+	})
 
-// A replica with a stale mapping routes correctly as soon as its table is
-// replaced: the target is resolved per connection, not per listener.
-func TestForwarderReconcilerRetargetsOpenListener(t *testing.T) {
-	ctx := context.Background()
-	port := freePort(t)
-	sy, c := newForwarderReconciler(t, peCR("a", "op", "a.ngrok.direct", 5432, "10.0.0.2", port))
-	defer sy.Close()
-	require.NoError(t, sy.Sync(ctx))
+	Context("when it starts on existing state", func() {
+		BeforeEach(func() { opts.deferStart = true })
 
-	require.NoError(t, c.Delete(ctx, peCR("a", "op", "", 0, "", 0)))
-	require.NoError(t, c.Create(ctx, peCR("b", "op", "b.ngrok.direct", 6379, "10.0.0.3", port)))
-	require.NoError(t, sy.Sync(ctx))
-	assert.Equal(t, []int32{port}, sy.Ports())
+		It("doesn't let its startup sync overwrite a newer reconcile", func() {
+			By("holding the startup sync after it reads an empty snapshot")
+			startup := e.fwdBoundary.inject(&fault{op: "List", kind: "PrivateEndpointList", hold: true, first: true})
+			e.launch()
+			Eventually(startup.Hits).Should(Equal(int32(1)))
 
-	conn, err := dialPort(t, port)
-	require.NoError(t, err)
-	defer conn.Close()
-	assert.Equal(t, "[b.ngrok.direct:6379]", readN(t, conn, len("[b.ngrok.direct:6379]")))
-}
+			By("wiring an endpoint, which reconciles while startup still holds its snapshot")
+			wireCR(createCR(e.ns, "http://new.ngrok.direct"), "10.0.0.1", e.portMin)
+			// The reconcile has to wait for startup. If it didn't, it would
+			// open the listener now; a dispatch slower than this window only
+			// makes this check vacuous, and the next one still holds. Dial
+			// rather than call Ports, which waits on the same lock.
+			Consistently(func() error {
+				c, err := dialForwarder(e.portMin)
+				if err == nil {
+					_ = c.Close()
+				}
+				return err
+			}).WithTimeout(500*time.Millisecond).Should(HaveOccurred(), "the newer sync waits for startup")
+
+			startup.Release()
+			Eventually(e.forwarder.Table.Synced).Should(BeTrue())
+			e.eventuallyRoutes(e.portMin, "new.ngrok.direct:80")
+			// Applied after the reconcile, startup's empty snapshot would
+			// close the listener with nothing left to reopen it.
+			Consistently(e.forwarder.Ports).WithTimeout(time.Second).Should(Equal([]int32{e.portMin}), "startup's stale snapshot doesn't erase newer routes")
+		})
+
+		It("never dials for a port that is ambiguous from the start", func() {
+			wireCR(createCR(e.ns, "tcp://a.ngrok.direct:5432"), "10.0.0.2", e.portMin)
+			wireCR(createCR(e.ns, "tcp://b.ngrok.direct:5432"), "10.0.0.3", e.portMin)
+
+			e.start()
+
+			Eventually(e.forwarder.Ports).Should(Equal([]int32{e.portMin}))
+			for range 3 {
+				expectRefused(Default, e.portMin)
+			}
+			Expect(e.dialer.Targets()).To(BeEmpty())
+			Expect(e.ambiguousLogs.Load()).To(Equal(int32(1)))
+		})
+
+		It("keeps the manager running when a port can't be bound, and binds it once it frees", func() {
+			blocker := holdPort(e.portMin)
+			wireCR(createCR(e.ns, "tcp://held.ngrok.direct:6379"), "10.0.0.2", e.portMin)
+
+			e.start()
+
+			Eventually(func(g Gomega) {
+				g.Expect(e.forwarder.Table.Synced()).To(BeTrue())
+				g.Expect(e.forwarder.BindErr()).To(MatchError(And(
+					ContainSubstring(fmt.Sprint(e.portMin)),
+					ContainSubstring("held.ngrok.direct"),
+				)))
+			}).Should(Succeed())
+			Expect(e.forwarder.Ports()).To(BeEmpty())
+			Consistently(e.exited).WithTimeout(time.Second).ShouldNot(BeClosed(), "manager stopped on a bind failure")
+
+			Expect(blocker.Close()).To(Succeed())
+
+			Eventually(e.forwarder.BindErr).WithTimeout(30 * time.Second).ShouldNot(HaveOccurred())
+			Expect(e.forwarder.Ports()).To(Equal([]int32{e.portMin}))
+			e.eventuallyRoutes(e.portMin, "held.ngrok.direct:6379")
+		})
+	})
+
+	It("binds the ports it can when one is held", func() {
+		holdPort(e.portMin)
+		wireCR(createCR(e.ns, "tcp://held.ngrok.direct:6379"), "10.0.0.2", e.portMin)
+		wireCR(createCR(e.ns, "tcp://free.ngrok.direct:6379"), "10.0.0.3", e.portMin+1)
+
+		Eventually(e.forwarder.BindErr).Should(HaveOccurred())
+		Eventually(e.forwarder.Ports).Should(Equal([]int32{e.portMin + 1}))
+		e.eventuallyRoutes(e.portMin+1, "free.ngrok.direct:6379")
+	})
+
+	It("clears a bind failure once no endpoint wants the port", func() {
+		holdPort(e.portMin)
+		wireCR(createCR(e.ns, "tcp://held.ngrok.direct:6379"), "10.0.0.2", e.portMin)
+		Eventually(e.forwarder.BindErr).Should(HaveOccurred())
+
+		deleteCR(e.ns, "tcp://held.ngrok.direct:6379")
+
+		Eventually(e.forwarder.BindErr).ShouldNot(HaveOccurred())
+	})
+
+	It("closes every listener on Close", func() {
+		wireCR(createCR(e.ns, "tcp://a.ngrok.direct:1"), "10.0.0.2", e.portMin)
+		wireCR(createCR(e.ns, "tcp://b.ngrok.direct:2"), "10.0.0.3", e.portMin+1)
+		Eventually(e.forwarder.Ports).Should(HaveLen(2))
+
+		e.forwarder.Close()
+
+		Expect(e.forwarder.Ports()).To(BeEmpty())
+		eventuallyNotListening(e.portMin)
+		eventuallyNotListening(e.portMin + 1)
+	})
+})
