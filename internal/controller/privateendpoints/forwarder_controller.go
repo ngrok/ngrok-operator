@@ -48,6 +48,11 @@ func (s *ForwarderReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ct
 // closes listeners to match. ctx is used for the dials of connections the
 // listeners accept, so it must outlive this call.
 func (s *ForwarderReconciler) Sync(ctx context.Context) error {
+	// Lock before listing: the startup sync can overlap Reconcile, and an
+	// older snapshot must not overwrite newer routes or close their listeners.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	var list ngrokv1.PrivateEndpointList
 	if err := s.List(ctx, &list, client.InNamespace(s.Namespace)); err != nil {
 		return fmt.Errorf("listing PrivateEndpoints: %w", err)
@@ -63,8 +68,6 @@ func (s *ForwarderReconciler) Sync(ctx context.Context) error {
 	}
 	dupes := s.Table.Replace(entries)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if len(dupes) > 0 && !slices.Equal(dupes, s.dupes) {
 		s.Log.Error(errors.New("forwarder port claimed by more than one PrivateEndpoint"), "refusing connections on ambiguous ports", "ports", dupes)
 	}

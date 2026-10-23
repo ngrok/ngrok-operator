@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
@@ -69,6 +70,63 @@ func TestForwarderReconcilerSync(t *testing.T) {
 	require.NoError(t, err)
 	defer c.Close()
 	assert.Equal(t, "[bar.ngrok.direct:6379]", readN(t, c, len("[bar.ngrok.direct:6379]")))
+}
+
+func TestForwarderReconcilerSerializesStartupSync(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	sy, c := newForwarderReconciler(t)
+	defer sy.Close()
+
+	captured, resume := make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	sy.Client = interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
+		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			err := c.List(ctx, list, opts...)
+			if calls.Add(1) == 1 {
+				// Hold the startup sync after it captures an empty snapshot.
+				close(captured)
+				select {
+				case <-resume:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			return err
+		},
+	})
+	startupDone := make(chan error, 1)
+	go func() { startupDone <- sy.Sync(ctx) }()
+	select {
+	case <-captured:
+	case <-ctx.Done():
+		t.Fatal("startup sync did not capture its snapshot")
+	}
+
+	port := freePort(t)
+	require.NoError(t, c.Create(ctx, peCR("new", "op", "new.ngrok.direct", 80, "10.0.0.1", port)))
+	reconcileDone := make(chan error, 1)
+	go func() { reconcileDone <- sy.Sync(ctx) }()
+	// The newer sync must wait for startup to finish before reading or
+	// applying its snapshot. Previously it completed and startup erased it.
+	select {
+	case err := <-reconcileDone:
+		assert.NoError(t, err)
+		t.Error("newer sync completed while startup still held its snapshot")
+		reconcileDone <- err
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(resume)
+	require.NoError(t, <-startupDone)
+	require.NoError(t, <-reconcileDone)
+	assert.Equal(t, []int32{port}, sy.Ports())
+	target, ok := sy.Table.PortTarget(port)
+	assert.True(t, ok)
+	assert.Equal(t, "new.ngrok.direct:80", target)
+	conn, err := dialPort(t, port)
+	require.NoError(t, err)
+	defer conn.Close()
+	assert.Equal(t, "[new.ngrok.direct:80]", readN(t, conn, len("[new.ngrok.direct:80]")))
 }
 
 func TestForwarderReconcilerFollowsChanges(t *testing.T) {
