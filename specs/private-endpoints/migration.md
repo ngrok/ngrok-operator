@@ -2,6 +2,12 @@
 
 Status: draft, 2026-10-12 · Owner: Alex Bezek · Audience: operator devs + product (internal, not user docs)
 
+> **2026-10-23:** Migration A is tracked as [K8SOP-293](https://linear.app/ngrok/issue/K8SOP-293)
+> (deprecate bindings; removal before or after 1.0 TBD). Blocking gaps: P1 → [K8SOP-60](https://linear.app/ngrok/issue/K8SOP-60),
+> P2 → [K8SOP-327](https://linear.app/ngrok/issue/K8SOP-327) (blocked by GAT-475). Migration B is
+> [K8SOP-329](https://linear.app/ngrok/issue/K8SOP-329) (triage). Private endpoints ship side by side
+> in 1.0 as `ngrok.com/v1` (D11). `includeInternal` below predates D9 and no longer exists.
+
 Two migrations, both long-term and post-POC:
 
 - **A. Bindings → private endpoints.** Get users off `BoundEndpoint` / the `kubernetes` binding

@@ -3,7 +3,7 @@
 One-stop status for the POC on `alex/private-endpoints-poc`: what's built, what we promise,
 what's in flux, what's next. Detail lives in the linked docs; this file links, it doesn't copy.
 
-Last updated: 2026-10-21 · Owner: Alex Bezek · Phase: **finishing the bounded POC**
+Last updated: 2026-10-23 · Owner: Alex Bezek · Phase: **POC in review ([PR #912](https://github.com/ngrok/ngrok-operator/pull/912)), shipping in 1.0**
 
 ## Doc map
 
@@ -28,6 +28,26 @@ Last updated: 2026-10-21 · Owner: Alex Bezek · Phase: **finishing the bounded 
 Any pod reaches any ngrok private endpoint by its real URL (`foo.ngrok.direct`; `.internal` not supported, D9)
 over http/https/tls/tcp, no per-endpoint config, no app changes. Replaces Kubernetes bindings
 (`BoundEndpoint`), which are deprecated alongside, not removed.
+
+## Linear
+
+Project: [K8s Operator Stabilize Release 1.0](https://linear.app/ngrok/project/k8s-operator-stabilize-release-10-66224e4e2dc4), milestone **Private Endpoints**
+(renamed from "Private Dial Migration" 2026-10-23: side by side with bindings, not a migration of it).
+
+| Ticket | What | Maps to | State |
+|---|---|---|---|
+| [K8SOP-292](https://linear.app/ngrok/issue/K8SOP-292) | Ship private endpoints in the operator (PR #912). Repurposed from "migrate bindings forwarder to private dial" | This POC, GAP-10 | In review |
+| [K8SOP-293](https://linear.app/ngrok/issue/K8SOP-293) | Deprecate Kubernetes bindings in favor of private endpoints. Removal before or after 1.0 TBD | GAP-26, [migration.md](migration.md) | Backlog, blocked by 292 |
+| [K8SOP-60](https://linear.app/ngrok/issue/K8SOP-60) | Scope which endpoints the operator projects into the cluster. Reminder; TBD if needed. Long term: ACL scopes on tokens; short term: client-side selector | GAP-20, migration P1 | Low |
+| [K8SOP-327](https://linear.app/ngrok/issue/K8SOP-327) | Send calling pod identity on private dial metadata (operator side) | GAP-21, migration P2 | Blocked by [GAT-475](https://linear.app/ngrok/issue/GAT-475) (gateway, not scheduled) |
+| [K8SOP-328](https://linear.app/ngrok/issue/K8SOP-328) | Move join/forward helpers into ngrok-go `privatedial`; scoped to the helpers only | GAP-22 (helpers part), [sdk-upstream.md](sdk-upstream.md) | Backlog, related [GAT-361](https://linear.app/ngrok/issue/GAT-361) |
+| [K8SOP-329](https://linear.app/ngrok/issue/K8SOP-329) | Ingress/Gateway/Service translation emits `.ngrok.direct` instead of `.internal` | GAP-27, R18 | Triage, not 1.0 |
+| [K8SOP-210](https://linear.app/ngrok/issue/K8SOP-210) | Use API filtering instead of client-side filtering (commented: poller's `.ngrok.direct` filter too) | sdk-upstream A9 | To Do |
+| [K8SOP-261](https://linear.app/ngrok/issue/K8SOP-261) | Bindings ~35–45 RPS cap. Commented: private endpoints replace this path; close once verified under load | perf driver | Open |
+| [GAT-826](https://linear.app/ngrok/issue/GAT-826) | Gateway removes `.internal` ↔ `.ngrok.direct` aliasing; two unrelated namespaces | backs D9 | Gateway backlog |
+
+Not ticketed on purpose (D12, D13): hardening gaps accepted for now, portable DNS spike, scale and edge cases.
+User docs go under the project's Documentation milestone (ticket TBD).
 
 ## What's built (rev 2)
 
@@ -97,7 +117,7 @@ Research findings I checked against the code are marked **confirmed**.
 | R26 | Forwarder ambiguous mapping: duplicate forwarderPort across CRs → last entry wins silently (`table.go:32`). Should fail closed | High (with R25) | Confirmed. Same class in bindings (keeps first). **Fixed, working tree** (O2): duplicated port resolves to nothing, connections closed without dial, logged once per change. Tests FT-2a/b/c |
 | R27 | Copy errors discarded (`privatedial_forward.go:71,76`): mid-stream upstream failure becomes orderly EOF to client, so truncated data looks complete. Should reset, not FIN | High (silent truncation) | **Fixed, working tree**: error aborts both sides (TCP RST), returned + logged. Bindings has it too (`forwarder_controller.go:331`). privatedial-side reset needs SDK (A11) |
 | R28 | Forwarder stays Ready while unable to serve: SDK `Done()/Err()` (terminal auth failure, e.g. revoked token) not observed; liveness always OK; informer staleness undetected | Medium | **Mostly fixed, working tree**: not Ready until first Connect; exits on terminal session end (restart re-reads token). Bad token *at startup* stays not-Ready (SDK A12). Informer staleness still open. Bindings: same blind spot, never stuck (fresh TLS per conn) |
-| R29 | Endpoint presence coupled to address lifetime: one successful list without the endpoint deletes CR → Service → ClusterIP. Ephemeral origin restart across a poll churns the IP apps may cache, and feeds port reuse | Medium | Confirmed live (findings 2026-10-13): new ClusterIP + port after a 25s origin outage; caching clients never recover; re-resolving clients wait ~30s extra (CoreDNS negative cache). Bindings deletes on first missed poll too. Open: retention period for Service + allocation |
+| R29 | Endpoint presence coupled to address lifetime: one successful list without the endpoint deletes CR → Service → ClusterIP. Ephemeral origin restart across a poll churns the IP apps may cache, and feeds port reuse | Medium | Confirmed live (findings 2026-10-13): new ClusterIP + port after a 25s origin outage; caching clients never recover; re-resolving clients wait ~30s extra (CoreDNS negative cache). Bindings deletes on first missed poll too. **Accepted (D12)** |
 | R30 | DNS trust boundary: rewrite resolves by Service *existence*, not validated ownership. Refusing to overwrite a foreign `foo-ngrok-direct` Service (R1) doesn't stop `foo.ngrok.direct` resolving to it; plain http/tcp has no TLS backstop. Service-write in the operator namespace = authority over cluster-wide names | Medium | Open. Document as trust boundary now; D1(b) DNS responder narrows it. Relates to R23/GAP-31 |
 
 Other review findings (PR-6, 8–12) are low and tracked in [research/07](research/07-poc-review.md).
@@ -121,20 +141,23 @@ R25–R30 come from a second independent review (4 subagents: control-plane conv
 | D8 | *(Superseded by D9)* `.ngrok.direct` only by default. `.internal` projection is opt-in (poller skips `.internal` hosts unless enabled; kind DNS rewrite follows). Supersedes the "both out of the box" half of D3 | 2026-10-12 | PM (Slack): `.ngrok.direct` is the prescribed pattern going forward; `.internal` stays supported but secondary. Also defuses R4, R15, R18 by default |
 | D9 | `.internal` is not supported in the initial pass: poller mirrors `.ngrok.direct` only; no Helm value, flag, or kind DNS rule for `.internal`. Supersedes D8's opt-in | 2026-10-21 | Alex review: smaller surface for the first pass. Closes R4, R15, R18 outright. Can come back as an opt-in later if users need it |
 | D10 | No missing-CRD guard in the api-manager (reverts the PR-1 fix) | 2026-10-21 | Alex review: CRDs ship in the ngrok-crds chart and can't be toggled off, so the discovery check was defending against a broken install |
+| D11 | Private endpoints ship side by side with bindings, in 1.0, with `PrivateEndpoint` as `ngrok.com/v1` (stable). Bindings is deprecated later (K8SOP-293), not migrated in place. The original K8SOP-292 plan (swap the bindings forwarder's egress, keep `BoundEndpoint`) is dropped | 2026-10-23 | Alex: works differently enough that standing it up next to bindings is cleaner; additive, nothing breaks |
+| D12 | Accept the remaining hardening gaps for now, no tickets: GAP-31, GAP-13 (need write access in the operator namespace, which is already privileged), GAP-4 (documented cleanup), R29 (endpoint restart → new ClusterIP), GAP-15, GAP-30, GAP-29 (document in EKS runbook), R28 informer staleness. Most are the same as bindings today | 2026-10-23 | Alex review of what's actually open; not required for shipping |
+| D13 | No tickets for the portable DNS spike (GAP-19), scale/IPv6/port reuse (GAP-3, 18, 23, 24) or Ready semantics (GAP-14). This research is the record if we come back to them | 2026-10-23 | Alex |
 | D7 | Platform order: kind (local dev) → EKS (ngrok dogfoods) → k3s (ngrok devboxes). AKS, GKE, OpenShift, RKE2: basic "how this works" docs only, no tested support claim | 2026-10-12 | Platforms we run ourselves first |
 
 ## Future (post-POC, not started)
 
-- Access control: which pods/namespaces may reach which endpoints.
-- Pod identity per connection → Traffic Policy (needs backend; compare old bindings pod-IP lookup).
-- Upstream `privatedial.Join` / `Dialer.Forward` to ngrok-go; delete local helper; move off pin; retest HTTP/2 on Go 1.27.
+- Access control / scoping: which endpoints a cluster sees (K8SOP-60), which pods may reach them.
+- Pod identity per connection → Traffic Policy (K8SOP-327, blocked by GAT-475; SDK `DialReq` also carries only host and port today, sdk-upstream G11).
+- Upstream `privatedial.Join` / `Dialer.Forward` to ngrok-go; delete local helper (K8SOP-328). Separately, not ticketed: move off pin; retest HTTP/2 on Go 1.27.
 - Multi-label hostnames (needs D1(b)).
 - IPv6 / dual-stack.
 - Scale beyond ~1000 endpoint-ports.
-- Bindings deprecation + migration guide.
-- Operator's Ingress/Gateway/Service translation emits internal AgentEndpoints on `*.ngrok.direct` instead of `*.internal`. Migration: create new AEPs, then switch the CLEP traffic policy to forward to them, then delete old ones. Post-1.0. PM agrees it's mostly technical (Slack 2026-10-12).
+- Bindings deprecation + migration guide (K8SOP-293).
+- Operator's Ingress/Gateway/Service translation emits internal AgentEndpoints on `*.ngrok.direct` instead of `*.internal` (K8SOP-329). Migration: create new AEPs, then switch the CLEP traffic policy to forward to them, then delete old ones. Post-1.0. PM agrees it's mostly technical (Slack 2026-10-12).
 - Configurable per-cluster base domain (D6b), once ngrok ships agent `baseDomain`.
-- Release: bump ngrok-crds chart for the new CRD.
+- Release: bump ngrok-crds chart for the new CRD (with K8SOP-292).
 
 ## Correctness bar (from 2nd review)
 
@@ -154,13 +177,10 @@ Kind scenarios for FT-3/5/6: `make pe-demo-faults FAULT=origin-restart|rolling-r
 
 ## Next up (ordered)
 
-Full list with verification steps: [requirements.md §4](requirements.md). T1–T10 from the old to-do list are folded in.
-
-1. Alex: live kind run on the D8 working tree (GAP-1, GAP-2 live, GAP-4 via kind-e2e §5 F). Confirms tls/tcp on `.ngrok.direct`.
-2. Agents: GAP-31 (only wire poller-made CRs), GAP-13 (forwarder port range check). Small, code-only, before preview.
-3. Agents: GAP-16 half-close fix shaped as the SDK `Join` contract (sdk-upstream SDK-1).
-4. Ask SDK/backend owners: sdk-upstream asks A1–A10; migration open questions (esp. `.ngrok.direct` hostname scope, multi-label).
-5. Later: GAP-3 port-reuse experiment, GAP-29 NetworkPolicy with EKS run, GAP-30 forwarder availability.
+1. Merge PR #912 (K8SOP-292); bump ngrok-crds chart at release (GAP-10).
+2. Alex: live kind rerun incl. drift-heal recheck (GAP-2 live, GAP-7) and bindings on at the same time (GAP-12); EKS then k3s runbooks (GAP-8).
+3. User docs under the Documentation milestone (GAP-9).
+4. Later, as tickets above: K8SOP-60, K8SOP-327 (when GAT-475 moves), K8SOP-328, K8SOP-293.
 
 ## POC milestones (in order, no dates)
 
@@ -172,12 +192,13 @@ Full list with verification steps: [requirements.md §4](requirements.md). T1–
 6. ✅ Docs: requirements.md, design.md rewrite, strategy/notes/runbooks updated for D8 and review. Working tree.
 7. ✅ Post-POC plans: [sdk-upstream.md](sdk-upstream.md), [migration.md](migration.md). Working tree.
 8. Live: R19 drift-heal recheck, D8 demo both modes, R16 uninstall check (Alex, kind).
-9. Before-preview code gaps: GAP-31, GAP-13, then GAP-16.
+9. ~~Before-preview code gaps: GAP-31, GAP-13, then GAP-16.~~ GAP-16 fixed (R21); GAP-31/13 accepted (D12).
 
 Later (not POC): EKS/k3s runs, user-facing docs, DNS server spike (GAP-19), identity, access control, SDK upstream, IPv6.
 
 ## Changelog
 
+- 2026-10-23: Linear planning with Alex. Milestone "Private Dial Migration" → "Private Endpoints"; K8SOP-292 repurposed as "ship private endpoints"; K8SOP-293 → bindings deprecation; K8SOP-60 → endpoint scoping; new K8SOP-327 (pod identity, blocked by GAT-475), K8SOP-328 (SDK helpers), K8SOP-329 (Ingress/Gateway `.ngrok.direct`, triage); comments on K8SOP-210 and K8SOP-261. Decisions D11–D13. GAP-5, GAP-6 and GAP-2's Helm test confirmed done on the PR branch.
 - 2026-10-21: Alex review round (working tree): D9 drop `.internal` (`includeInternal` value/flag/env, `PE_INCLUDE_INTERNAL`, naming TLD table gone); D10 drop missing-CRD guard; demo checks moved to a parallel chainsaw suite (`tests/chainsaw-private-endpoints/`, `checks.sh` deleted, `demo.sh test` gone); renames to match bindings: subcommand `private-endpoint-forwarder-manager`, `privateendpoint_controller.go`/`privateendpoint_poller.go` (`PrivateEndpointReconciler`/`PrivateEndpointPoller`), `Syncer` → `ForwarderReconciler` in `internal/controller/privateendpoints/forwarder_controller.go`.
 - 2026-10-13: Rebased onto main after the Helm values refactor (#899) and regrouped history into 9 reviewable commits. Chart: `ngrok.features.privateEndpoints.{enabled,includeInternal}` (env `NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__*`, defined in `internal/flags`), forwarder pod settings under `components.privateEndpointForwarder` (inherits `components.common`, so GAP-30 scheduling knobs come free), token `ngrok.credentials.privateEndpointForwarder.accessToken` (secret key unchanged: `PRIVATE_ENDPOINTS_ACCESS_TOKEN`). plan.md/research/findings.md keep the old names. Re-run live on kind after the rebase: demo 11/11 pass, settings reach pods as env vars.
 - 2026-10-13: Answers (Alex): `.ngrok.direct` private hostnames are NOT globally unique or reserved — private, so many accounts can each have `foo.ngrok.direct` (no cross-account collision/leak; migration.md Q6 closed). Multi-label `.ngrok.direct` not supported today; Eric wants agent `baseDomain` subdomains later (D6b). Abort (A11) and startup bad-token detection (A12): backend/SDK-owned, Alex can inquire; A12 low value (pod is not-Ready either way).
