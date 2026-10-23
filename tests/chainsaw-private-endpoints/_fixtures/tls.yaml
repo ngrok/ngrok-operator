@@ -1,0 +1,37 @@
+# Self-signed cert with CN=<namespace>-tls.ngrok.direct, so a client seeing that
+# subject proves TLS passed through ngrok untouched.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tls
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: tls}
+  template:
+    metadata:
+      labels: {app: tls}
+    spec:
+      containers:
+        - name: tls
+          image: nicolaka/netshoot:latest
+          env:
+            - name: NS
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+          command: ["sh", "-c"]
+          args:
+            - >-
+              openssl req -x509 -newkey rsa:2048 -nodes -days 30
+              -keyout /tmp/tls.key -out /tmp/tls.crt -subj "/CN=$NS-tls.ngrok.direct"
+              && exec openssl s_server -accept 8443 -cert /tmp/tls.crt -key /tmp/tls.key -www
+          ports: [{containerPort: 8443}]
+          readinessProbe:
+            tcpSocket: {port: 8443}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tls
+spec:
+  selector: {app: tls}
+  ports: [{port: 8443, targetPort: 8443}]

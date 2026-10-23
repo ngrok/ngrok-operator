@@ -36,6 +36,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -62,10 +63,12 @@ import (
 	ingresscontroller "github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
+	privateendpointscontroller "github.com/ngrok/ngrok-operator/internal/controller/privateendpoints"
 	servicecontroller "github.com/ngrok/ngrok-operator/internal/controller/service"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/flags"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
+	pe "github.com/ngrok/ngrok-operator/internal/privateendpoints"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -113,6 +116,7 @@ type apiManagerOpts struct {
 	enableFeatureIngress          bool
 	enableFeatureGateway          bool
 	enableFeatureBindings         bool
+	enableFeaturePrivateEndpoints bool
 	disableGatewayReferenceGrants bool
 
 	bindings struct {
@@ -158,6 +162,7 @@ func apiCmd() *cobra.Command {
 	flags.GatewayEnabled(fs, &opts.enableFeatureGateway)
 	flags.GatewayDisableReferenceGrants(fs, &opts.disableGatewayReferenceGrants)
 	flags.BindingsEnabled(fs, &opts.enableFeatureBindings)
+	flags.PrivateEndpointsEnabled(fs, &opts.enableFeaturePrivateEndpoints)
 	flags.BindingsEndpointSelectors(fs, &opts.bindings.endpointSelectors)
 	flags.BindingsServiceAnnotations(fs, &opts.bindings.serviceAnnotations)
 	flags.BindingsServiceLabels(fs, &opts.bindings.serviceLabels)
@@ -391,6 +396,13 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 		setupLog.Info("Endpoint Bindings feature set disabled")
 	}
 
+	if opts.enableFeaturePrivateEndpoints {
+		setupLog.Info("Private Endpoints feature set enabled")
+		if err := enablePrivateEndpointsFeatureSet(opts, mgr, ngrokClientset); err != nil {
+			return fmt.Errorf("unable to enable Private Endpoints feature set: %w", err)
+		}
+	}
+
 	// new kubebuilder controllers will be generated here
 	// please attach these to a feature set
 	// +kubebuilder:scaffold:builder
@@ -438,23 +450,7 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 		LeaderElection:         opts.electionID != "",
 		LeaderElectionID:       opts.electionID,
 
-		// The KubernetesOperator CR is a singleton owned by the operator and always
-		// lives in the release namespace, regardless of `watchNamespace`. Pin its
-		// cache scope to the release namespace so the controller can always list/watch
-		// it, and so RBAC for it can stay narrowly scoped to the release namespace.
-		Cache: cache.Options{
-			ByObject: map[client.Object]cache.ByObject{
-				&ngrokv1alpha1.KubernetesOperator{}: {
-					Namespaces: map[string]cache.Config{
-						opts.namespace: {},
-					},
-				},
-			},
-		}}
-	if opts.ingressWatchNamespace != "" {
-		options.Cache.DefaultNamespaces = map[string]cache.Config{
-			opts.ingressWatchNamespace: {},
-		}
+		Cache: managerCacheOptions(opts),
 	}
 
 	mgr, err := ctrl.NewManager(k8sConfig, options)
@@ -463,6 +459,42 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 	}
 
 	return mgr, nil
+}
+
+func managerCacheOptions(opts apiManagerOpts) cache.Options {
+	// The KubernetesOperator CR is a singleton owned by the operator and always
+	// lives in the release namespace, regardless of `watchNamespace`. Pin its
+	// cache scope to the release namespace so the controller can always list/watch
+	// it, and so RBAC for it can stay narrowly scoped to the release namespace.
+	o := cache.Options{
+		ByObject: map[client.Object]cache.ByObject{
+			&ngrokv1alpha1.KubernetesOperator{}: {
+				Namespaces: map[string]cache.Config{
+					opts.namespace: {},
+				},
+			},
+		},
+	}
+	if opts.ingressWatchNamespace != "" {
+		o.DefaultNamespaces = map[string]cache.Config{
+			opts.ingressWatchNamespace: {},
+		}
+	}
+	if opts.enableFeaturePrivateEndpoints {
+		o.ByObject[&ngrokv1.PrivateEndpoint{}] = cache.ByObject{
+			Namespaces: map[string]cache.Config{opts.namespace: {}},
+		}
+		// The shared and per-hostname Services live in the operator namespace.
+		if opts.ingressWatchNamespace != "" && opts.ingressWatchNamespace != opts.namespace {
+			o.ByObject[&corev1.Service{}] = cache.ByObject{
+				Namespaces: map[string]cache.Config{
+					opts.ingressWatchNamespace: {},
+					opts.namespace:             {},
+				},
+			}
+		}
+	}
+	return o
 }
 
 // loadNgrokClientset loads the ngrok API clientset from the environment and managerOpts
@@ -784,6 +816,29 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 	}
 
 	return nil
+}
+
+// enablePrivateEndpointsFeatureSet mirrors private endpoints into the cluster
+// for the private-endpoint-forwarder.
+func enablePrivateEndpointsFeatureSet(opts apiManagerOpts, mgr ctrl.Manager, ngrokClientset ngrokapi.Clientset) error {
+	if err := (&privateendpointscontroller.PrivateEndpointReconciler{
+		Client:            mgr.GetClient(),
+		APIReader:         mgr.GetAPIReader(),
+		Log:               ctrl.Log.WithName("controllers").WithName("PrivateEndpoint"),
+		Namespace:         opts.namespace,
+		ForwarderSelector: map[string]string{"app.kubernetes.io/component": pe.ForwarderComponent},
+		PortMin:           20000,
+		PortMax:           20999,
+	}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("setting up PrivateEndpoint controller: %w", err)
+	}
+	return mgr.Add(&privateendpointscontroller.PrivateEndpointPoller{
+		Client:    mgr.GetClient(),
+		Log:       ctrl.Log.WithName("controllers").WithName("PrivateEndpointPoller"),
+		Namespace: opts.namespace,
+		Endpoints: ngrokClientset.Endpoints(),
+		Interval:  10 * time.Second,
+	})
 }
 
 func createKubernetesOperator(ctx context.Context, client client.Client, opts apiManagerOpts) error {

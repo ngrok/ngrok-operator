@@ -51,6 +51,13 @@ e2e-tests-multi-ns: ## Run multi-namespace e2e tests
 		--namespace namespace-a \
 		--cleanup-timeout 2m
 
+.PHONY: e2e-tests-private-endpoints
+e2e-tests-private-endpoints: ## Run private endpoints e2e tests in parallel. Needs the feature on and kind DNS set up (make pe-demo-up).
+	KUBE_NAMESPACE=$(KUBE_NAMESPACE) \
+	chainsaw test ./tests/chainsaw-private-endpoints \
+		--parallel 4 \
+		--cleanup-timeout 2m
+
 .PHONY: e2e-clean
 e2e-clean: ## Clean up e2e tests
 	kubectl delete ns e2e

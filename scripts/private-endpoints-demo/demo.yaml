@@ -1,0 +1,149 @@
+# Demo origins for private endpoints, published with the operator's own
+# AgentEndpoint CRD (the agent-manager in the same install runs them). The
+# poller then mirrors them back as PrivateEndpoints. __PREFIX__ and __NS__ are
+# substituted by demo.sh. TLS/TCP upstreams use tcp:// so the agent forwards raw
+# bytes (a tls:// upstream would wrap the passthrough stream in a second TLS).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: __NS__
+  annotations:
+    k8s.ngrok.com/pe-demo-prefix: __PREFIX__
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: __NS__
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: web}
+  template:
+    metadata:
+      labels: {app: web}
+    spec:
+      containers:
+        - name: web
+          image: hashicorp/http-echo:1.0
+          args: ["-listen=:5678", "-text=hello from __PREFIX__-web"]
+          ports: [{containerPort: 5678}]
+          readinessProbe:
+            httpGet: {path: /, port: 5678}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: __NS__
+spec:
+  selector: {app: web}
+  ports: [{port: 80, targetPort: 5678}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: __NS__
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: redis}
+  template:
+    metadata:
+      labels: {app: redis}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports: [{containerPort: 6379}]
+          readinessProbe:
+            tcpSocket: {port: 6379}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: __NS__
+spec:
+  selector: {app: redis}
+  ports: [{port: 6379, targetPort: 6379}]
+---
+# Self-signed cert with CN=<prefix>-tls.ngrok.direct, so a client seeing that
+# subject proves TLS passed through ngrok untouched.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tls
+  namespace: __NS__
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: tls}
+  template:
+    metadata:
+      labels: {app: tls}
+    spec:
+      containers:
+        - name: tls
+          image: nicolaka/netshoot:latest
+          command: ["sh", "-c"]
+          args:
+            - >-
+              openssl req -x509 -newkey rsa:2048 -nodes -days 30
+              -keyout /tmp/tls.key -out /tmp/tls.crt -subj "/CN=__PREFIX__-tls.ngrok.direct"
+              && exec openssl s_server -accept 8443 -cert /tmp/tls.crt -key /tmp/tls.key -www
+          ports: [{containerPort: 8443}]
+          readinessProbe:
+            tcpSocket: {port: 8443}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tls
+  namespace: __NS__
+spec:
+  selector: {app: tls}
+  ports: [{port: 8443, targetPort: 8443}]
+---
+# bindings: [internal] makes these private and skips Domain reservation; the
+# ngrok CLI's .ngrok.direct endpoints also report bindings=[internal].
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: web-direct-http
+  namespace: __NS__
+spec:
+  url: http://__PREFIX__-web.ngrok.direct
+  bindings: [internal]
+  upstream: {url: "http://web.__NS__:80"}
+---
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: web-direct-https
+  namespace: __NS__
+spec:
+  url: https://__PREFIX__-web.ngrok.direct
+  bindings: [internal]
+  upstream: {url: "http://web.__NS__:80"}
+---
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: redis-direct
+  namespace: __NS__
+spec:
+  url: tcp://__PREFIX__-redis.ngrok.direct:6379
+  bindings: [internal]
+  upstream: {url: "tcp://redis.__NS__:6379"}
+---
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: tls-direct
+  namespace: __NS__
+spec:
+  url: tls://__PREFIX__-tls.ngrok.direct
+  bindings: [internal]
+  upstream: {url: "tcp://tls.__NS__:8443"}

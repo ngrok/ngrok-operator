@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: private-endpoints-tls
+spec:
+  description: |
+    A tls private endpoint is reachable from a pod with the origin's own
+    certificate passed through untouched.
+  bindings:
+    - name: operatorNamespace
+      value: (env('KUBE_NAMESPACE') || 'ngrok-operator')
+    - name: host
+      value: (join('', [$namespace, '-tls.ngrok.direct']))
+  steps:
+    - name: create origin, endpoint and client
+      try:
+        - apply: { file: ../_fixtures/client.yaml }
+        - apply: { file: ../_fixtures/tls.yaml }
+        # A tcp:// upstream makes the agent forward raw bytes; tls:// would
+        # wrap the passthrough stream in a second TLS layer.
+        - apply:
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: AgentEndpoint
+              metadata:
+                name: tls
+              spec:
+                url: (join('', ['tls://', $host]))
+                bindings: [internal]
+                upstream:
+                  url: (join('', ['tcp://tls.', $namespace, ':8443']))
+
+    - name: mirrored into a PrivateEndpoint
+      try:
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.com/v1
+              kind: PrivateEndpoint
+              metadata:
+                namespace: ($operatorNamespace)
+              spec:
+                hostname: ($host)
+                scheme: tls
+                port: 443
+              status:
+                (conditions[?type == 'Ready']):
+                  - status: 'True'
+      catch:
+        - podLogs:
+            namespace: ($operatorNamespace)
+            selector: app.kubernetes.io/component=controller
+            tail: 50
+
+    - name: reachable from a pod
+      try:
+        - wait:
+            apiVersion: v1
+            kind: Pod
+            name: client
+            timeout: 2m
+            for:
+              condition:
+                name: Ready
+        - script:
+            timeout: 3m
+            env:
+              - name: HOST
+                value: ($host)
+            content: |
+              ../_fixtures/check.sh "CN=$HOST" "echo | openssl s_client -connect $HOST:443 -servername $HOST 2>/dev/null | grep '^subject=' | tr -d ' '"
+      catch:
+        - podLogs:
+            namespace: ($operatorNamespace)
+            selector: app.kubernetes.io/component=private-endpoint-forwarder
+            tail: 50

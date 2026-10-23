@@ -19,6 +19,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 | **Driver** | An internal pattern used by Ingress and Gateway API controllers that collects state from multiple resources and materializes the combined state as ngrok endpoints. | [controllers/ingress.md](controllers/ingress.md) |
 | **Endpoint Pooling** | Allows multiple endpoints to share the same public URL, distributing traffic across them. Controlled via the `ngrok.com/pooling-enabled` annotation. | [annotations.md](annotations.md) |
 | **Mapping Strategy** | Controls which ngrok endpoint resources are created: `endpoints` (AgentEndpoint only) or `endpoints-verbose` (CloudEndpoint + internal AgentEndpoint). | [annotations.md](annotations.md) |
+| **Private Endpoints** | A feature that makes the account's ngrok private endpoints (`*.ngrok.direct`) reachable from any pod by their real URL, through a per-hostname Service and the private endpoint forwarder. Each endpoint is mirrored as a `PrivateEndpoint` CR. | [features/private-endpoints.md](features/private-endpoints.md) |
 | **Traffic Policy** | A set of rules (rate limiting, header manipulation, authentication, etc.) applied to ngrok endpoints. Defined as an `TrafficPolicy` CR or inline JSON. | [features/traffic-policy.md](features/traffic-policy.md) |
 | **Wildcard Domain** | A reserved domain of the form `*.example.com`. Direct children of a reserved wildcard are not reserved individually — the wildcard's DNS record and certificate already cover them. | [controllers/domain.md](controllers/domain.md#wildcard-domain-coverage) |
 
@@ -38,6 +39,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 - [operator.md](rbac/operator.md) — Operator (api-manager) permissions
 - [agent.md](rbac/agent.md) — Agent permissions
 - [bindings-forwarder.md](rbac/bindings-forwarder.md) — Bindings forwarder permissions
+- [private-endpoint-forwarder.md](rbac/private-endpoint-forwarder.md) — Private endpoint forwarder permissions
 - [aggregation.md](rbac/aggregation.md) — Editor/viewer aggregation roles
 
 ### [helm/](helm/) — Helm Chart Configuration
@@ -46,6 +48,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 - [operator.md](helm/operator.md) — API manager (`apiManager`) deployment values
 - [agent.md](helm/agent.md) — Agent deployment values
 - [bindings-forwarder.md](helm/bindings-forwarder.md) — Bindings forwarder (`bindingsForwarder`) deployment values
+- [private-endpoint-forwarder.md](helm/private-endpoint-forwarder.md) — Private endpoint forwarder (`privateEndpointForwarder`) deployment values
 - [features.md](helm/features.md) — Feature flags, feature config, drain/domain policies, cleanup hook
 
 ### [features/](features/) — Cross-Cutting Features
@@ -55,6 +58,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 - [ingress.md](features/ingress.md) — Kubernetes Ingress feature
 - [gateway-api.md](features/gateway-api.md) — Kubernetes Gateway API feature
 - [bindings.md](features/bindings.md) — Endpoint bindings feature
+- [private-endpoints.md](features/private-endpoints.md) — Private endpoints feature
 - [high-availability.md](features/high-availability.md) — Replicas, leader election, PDB
 - [traffic-policy.md](features/traffic-policy.md) — Traffic policy resolution across controllers
 - [namespace-watching.md](features/namespace-watching.md) — Namespace scoping configuration
@@ -69,6 +73,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 - [domain.md](crds/domain.md) — Domain (`ngrok.com`)
 - [ippolicy.md](crds/ippolicy.md) — IPPolicy (`ngrok.com`)
 - [boundendpoint.md](crds/boundendpoint.md) — BoundEndpoint (`ngrok.com`)
+- [privateendpoint.md](crds/privateendpoint.md) — PrivateEndpoint (`ngrok.com`)
 
 ### [controllers/](controllers/) — Controller Behavior
 
@@ -83,6 +88,8 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 - [ippolicy.md](controllers/ippolicy.md) — IPPolicy controller
 - [boundendpoint.md](controllers/boundendpoint.md) — BoundEndpoint controller
 - [bindings-forwarder.md](controllers/bindings-forwarder.md) — Bindings Forwarder controller
+- [privateendpoint.md](controllers/privateendpoint.md) — PrivateEndpoint poller and controller
+- [private-endpoint-forwarder.md](controllers/private-endpoint-forwarder.md) — Private Endpoint Forwarder controller
 - **[gateway-api/](controllers/gateway-api/)** — Gateway API controllers
   - [gatewayclass.md](controllers/gateway-api/gatewayclass.md)
   - [gateway.md](controllers/gateway-api/gateway.md)
