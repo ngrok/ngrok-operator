@@ -30,10 +30,6 @@ SOFTWARE.
 // condition. The manager owns the condition only; per-endpoint status fields
 // that summarize the attached policy (e.g. AgentEndpointStatus.AttachedTrafficPolicy)
 // are written by the calling controller from Result.Source.
-//
-// Legacy field handling (CloudEndpoint's deprecated spec.trafficPolicyName and
-// nested spec.trafficPolicy.policy) lives in the CloudEndpoint controller;
-// this package only sees the canonical shape via EndpointWithTrafficPolicy.
 package trafficpolicy
 
 import (

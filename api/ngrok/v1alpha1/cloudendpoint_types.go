@@ -48,10 +48,6 @@ type CloudEndpointSpec struct {
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 
-	// Deprecated: use spec.trafficPolicy.targetRef.name instead.
-	// This field remains readable during the migration window.
-	TrafficPolicyName string `json:"trafficPolicyName,omitempty"`
-
 	// Controls whether or not the Cloud Endpoint should allow pooling with other
 	// Cloud Endpoints sharing the same URL. When Cloud Endpoints are pooled, any requests
 	// going to the URL for the pooled endpoint will be distributed among all Cloud Endpoints
@@ -158,9 +154,7 @@ var _ EndpointWithDomain = &CloudEndpoint{}
 var _ EndpointWithTrafficPolicy = &CloudEndpoint{}
 
 // CloudEndpointTrafficPolicyCfg is the CloudEndpoint-specific TrafficPolicy
-// configuration. Exactly one of inline or targetRef may be set. The
-// deprecated `policy` field is retained during the migration window and
-// folded into inline by the controller when no canonical field is set.
+// configuration. Exactly one of inline or targetRef may be set.
 //
 // +kubebuilder:validation:XValidation:rule="!(has(self.inline) && has(self.targetRef))", message="spec.trafficPolicy.inline and spec.trafficPolicy.targetRef cannot both be set"
 type CloudEndpointTrafficPolicyCfg struct {
@@ -176,53 +170,18 @@ type CloudEndpointTrafficPolicyCfg struct {
 	// referenced NgrokTrafficPolicy must live in the same namespace as the
 	// endpoint.
 	Reference *K8sObjectRef `json:"targetRef,omitempty"`
-
-	// Deprecated: use inline instead. This field remains readable during
-	// the migration window.
-	//
-	// +kubebuilder:validation:Schemaless
-	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:validation:Type=object
-	Policy json.RawMessage `json:"policy,omitempty"`
 }
 
-// ToTrafficPolicyCfg returns the canonical TrafficPolicyCfg for the resolver,
-// folding the deprecated Policy field into Inline. The canonical Inline /
-// Reference win when set; Policy is consulted only as a fallback. Returns
-// nil when no policy is configured.
-//
-// LEGACY-trafficpolicy-policy: delete the Policy fallback in the cleanup
-// release; the body simplifies to:
-//
-//	if c == nil || (c.Inline == nil && c.Reference == nil) {
-//	    return nil
-//	}
-//	return &TrafficPolicyCfg{Inline: c.Inline, Reference: c.Reference}
+// ToTrafficPolicyCfg returns the canonical TrafficPolicyCfg for the resolver.
+// Returns nil when no policy is configured.
 func (c *CloudEndpointTrafficPolicyCfg) ToTrafficPolicyCfg() *TrafficPolicyCfg {
-	if c == nil {
-		return nil
-	}
-	inline := c.Inline
-	// LEGACY-trafficpolicy-policy: delete in the cleanup release.
-	if inline == nil && c.Reference == nil && c.Policy != nil {
-		inline = c.Policy
-	}
-	if inline == nil && c.Reference == nil {
+	if c == nil || (c.Inline == nil && c.Reference == nil) {
 		return nil
 	}
 	return &TrafficPolicyCfg{
-		Inline:    inline,
+		Inline:    c.Inline,
 		Reference: c.Reference,
 	}
-}
-
-// HasDeprecatedPolicy reports whether the user populated the deprecated
-// Policy field. Used by the CloudEndpoint controller to emit a deprecation
-// event when the legacy shape is in use.
-//
-// LEGACY-trafficpolicy-policy: delete in the cleanup release.
-func (c *CloudEndpointTrafficPolicyCfg) HasDeprecatedPolicy() bool {
-	return c != nil && c.Policy != nil
 }
 
 // GetTrafficPolicyCfg returns the canonical traffic policy configuration for

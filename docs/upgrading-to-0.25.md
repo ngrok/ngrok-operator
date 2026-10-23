@@ -245,6 +245,53 @@ spec:
 The 0.24 CRD already accepts `resolvesTo`, so this change is safe to apply
 before upgrading and survives a rollback to 0.24.
 
+### Move CloudEndpoint traffic policies to `targetRef` and `inline`
+
+The deprecated `CloudEndpoint.spec.trafficPolicyName` and
+`spec.trafficPolicy.policy` fields have been removed from the CRD. The 0.25
+operator reads only `spec.trafficPolicy.targetRef` and
+`spec.trafficPolicy.inline`. A CloudEndpoint that still sets only a legacy
+field is reconciled with no traffic policy attached, and the field is pruned
+the next time the object is written.
+Applying a manifest that still sets a legacy field fails `kubectl apply`'s
+strict field validation with an `unknown field` error.
+
+Find remaining objects:
+
+```bash
+kubectl get cloudendpoints.ngrok.k8s.ngrok.com -A -o json |
+  jq -r '
+    .items[]
+    | select(
+        .spec.trafficPolicyName != null
+        or .spec.trafficPolicy.policy != null
+      )
+    | "\(.metadata.namespace)/\(.metadata.name)"
+  '
+```
+
+Replace:
+
+```yaml
+spec:
+  trafficPolicyName: my-policy
+```
+
+with:
+
+```yaml
+spec:
+  trafficPolicy:
+    targetRef:
+      name: my-policy
+```
+
+and replace `spec.trafficPolicy.policy` with `spec.trafficPolicy.inline`.
+
+Operator-generated CloudEndpoints need no action. The 0.24 CRD already accepts
+`targetRef` and `inline`, so this change is safe to apply before upgrading and
+survives a rollback to 0.24.
+
 ### Move external selectors off legacy bindings labels
 
 The operator no longer writes the legacy bindings labels on Services it creates
@@ -608,6 +655,5 @@ migrations before their cleanup releases:
 | --- | --- | --- |
 | `NgrokTrafficPolicy` kind | Serves both CRDs; prefers `TrafficPolicy` | Migrate to `ngrok.com/v1` `TrafficPolicy` before the cleanup release removes the `ngroktrafficpolicies.ngrok.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
-| CloudEndpoint traffic-policy fields | Reads old and new fields | Use only `targetRef` and `inline` before the announced cleanup release |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
 | Operator-written labels, annotations, and finalizer | Writes new prefix only; still reads legacy | None. The next release stops reading the legacy prefix, so upgrade through 0.25 rather than skipping it |
