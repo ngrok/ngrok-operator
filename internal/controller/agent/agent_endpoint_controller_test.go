@@ -1774,10 +1774,8 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		// to recognize ErrDomainNotReady.
 		It("should not emit a Warning UpdateError event when the write succeeds but the domain never becomes ready", func(ctx SpecContext) {
 			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "domain-stuck-no-warning",
-					Namespace: namespace,
-				},
+				Name:      "domain-stuck-no-warning",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.AgentEndpointSpec{
 					URL: "http://stuck-domain.example.com",
 					Upstream: ngrokv1alpha1.EndpointUpstream{

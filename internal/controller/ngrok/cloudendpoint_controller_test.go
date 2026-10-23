@@ -842,10 +842,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		// got a chance to recognize ErrDomainNotReady and swallow it.
 		It("should not emit a Warning UpdateError event when the write succeeds but the domain never becomes ready", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "domain-stuck-no-warning",
-					Namespace: namespace,
-				},
+				Name:      "domain-stuck-no-warning",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "http://stuck-domain.example.com",
 					Description: "Endpoint whose domain never becomes ready",
@@ -911,10 +909,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		// not regress for updates, not just creates).
 		It("should propagate spec updates to the ngrok API while the domain remains not ready", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "domain-stuck-spec-update",
-					Namespace: namespace,
-				},
+				Name:      "domain-stuck-spec-update",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL:         "http://stuck-domain-update.example.com",
 					Description: "Original description",
@@ -968,10 +964,8 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		// on its own.
 		It("should not keep re-reconciling on a fixed timer once created against a non-ready domain", func(ctx SpecContext) {
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "domain-stuck-bounded-reconciles",
-					Namespace: namespace,
-				},
+				Name:      "domain-stuck-bounded-reconciles",
+				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "http://stuck-domain-bounded.example.com",
 				},
