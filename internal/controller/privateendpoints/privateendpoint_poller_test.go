@@ -3,6 +3,7 @@ package privateendpoints
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -259,12 +260,8 @@ var _ = Describe("PrivateEndpoint poller", func() {
 			got := getCR(ns, url)
 			Expect(got.Spec).To(Equal(want.Spec))
 			wantLabels := map[string]string{}
-			for k, v := range want.Labels {
-				wantLabels[k] = v
-			}
-			for k, v := range wantExtraLabels {
-				wantLabels[k] = v
-			}
+			maps.Copy(wantLabels, want.Labels)
+			maps.Copy(wantLabels, wantExtraLabels)
 			Expect(got.Labels).To(Equal(wantLabels))
 		},
 		Entry("edited spec", func(cr *ngrokv1.PrivateEndpoint) {

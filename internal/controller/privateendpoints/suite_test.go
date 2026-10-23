@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -231,7 +230,7 @@ func (e *peEnv) launch() {
 		Metrics:                server.Options{BindAddress: "0"},
 		HealthProbeBindAddress: "0",
 		// Every spec registers controllers under the same names.
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	})
 	Expect(err).NotTo(HaveOccurred())
 	mctx, mcancel := context.WithCancel(ctx)
