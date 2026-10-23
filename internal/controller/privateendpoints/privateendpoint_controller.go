@@ -115,8 +115,15 @@ func (r *PrivateEndpointReconciler) reconcileService(ctx context.Context, hostKe
 	if err := r.APIReader.List(ctx, &svcs, client.InNamespace(r.Namespace), client.MatchingLabels{pe.ManagedByLabel: pe.ManagedByValue}); err != nil {
 		return ctrl.Result{}, fmt.Errorf("listing managed Services: %w", err)
 	}
+	// routed maps each port of this host's Service to its target port, so an
+	// endpoint whose status write failed after the Service write gets the
+	// port its Service already routes instead of a new one on every retry.
+	routed := map[int32]int32{}
 	for _, svc := range svcs.Items {
 		if svc.Labels[pe.HostLabel] == hostKey {
+			for _, p := range svc.Spec.Ports {
+				routed[p.Port] = p.TargetPort.IntVal
+			}
 			continue
 		}
 		for _, p := range svc.Spec.Ports {
@@ -146,10 +153,14 @@ func (r *PrivateEndpointReconciler) reconcileService(ctx context.Context, hostKe
 		byPort[cr.Spec.Port] = cr.Name
 		fp := cr.Status.ForwarderPort
 		if !keepPort(cr) {
-			var ok bool
-			if fp, ok = r.allocate(used); !ok {
-				exhausted = append(exhausted, cr)
-				continue
+			if p := routed[cr.Spec.Port]; p >= r.PortMin && p <= r.PortMax && !used[p] {
+				fp = p
+			} else {
+				var ok bool
+				if fp, ok = r.allocate(used); !ok {
+					exhausted = append(exhausted, cr)
+					continue
+				}
 			}
 			used[fp] = true
 		}
