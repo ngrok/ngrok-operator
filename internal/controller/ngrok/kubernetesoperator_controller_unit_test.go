@@ -15,12 +15,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
@@ -568,4 +572,94 @@ func TestMetadataForAPIMergesNamespaceUID(t *testing.T) {
 	merged, err := mergeMetadata(metadataForAPI(map[string]string{"owned-by": "ngrok-operator"}), "ns-uid")
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"owned-by":"ngrok-operator","namespace.uid":"ns-uid"}`, merged)
+}
+
+func kubernetesOperatorCRD(deleting bool) *apiextensionsv1.CustomResourceDefinition {
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "kubernetesoperators.ngrok.com"},
+	}
+	if deleting {
+		now := metav1.Now()
+		crd.DeletionTimestamp = &now
+		crd.Finalizers = []string{"customresourcecleanup.apiextensions.k8s.io"}
+	}
+	return crd
+}
+
+func TestCRDDeletionInProgress(t *testing.T) {
+	forbidden := apierrors.NewForbidden(schema.GroupResource{Group: "apiextensions.k8s.io", Resource: "customresourcedefinitions"}, "kubernetesoperators.ngrok.com", errors.New("rbac"))
+
+	tests := []struct {
+		name      string
+		objs      []client.Object
+		getErr    error
+		wantInPrg bool
+		wantErr   bool
+	}{
+		{name: "crd present", objs: []client.Object{kubernetesOperatorCRD(false)}, wantInPrg: false},
+		{name: "crd deleting", objs: []client.Object{kubernetesOperatorCRD(true)}, wantInPrg: true},
+		{name: "crd not found", wantInPrg: true},
+		{name: "forbidden falls through to drain", getErr: forbidden, wantInPrg: false},
+		{name: "other error", getErr: errors.New("boom"), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, apiextensionsv1.AddToScheme(scheme))
+			builder := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tt.objs...)
+			if tt.getErr != nil {
+				builder = builder.WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+						return tt.getErr
+					},
+				})
+			}
+			reconciler := &KubernetesOperatorReconciler{APIReader: builder.Build(), Log: logr.Discard()}
+
+			inProgress, err := reconciler.crdDeletionInProgress(context.Background())
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantInPrg, inProgress)
+		})
+	}
+}
+
+func TestDeleteSkipsDrainWhenCRDDeleting(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
+	require.NoError(t, apiextensionsv1.AddToScheme(scheme))
+
+	mockClientset := nmockapi.NewClientset()
+	remote, err := mockClientset.KubernetesOperators().Create(context.Background(), &ngrok.KubernetesOperatorCreate{})
+	require.NoError(t, err)
+
+	ko := &ngrokv1.KubernetesOperator{
+		ObjectMeta: metav1.ObjectMeta{Name: "ko", Namespace: "test-ns"},
+		Status:     ngrokv1.KubernetesOperatorStatus{ID: remote.ID},
+	}
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ko, kubernetesOperatorCRD(true)).
+		WithStatusSubresource(ko).
+		Build()
+	recorder := events.NewFakeRecorder(10)
+	reconciler := &KubernetesOperatorReconciler{
+		Client:         fakeClient,
+		APIReader:      fakeClient,
+		Recorder:       recorder,
+		NgrokClientset: mockClientset,
+		// DrainOrchestrator is nil: reaching the drain would panic.
+	}
+
+	require.NoError(t, reconciler.delete(context.Background(), ko))
+
+	_, err = mockClientset.KubernetesOperators().Get(context.Background(), remote.ID)
+	require.NoError(t, err, "the ngrok KubernetesOperator must not be deleted")
+	assert.Nil(t, meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining))
+	require.Len(t, recorder.Events, 1)
+	assert.Contains(t, <-recorder.Events, ReasonCRDDeletionSkippedDrain)
 }

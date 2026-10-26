@@ -38,6 +38,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -105,6 +106,9 @@ var _ = BeforeSuite(func() {
 	err = bindingsv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = apiextensionsv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	err = gatewayv1.Install(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -150,6 +154,7 @@ var _ = BeforeSuite(func() {
 	// Setup KubernetesOperator reconciler
 	koReconciler := &KubernetesOperatorReconciler{
 		Client:         k8sManager.GetClient(),
+		APIReader:      k8sManager.GetAPIReader(),
 		Scheme:         k8sManager.GetScheme(),
 		Log:            logf.Log.WithName("kubernetesoperator-controller"),
 		Recorder:       k8sManager.GetEventRecorder("kubernetesoperator-controller"),

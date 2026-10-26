@@ -2535,6 +2535,28 @@ rules:
   - watch
 
 ---
+# Source: ngrok-operator/templates/api-manager/crd-read-cluster-role.yaml
+# Lets api-manager read its own KubernetesOperator CRD. When the CRD itself is
+# being deleted (a helm rollback to a release without it, or CRDs removed
+# before the uninstall hook ran), the KubernetesOperator is deleted with it and
+# the controller must not treat that as an uninstall and drain every ngrok
+# resource. This is always a ClusterRole, even with `watchNamespace` set,
+# because CRDs are cluster-scoped. It is limited to that one CRD by name.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-crd-read-cluster-role
+rules:
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  resourceNames:
+  - kubernetesoperators.ngrok.com
+  verbs:
+  - get
+
+---
 # Source: ngrok-operator/templates/api-manager/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -3491,6 +3513,21 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: ngrok-operator-bindings-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: ngrok-operator
+  namespace: ngrok-operator
+
+---
+# Source: ngrok-operator/templates/api-manager/crd-read-cluster-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ngrok-operator-crd-read-cluster-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ngrok-operator-crd-read-cluster-role
 subjects:
 - kind: ServiceAccount
   name: ngrok-operator
