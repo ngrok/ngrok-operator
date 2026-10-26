@@ -39,7 +39,7 @@ import (
 
 	"github.com/go-logr/logr"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	parser "github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/mux"
@@ -151,7 +151,7 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 	// Get the KubernetesOperator
 
-	op := ngrokv1alpha1.KubernetesOperator{}
+	op := ngrokv1.KubernetesOperator{}
 	objectKey := client.ObjectKey{Name: r.KubernetesOperatorName, Namespace: epb.Namespace}
 	if err := r.Client.Get(ctx, objectKey, &op); err != nil {
 		return err

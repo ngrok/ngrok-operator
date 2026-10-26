@@ -25,7 +25,7 @@ import (
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 )
 
 // Environment variables are NGROK_OPERATOR__ and the setting's path under
@@ -64,7 +64,7 @@ var (
 	BindingsServiceLabels         = Map("features-bindings-service-labels", "NGROK_OPERATOR__FEATURES__BINDINGS__SERVICE_LABELS", "Service Labels to propagate to the target service, as a YAML or JSON map")
 	BindingsIngressEndpoint       = String("features-bindings-ingress-endpoint", "NGROK_OPERATOR__FEATURES__BINDINGS__INGRESS_ENDPOINT", "kubernetes-binding-ingress.ngrok.io:443", "The endpoint the bindings forwarder connects to")
 	DefaultDomainReclaimPolicy    = String("features-domains-default-reclaim-policy", "NGROK_OPERATOR__FEATURES__DOMAINS__DEFAULT_RECLAIM_POLICY", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
-	DrainPolicy                   = String("features-cleanup-drain-policy", "NGROK_OPERATOR__FEATURES__CLEANUP__DRAIN_POLICY", string(ngrokv1alpha1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
+	DrainPolicy                   = String("features-cleanup-drain-policy", "NGROK_OPERATOR__FEATURES__CLEANUP__DRAIN_POLICY", string(ngrokv1.DrainPolicyRetain), "Policy for draining resources during uninstall: Delete or Retain")
 	OneClickDemoMode              = Bool("features-one-click-demo-mode-enabled", "NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED", false, "Run the operator in one-click-demo mode (Ready, but not running)")
 )
 

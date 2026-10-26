@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,11 +51,12 @@ func TestAlwaysDraining(t *testing.T) {
 func TestStateChecker_NoDraining(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
-		Spec:      ngrokv1alpha1.KubernetesOperatorSpec{},
+		Spec:      ngrokv1.KubernetesOperatorSpec{},
 	}
 
 	client := fake.NewClientBuilder().
@@ -70,16 +72,17 @@ func TestStateChecker_NoDraining(t *testing.T) {
 func TestStateChecker_DrainingConditionTrue(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
-		Spec:      ngrokv1alpha1.KubernetesOperatorSpec{},
-		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+		Spec:      ngrokv1.KubernetesOperatorSpec{},
+		Status: ngrokv1.KubernetesOperatorStatus{
 			Conditions: []metav1.Condition{{
-				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
+				Type:               ngrokv1.KubernetesOperatorConditionDraining,
 				Status:             metav1.ConditionTrue,
-				Reason:             ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress,
+				Reason:             ngrokv1.KubernetesOperatorReasonDrainInProgress,
 				LastTransitionTime: metav1.Now(),
 			}},
 		},
@@ -100,14 +103,15 @@ func TestStateChecker_DeletionTimestampWithoutStatus(t *testing.T) {
 	// The controller must set the Draining condition first.
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	now := metav1.NewTime(time.Now())
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:              "my-release",
 		Namespace:         "ngrok-operator",
 		DeletionTimestamp: &now,
 		Finalizers:        []string{"test-finalizer"},
-		Spec:              ngrokv1alpha1.KubernetesOperatorSpec{},
+		Spec:              ngrokv1.KubernetesOperatorSpec{},
 		// Status.Conditions has no Draining condition
 	}
 
@@ -124,6 +128,7 @@ func TestStateChecker_DeletionTimestampWithoutStatus(t *testing.T) {
 func TestStateChecker_SetDraining(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -141,16 +146,17 @@ func TestStateChecker_SetDraining(t *testing.T) {
 func TestStateChecker_CachesDrainingState(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
-		Spec:      ngrokv1alpha1.KubernetesOperatorSpec{},
-		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+		Spec:      ngrokv1.KubernetesOperatorSpec{},
+		Status: ngrokv1.KubernetesOperatorStatus{
 			Conditions: []metav1.Condition{{
-				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
+				Type:               ngrokv1.KubernetesOperatorConditionDraining,
 				Status:             metav1.ConditionTrue,
-				Reason:             ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress,
+				Reason:             ngrokv1.KubernetesOperatorReasonDrainInProgress,
 				LastTransitionTime: metav1.Now(),
 			}},
 		},

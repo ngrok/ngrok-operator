@@ -128,7 +128,7 @@ type apiManagerOpts struct {
 	region string
 
 	defaultDomainReclaimPolicy string
-	drainPolicy                ngrokv1alpha1.DrainPolicy
+	drainPolicy                ngrokv1.DrainPolicy
 }
 
 func apiCmd() *cobra.Command {
@@ -444,11 +444,19 @@ func loadManager(k8sConfig *rest.Config, opts apiManagerOpts) (manager.Manager, 
 		// it, and so RBAC for it can stay narrowly scoped to the release namespace.
 		Cache: cache.Options{
 			ByObject: map[client.Object]cache.ByObject{
+				&ngrokv1.KubernetesOperator{}: {
+					Namespaces: map[string]cache.Config{
+						opts.namespace: {},
+					},
+				},
+				// LEGACY-kubernetesoperator-kind: BEGIN — the legacy KO is read as a
+				// fallback until the v1 object registers; drop at cleanup.
 				&ngrokv1alpha1.KubernetesOperator{}: {
 					Namespaces: map[string]cache.Config{
 						opts.namespace: {},
 					},
 				},
+				// LEGACY-kubernetesoperator-kind: END
 			},
 		}}
 	if opts.ingressWatchNamespace != "" {
@@ -787,36 +795,36 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 }
 
 func createKubernetesOperator(ctx context.Context, client client.Client, opts apiManagerOpts) error {
-	k8sOperator := &ngrokv1alpha1.KubernetesOperator{
+	k8sOperator := &ngrokv1.KubernetesOperator{
 		Name:      opts.ReleaseName,
 		Namespace: opts.namespace,
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, client, k8sOperator, func() error {
-		k8sOperator.Spec = ngrokv1alpha1.KubernetesOperatorSpec{
+		k8sOperator.Spec = ngrokv1.KubernetesOperatorSpec{
 			Description: opts.description,
-			Deployment: &ngrokv1alpha1.KubernetesOperatorDeployment{
+			Deployment: &ngrokv1.KubernetesOperatorDeployment{
 				Name:      opts.ReleaseName,
 				Namespace: opts.namespace,
 				Version:   version.GetVersion(),
 			},
 			Region: opts.region,
-			Drain: &ngrokv1alpha1.DrainConfig{
+			Drain: &ngrokv1.DrainConfig{
 				Policy: opts.drainPolicy,
 			},
 		}
 
 		features := []string{}
 		if opts.enableFeatureIngress {
-			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureIngress)
+			features = append(features, ngrokv1.KubernetesOperatorFeatureIngress)
 		}
 
 		if opts.enableFeatureGateway {
-			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureGateway)
+			features = append(features, ngrokv1.KubernetesOperatorFeatureGateway)
 		}
 
 		if opts.enableFeatureBindings {
-			features = append(features, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
-			k8sOperator.Spec.Binding = &ngrokv1alpha1.KubernetesOperatorBinding{
+			features = append(features, ngrokv1.KubernetesOperatorFeatureBindings)
+			k8sOperator.Spec.Binding = &ngrokv1.KubernetesOperatorBinding{
 				TlsSecretName:     "ngrok-operator-default-tls",
 				EndpointSelectors: opts.bindings.endpointSelectors,
 			}

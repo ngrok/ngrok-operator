@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ngrok/ngrok-api-go/v9"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	v1 "k8s.io/api/core/v1"
@@ -133,14 +133,14 @@ func (r *BoundEndpointPoller) getKubernetesOperatorId(ctx context.Context) strin
 			ticker.Stop()
 			ticker.Reset(30 * time.Second)
 
-			var ko ngrokv1alpha1.KubernetesOperator
+			var ko ngrokv1.KubernetesOperator
 			err := r.Client.Get(ctx, client.ObjectKey{Namespace: r.Namespace, Name: r.KubernetesOperatorConfigName}, &ko)
 			if err != nil {
 				log.Error(err, "Failed to get KubernetesOperator", "name", r.KubernetesOperatorConfigName)
 				continue
 			}
 
-			if !meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered) {
+			if !meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionRegistered) {
 				log.V(1).Info("KubernetesOperator not yet registered, waiting...")
 				continue
 			}

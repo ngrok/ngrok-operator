@@ -27,7 +27,8 @@ import (
 	"context"
 	"sync"
 
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -99,7 +100,7 @@ func (s *StateChecker) IsDraining(ctx context.Context) bool {
 	s.mu.RUnlock()
 
 	// Query the specific KubernetesOperator CR by name
-	ko := &ngrokv1alpha1.KubernetesOperator{}
+	ko := &ngrokv1.KubernetesOperator{}
 	if err := s.client.Get(ctx, types.NamespacedName{
 		Namespace: s.operatorNamespace,
 		Name:      s.operatorConfigName,
@@ -111,7 +112,7 @@ func (s *StateChecker) IsDraining(ctx context.Context) bool {
 	// Only check the status condition - DeletionTimestamp triggers setting it,
 	// but the status is the source of truth for "is draining". The Draining
 	// condition is True while the drain is in progress or retrying after errors.
-	isDraining := meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+	isDraining := meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining)
 
 	if isDraining {
 		s.mu.Lock()
