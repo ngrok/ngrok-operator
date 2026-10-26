@@ -285,9 +285,11 @@ reconciles each object.
 
 ### Upgrade the CRDs before the operator
 
-0.25 adds a new CRD, `trafficpolicies.ngrok.com` (see
-[Migrate `NgrokTrafficPolicy` to `TrafficPolicy`](#migrate-ngroktrafficpolicy-to-trafficpolicy)),
-and the operator watches it on startup. If you install the CRD chart
+0.25 adds two CRDs, `trafficpolicies.ngrok.com` (see
+[Migrate `NgrokTrafficPolicy` to `TrafficPolicy`](#migrate-ngroktrafficpolicy-to-trafficpolicy))
+and `kubernetesoperators.ngrok.com` (see
+[`KubernetesOperator` moves to `ngrok.com/v1`](#kubernetesoperator-moves-to-ngrokcomv1)),
+and the operator watches both on startup. If you install the CRD chart
 separately, upgrade `ngrok/ngrok-crds` to `0.5.x` before upgrading the operator
 chart, or the operator will not start.
 
@@ -295,9 +297,54 @@ chart, or the operator will not start.
 
 The chart adds rules for `trafficpolicies` and `trafficpolicies/status` in the
 `ngrok.com` API group to the api-manager and agent roles, plus
-`trafficpolicy-editor` and `trafficpolicy-viewer` aggregated ClusterRoles. No
-change is required when the chart manages RBAC. If you supply roles
-separately, add the equivalent rules before upgrading.
+`trafficpolicy-editor` and `trafficpolicy-viewer` aggregated ClusterRoles.
+
+It also adds `ngrok.com` rules for `kubernetesoperators` (and its `/status` and
+`/finalizers` subresources) next to the existing `ngrok.k8s.ngrok.com` rules,
+in these roles:
+
+- the api-manager, agent, and bindings-forwarder release-namespace roles;
+- the cleanup hook role;
+- the `kubernetesoperator-editor` and `kubernetesoperator-viewer` aggregated
+  ClusterRoles, which keep their names.
+
+It also adds a `crd-read-cluster-role` ClusterRole that lets api-manager `get`
+the `kubernetesoperators.ngrok.com` CRD, and only that CRD (see
+[Rolling back](#rolling-back)).
+
+No change is required when the chart manages RBAC. If you supply roles
+separately, add the equivalent rules before upgrading. Without the CRD read
+rule the operator still works; it just loses the rollback protection described
+below.
+
+### `KubernetesOperator` moves to `ngrok.com/v1`
+
+The operator's own `KubernetesOperator` resource moves from
+`ngrok.k8s.ngrok.com/v1alpha1` to `ngrok.com/v1`. No action is needed: the
+operator creates and reconciles the `ngrok.com/v1` object itself. It attaches to
+the same ngrok `KubernetesOperator` the old object used, so its ID, its
+bindings certificate, and every endpoint it manages carry over unchanged. No
+drain runs.
+
+The old `ngrok.k8s.ngrok.com/v1alpha1` object stays in the cluster for this
+release, but the operator no longer reconciles it:
+
+- it has no finalizer, so deleting it never drains anything;
+- it carries the annotation
+  `ngrok.com/superseded-by: kubernetesoperators.ngrok.com/<release>`;
+- its status is no longer updated.
+
+It is kept so that rolling back to 0.24 works without any manual step. A later
+release removes the old CRD, and the object goes with it.
+
+What changes for tooling:
+
+- Both kinds use the plural `kubernetesoperators`, so name the group when you
+  query or delete them: `kubectl get kubernetesoperators.ngrok.com -A`. A bare
+  `kubectl get kubernetesoperator` may return either one.
+- `spec.metadata` on the `ngrok.com/v1` kind is a map of strings. The JSON
+  string form is not accepted.
+- `status.enabledFeatures` is always an array.
 
 ### `Domain.spec.domain` is now immutable
 
@@ -499,6 +546,34 @@ Rolling back to 0.24 is safe for objects the 0.25 operator wrote: 0.24 reads
 both label, annotation, and finalizer prefixes and re-adds the legacy forms on
 its next reconcile.
 
+Rolling back keeps the operator registered without a drain:
+
+1. Removing `kubernetesoperators.ngrok.com` with the CRD chart deletes the
+   0.25 `KubernetesOperator` object. The 0.25 operator sees its own CRD going
+   away and lets the object go without draining or deleting anything in ngrok.
+2. The 0.24 operator then picks up the `ngrok.k8s.ngrok.com/v1alpha1` object
+   that 0.25 left in place, re-adds its finalizer, and attaches to the same
+   ngrok `KubernetesOperator`.
+
+If you install the CRD chart separately and keep `ngrok/ngrok-crds` at `0.5.x`
+after rolling the operator back, the `ngrok.com/v1` `KubernetesOperator` object
+stays behind. Nothing reads it, and upgrading to 0.25 again resumes it. The
+0.24 uninstall hook cannot delete it, though, so before you uninstall a
+rolled-back release in that setup:
+
+1. Delete the old object yourself so the 0.24 operator drains:
+
+   ```bash
+   kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE"
+   ```
+
+2. Release the leftover object:
+
+   ```bash
+   kubectl patch kubernetesoperators.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+     --type=merge -p '{"metadata":{"finalizers":null}}'
+   ```
+
 Do not start the "After the rollback window" migration below until rollback is
 ruled out. 0.24 does not know about `ngrok.com/v1` `TrafficPolicy`, and rolling
 back the CRD chart removes the `trafficpolicies.ngrok.com` CRD, which deletes
@@ -607,6 +682,7 @@ migrations before their cleanup releases:
 | Migration | 0.25 behavior | Future requirement |
 | --- | --- | --- |
 | `NgrokTrafficPolicy` kind | Serves both CRDs; prefers `TrafficPolicy` | Migrate to `ngrok.com/v1` `TrafficPolicy` before the cleanup release removes the `ngroktrafficpolicies.ngrok.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
+| `KubernetesOperator` kind | Operator writes `ngrok.com/v1`; the legacy object is left in place without a finalizer | None. The cleanup release removes the `kubernetesoperators.ngrok.k8s.ngrok.com` CRD and the legacy object with it. Upgrade through 0.25 rather than skipping it, or the legacy object keeps its finalizer and blocks the CRD's removal |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
 | CloudEndpoint traffic-policy fields | Reads old and new fields | Use only `targetRef` and `inline` before the announced cleanup release |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |

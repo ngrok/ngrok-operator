@@ -2,6 +2,12 @@
 
 ## Resource Identity
 
+Moved from `ngrok.k8s.ngrok.com/v1alpha1` in 0.25. The operator writes only the
+`ngrok.com/v1` kind; a legacy object left by an earlier release is kept without
+a finalizer and annotated `ngrok.com/superseded-by` until the cleanup release
+removes the legacy CRD. See
+`docs/developer-guide/passivity-shims.md` (`LEGACY-kubernetesoperator-kind`).
+
 | Property    | Value                    |
 |-------------|--------------------------|
 | Group       | `ngrok.com`              |
