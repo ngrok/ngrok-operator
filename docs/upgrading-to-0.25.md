@@ -346,6 +346,18 @@ The chart adds rules for `trafficpolicies` and `trafficpolicies/status` in the
 change is required when the chart manages RBAC. If you supply roles
 separately, add the equivalent rules before upgrading.
 
+### Endpoint events
+
+The operator no longer emits `DeprecatedField` warning events on
+CloudEndpoints; the fields they warned about are removed (see
+[Move CloudEndpoint traffic policies](#move-cloudendpoint-traffic-policies-to-targetref-and-inline)).
+
+A CloudEndpoint or AgentEndpoint whose Domain is not yet ready no longer emits
+a `CreateError` or `UpdateError` warning event on every reconcile, and is no
+longer requeued every 10 seconds. Its `Ready` condition still reports the
+domain state, and it reconciles again when the Domain becomes ready. Alerts
+that counted those warning events will see far fewer of them.
+
 ### `Domain.spec.domain` is now immutable
 
 Changing `spec.domain` on an existing Domain is rejected at admission:

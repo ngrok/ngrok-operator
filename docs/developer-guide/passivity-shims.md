@@ -200,8 +200,8 @@ Current sentinel tags:
 - `LEGACY-PREFIX-MIGRATION` — `k8s.ngrok.com/` → `ngrok.com/` prefix renames.
 - `LEGACY-FIELD-MIGRATION` — CRD field (`json:` tag) renames, e.g.
   `Domain.spec.resolves_to` → `resolvesTo`.
-- `LEGACY-trafficpolicy-name` — `CloudEndpoint.spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`.
-- `LEGACY-trafficpolicy-policy` — `CloudEndpoint.spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`.
+- `LEGACY-trafficpolicy-name` — `CloudEndpoint.spec.trafficPolicyName` → `spec.trafficPolicy.targetRef.name`. Removed in 0.25 (K8SOP-298).
+- `LEGACY-trafficpolicy-policy` — `CloudEndpoint.spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`. Removed in 0.25 (K8SOP-298).
 - `LEGACY-trafficpolicy-kind` — CRD **kind and group** rename:
   `ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy` →
   `ngrok.com/v1 TrafficPolicy`. Covers both the kind change and the group
@@ -394,9 +394,13 @@ and the precise code touched at each step.
     legacy field is not indexed, so updates to a TrafficPolicy that
     matches `trafficPolicyName` cannot stale-requeue an endpoint
     whose canonical field has already won.
-- **R-cleanup:** delete the `TrafficPolicyName` field from
-  `CloudEndpointSpec`, drop the legacy branch in `normalizeLegacyTrafficPolicy`
-  and the legacy key emission in `indexCloudEndpointTrafficPolicyRefs`.
+- **Cleanup release (0.25, K8SOP-298):** deleted the `TrafficPolicyName`
+  field from `CloudEndpointSpec`, `normalizeLegacyTrafficPolicy` (and with
+  it the `resolveTrafficPolicy` wrapper and the `isOperatorOwned` /
+  `hasEffectivePolicy` helpers), and the legacy key emission in
+  `indexCloudEndpointTrafficPolicyRefs`. The CloudEndpoint controller now
+  calls `TrafficPolicyManager.Resolve` directly, like AgentEndpoint. Listed
+  as a required pre-upgrade step in the 0.25 upgrade guide.
 
 ### `CloudEndpoint.spec.trafficPolicy.policy` → `spec.trafficPolicy.inline`
 
@@ -421,11 +425,13 @@ and the precise code touched at each step.
     suppressed for these objects because they are operator-managed
     (controller OwnerReference for the Service path, operator
     controller label for the managerdriver Ingress/Gateway path).
-- **R-cleanup:** delete the `Policy` field, `HasDeprecatedPolicy`, the
-  fallback branch in `ToTrafficPolicyCfg`, the deprecation event in
-  the controller, and the dual-write in
+- **Cleanup release (0.25, K8SOP-298):** deleted the `Policy` field,
+  `HasDeprecatedPolicy`, the fallback branch in `ToTrafficPolicyCfg`, the
+  deprecation events in the controller, and the dual-write in
   `pkg/managerdriver/translator.go` and
-  `internal/controller/service/controller.go`.
+  `internal/controller/service/controller.go`. Rollback to 0.24 stays safe
+  for generated objects because 0.24 reads `inline`. Listed as a required
+  pre-upgrade step in the 0.25 upgrade guide.
 
 #### Why we don't shortcut the CloudEndpoint trafficpolicy migration
 
