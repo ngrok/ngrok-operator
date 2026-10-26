@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -173,4 +174,67 @@ func TestStateChecker_CachesDrainingState(t *testing.T) {
 	// Once detected as draining, should stay cached
 	assert.True(t, checker.IsDraining(context.Background()))
 	assert.True(t, checker.IsDraining(context.Background()))
+}
+
+func TestStateChecker_LegacyFallback(t *testing.T) {
+	draining := []metav1.Condition{{
+		Type:               ngrokv1.KubernetesOperatorConditionDraining,
+		Status:             metav1.ConditionTrue,
+		Reason:             ngrokv1.KubernetesOperatorReasonDrainInProgress,
+		LastTransitionTime: metav1.Now(),
+	}}
+
+	tests := []struct {
+		name      string
+		objs      []client.Object
+		wantDrain bool
+	}{
+		{
+			name: "legacy draining while canonical is unregistered",
+			objs: []client.Object{
+				&ngrokv1.KubernetesOperator{ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"}},
+				&ngrokv1alpha1.KubernetesOperator{
+					ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"},
+					Status:     ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy", Conditions: draining},
+				},
+			},
+			wantDrain: true,
+		},
+		{
+			name: "canonical draining while unregistered wins over legacy",
+			objs: []client.Object{
+				&ngrokv1.KubernetesOperator{
+					ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"},
+					Status:     ngrokv1.KubernetesOperatorStatus{Conditions: draining},
+				},
+				&ngrokv1alpha1.KubernetesOperator{
+					ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"},
+					Status:     ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy"},
+				},
+			},
+			wantDrain: true,
+		},
+		{
+			name: "legacy only, not draining",
+			objs: []client.Object{
+				&ngrokv1alpha1.KubernetesOperator{
+					ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"},
+					Status:     ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy"},
+				},
+			},
+			wantDrain: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+			require.NoError(t, ngrokv1.AddToScheme(scheme))
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tt.objs...).WithStatusSubresource(tt.objs...).Build()
+
+			checker := NewStateChecker(c, "ngrok-operator", "my-release")
+			assert.Equal(t, tt.wantDrain, checker.IsDraining(context.Background()))
+		})
+	}
 }

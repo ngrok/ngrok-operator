@@ -28,6 +28,7 @@ import (
 	"sync"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	"github.com/ngrok/ngrok-operator/internal/kubernetesoperator"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
@@ -100,11 +101,11 @@ func (s *StateChecker) IsDraining(ctx context.Context) bool {
 	s.mu.RUnlock()
 
 	// Query the specific KubernetesOperator CR by name
-	ko := &ngrokv1.KubernetesOperator{}
-	if err := s.client.Get(ctx, types.NamespacedName{
+	ko, err := kubernetesoperator.Lookup(ctx, s.client, types.NamespacedName{
 		Namespace: s.operatorNamespace,
 		Name:      s.operatorConfigName,
-	}, ko); err != nil {
+	})
+	if err != nil {
 		// If CR doesn't exist or error, assume not draining
 		return false
 	}
