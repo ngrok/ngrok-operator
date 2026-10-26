@@ -310,12 +310,14 @@ in these roles:
 
 It also adds a `crd-read-cluster-role` ClusterRole that lets api-manager `get`
 the `kubernetesoperators.ngrok.com` CRD, and only that CRD (see
-[Rolling back](#rolling-back)).
+[Rolling back](#rolling-back)). The cleanup hook role gains `patch` on both
+`kubernetesoperators` kinds: the hook marks the object as an uninstall before
+deleting it.
 
 No change is required when the chart manages RBAC. If you supply roles
 separately, add the equivalent rules before upgrading. Without the CRD read
-rule the operator still works; it just loses the rollback protection described
-below.
+rule the operator still drains on `helm uninstall`, because the hook marks the
+deletion. Deleting the `KubernetesOperator` by hand then no longer drains.
 
 ### `KubernetesOperator` moves to `ngrok.com/v1`
 
@@ -546,20 +548,42 @@ Rolling back to 0.24 is safe for objects the 0.25 operator wrote: 0.24 reads
 both label, annotation, and finalizer prefixes and re-adds the legacy forms on
 its next reconcile.
 
-Rolling back keeps the operator registered without a drain:
+Rolling back keeps the operator registered, without a drain or any change in
+ngrok: the 0.24 operator picks up the `ngrok.k8s.ngrok.com/v1alpha1`
+`KubernetesOperator` that 0.25 left in place, re-adds its finalizer, and
+attaches to the same ngrok `KubernetesOperator`.
 
-1. Removing `kubernetesoperators.ngrok.com` with the CRD chart deletes the
-   0.25 `KubernetesOperator` object. The 0.25 operator sees its own CRD going
-   away and lets the object go without draining or deleting anything in ngrok.
-2. The 0.24 operator then picks up the `ngrok.k8s.ngrok.com/v1alpha1` object
-   that 0.25 left in place, re-adds its finalizer, and attaches to the same
-   ngrok `KubernetesOperator`.
+One manual step is needed afterwards. Rolling back removes the
+`kubernetesoperators.ngrok.com` CRD, and the 0.25 operator loses the
+permissions it would need to release the `ngrok.com/v1` object first. The
+object keeps its finalizer and the CRD stays in `Terminating`. The 0.25
+operator does not drain or delete anything in ngrok when this happens.
 
-If you install the CRD chart separately and keep `ngrok/ngrok-crds` at `0.5.x`
-after rolling the operator back, the `ngrok.com/v1` `KubernetesOperator` object
-stays behind. Nothing reads it, and upgrading to 0.25 again resumes it. The
-0.24 uninstall hook cannot delete it, though, so before you uninstall a
-rolled-back release in that setup:
+Release the object once the rollback has finished:
+
+```bash
+kubectl patch kubernetesoperators.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+  --type=merge -p '{"metadata":{"finalizers":null}}'
+```
+
+Then confirm the CRD has gone:
+
+```bash
+kubectl get crd kubernetesoperators.ngrok.com
+```
+
+Run this patch before upgrading to 0.25 again. A CRD left in `Terminating`
+cannot be recreated by the upgrade.
+
+If you install the CRD chart separately (`installCRDs=false`), roll back the
+operator chart first and then decide about the CRD chart:
+
+- **Keep `ngrok/ngrok-crds` at `0.5.x`.** The `ngrok.com/v1` object stays
+  behind; nothing reads it, and upgrading to 0.25 again resumes it.
+- **Roll `ngrok/ngrok-crds` back too.** Run the patch above.
+
+The 0.24 uninstall hook cannot delete a leftover `ngrok.com/v1` object, so
+before you uninstall a rolled-back release that still has one:
 
 1. Delete the old object yourself so the 0.24 operator drains:
 
@@ -567,12 +591,7 @@ rolled-back release in that setup:
    kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE"
    ```
 
-2. Release the leftover object:
-
-   ```bash
-   kubectl patch kubernetesoperators.ngrok.com "$RELEASE" -n "$NAMESPACE" \
-     --type=merge -p '{"metadata":{"finalizers":null}}'
-   ```
+2. Run the patch above.
 
 Do not start the "After the rollback window" migration below until rollback is
 ruled out. 0.24 does not know about `ngrok.com/v1` `TrafficPolicy`, and rolling

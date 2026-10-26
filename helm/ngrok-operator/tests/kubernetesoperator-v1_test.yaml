@@ -87,13 +87,13 @@ tests:
       content:
         apiGroups: [ngrok.com]
         resources: [kubernetesoperators]
-        verbs: [get, list, watch, delete]
+        verbs: [get, list, watch, patch, delete]
   - contains:
       path: rules
       content:
         apiGroups: [ngrok.k8s.ngrok.com]
         resources: [kubernetesoperators]
-        verbs: [get, list, watch, delete]
+        verbs: [get, list, watch, patch, delete]
 - it: deletes the ngrok.com KubernetesOperator by its fully qualified name
   template: cleanup-hook/job.yaml
   set:
@@ -101,7 +101,13 @@ tests:
   asserts:
   - matchRegex:
       path: spec.template.spec.containers[0].command[2]
+      pattern: kubectl annotate kubernetesoperators\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --overwrite ngrok\.com/drain-requested=true
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
       pattern: kubectl delete kubernetesoperators\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --wait=true
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: kubectl patch kubernetesoperators\.ngrok\.k8s\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --type=merge -p '\{"metadata":\{"finalizers":null\}\}' 
   - matchRegex:
       path: spec.template.spec.containers[0].command[2]
       pattern: kubectl delete kubernetesoperators\.ngrok\.k8s\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --ignore-not-found --wait=false

@@ -1988,8 +1988,7 @@ spec:
           KubernetesOperator is the Schema for the ngrok kubernetesoperators API
 
           Deprecated: use the canonical ngrok.com/v1 KubernetesOperator. The operator
-          writes the canonical kind and neutralizes this one for one migration
-          release; see docs/developer-guide/passivity-shims.md.
+          writes the canonical kind and stops reconciling this one.
         properties:
           apiVersion:
             description: |-
@@ -4073,6 +4072,7 @@ rules:
       - get
       - list
       - watch
+      - patch
       - delete
   # LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup.
   - apiGroups:
@@ -4083,6 +4083,7 @@ rules:
       - get
       - list
       - watch
+      - patch
       - delete
   # LEGACY-kubernetesoperator-kind: END
 
@@ -4155,10 +4156,17 @@ spec:
               echo "Deleting KubernetesOperator 'ngrok-operator' to trigger drain..."
               # Both KubernetesOperator kinds share the plural, so names are
               # fully qualified; a bare "kubernetesoperator" is ambiguous.
+              # The annotation tells the operator this deletion is an uninstall,
+              # so it drains even if it cannot read its own CRD.
+              kubectl annotate kubernetesoperators.ngrok.com "ngrok-operator" -n ngrok-operator --overwrite ngrok.com/drain-requested=true || true
               kubectl delete kubernetesoperators.ngrok.com "ngrok-operator" -n ngrok-operator --wait=true --timeout=300s || true
-              # LEGACY-kubernetesoperator-kind: drop at cleanup. The legacy
-              # object has no finalizer once the operator has neutralized it.
+              # LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup. The
+              # drain above covers every managed resource; release the legacy
+              # object in case the operator never removed its finalizer, so it
+              # cannot block deletion of its CRD.
+              kubectl patch kubernetesoperators.ngrok.k8s.ngrok.com "ngrok-operator" -n ngrok-operator --type=merge -p '{"metadata":{"finalizers":null}}' || true
               kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "ngrok-operator" -n ngrok-operator --ignore-not-found --wait=false || true
+              # LEGACY-kubernetesoperator-kind: END
           resources:
             limits: {}
             requests: {}

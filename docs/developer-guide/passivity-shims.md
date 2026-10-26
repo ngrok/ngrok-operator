@@ -703,16 +703,25 @@ resource, see the KubernetesOperator section below.
       tagged. The kind name did not change, so new files would collide;
     - the uninstall hook deletes both kinds by fully qualified name, because
       they share the plural.
-  - **Permanent, not legacy: the CRD-deletion guard.**
-    - The canonical `delete()` first reads the `kubernetesoperators.ngrok.com`
-      CRD through the uncached API reader, under the
-      `api-manager/crd-read-cluster-role.yaml` ClusterRole.
-    - If the CRD is gone or terminating, it skips the drain and the ngrok
-      delete, so the finalizer goes without touching anything in ngrok.
-    - With bundled CRDs, a rollback deletes the CRD while the newer operator
-      is still running. Without the guard that would drain everything.
-    - Forbidden reads fall through to the normal drain.
-    - This stays after cleanup.
+  - **Permanent, not legacy: the drain guard** (`shouldSkipDrain`). Before
+    draining, the canonical `delete()` reads the `kubernetesoperators.ngrok.com`
+    CRD through the uncached API reader, under the
+    `api-manager/crd-read-cluster-role.yaml` ClusterRole.
+    - A drain already in progress (`Draining=True`) always continues.
+    - CRD gone or terminating: skip the drain and the ngrok delete.
+    - CRD read Forbidden: drain only if the uninstall hook stamped
+      `ngrok.com/drain-requested=true`. That is the rollback case: Helm rolls
+      this release's RBAC back before it deletes the CRD.
+    - Otherwise the drain runs as before.
+
+    This stays after cleanup.
+  - **Rollback leaves one manual step.** With bundled CRDs, `helm rollback`
+    patches the release-namespace Role to the old rules and deletes the
+    crd-read binding before it deletes the CRD, and it may terminate the 0.25
+    pod first. Nothing can release the v1 object's finalizer, so the CRD sticks
+    in `Terminating` until a `kubectl patch` clears it. This was verified in
+    kind. `helm.sh/resource-policy: keep` on the CRD would avoid the step but
+    leaves CRDs behind on uninstall, and was rejected.
 - **R-cleanup:** run `git grep 'LEGACY-kubernetesoperator-kind'` and sweep:
   - Delete `api/ngrok/v1alpha1/kubernetesoperator_types.go`,
     `kubernetesoperator_status_compat.go` and both tests. This ends

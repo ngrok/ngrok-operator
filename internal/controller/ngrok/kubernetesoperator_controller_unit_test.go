@@ -586,20 +586,29 @@ func kubernetesOperatorCRD(deleting bool) *apiextensionsv1.CustomResourceDefinit
 	return crd
 }
 
-func TestCRDDeletionInProgress(t *testing.T) {
+func TestShouldSkipDrain(t *testing.T) {
 	forbidden := apierrors.NewForbidden(schema.GroupResource{Group: "apiextensions.k8s.io", Resource: "customresourcedefinitions"}, "kubernetesoperators.ngrok.com", errors.New("rbac"))
+	draining := []metav1.Condition{{
+		Type:   ngrokv1.KubernetesOperatorConditionDraining,
+		Status: metav1.ConditionTrue,
+		Reason: ngrokv1.KubernetesOperatorReasonDrainInProgress,
+	}}
 
 	tests := []struct {
-		name      string
-		objs      []client.Object
-		getErr    error
-		wantInPrg bool
-		wantErr   bool
+		name        string
+		crds        []client.Object
+		getErr      error
+		annotations map[string]string
+		conditions  []metav1.Condition
+		wantSkip    bool
+		wantErr     bool
 	}{
-		{name: "crd present", objs: []client.Object{kubernetesOperatorCRD(false)}, wantInPrg: false},
-		{name: "crd deleting", objs: []client.Object{kubernetesOperatorCRD(true)}, wantInPrg: true},
-		{name: "crd not found", wantInPrg: true},
-		{name: "forbidden falls through to drain", getErr: forbidden, wantInPrg: false},
+		{name: "crd present", crds: []client.Object{kubernetesOperatorCRD(false)}, wantSkip: false},
+		{name: "crd deleting", crds: []client.Object{kubernetesOperatorCRD(true)}, wantSkip: true},
+		{name: "crd not found", wantSkip: true},
+		{name: "forbidden without uninstall request skips", getErr: forbidden, wantSkip: true},
+		{name: "forbidden with uninstall request drains", getErr: forbidden, annotations: map[string]string{AnnotationDrainRequested: "true"}, wantSkip: false},
+		{name: "drain already in progress continues even if crd is deleting", crds: []client.Object{kubernetesOperatorCRD(true)}, conditions: draining, wantSkip: false},
 		{name: "other error", getErr: errors.New("boom"), wantErr: true},
 	}
 
@@ -607,7 +616,7 @@ func TestCRDDeletionInProgress(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			scheme := runtime.NewScheme()
 			require.NoError(t, apiextensionsv1.AddToScheme(scheme))
-			builder := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tt.objs...)
+			builder := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tt.crds...)
 			if tt.getErr != nil {
 				builder = builder.WithInterceptorFuncs(interceptor.Funcs{
 					Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
@@ -616,14 +625,20 @@ func TestCRDDeletionInProgress(t *testing.T) {
 				})
 			}
 			reconciler := &KubernetesOperatorReconciler{APIReader: builder.Build(), Log: logr.Discard()}
+			ko := &ngrokv1.KubernetesOperator{
+				Name:        "ko",
+				Namespace:   "test-ns",
+				Annotations: tt.annotations,
+				Status:      ngrokv1.KubernetesOperatorStatus{Conditions: tt.conditions},
+			}
 
-			inProgress, err := reconciler.crdDeletionInProgress(context.Background())
+			skip, err := reconciler.shouldSkipDrain(context.Background(), ko)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantInPrg, inProgress)
+			assert.Equal(t, tt.wantSkip, skip)
 		})
 	}
 }

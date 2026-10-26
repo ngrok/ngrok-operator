@@ -234,8 +234,7 @@ type DrainConfig struct {
 // KubernetesOperator is the Schema for the ngrok kubernetesoperators API
 //
 // Deprecated: use the canonical ngrok.com/v1 KubernetesOperator. The operator
-// writes the canonical kind and neutralizes this one for one migration
-// release; see docs/developer-guide/passivity-shims.md.
+// writes the canonical kind and stops reconciling this one.
 type KubernetesOperator struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

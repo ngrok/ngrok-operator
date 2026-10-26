@@ -33,10 +33,17 @@ spec:
               echo "Deleting KubernetesOperator '{{ .Release.Name }}' to trigger drain..."
               # Both KubernetesOperator kinds share the plural, so names are
               # fully qualified; a bare "kubernetesoperator" is ambiguous.
+              # The annotation tells the operator this deletion is an uninstall,
+              # so it drains even if it cannot read its own CRD.
+              kubectl annotate kubernetesoperators.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --overwrite ngrok.com/drain-requested=true || true
               kubectl delete kubernetesoperators.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.ngrok.features.cleanup.timeout }}s || true
-              # LEGACY-kubernetesoperator-kind: drop at cleanup. The legacy
-              # object has no finalizer once the operator has neutralized it.
+              # LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup. The
+              # drain above covers every managed resource; release the legacy
+              # object in case the operator never removed its finalizer, so it
+              # cannot block deletion of its CRD.
+              kubectl patch kubernetesoperators.ngrok.k8s.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --type=merge -p '{"metadata":{"finalizers":null}}' || true
               kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --ignore-not-found --wait=false || true
+              # LEGACY-kubernetesoperator-kind: END
           resources:
             {{- toYaml .Values.components.cleanupHook.resources | nindent 12 }}
 {{- end }}

@@ -73,6 +73,11 @@ const (
 	// KubernetesOperatorCRDName is the CRD backing ngrokv1.KubernetesOperator.
 	KubernetesOperatorCRDName = "kubernetesoperators.ngrok.com"
 
+	// AnnotationDrainRequested is stamped on the KubernetesOperator by the
+	// chart's uninstall hook before it deletes the object, so the controller
+	// knows the deletion is an uninstall even when it cannot read its CRD.
+	AnnotationDrainRequested = "ngrok.com/drain-requested"
+
 	// ReasonCRDDeletionSkippedDrain is the event reason emitted when a
 	// KubernetesOperator is deleted because its CRD is being deleted, and the
 	// drain is skipped.
@@ -282,14 +287,14 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1.K
 	// helm rollback to a release without the CRD, or CRDs removed before the
 	// uninstall hook ran) is not an uninstall. Draining here would delete every
 	// ngrok resource the operator manages, so only let the finalizer go.
-	crdDeleting, err := r.crdDeletionInProgress(ctx)
+	skipDrain, err := r.shouldSkipDrain(ctx, ko)
 	if err != nil {
 		return err
 	}
-	if crdDeleting {
-		log.Info("KubernetesOperator CRD is being deleted, skipping drain and ngrok API deletion", "crd", KubernetesOperatorCRDName)
+	if skipDrain {
+		log.Info("KubernetesOperator deletion is not an uninstall, skipping drain and ngrok API deletion", "crd", KubernetesOperatorCRDName)
 		r.Recorder.Eventf(ko, nil, v1.EventTypeWarning, ReasonCRDDeletionSkippedDrain, "Delete",
-			"The %s CRD is being deleted; skipped the drain and left the ngrok KubernetesOperator and managed resources in place", KubernetesOperatorCRDName)
+			"The %s CRD is being deleted or cannot be read and no uninstall was requested; skipped the drain and left the ngrok KubernetesOperator and managed resources in place", KubernetesOperatorCRDName)
 		return nil
 	}
 
@@ -342,18 +347,27 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1.K
 	return nil
 }
 
-// crdDeletionInProgress reports whether the KubernetesOperator CRD is gone or
-// being deleted. A Forbidden error (custom RBAC without the CRD read rule)
-// reports false so uninstall still drains as it did before this check existed.
-func (r *KubernetesOperatorReconciler) crdDeletionInProgress(ctx context.Context) (bool, error) {
+// shouldSkipDrain reports whether deleting this KubernetesOperator must not
+// drain. A drain that has already started always continues. Otherwise the
+// drain is skipped when the KubernetesOperator CRD is gone or being deleted.
+// When the CRD cannot be read (Forbidden: a helm rollback removes this
+// release's RBAC before it deletes the CRD, or custom RBAC lacks the rule), the
+// drain runs only if the uninstall hook stamped AnnotationDrainRequested.
+func (r *KubernetesOperatorReconciler) shouldSkipDrain(ctx context.Context, ko *ngrokv1.KubernetesOperator) (bool, error) {
+	if meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining) {
+		return false, nil
+	}
+
 	crd := &apiextensionsv1.CustomResourceDefinition{}
 	err := r.APIReader.Get(ctx, client.ObjectKey{Name: KubernetesOperatorCRDName}, crd)
 	switch {
 	case apierrors.IsNotFound(err):
 		return true, nil
 	case apierrors.IsForbidden(err):
-		ctrl.LoggerFrom(ctx).Info("cannot read the KubernetesOperator CRD; assuming it is not being deleted", "crd", KubernetesOperatorCRDName, "error", err.Error())
-		return false, nil
+		requested := ko.GetAnnotations()[AnnotationDrainRequested] == "true"
+		ctrl.LoggerFrom(ctx).Info("cannot read the KubernetesOperator CRD; draining only if the uninstall hook requested it",
+			"crd", KubernetesOperatorCRDName, "drainRequested", requested, "error", err.Error())
+		return !requested, nil
 	case err != nil:
 		return false, fmt.Errorf("getting CRD %s: %w", KubernetesOperatorCRDName, err)
 	}

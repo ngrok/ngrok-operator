@@ -165,8 +165,10 @@ re-adopts them through the legacy object.
 
 - Error handling:
   - NotFound on the CRD: treat as deleting.
-  - Forbidden: log and fall through to today's drain behavior, for custom-RBAC
-    installs that lack the new rule.
+  - Forbidden: drain only if the uninstall hook stamped
+    `ngrok.com/drain-requested=true`. This was revised after review: Forbidden
+    is the normal result during a rollback.
+  - A drain already in progress (`Draining=True`) always continues.
   - Any other error: return it and requeue.
 - RBAC: a new ClusterRole (with binding) for api-manager granting `get` on
   `customresourcedefinitions` with `resourceNames: [kubernetesoperators.ngrok.com]`.
@@ -253,19 +255,27 @@ and `.github/workflows/ci.yaml` get fully qualified.
 
 ### Rollback story
 
-**Default install (bundled CRDs), `helm rollback` to the previous release:**
+**Default install (bundled CRDs), `helm rollback` to the previous release.**
+This was verified in kind and corrected after the final review.
 
-1. Helm deletes the `kubernetesoperators.ngrok.com` CRD and rolls the
-   Deployments back.
-2. The still-running new pod sees the canonical object terminating and the CRD
-   terminating. It skips the drain and removes its finalizer, and the CRD
-   finishes deleting.
+1. Helm patches every surviving resource first, including the release-namespace
+   Role (now without `ngrok.com` KO rules), and rolls the Deployments back.
+2. It then deletes the crd-read binding and the `kubernetesoperators.ngrok.com`
+   CRD. If the 0.25 pod is still running, it either cannot read the CRD
+   (Forbidden), so it skips the drain because no `ngrok.com/drain-requested`
+   annotation is present, or it sees the CRD terminating and skips the drain.
+   Either way it cannot release the finalizer, because its RBAC is gone.
 3. Old pods start. `createKubernetesOperator` updates the legacy object, which
-   still exists. Their reconciler re-adds the finalizer and `findExisting`
-   re-adopts the same ngrok KO with the same ID and the same bindings TLS
-   Secret.
+   still exists. The old reconciler re-adds the finalizer, and `findExisting`
+   re-adopts the same ngrok KO with the same ID.
+4. **Manual step:** strip the finalizer from the v1 object so the CRD finishes
+   deleting. Do this before any re-upgrade.
 
-No drain, no churn, no manual step.
+No drain and no ngrok churn. Alex accepted the manual step on 2026-10-26 over
+`helm.sh/resource-policy: keep`.
+
+The uninstall hook stamps `ngrok.com/drain-requested=true` before deleting the
+v1 object, so a real uninstall still drains when the CRD read is Forbidden.
 
 **Separate CRDs (`installCRDs=false`), operator rolled back, CRDs kept:**
 
