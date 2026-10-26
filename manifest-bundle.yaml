@@ -3312,6 +3312,25 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+# LEGACY-kubernetesoperator-kind: BEGIN — drop the legacy-group rules at cleanup.
+- apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - kubernetesoperators
@@ -3329,6 +3348,7 @@ rules:
   - kubernetesoperators/status
   verbs:
   - get
+# LEGACY-kubernetesoperator-kind: END
 
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/kubernetesoperator-viewer.yaml
@@ -3346,6 +3366,21 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+# LEGACY-kubernetesoperator-kind: BEGIN — drop the legacy-group rules at cleanup.
+- apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - kubernetesoperators
@@ -3359,6 +3394,7 @@ rules:
   - kubernetesoperators/status
   verbs:
   - get
+# LEGACY-kubernetesoperator-kind: END
 
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/ngroktrafficpolicy-editor.yaml
@@ -3563,6 +3599,16 @@ metadata:
   namespace: ngrok-operator
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
+# LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup; the legacy KubernetesOperator is read as a
+# fallback until the ngrok.com/v1 object registers.
+- apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - kubernetesoperators
@@ -3570,6 +3616,7 @@ rules:
   - get
   - list
   - watch
+# LEGACY-kubernetesoperator-kind: END
 
 ---
 # Source: ngrok-operator/templates/api-manager/leader-election-role.yaml
@@ -3648,6 +3695,36 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+  - patch
+  - update
+# LEGACY-kubernetesoperator-kind: BEGIN — drop these rule blocks at cleanup. api-manager reads the
+# legacy KubernetesOperator as a fallback and patches it to strip its
+# finalizer; the status and finalizers rules let a rolled-back release keep
+# working without an RBAC change.
+- apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - kubernetesoperators
@@ -3673,6 +3750,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-kubernetesoperator-kind: END
 
 ---
 # Source: ngrok-operator/templates/agent/release-namespace-role.yaml
@@ -3988,6 +4066,16 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
   - apiGroups:
+      - ngrok.com
+    resources:
+      - kubernetesoperators
+    verbs:
+      - get
+      - list
+      - watch
+      - delete
+  # LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup.
+  - apiGroups:
       - ngrok.k8s.ngrok.com
     resources:
       - kubernetesoperators
@@ -3996,6 +4084,7 @@ rules:
       - list
       - watch
       - delete
+  # LEGACY-kubernetesoperator-kind: END
 
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
@@ -4064,7 +4153,12 @@ spec:
             - |
               set -e
               echo "Deleting KubernetesOperator 'ngrok-operator' to trigger drain..."
-              kubectl delete kubernetesoperator "ngrok-operator" -n ngrok-operator --wait=true --timeout=300s || true
+              # Both KubernetesOperator kinds share the plural, so names are
+              # fully qualified; a bare "kubernetesoperator" is ambiguous.
+              kubectl delete kubernetesoperators.ngrok.com "ngrok-operator" -n ngrok-operator --wait=true --timeout=300s || true
+              # LEGACY-kubernetesoperator-kind: drop at cleanup. The legacy
+              # object has no finalizer once the operator has neutralized it.
+              kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "ngrok-operator" -n ngrok-operator --ignore-not-found --wait=false || true
           resources:
             limits: {}
             requests: {}

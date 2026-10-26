@@ -33,6 +33,36 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+  - patch
+  - update
+# LEGACY-kubernetesoperator-kind: BEGIN — drop these rule blocks at cleanup. api-manager reads the
+# legacy KubernetesOperator as a fallback and patches it to strip its
+# finalizer; the status and finalizers rules let a rolled-back release keep
+# working without an RBAC change.
+- apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - kubernetesoperators
@@ -58,6 +88,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-kubernetesoperator-kind: END
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

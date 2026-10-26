@@ -24,6 +24,16 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
   - apiGroups:
+      - ngrok.com
+    resources:
+      - kubernetesoperators
+    verbs:
+      - get
+      - list
+      - watch
+      - delete
+  # LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup.
+  - apiGroups:
       - ngrok.k8s.ngrok.com
     resources:
       - kubernetesoperators
@@ -32,6 +42,7 @@ rules:
       - list
       - watch
       - delete
+  # LEGACY-kubernetesoperator-kind: END
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
