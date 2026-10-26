@@ -6,6 +6,7 @@ import (
 
 	"github.com/ngrok/ngrok-api-go/v9"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -198,6 +199,156 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 			g.Expect(ready.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonRegistered))
 			g.Expect(ready.ObservedGeneration).To(Equal(koFetched.Generation))
 		}, testutils.WithTimeout(timeout))
+	})
+
+	Context("legacy ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator", func() {
+		legacyKey := client.ObjectKey{Namespace: controllerNamespace, Name: k8sOpName}
+
+		// createLegacyKO creates the legacy object an older operator would have
+		// left behind, carrying the operator finalizer.
+		createLegacyKO := func(ctx context.Context, finalizers ...string) *ngrokv1alpha1.KubernetesOperator {
+			legacy := &ngrokv1alpha1.KubernetesOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       k8sOpName,
+					Namespace:  controllerNamespace,
+					Finalizers: finalizers,
+				},
+				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+					Description: "legacy operator",
+					Region:      "global",
+				},
+			}
+			Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+			DeferCleanup(func() {
+				current := &ngrokv1alpha1.KubernetesOperator{}
+				if err := k8sClient.Get(context.Background(), legacyKey, current); err != nil {
+					return
+				}
+				if len(current.Finalizers) > 0 {
+					current.Finalizers = nil
+					_ = k8sClient.Update(context.Background(), current)
+				}
+				_ = client.IgnoreNotFound(k8sClient.Delete(context.Background(), current))
+			})
+			return legacy
+		}
+
+		// seedRemoteKO registers a KubernetesOperator in the mock ngrok API that
+		// findExisting will adopt, as if the legacy operator had registered it.
+		seedRemoteKO := func(ctx context.Context) string {
+			ns := &v1.Namespace{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: controllerNamespace}, ns)).To(Succeed())
+			remote, err := mockClientset.KubernetesOperators().Create(ctx, &ngrok.KubernetesOperatorCreate{
+				Description: "legacy operator",
+				Metadata:    `{"owned-by":"ngrok-operator","namespace.uid":"` + string(ns.UID) + `"}`,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			remote.Deployment = ngrok.KubernetesOperatorDeployment{Name: "ngrok-operator", Namespace: controllerNamespace}
+			return remote.ID
+		}
+
+		canonicalKO := func() *ngrokv1.KubernetesOperator {
+			return &ngrokv1.KubernetesOperator{
+				ObjectMeta: metav1.ObjectMeta{Name: k8sOpName, Namespace: controllerNamespace},
+				Spec: ngrokv1.KubernetesOperatorSpec{
+					Description:     "canonical operator",
+					EnabledFeatures: []string{ngrokv1.KubernetesOperatorFeatureIngress},
+					Region:          "global",
+					Deployment:      &ngrokv1.KubernetesOperatorDeployment{Name: "ngrok-operator", Namespace: controllerNamespace},
+				},
+			}
+		}
+
+		expectRemoteKOCount := func(ctx context.Context, n int) {
+			count := 0
+			iter := mockClientset.KubernetesOperators().List(&ngrok.Paging{})
+			for iter.Next(ctx) {
+				count++
+			}
+			Expect(iter.Err()).NotTo(HaveOccurred())
+			Expect(count).To(Equal(n))
+		}
+
+		expectLegacyNeutralized := func(ctx context.Context) {
+			Eventually(func(g Gomega) {
+				legacy := &ngrokv1alpha1.KubernetesOperator{}
+				g.Expect(k8sClient.Get(ctx, legacyKey, legacy)).To(Succeed())
+				g.Expect(legacy.Finalizers).To(BeEmpty())
+				g.Expect(legacy.Annotations).To(HaveKeyWithValue(AnnotationSupersededBy, "kubernetesoperators.ngrok.com/"+k8sOpName))
+			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+		}
+
+		It("strips the finalizer from a pre-existing legacy KO without draining", func(ctx SpecContext) {
+			remoteID := seedRemoteKO(ctx)
+			createLegacyKO(ctx, util.FinalizerName)
+
+			Expect(k8sClient.Create(ctx, canonicalKO())).To(Succeed())
+
+			By("adopting the legacy operator's ngrok KubernetesOperator")
+			kginkgo.EventuallyWithObject(ctx, canonicalKO(), func(g Gomega, fetched client.Object) {
+				g.Expect(fetched.(*ngrokv1.KubernetesOperator).Status.ID).To(Equal(remoteID))
+			}, testutils.WithTimeout(timeout))
+
+			By("neutralizing, not deleting, the legacy object")
+			expectLegacyNeutralized(ctx)
+			expectRemoteKOCount(ctx, 1)
+			_, err := mockClientset.KubernetesOperators().Get(ctx, remoteID)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("stripping the finalizer again when an older operator re-adds it")
+			legacy := &ngrokv1alpha1.KubernetesOperator{}
+			Expect(k8sClient.Get(ctx, legacyKey, legacy)).To(Succeed())
+			legacy.Finalizers = []string{util.LegacyFinalizerName}
+			Expect(k8sClient.Update(ctx, legacy)).To(Succeed())
+			expectLegacyNeutralized(ctx)
+		})
+
+		It("strips the finalizer from a terminating legacy KO without draining", func(ctx SpecContext) {
+			remoteID := seedRemoteKO(ctx)
+			legacy := createLegacyKO(ctx, util.FinalizerName)
+			Expect(k8sClient.Delete(ctx, legacy)).To(Succeed())
+
+			Expect(k8sClient.Create(ctx, canonicalKO())).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, legacyKey, &ngrokv1alpha1.KubernetesOperator{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			_, err := mockClientset.KubernetesOperators().Get(ctx, remoteID)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("leaves the legacy KO alone while the canonical KO is terminating", func(ctx SpecContext) {
+			const holdFinalizer = "test.ngrok.com/hold"
+			seedRemoteKO(ctx)
+
+			canonical := canonicalKO()
+			canonical.Finalizers = []string{holdFinalizer}
+			Expect(k8sClient.Create(ctx, canonical)).To(Succeed())
+			kginkgo.EventuallyWithObject(ctx, canonicalKO(), func(g Gomega, fetched client.Object) {
+				g.Expect(fetched.(*ngrokv1.KubernetesOperator).Status.ID).NotTo(BeEmpty())
+			}, testutils.WithTimeout(timeout))
+			// Take the canonical KO out of the drain path: strip the operator
+			// finalizer so deletion only waits on the test hold finalizer.
+			current := &ngrokv1.KubernetesOperator{}
+			Expect(k8sClient.Get(ctx, legacyKey, current)).To(Succeed())
+			util.RemoveFinalizer(current)
+			Expect(k8sClient.Update(ctx, current)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, current)).To(Succeed())
+
+			createLegacyKO(ctx, util.FinalizerName)
+
+			Consistently(func(g Gomega) {
+				legacy := &ngrokv1alpha1.KubernetesOperator{}
+				g.Expect(k8sClient.Get(ctx, legacyKey, legacy)).To(Succeed())
+				g.Expect(legacy.Finalizers).To(ContainElement(util.FinalizerName))
+			}).WithTimeout(3 * time.Second).WithPolling(interval).Should(Succeed())
+
+			// Release the hold before AfterEach waits for the canonical KO to go.
+			Expect(k8sClient.Get(ctx, legacyKey, current)).To(Succeed())
+			controllerutil.RemoveFinalizer(current, holdFinalizer)
+			Expect(k8sClient.Update(ctx, current)).To(Succeed())
+		})
 	})
 
 	// Keep this last: drain state intentionally latches for the lifetime of the

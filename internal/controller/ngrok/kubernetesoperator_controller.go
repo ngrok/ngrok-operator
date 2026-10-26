@@ -44,13 +44,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -125,12 +128,16 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 	})
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ngrokv1.KubernetesOperator{}).
-		WithEventFilter(
-			predicate.And(
-				ownKOPredicate,
-				kubernetesOperatorReconcilePredicate(),
-			),
+		For(&ngrokv1.KubernetesOperator{}, builder.WithPredicates(
+			ownKOPredicate,
+			kubernetesOperatorReconcilePredicate(),
+		)).
+		// LEGACY-kubernetesoperator-kind: drop this Watches at cleanup. Every
+		// change to the legacy object (an older operator re-adding its
+		// finalizer included) re-enqueues the v1 object so neutralizeLegacy runs.
+		Watches(&ngrokv1alpha1.KubernetesOperator{},
+			handler.EnqueueRequestsFromMapFunc(legacyKubernetesOperatorToRequest),
+			builder.WithPredicates(ownKOPredicate),
 		).
 		Complete(r)
 }
@@ -148,6 +155,16 @@ func kubernetesOperatorReconcilePredicate() predicate.Predicate {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup.
+	canonical := new(ngrokv1.KubernetesOperator)
+	if err := r.Client.Get(ctx, req.NamespacedName, canonical); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	if err := r.neutralizeLegacy(ctx, canonical); err != nil {
+		return ctrl.Result{}, err
+	}
+	// LEGACY-kubernetesoperator-kind: END
+
 	res, err := r.controller.Reconcile(ctx, req, new(ngrokv1.KubernetesOperator))
 	if err != nil || res.RequeueAfter > 0 {
 		return res, err
