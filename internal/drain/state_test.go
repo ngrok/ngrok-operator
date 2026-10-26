@@ -192,10 +192,10 @@ func TestStateChecker_LegacyFallback(t *testing.T) {
 		{
 			name: "legacy draining while canonical is unregistered",
 			objs: []client.Object{
-				&ngrokv1.KubernetesOperator{ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"}},
+				&ngrokv1.KubernetesOperator{Name: "my-release", Namespace: "ngrok-operator"},
 				&ngrokv1alpha1.KubernetesOperator{
-					ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"},
-					Status:     ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy", Conditions: draining},
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy", Conditions: draining},
 				},
 			},
 			wantDrain: true,
@@ -204,12 +204,12 @@ func TestStateChecker_LegacyFallback(t *testing.T) {
 			name: "canonical draining while unregistered wins over legacy",
 			objs: []client.Object{
 				&ngrokv1.KubernetesOperator{
-					ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"},
-					Status:     ngrokv1.KubernetesOperatorStatus{Conditions: draining},
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1.KubernetesOperatorStatus{Conditions: draining},
 				},
 				&ngrokv1alpha1.KubernetesOperator{
-					ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"},
-					Status:     ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy"},
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy"},
 				},
 			},
 			wantDrain: true,
@@ -218,8 +218,8 @@ func TestStateChecker_LegacyFallback(t *testing.T) {
 			name: "legacy only, not draining",
 			objs: []client.Object{
 				&ngrokv1alpha1.KubernetesOperator{
-					ObjectMeta: metav1.ObjectMeta{Name: "my-release", Namespace: "ngrok-operator"},
-					Status:     ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy"},
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy"},
 				},
 			},
 			wantDrain: false,

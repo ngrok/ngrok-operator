@@ -208,11 +208,9 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		// left behind, carrying the operator finalizer.
 		createLegacyKO := func(ctx context.Context, finalizers ...string) *ngrokv1alpha1.KubernetesOperator {
 			legacy := &ngrokv1alpha1.KubernetesOperator{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:       k8sOpName,
-					Namespace:  controllerNamespace,
-					Finalizers: finalizers,
-				},
+				Name:       k8sOpName,
+				Namespace:  controllerNamespace,
+				Finalizers: finalizers,
 				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 					Description: "legacy operator",
 					Region:      "global",
@@ -249,7 +247,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 
 		canonicalKO := func() *ngrokv1.KubernetesOperator {
 			return &ngrokv1.KubernetesOperator{
-				ObjectMeta: metav1.ObjectMeta{Name: k8sOpName, Namespace: controllerNamespace},
+				Name: k8sOpName, Namespace: controllerNamespace,
 				Spec: ngrokv1.KubernetesOperatorSpec{
 					Description:     "canonical operator",
 					EnabledFeatures: []string{ngrokv1.KubernetesOperatorFeatureIngress},

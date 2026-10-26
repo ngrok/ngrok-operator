@@ -576,7 +576,7 @@ func TestMetadataForAPIMergesNamespaceUID(t *testing.T) {
 
 func kubernetesOperatorCRD(deleting bool) *apiextensionsv1.CustomResourceDefinition {
 	crd := &apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "kubernetesoperators.ngrok.com"},
+		Name: "kubernetesoperators.ngrok.com",
 	}
 	if deleting {
 		now := metav1.Now()
@@ -638,8 +638,8 @@ func TestDeleteSkipsDrainWhenCRDDeleting(t *testing.T) {
 	require.NoError(t, err)
 
 	ko := &ngrokv1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{Name: "ko", Namespace: "test-ns"},
-		Status:     ngrokv1.KubernetesOperatorStatus{ID: remote.ID},
+		Name: "ko", Namespace: "test-ns",
+		Status: ngrokv1.KubernetesOperatorStatus{ID: remote.ID},
 	}
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).

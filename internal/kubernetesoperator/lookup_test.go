@@ -24,14 +24,14 @@ var testKey = client.ObjectKey{Namespace: testNamespace, Name: testName}
 
 func canonicalKO(id, ingressEndpoint string) *ngrokv1.KubernetesOperator {
 	return &ngrokv1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: testName},
-		Status:     ngrokv1.KubernetesOperatorStatus{ID: id, BindingsIngressEndpoint: ingressEndpoint},
+		Namespace: testNamespace, Name: testName,
+		Status: ngrokv1.KubernetesOperatorStatus{ID: id, BindingsIngressEndpoint: ingressEndpoint},
 	}
 }
 
 func legacyKO(id, ingressEndpoint string) *ngrokv1alpha1.KubernetesOperator {
 	return &ngrokv1alpha1.KubernetesOperator{
-		ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: testName},
+		Namespace: testNamespace, Name: testName,
 		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
 			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
 				EndpointSelectors: []string{"true"},
