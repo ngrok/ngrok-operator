@@ -196,7 +196,7 @@ func TestUpdateStatus_Conditions(t *testing.T) {
 
 			if tt.ngrokKo != nil {
 				assert.Equal(t, tt.ngrokKo.ID, ko.Status.ID)
-				assert.Equal(t, tt.ngrokKo.EnabledFeatures, []string(ko.Status.EnabledFeatures))
+				assert.Equal(t, tt.ngrokKo.EnabledFeatures, ko.Status.EnabledFeatures)
 			}
 		})
 	}
