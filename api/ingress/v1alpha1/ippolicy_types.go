@@ -104,8 +104,7 @@ type IPPolicyStatus struct {
 //
 // Deprecated: superseded by the canonical ngrok.com/v1 IPPolicy. This kind
 // stays fully operable and readable for the whole migration window — see
-// docs/superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md
-// and docs/developer-guide/passivity-shims.md §"Per-shim catalog: TrafficPolicy
+// docs/developer-guide/passivity-shims.md §"Per-shim catalog: TrafficPolicy
 // CRD kind + group rename" for the pattern this follows
 // (LEGACY-ippolicy-kind). Everything that reconciles, resolves, or watches an
 // IPPolicy should be written against internal/ippolicy.IPPolicyResource so it
