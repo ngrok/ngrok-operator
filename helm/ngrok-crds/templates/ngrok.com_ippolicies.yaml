@@ -79,7 +79,8 @@ spec:
               IPPolicySpec defines the desired state of IPPolicy.
 
               The spec is compatible with the deprecated
-              ingress.k8s.ngrok.com/v1alpha1 IPPolicySpec, with only a change to metadata type
+              ingress.k8s.ngrok.com/v1alpha1 IPPolicySpec, except that spec and rule
+              metadata are typed maps rather than schemaless values.
             properties:
               description:
                 default: Created by ngrok-operator
@@ -101,8 +102,7 @@ spec:
                 items:
                   description: |-
                     IPPolicyRule mirrors ingress.k8s.ngrok.com/v1alpha1 IPPolicyRule field for
-                    field so the two kinds stay byte-compatible; see the IPPolicy doc comment
-                    below for why that matters.
+                    field, except that Metadata is a typed map rather than a schemaless value.
                   properties:
                     action:
                       enum:
@@ -123,13 +123,15 @@ spec:
                       maxLength: 255
                       type: string
                     metadata:
-                      default: '{"owned-by":"ngrok-operator"}'
+                      additionalProperties:
+                        type: string
+                      default:
+                        owned-by: ngrok-operator
                       description: |-
                         Metadata is arbitrary key/value data associated with the object in the
-                        ngrok API/Dashboard. A raw JSON string is also accepted for backward
-                        compatibility and is deprecated; use a map of string values instead.
+                        ngrok API/Dashboard.
                         The ngrokMetadata Helm value is not merged into this field.
-                      x-kubernetes-preserve-unknown-fields: true
+                      type: object
                   required:
                   - action
                   - cidr
