@@ -82,6 +82,57 @@ tests:
         - patch
         - update
         - watch
+- it: should grant ngrok.com ippolicies in the ippolicy editor
+  template: rbac/crd-access/ippolicy-editor.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ngrok.com
+        resources:
+        - ippolicies
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
+# LEGACY-ippolicy-kind: drop this test at cleanup along with the legacy rule.
+- it: should keep ingress.k8s.ngrok.com ippolicies in the ippolicy editor
+  template: rbac/crd-access/ippolicy-editor.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ingress.k8s.ngrok.com
+        resources:
+        - ippolicies
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
+- it: should grant ngrok.com ippolicies in the ippolicy viewer
+  template: rbac/crd-access/ippolicy-viewer.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ngrok.com
+        resources:
+        - ippolicies
+        verbs:
+        - get
+        - list
+        - watch
 # LEGACY-trafficpolicy-kind: drop this test at cleanup along with the template
 # it covers.
 - it: should keep the deprecated ngrok.k8s.ngrok.com trafficpolicy editor

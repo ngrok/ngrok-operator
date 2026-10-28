@@ -254,6 +254,24 @@ should match snapshot with defaults:
       name: RELEASE-NAME-ngrok-operator-ippolicy-editor-role
     rules:
       - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies/status
+        verbs:
+          - get
+      - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
           - ippolicies
@@ -285,6 +303,20 @@ should match snapshot with defaults:
         helm.sh/chart: ngrok-operator-0.24.0
       name: RELEASE-NAME-ngrok-operator-ippolicy-viewer-role
     rules:
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies/status
+        verbs:
+          - get
       - apiGroups:
           - ingress.k8s.ngrok.com
         resources:

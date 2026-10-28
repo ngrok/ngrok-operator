@@ -98,8 +98,10 @@ func (in *IPPolicyRule) DeepCopyInto(out *IPPolicyRule) {
 	*out = *in
 	if in.Metadata != nil {
 		in, out := &in.Metadata, &out.Metadata
-		*out = make(json.RawMessage, len(*in))
-		copy(*out, *in)
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 }
 
