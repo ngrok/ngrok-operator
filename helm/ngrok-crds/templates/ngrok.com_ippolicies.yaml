@@ -1,0 +1,218 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.23.0
+  name: ippolicies.ngrok.com
+spec:
+  group: ngrok.com
+  names:
+    categories:
+    - ngrok
+    kind: IPPolicy
+    listKind: IPPolicyList
+    plural: ippolicies
+    singular: ippolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: IPPolicy ID
+      jsonPath: .status.id
+      name: ID
+      type: string
+    - description: IPPolicy Ready
+      jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - description: Age
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - description: Ready Reason
+      jsonPath: .status.conditions[?(@.type=='Ready')].reason
+      name: Reason
+      priority: 1
+      type: string
+    - description: Ready Message
+      jsonPath: .status.conditions[?(@.type=='Ready')].message
+      name: Message
+      priority: 1
+      type: string
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          IPPolicy is the Schema for the ippolicies API in the canonical ngrok.com/v1
+          group. It replaces the deprecated ingress.k8s.ngrok.com/v1alpha1 IPPolicy.
+
+          LEGACY-ippolicy-kind: this is the canonical half of a dual-CRD passive
+          migration, following the same pattern used for
+          ngrok.com/v1 TrafficPolicy (see docs/developer-guide/passivity-shims.md
+          §"Per-shim catalog: TrafficPolicy CRD kind + group rename"). The deprecated
+          ingress.k8s.ngrok.com/v1alpha1 IPPolicy stays fully operable and readable
+          for the whole migration window; nothing about it changes here beyond
+          documentation and the addition of the shared ippolicy.IPPolicyResource
+          accessors. Everything that reconciles, resolves, or watches an IPPolicy
+          should be written against internal/ippolicy.IPPolicyResource so it serves
+          both kinds from one implementation, rather than duplicating logic per kind.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              IPPolicySpec defines the desired state of IPPolicy.
+
+              The spec is compatible with the deprecated
+              ingress.k8s.ngrok.com/v1alpha1 IPPolicySpec, with only a change to metadata type
+            properties:
+              description:
+                default: Created by ngrok-operator
+                description: Description is a human-readable description of the object
+                  in the ngrok API/Dashboard
+                type: string
+              metadata:
+                additionalProperties:
+                  type: string
+                default:
+                  owned-by: ngrok-operator
+                description: |-
+                  Metadata is arbitrary key/value data associated with the object in the
+                  ngrok API/Dashboard.
+                  The ngrokMetadata Helm value is not merged into this field.
+                type: object
+              rules:
+                description: Rules is a list of rules that belong to the policy
+                items:
+                  description: |-
+                    IPPolicyRule mirrors ingress.k8s.ngrok.com/v1alpha1 IPPolicyRule field for
+                    field so the two kinds stay byte-compatible; see the IPPolicy doc comment
+                    below for why that matters.
+                  properties:
+                    action:
+                      enum:
+                      - allow
+                      - deny
+                      type: string
+                    cidr:
+                      description: |-
+                        CIDR is an IPv4 or IPv6 address range in CIDR notation (e.g. 10.0.0.0/8 or 2001:db8::/32)
+                        Pattern adapted from the standard IPv4/IPv6 validation regex documented at
+                        https://www.ditig.com/validating-ipv4-and-ipv6-addresses-with-regexp
+                      pattern: ^(((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])/(3[0-2]|[12]?[0-9])|(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))/(12[0-8]|1[01][0-9]|[1-9]?[0-9]))$
+                      type: string
+                    description:
+                      default: Created by ngrok-operator
+                      description: Description is a human-readable description of
+                        the object in the ngrok API/Dashboard
+                      maxLength: 255
+                      type: string
+                    metadata:
+                      default: '{"owned-by":"ngrok-operator"}'
+                      description: |-
+                        Metadata is arbitrary key/value data associated with the object in the
+                        ngrok API/Dashboard. A raw JSON string is also accepted for backward
+                        compatibility and is deprecated; use a map of string values instead.
+                        The ngrokMetadata Helm value is not merged into this field.
+                      x-kubernetes-preserve-unknown-fields: true
+                  required:
+                  - action
+                  - cidr
+                  type: object
+                type: array
+            type: object
+          status:
+            description: IPPolicyStatus defines the observed state of IPPolicy.
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the IP policy's state
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                maxItems: 8
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              id:
+                type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation observed by the
+                  controller. When it matches metadata.generation, the status reflects the
+                  latest spec.
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -40,7 +40,17 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: IPPolicy is the Schema for the ippolicies API
+        description: |-
+          IPPolicy is the Schema for the ippolicies API.
+
+          Deprecated: superseded by the canonical ngrok.com/v1 IPPolicy. This kind
+          stays fully operable and readable for the whole migration window — see
+          docs/developer-guide/passivity-shims.md §"Per-shim catalog: TrafficPolicy
+          CRD kind + group rename" for the pattern this follows
+          (LEGACY-ippolicy-kind). Everything that reconciles, resolves, or watches an
+          IPPolicy should be written against internal/ippolicy.IPPolicyResource so it
+          serves both kinds from one implementation, rather than duplicating logic
+          per kind.
         properties:
           apiVersion:
             description: |-
