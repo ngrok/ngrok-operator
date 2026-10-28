@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	ngrok "github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/ippolicy"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -141,8 +141,8 @@ var _ = Describe("IPPolicyReconciler", func() {
 		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
 		By("waiting for the IP Policy to be created")
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyCreated, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyReady, metav1.ConditionTrue)
 
 		By("clearning the status conditions to simulate existing ip policy")
 		Eventually(func(g Gomega) {
@@ -168,8 +168,8 @@ var _ = Describe("IPPolicyReconciler", func() {
 		}, timeout, interval).Should(Succeed())
 
 		By("verifying the created and ready conditions are set again")
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyCreated, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyReady, metav1.ConditionTrue)
 	})
 
 	It("sets Created condition for existing IP Policy with rules", func() {
@@ -185,9 +185,9 @@ var _ = Describe("IPPolicyReconciler", func() {
 		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
 
 		By("waiting for the IP Policy to be created")
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyRulesConfigured, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyCreated, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyReady, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyRulesConfigured, metav1.ConditionTrue)
 
 		By("clearing the status conditions to simulate an existing ip policy")
 		Eventually(func(g Gomega) {
@@ -213,67 +213,9 @@ var _ = Describe("IPPolicyReconciler", func() {
 		}, timeout, interval).Should(Succeed())
 
 		By("verifying the created, rules configured, and ready conditions are set again")
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyCreated, metav1.ConditionTrue)
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyReady, metav1.ConditionTrue)
-		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ConditionIPPolicyRulesConfigured, metav1.ConditionTrue)
-	})
-})
-
-var _ = Describe("IPPolicyDiff", func() {
-	It("computes creates, deletes and updates correctly", func() {
-		remoteRules := []*ngrok.IPPolicyRule{
-			{ID: "1", CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionAllow, Description: "a"},
-			{ID: "2", CIDR: "192.168.128.0/25", Action: IPPolicyRuleActionDeny, Description: "aa"},
-			{ID: "3", CIDR: "172.16.0.0/16", Action: IPPolicyRuleActionAllow, Description: "aaa"},
-			{ID: "4", CIDR: "172.17.0.0/16", Action: IPPolicyRuleActionDeny, Description: "aaaa"},
-			{ID: "5", CIDR: "172.19.0.0/16", Action: IPPolicyRuleActionAllow, Description: "aaaaa"},
-		}
-
-		changedDescriptionRule := ingressv1alpha1.IPPolicyRule{
-			CIDR: "172.19.0.0/16", Action: IPPolicyRuleActionAllow, Description: "b",
-		}
-
-		specRules := []ingressv1alpha1.IPPolicyRule{
-			{CIDR: "192.168.1.0/25", Action: IPPolicyRuleActionDeny},
-			{CIDR: "192.168.128.0/25", Action: IPPolicyRuleActionAllow},
-			{CIDR: "10.0.0.0/8", Action: IPPolicyRuleActionDeny},
-			{CIDR: "172.18.0.0/16", Action: IPPolicyRuleActionAllow},
-			changedDescriptionRule,
-		}
-
-		diff := newIPPolicyDiff("test", remoteRules, specRules)
-
-		Expect(diff.Next()).To(BeTrue())
-		Expect(diff.NeedsDelete()).To(BeEmpty())
-		Expect(diff.NeedsUpdate()).To(BeEmpty())
-		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[2].CIDR, Action: new(IPPolicyRuleActionDeny)}}))
-
-		Expect(diff.Next()).To(BeTrue())
-		Expect(diff.NeedsUpdate()).To(BeEmpty())
-		Expect(diff.NeedsDelete()).To(Equal([]*ngrok.IPPolicyRule{remoteRules[0]}))
-		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[0].CIDR, Action: new(IPPolicyRuleActionDeny)}}))
-
-		Expect(diff.Next()).To(BeTrue())
-		Expect(diff.NeedsUpdate()).To(BeEmpty())
-		Expect(diff.NeedsDelete()).To(Equal([]*ngrok.IPPolicyRule{remoteRules[1]}))
-		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[1].CIDR, Action: new(IPPolicyRuleActionAllow)}}))
-
-		Expect(diff.Next()).To(BeTrue())
-		Expect(diff.NeedsUpdate()).To(BeEmpty())
-		Expect(diff.NeedsDelete()).To(BeEmpty())
-		Expect(diff.NeedsCreate()).To(Equal([]*ngrok.IPPolicyRuleCreate{{IPPolicyID: "test", CIDR: specRules[3].CIDR, Action: new(IPPolicyRuleActionAllow)}}))
-
-		Expect(diff.Next()).To(BeTrue())
-		Expect(diff.NeedsUpdate()).To(BeEmpty())
-		Expect(diff.NeedsDelete()).To(Equal([]*ngrok.IPPolicyRule{remoteRules[2], remoteRules[3]}))
-		Expect(diff.NeedsCreate()).To(BeEmpty())
-
-		Expect(diff.Next()).To(BeTrue())
-		Expect(diff.NeedsDelete()).To(BeEmpty())
-		Expect(diff.NeedsCreate()).To(BeEmpty())
-		Expect(diff.NeedsUpdate()).To(Equal([]*ngrok.IPPolicyRuleUpdate{{ID: "5", CIDR: new("172.19.0.0/16"), Description: new("b"), Metadata: new("")}}))
-
-		Expect(diff.Next()).To(BeFalse())
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyCreated, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyReady, metav1.ConditionTrue)
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, ip, ippolicy.ConditionIPPolicyRulesConfigured, metav1.ConditionTrue)
 	})
 })
 
