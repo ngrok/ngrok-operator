@@ -593,8 +593,11 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		os.Exit(1)
 	}
 
-	if err := (&ingresscontroller.IPPolicyReconciler{
+	// Reconciles both ngrok.com/v1 and the deprecated
+	// ingress.k8s.ngrok.com/v1alpha1 IPPolicy, as pairs keyed by namespace/name.
+	if err := (&ngrokcontroller.IPPolicyReconciler{
 		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
 		Log:                 ctrl.Log.WithName("controllers").WithName("ip-policy"),
 		Scheme:              mgr.GetScheme(),
 		Recorder:            mgr.GetEventRecorder("ip-policy-controller"),
