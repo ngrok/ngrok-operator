@@ -639,6 +639,72 @@ this pattern: two coexisting CRDs, canonical-first dual-read helper on
 the store, `DeprecatedAPIGroup` warning event on legacy fallback,
 sentinel-tag every legacy-only code path, no operator-driven backfill.
 
+## Per-shim catalog: IPPolicy CRD group move
+
+### `ingress.k8s.ngrok.com/v1alpha1 IPPolicy` → `ngrok.com/v1 IPPolicy`
+
+- **Pattern:** Two-release, dual CRD, following the
+  [TrafficPolicy kind + group rename](#per-shim-catalog-trafficpolicy-crd-kind--group-rename),
+  with one structural difference (below). Tag: `LEGACY-ippolicy-kind`.
+- **Why it isn't a copy of the TrafficPolicy shim:** a TrafficPolicy CR has
+  no ngrok-side object, so its two kinds never interact. An IPPolicy CR owns
+  a remote ngrok IP policy, and users reference that policy's `ipp_...` ID in
+  traffic policy `restrict-ips` actions. Two independent controllers would
+  give a re-stamped manifest a second remote policy with a new ID, and
+  deleting the legacy CR would then delete the policy those references point
+  at. So the two kinds are reconciled **as a pair**, and the v1 object takes
+  over (adopts) the legacy object's remote ID.
+- **R1 — migration release (0.25):**
+  - Two CRDs ship: canonical `ippolicies.ngrok.com` (`api/ngrok/v1`) and
+    deprecated `ippolicies.ingress.k8s.ngrok.com`
+    (`api/ingress/v1alpha1`), which carries
+    `+kubebuilder:deprecatedversion:warning=...`. The spec is the same
+    except that v1 `metadata` (policy and rules) is `map[string]string`;
+    the legacy kind keeps its schemaless string-or-object form.
+  - `internal/ippolicy` holds the kind-agnostic contract:
+    `IPPolicyResource` (with `GetMetadataAPIString`, so each kind keeps the
+    exact metadata encoding the operator has always sent), the
+    `IPPolicyResourcePtr[T]` constraint, `Rule`/`DecodeRules`, the
+    conditions helpers, the rule diff, and `Syncer`, which pushes one object
+    to the ngrok API and only changes it in memory.
+  - `internal/controller/ngrok/ippolicy_controller.go`: one
+    `IPPolicyReconciler` with `For(&ngrokv1.IPPolicy{})` and a tagged
+    `Watches(&ingressv1alpha1.IPPolicy{}, &handler.EnqueueRequestForObject{})`.
+    Both kinds enqueue the same namespace/name key, so a pair is never
+    reconciled concurrently. Each pass loads both objects and applies three
+    invariants: a remote policy is deleted only when no surviving object
+    holds its ID; exactly one object writes to an ID (v1 when it is alive
+    and holds it); an adopted ID is persisted on v1 before the legacy
+    finalizer can be released. A superseded legacy object stays
+    `Ready=True` with reason `SupersededByV1` and makes no ngrok API calls.
+    Before the one irreversible step (the remote delete) the twin is
+    re-read with the manager's API reader, since the two kinds come from
+    separate informers. Controller name stays `ippolicy`.
+  - `internal/drain`: drains the legacy kind before v1.
+  - RBAC: `ngrok.com` `ippolicies` rules in
+    `helm/ngrok-operator/templates/api-manager/role.yaml` and in the
+    `ippolicy-{editor,viewer}.yaml` aggregation roles, next to the tagged
+    `ingress.k8s.ngrok.com` rules. The role names are unchanged.
+  - The unused `DefaultIPPolicyResolver`/`StaticIPPolicyResolver` were
+    deleted rather than taught about the new group.
+- **R-cleanup:** `git grep 'LEGACY-ippolicy-kind'` and sweep:
+  - Delete `api/ingress/v1alpha1/ippolicy_types.go` and its scheme entries
+    (regenerate deepcopy). That stops the legacy CRD manifest being emitted.
+  - `ippolicy_controller.go`: delete the legacy `Watches`, the `legacy` half
+    of `ipPolicyPair`, `adopt`, `setPassive`, the stale-ID clear in
+    `syncSurvivors`, and the legacy cases in `writeStatus` and
+    `liveTwinBlocksDelete`. What remains is a single-object reconcile; move
+    it back onto `BaseController` if that reads better.
+  - `internal/ippolicy`: drop the legacy compile-time assertion,
+    `ReasonSupersededByV1`, and the legacy test fixtures. `Rule.Metadata`
+    can become `map[string]string`.
+  - `internal/drain`: drop the legacy handler entry and the twin test.
+  - Helm: drop the tagged rule blocks, the legacy crd-access tests, then
+    `make helm-update-snapshots` and regenerate `manifest-bundle.yaml`.
+  - `.golangci.yml`: delete the `SA1019 ... IPPolicy is deprecated`
+    exclusion. `PROJECT`: delete the `group: ingress`, `kind: IPPolicy`
+    entry.
+
 ## Per-shim catalog: user-facing key compatibility (read-side only)
 
 ### User-facing annotations (read-side compatibility)

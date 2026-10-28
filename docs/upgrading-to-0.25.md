@@ -599,6 +599,109 @@ Events expire and do not cover Ingress, Service, or Gateway API references, so
 treat the `kubectl get ngroktrafficpolicies` listing above as the authoritative
 check.
 
+### Migrate `IPPolicy` to `ngrok.com/v1`
+
+`ingress.k8s.ngrok.com/v1alpha1` `IPPolicy` is deprecated. Its replacement is
+`ngrok.com/v1` `IPPolicy`. The kind keeps its name, so migrating is a change of
+`apiVersion`:
+
+```yaml
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: IPPolicy
+metadata:
+  name: office
+spec:
+  rules:
+    - cidr: 203.0.113.0/24
+      action: allow
+```
+
+becomes:
+
+```yaml
+apiVersion: ngrok.com/v1
+kind: IPPolicy
+metadata:
+  name: office
+spec:
+  rules:
+    - cidr: 203.0.113.0/24
+      action: allow
+```
+
+Both kinds are served in 0.25. **The IP policy keeps its ngrok ID.** When you
+create an `ngrok.com/v1` `IPPolicy` with the same name and namespace as an
+existing legacy one, the operator hands the existing ngrok IP policy to the new
+object instead of creating another, so traffic policies that reference the
+policy's `ipp_...` ID keep working. From then on:
+
+- The `ngrok.com/v1` object manages the IP policy. Its spec is pushed to ngrok.
+- The legacy object stays `Ready`, with reason `SupersededByV1`. Changes to it
+  have no effect; the operator emits a `DeprecatedAPIGroup` warning event if
+  you edit it.
+- Deleting the legacy object leaves the IP policy in place. Deleting the
+  `ngrok.com/v1` object instead hands the IP policy back to the legacy object.
+  The ngrok IP policy is deleted only when neither object remains.
+
+`kubectl apply` of a legacy `IPPolicy` prints a deprecation warning.
+
+Both CRDs use the plural `ippolicies`, so `kubectl get ippolicies` shows only
+one of the two kinds, without saying which. Use the fully qualified names
+below.
+
+For each policy, create the `ngrok.com/v1` object, confirm it is ready and has
+the same ID, then delete the legacy one:
+
+```bash
+kubectl get ippolicies.ingress.k8s.ngrok.com -A
+
+kubectl get ippolicies.ingress.k8s.ngrok.com office -n my-namespace -o json |
+  jq '
+    .apiVersion = "ngrok.com/v1"
+    | del(.metadata.resourceVersion, .metadata.uid,
+          .metadata.creationTimestamp, .metadata.generation,
+          .metadata.managedFields, .metadata.finalizers, .status)
+    | if (.spec.metadata | type) == "string" then .spec.metadata |= fromjson else . end
+    | if .spec.rules then .spec.rules |= map(
+        if (.metadata | type) == "string" then .metadata |= fromjson else . end
+      ) else . end
+  ' |
+  kubectl apply -f -
+
+kubectl get ippolicies.ngrok.com office -n my-namespace
+kubectl get ippolicies.ingress.k8s.ngrok.com office -n my-namespace
+
+kubectl delete ippolicies.ingress.k8s.ngrok.com office -n my-namespace
+```
+
+Both `get` commands should show the same ID before you delete the legacy
+object.
+
+`ngrok.com/v1` `IPPolicy` accepts `metadata`, on the policy and on each rule,
+only as a map of string values. The deprecated JSON-string form is rejected.
+The `jq` filter above converts string-form metadata that holds a JSON object.
+If a policy's metadata is free text, or has non-string values, change it to a
+map of strings before applying, or `kubectl apply` fails validation.
+
+If you manage policies with GitOps, change `apiVersion` (and any string-form
+`metadata`) in the source manifest instead. Let your tool create the new object
+and confirm it has the legacy object's ID before it prunes the old one.
+
+If an `ngrok.com/v1` `IPPolicy` already existed with its own ID when the legacy
+one was still present, for example because it was created before upgrading to
+0.25, the two objects manage different ngrok IP policies. The operator leaves
+both alone and emits an `IPPolicyIDConflict` warning event on each. Point any
+traffic policies at the ID you want to keep, then delete the other object.
+
+Find legacy objects and their state:
+
+```bash
+kubectl get ippolicies.ingress.k8s.ngrok.com -A \
+  -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,ID:.status.id,REASON:'.status.conditions[?(@.type=="Ready")].reason'
+```
+
+A `REASON` of `SupersededByV1` means the legacy object is safe to delete.
+
 ## Prepare for later cleanup releases
 
 0.25 still retains some compatibility code. Complete the user-managed
@@ -607,6 +710,7 @@ migrations before their cleanup releases:
 | Migration | 0.25 behavior | Future requirement |
 | --- | --- | --- |
 | `NgrokTrafficPolicy` kind | Serves both CRDs; prefers `TrafficPolicy` | Migrate to `ngrok.com/v1` `TrafficPolicy` before the cleanup release removes the `ngroktrafficpolicies.ngrok.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
+| `IPPolicy` in `ingress.k8s.ngrok.com` | Serves both CRDs; an `ngrok.com/v1` `IPPolicy` takes over the legacy object's ngrok IP policy | Migrate to `ngrok.com/v1` `IPPolicy` before the cleanup release removes the `ippolicies.ingress.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
 | CloudEndpoint traffic-policy fields | Reads old and new fields | Use only `targetRef` and `inline` before the announced cleanup release |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
