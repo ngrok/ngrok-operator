@@ -308,16 +308,12 @@ in these roles:
 - the `kubernetesoperator-editor` and `kubernetesoperator-viewer` aggregated
   ClusterRoles, which keep their names.
 
-It also adds a `crd-read-cluster-role` ClusterRole that lets api-manager `get`
-the `kubernetesoperators.ngrok.com` CRD, and only that CRD (see
-[Rolling back](#rolling-back)). The cleanup hook role gains `patch` on both
-`kubernetesoperators` kinds: the hook marks the object as an uninstall before
-deleting it.
+The cleanup hook role gains `patch` on the `ngrok.k8s.ngrok.com`
+`kubernetesoperators`, so the hook can release the old object before deleting
+it.
 
 No change is required when the chart manages RBAC. If you supply roles
-separately, add the equivalent rules before upgrading. Without the CRD read
-rule the operator still drains on `helm uninstall`, because the hook marks the
-deletion. Deleting the `KubernetesOperator` by hand then no longer drains.
+separately, add the equivalent rules before upgrading.
 
 ### `KubernetesOperator` moves to `ngrok.com/v1`
 
@@ -336,8 +332,11 @@ release, but the operator no longer reconciles it:
   `ngrok.com/superseded-by: kubernetesoperators.ngrok.com/<release>`;
 - its status is no longer updated.
 
-It is kept so that rolling back to 0.24 works without any manual step. A later
-release removes the old CRD, and the object goes with it.
+It is kept so that rolling back to 0.24 works. While it exists, the operator
+treats a deletion of the `ngrok.com/v1` object as a rollback rather than an
+uninstall, and does not drain. `helm uninstall` removes the old object first,
+so it still drains. A later release removes the old CRD, and the object goes
+with it.
 
 What changes for tooling:
 

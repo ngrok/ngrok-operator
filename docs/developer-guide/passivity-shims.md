@@ -703,22 +703,19 @@ resource, see the KubernetesOperator section below.
       tagged. The kind name did not change, so new files would collide;
     - the uninstall hook deletes both kinds by fully qualified name, because
       they share the plural.
-  - **Permanent, not legacy: the drain guard** (`shouldSkipDrain`). Before
-    draining, the canonical `delete()` reads the `kubernetesoperators.ngrok.com`
-    CRD through the uncached API reader, under the
-    `api-manager/crd-read-cluster-role.yaml` ClusterRole.
-    - A drain already in progress (`Draining=True`) always continues.
-    - CRD gone or terminating: skip the drain and the ngrok delete.
-    - CRD read Forbidden: drain only if the uninstall hook stamped
-      `ngrok.com/drain-requested=true`. That is the rollback case: Helm rolls
-      this release's RBAC back before it deletes the CRD.
-    - Otherwise the drain runs as before.
+  - **Drain guard** (`shouldSkipDrain` in
+    `kubernetesoperator_legacy.go`, tagged). The v1 `delete()` first checks
+    for a same-named legacy object, read uncached:
+    - a drain already in progress (`Draining=True`) always continues;
+    - a legacy twin exists, or it can't be read (Forbidden): skip the drain and
+      the ngrok delete;
+    - otherwise drain as before.
 
-    This stays after cleanup.
+    During a rollback the twin always exists, because R1 never deletes it. The
+    uninstall hook deletes the legacy object first, so a real uninstall drains.
   - **Rollback leaves one manual step.** With bundled CRDs, `helm rollback`
-    patches the release-namespace Role to the old rules and deletes the
-    crd-read binding before it deletes the CRD, and it may terminate the 0.25
-    pod first. Nothing can release the v1 object's finalizer, so the CRD sticks
+    patches the release-namespace Role to the old rules before it deletes the
+    CRD, and it may terminate the 0.25 pod first. Nothing can release the v1 object's finalizer, so the CRD sticks
     in `Terminating` until a `kubectl patch` clears it. This was verified in
     kind. `helm.sh/resource-policy: keep` on the CRD would avoid the step but
     leaves CRDs behind on uninstall, and was rejected.
@@ -728,8 +725,9 @@ resource, see the KubernetesOperator section below.
     `LEGACY-enabledfeatures-format`, K8SOP-306 and K8SOP-321. Drop the tagged
     `addKnownTypes` entries in `api/ngrok/v1alpha1/groupversion_info.go` and
     regenerate deepcopy.
-  - Delete `internal/controller/ngrok/kubernetesoperator_legacy.go`, the
-    legacy `Watches`, and the tagged block at the top of `Reconcile`.
+  - Delete `internal/controller/ngrok/kubernetesoperator_legacy.go` and its
+    test, the legacy `Watches`, the tagged block at the top of `Reconcile`,
+    and the tagged drain-guard block at the top of `delete()`.
   - In `internal/kubernetesoperator/lookup.go`, collapse `Lookup` to a plain
     v1 Get. Delete `isAuthoritative` and `fromLegacy`.
   - Drop the tagged legacy cache entries in `cmd/api-manager.go` and

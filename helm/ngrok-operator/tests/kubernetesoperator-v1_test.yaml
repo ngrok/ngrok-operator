@@ -87,33 +87,24 @@ tests:
       content:
         apiGroups: [ngrok.com]
         resources: [kubernetesoperators]
-        verbs: [get, list, watch, patch, delete]
+        verbs: [get, list, watch, delete]
   - contains:
       path: rules
       content:
         apiGroups: [ngrok.k8s.ngrok.com]
         resources: [kubernetesoperators]
         verbs: [get, list, watch, patch, delete]
-- it: deletes the ngrok.com KubernetesOperator by its fully qualified name
+- it: removes the legacy KubernetesOperator before deleting the ngrok.com one
   template: cleanup-hook/job.yaml
   set:
     ngrok.features.cleanup.enabled: true
   asserts:
   - matchRegex:
       path: spec.template.spec.containers[0].command[2]
-      pattern: kubectl annotate kubernetesoperators\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --overwrite ngrok\.com/drain-requested=true
-  - matchRegex:
-      path: spec.template.spec.containers[0].command[2]
-      pattern: kubectl delete kubernetesoperators\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --wait=true
-  - matchRegex:
-      path: spec.template.spec.containers[0].command[2]
-      pattern: kubectl patch kubernetesoperators\.ngrok\.k8s\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --type=merge -p '\{"metadata":\{"finalizers":null\}\}' 
-  - matchRegex:
-      path: spec.template.spec.containers[0].command[2]
-      pattern: kubectl delete kubernetesoperators\.ngrok\.k8s\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --ignore-not-found --wait=false
+      pattern: (?s)kubectl patch kubernetesoperators\.ngrok\.k8s\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --type=merge -p '\{"metadata":\{"finalizers":null\}\}' .*kubectl delete kubernetesoperators\.ngrok\.k8s\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --ignore-not-found --wait=true .*kubectl delete kubernetesoperators\.ngrok\.com "RELEASE-NAME" -n NAMESPACE --wait=true
   - notMatchRegex:
       path: spec.template.spec.containers[0].command[2]
-      pattern: kubectl delete kubernetesoperator "
+      pattern: kubectl delete kubernetesoperator "|drain-requested
 - it: grants editors access to the ngrok.com KubernetesOperator
   template: rbac/crd-access/kubernetesoperator-editor.yaml
   asserts:

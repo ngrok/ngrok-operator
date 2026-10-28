@@ -39,7 +39,6 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -70,19 +69,6 @@ var featureMap = map[string]string{
 const (
 	NgrokErrorFailedToCreateCSR = "ERR_NGROK_20006"
 
-	// KubernetesOperatorCRDName is the CRD backing ngrokv1.KubernetesOperator.
-	KubernetesOperatorCRDName = "kubernetesoperators.ngrok.com"
-
-	// AnnotationDrainRequested is stamped on the KubernetesOperator by the
-	// chart's uninstall hook before it deletes the object, so the controller
-	// knows the deletion is an uninstall even when it cannot read its CRD.
-	AnnotationDrainRequested = "ngrok.com/drain-requested"
-
-	// ReasonCRDDeletionSkippedDrain is the event reason emitted when a
-	// KubernetesOperator is deleted because its CRD is being deleted, and the
-	// drain is skipped.
-	ReasonCRDDeletionSkippedDrain = "CRDDeletionSkippedDrain"
-
 	defaultBindingCertRenewalWindow = 30 * 24 * time.Hour
 )
 
@@ -94,8 +80,8 @@ type KubernetesOperatorReconciler struct {
 	Scheme     *runtime.Scheme
 	controller *controller.BaseController[*ngrokv1.KubernetesOperator]
 
-	// APIReader reads the KubernetesOperator CRD uncached, so CRDs are never
-	// added to the manager's cache.
+	// APIReader reads uncached, so decisions that gate a drain never act on a
+	// stale cache.
 	APIReader client.Reader
 
 	Log            logr.Logger
@@ -283,20 +269,18 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1.K
 func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1.KubernetesOperator) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	// Step 0: A KubernetesOperator deleted because its CRD is being deleted (a
-	// helm rollback to a release without the CRD, or CRDs removed before the
-	// uninstall hook ran) is not an uninstall. Draining here would delete every
-	// ngrok resource the operator manages, so only let the finalizer go.
+	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup.
 	skipDrain, err := r.shouldSkipDrain(ctx, ko)
 	if err != nil {
 		return err
 	}
 	if skipDrain {
-		log.Info("KubernetesOperator deletion is not an uninstall, skipping drain and ngrok API deletion", "crd", KubernetesOperatorCRDName)
-		r.Recorder.Eventf(ko, nil, v1.EventTypeWarning, ReasonCRDDeletionSkippedDrain, "Delete",
-			"The %s CRD is being deleted or cannot be read and no uninstall was requested; skipped the drain and left the ngrok KubernetesOperator and managed resources in place", KubernetesOperatorCRDName)
+		log.Info("legacy KubernetesOperator still present, skipping drain and ngrok API deletion")
+		r.Recorder.Eventf(ko, nil, v1.EventTypeWarning, ReasonLegacyTwinSkippedDrain, "Delete",
+			"The legacy ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator still exists; skipped the drain and left the ngrok KubernetesOperator and managed resources in place")
 		return nil
 	}
+	// LEGACY-kubernetesoperator-kind: END
 
 	// Step 1: Initiate drain if it is neither in progress nor already complete.
 	if !meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining) &&
@@ -345,33 +329,6 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1.K
 
 	// BaseController will now remove the finalizer
 	return nil
-}
-
-// shouldSkipDrain reports whether deleting this KubernetesOperator must not
-// drain. A drain that has already started always continues. Otherwise the
-// drain is skipped when the KubernetesOperator CRD is gone or being deleted.
-// When the CRD cannot be read (Forbidden: a helm rollback removes this
-// release's RBAC before it deletes the CRD, or custom RBAC lacks the rule), the
-// drain runs only if the uninstall hook stamped AnnotationDrainRequested.
-func (r *KubernetesOperatorReconciler) shouldSkipDrain(ctx context.Context, ko *ngrokv1.KubernetesOperator) (bool, error) {
-	if meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining) {
-		return false, nil
-	}
-
-	crd := &apiextensionsv1.CustomResourceDefinition{}
-	err := r.APIReader.Get(ctx, client.ObjectKey{Name: KubernetesOperatorCRDName}, crd)
-	switch {
-	case apierrors.IsNotFound(err):
-		return true, nil
-	case apierrors.IsForbidden(err):
-		requested := ko.GetAnnotations()[AnnotationDrainRequested] == "true"
-		ctrl.LoggerFrom(ctx).Info("cannot read the KubernetesOperator CRD; draining only if the uninstall hook requested it",
-			"crd", KubernetesOperatorCRDName, "drainRequested", requested, "error", err.Error())
-		return !requested, nil
-	case err != nil:
-		return false, fmt.Errorf("getting CRD %s: %w", KubernetesOperatorCRDName, err)
-	}
-	return !crd.DeletionTimestamp.IsZero(), nil
 }
 
 // updateStatus fills in the status fields of the KubernetesOperator CRD based on the current state of the ngrok API and updates the status in k8s

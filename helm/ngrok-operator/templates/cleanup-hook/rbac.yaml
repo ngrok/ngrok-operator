@@ -31,7 +31,6 @@ rules:
       - get
       - list
       - watch
-      - patch
       - delete
   # LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup.
   - apiGroups:

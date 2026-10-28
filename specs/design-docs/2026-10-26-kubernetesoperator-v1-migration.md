@@ -143,42 +143,50 @@ finalizer present unless a human deletes the legacy object.
 No registration gate is needed: stripping the finalizer doesn't remove the
 legacy object, so it stays available as a reader fallback.
 
-### CRD deletion must not drain
+### Rollback must not drain
 
 `installCRDs` defaults to `true`. CRDs ship as templates in the `ngrok-crds`
 subchart, with no `helm.sh/resource-policy: keep`. So a default `helm rollback`
 to a release without `kubernetesoperators.ngrok.com` deletes that CRD while the
-new-version pods are still running. The API server then marks the canonical
-KO for deletion, and today's `delete()` would run the full drain and delete the
+new-version pods may still be running. The API server then marks the v1 KO for
+deletion, and an unguarded `delete()` would run the full drain and delete the
 ngrok KO.
 
-Fix: at the top of the canonical `delete()`, before any drain work, read the
-`kubernetesoperators.ngrok.com` CRD with the uncached API reader. If it has a
-`deletionTimestamp`:
+Guard, in `kubernetesoperator_legacy.go`, tagged `LEGACY-kubernetesoperator-kind`.
+This was revised on 2026-10-27 at Alex's suggestion. It replaces a first
+version that read the CRD under a new ClusterRole and used an uninstall-hook
+annotation.
 
-- skip the drain and the ngrok-side delete;
-- return success so BaseController removes the finalizer;
-- log it and emit a Warning event (reason `CRDDeletionSkippedDrain`).
+At the top of the v1 `delete()`, check whether the same-named legacy object
+exists, using the uncached API reader so a stale cache cannot skip a real
+uninstall's drain:
 
-The ngrok KO and every managed resource stay. The rolled-back old operator
-re-adopts them through the legacy object.
+| Condition | Result |
+|---|---|
+| A drain already in progress (`Draining=True`) | Always continues |
+| Legacy twin exists | Skip the drain and the ngrok delete; return success so BaseController releases the finalizer; Warning event `LegacyTwinSkippedDrain` |
+| Legacy read Forbidden | Skip the drain. When unsure, don't drain |
+| Legacy NotFound, or legacy kind not installed | Drain as before |
+| Any other error | Return it and requeue |
 
-- Error handling:
-  - NotFound on the CRD: treat as deleting.
-  - Forbidden: drain only if the uninstall hook stamped
-    `ngrok.com/drain-requested=true`. This was revised after review: Forbidden
-    is the normal result during a rollback.
-  - A drain already in progress (`Draining=True`) always continues.
-  - Any other error: return it and requeue.
-- RBAC: a new ClusterRole (with binding) for api-manager granting `get` on
-  `customresourcedefinitions` with `resourceNames: [kubernetesoperators.ngrok.com]`.
-  It must be a ClusterRole even in namespace-scoped mode, because CRDs are
-  cluster-scoped.
-- Scheme: register `apiextensionsv1` in api-manager. Do not put CRDs in the
-  cache.
-- This guard is **not** legacy-tagged. It stays after cleanup, because
-  "deleting the CRD must not delete the user's ngrok resources" is a permanent
-  safety property.
+Why this works:
+
+- R1 never deletes the legacy object, so during a rollback the twin always
+  exists.
+- The 0.24 RBAC still allows reading the legacy kind.
+- The uninstall hook deletes the legacy object first (releasing its finalizer
+  if needed), so a real uninstall finds no twin and drains.
+
+Known trade-offs, accepted by Alex:
+
+- While a legacy twin exists, deleting the v1 object by hand does not drain.
+- A fresh R1 install, which has no legacy object, that is downgraded to 0.24
+  has no twin to protect it. It is still safe in practice, because the
+  rolled-back RBAC blocks the drain's first status write.
+- The uninstall hook does not need to be perfect during this transition.
+
+The guard goes away at cleanup. After the cleanup release both sides of any
+rollback ship the v1 CRD, so nothing deletes it under a running operator.
 
 ### Readers
 
@@ -256,26 +264,22 @@ and `.github/workflows/ci.yaml` get fully qualified.
 ### Rollback story
 
 **Default install (bundled CRDs), `helm rollback` to the previous release.**
-This was verified in kind and corrected after the final review.
+This was verified in kind.
 
 1. Helm patches every surviving resource first, including the release-namespace
    Role (now without `ngrok.com` KO rules), and rolls the Deployments back.
-2. It then deletes the crd-read binding and the `kubernetesoperators.ngrok.com`
-   CRD. If the 0.25 pod is still running, it either cannot read the CRD
-   (Forbidden), so it skips the drain because no `ngrok.com/drain-requested`
-   annotation is present, or it sees the CRD terminating and skips the drain.
-   Either way it cannot release the finalizer, because its RBAC is gone.
+2. It then deletes the `kubernetesoperators.ngrok.com` CRD. If the 0.25 pod is
+   still running, it finds the legacy twin and skips the drain. It cannot
+   release the finalizer, because its RBAC is gone.
 3. Old pods start. `createKubernetesOperator` updates the legacy object, which
    still exists. The old reconciler re-adds the finalizer, and `findExisting`
    re-adopts the same ngrok KO with the same ID.
-4. **Manual step:** strip the finalizer from the v1 object so the CRD finishes
-   deleting. Do this before any re-upgrade.
+4. **Manual post-step:** strip the finalizer from the v1 object so the CRD
+   finishes deleting. Do this before any re-upgrade.
 
-No drain and no ngrok churn. Alex accepted the manual step on 2026-10-26 over
-`helm.sh/resource-policy: keep`.
-
-The uninstall hook stamps `ngrok.com/drain-requested=true` before deleting the
-v1 object, so a real uninstall still drains when the CRD read is Forbidden.
+No drain and no ngrok churn. Alex accepted the post-rollback patch on
+2026-10-26. He wants no manual *pre*-steps and nothing that could trigger a
+drain.
 
 **Separate CRDs (`installCRDs=false`), operator rolled back, CRDs kept:**
 

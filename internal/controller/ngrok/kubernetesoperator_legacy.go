@@ -2,6 +2,7 @@ package ngrok
 
 import (
 	"context"
+	"fmt"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -26,6 +27,11 @@ const (
 	// ReasonLegacyKubernetesOperatorSuperseded is the event reason emitted on the
 	// v1 KubernetesOperator when its legacy twin's finalizer is removed.
 	ReasonLegacyKubernetesOperatorSuperseded = "LegacyKubernetesOperatorSuperseded"
+
+	// ReasonLegacyTwinSkippedDrain is the event reason emitted when the v1
+	// KubernetesOperator is deleted while its legacy twin still exists, and the
+	// drain is skipped.
+	ReasonLegacyTwinSkippedDrain = "LegacyTwinSkippedDrain"
 )
 
 // neutralizeLegacy makes the legacy ngrok.k8s.ngrok.com/v1alpha1 object at the
@@ -75,4 +81,32 @@ func (r *KubernetesOperatorReconciler) neutralizeLegacy(ctx context.Context, can
 // v1 object with the same namespace and name.
 func legacyKubernetesOperatorToRequest(_ context.Context, obj client.Object) []reconcile.Request {
 	return []reconcile.Request{{NamespacedName: client.ObjectKeyFromObject(obj)}}
+}
+
+// shouldSkipDrain reports whether deleting the v1 KubernetesOperator must not
+// drain. While a legacy twin with the same name exists, the deletion is not an
+// uninstall: a helm rollback deletes the v1 CRD (and with it the v1 object)
+// and hands the cluster back to an older operator that reconciles the legacy
+// object. The uninstall hook deletes the legacy object first, so a real
+// uninstall finds no twin. When the answer is uncertain (the legacy object
+// cannot be read), the drain is skipped. A drain that has already started
+// always continues. The read is uncached so a stale cache cannot skip a real
+// uninstall's drain.
+func (r *KubernetesOperatorReconciler) shouldSkipDrain(ctx context.Context, ko *ngrokv1.KubernetesOperator) (bool, error) {
+	if meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining) {
+		return false, nil
+	}
+
+	err := r.APIReader.Get(ctx, client.ObjectKeyFromObject(ko), &ngrokv1alpha1.KubernetesOperator{})
+	switch {
+	case err == nil:
+		return true, nil
+	case apierrors.IsNotFound(err), meta.IsNoMatchError(err):
+		return false, nil
+	case apierrors.IsForbidden(err):
+		ctrl.LoggerFrom(ctx).Info("cannot read the legacy KubernetesOperator; skipping the drain to be safe", "error", err.Error())
+		return true, nil
+	default:
+		return false, fmt.Errorf("getting legacy KubernetesOperator: %w", err)
+	}
 }

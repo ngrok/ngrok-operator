@@ -36,7 +36,6 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/spf13/cobra"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -84,9 +83,6 @@ func init() {
 	utilruntime.Must(ngrokv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(ngrokv1.AddToScheme(scheme))
 	utilruntime.Must(bindingsv1alpha1.AddToScheme(scheme))
-	// The KubernetesOperator reconciler reads its own CRD (uncached) to tell a
-	// CRD deletion from an uninstall.
-	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

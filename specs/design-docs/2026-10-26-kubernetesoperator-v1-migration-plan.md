@@ -15,6 +15,10 @@
 
 **Spec:** `specs/design-docs/2026-10-26-kubernetesoperator-v1-migration.md`
 
+> **Superseded in part (2026-10-27):** Task 5's CRD-read guard, its ClusterRole
+> and the uninstall-hook annotation were replaced by a legacy-twin check. The
+> spec's "Rollback must not drain" section is authoritative.
+
 ## Global Constraints
 
 - Sentinel tag for everything that goes at cleanup: `LEGACY-kubernetesoperator-kind`. Use `// LEGACY-kubernetesoperator-kind: BEGIN` / `END` blocks or line markers. Never wrap surviving lines. Never put a marker in a CRD field doc comment.
