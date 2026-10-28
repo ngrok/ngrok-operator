@@ -867,6 +867,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.23.0
+    helm.sh/resource-policy: keep
   name: kubernetesoperators.ngrok.com
 spec:
   group: ngrok.com
@@ -1151,6 +1152,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.23.0
+    helm.sh/resource-policy: keep
   name: trafficpolicies.ngrok.com
 spec:
   group: ngrok.com
@@ -4011,6 +4013,61 @@ metadata:
 ---
 # Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-cleanup-crds
+  labels:
+    helm.sh/chart: ngrok-operator-0.24.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.22.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    resourceNames:
+      - kubernetesoperators.ngrok.com
+      - trafficpolicies.ngrok.com
+    verbs:
+      - delete
+
+---
+# Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ngrok-operator-cleanup-crds
+  labels:
+    helm.sh/chart: ngrok-operator-0.24.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.22.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ngrok-operator-cleanup-crds
+subjects:
+  - kind: ServiceAccount
+    name: ngrok-operator-cleanup
+    namespace: ngrok-operator
+# LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind: END
+
+---
+# Source: ngrok-operator/templates/cleanup-hook/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: ngrok-operator-cleanup
@@ -4075,6 +4132,9 @@ subjects:
   - kind: ServiceAccount
     name: ngrok-operator-cleanup
     namespace: ngrok-operator
+# LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind: BEGIN — drop
+# this ClusterRole and binding at cleanup. Lets the uninstall hook delete the
+# two ngrok.com CRDs that helm.sh/resource-policy=keep stops Helm from deleting.
 
 ---
 # Source: ngrok-operator/templates/cleanup-hook/job.yaml
@@ -4126,6 +4186,18 @@ spec:
               kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "ngrok-operator" -n ngrok-operator --ignore-not-found --wait=true --timeout=60s || true
               # LEGACY-kubernetesoperator-kind: END
               kubectl delete kubernetesoperators.ngrok.com "ngrok-operator" -n ngrok-operator --wait=true --timeout=300s || true
+              # LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind:
+              # BEGIN — drop at cleanup. The ngrok.com CRDs carry
+              # helm.sh/resource-policy=keep so a rollback cannot delete them,
+              # which also stops helm uninstall from deleting them. Delete them
+              # here, but only once the drain has finished.
+              if KO=$(kubectl get kubernetesoperators.ngrok.com "ngrok-operator" -n ngrok-operator --ignore-not-found -o name) && [ -z "$KO" ]; then
+                echo "Deleting the ngrok.com CRDs kept for rollback..."
+                kubectl delete crd kubernetesoperators.ngrok.com trafficpolicies.ngrok.com --ignore-not-found || true
+              else
+                echo "KubernetesOperator is still present; leaving the ngrok.com CRDs in place"
+              fi
+              # LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind: END
           resources:
             limits: {}
             requests: {}

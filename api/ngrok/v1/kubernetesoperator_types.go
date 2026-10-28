@@ -195,6 +195,11 @@ type DrainConfig struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:categories=ngrok
+// LEGACY-kubernetesoperator-kind: drop this marker at cleanup. While both
+// KubernetesOperator CRDs ship, helm rollback must not delete this one: that
+// would delete the object under a running operator. The uninstall hook deletes
+// the CRD instead.
+// +kubebuilder:metadata:annotations="helm.sh/resource-policy=keep"
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Kubernetes Operator ID"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`
 // +kubebuilder:printcolumn:name="Enabled Features",type="string",JSONPath=".status.enabledFeatures"

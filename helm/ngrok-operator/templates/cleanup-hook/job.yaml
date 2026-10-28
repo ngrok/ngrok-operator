@@ -41,6 +41,20 @@ spec:
               kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --ignore-not-found --wait=true --timeout=60s || true
               # LEGACY-kubernetesoperator-kind: END
               kubectl delete kubernetesoperators.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.ngrok.features.cleanup.timeout }}s || true
+              {{- if .Values.installCRDs }}
+              # LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind:
+              # BEGIN — drop at cleanup. The ngrok.com CRDs carry
+              # helm.sh/resource-policy=keep so a rollback cannot delete them,
+              # which also stops helm uninstall from deleting them. Delete them
+              # here, but only once the drain has finished.
+              if KO=$(kubectl get kubernetesoperators.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --ignore-not-found -o name) && [ -z "$KO" ]; then
+                echo "Deleting the ngrok.com CRDs kept for rollback..."
+                kubectl delete crd kubernetesoperators.ngrok.com trafficpolicies.ngrok.com --ignore-not-found || true
+              else
+                echo "KubernetesOperator is still present; leaving the ngrok.com CRDs in place"
+              fi
+              # LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind: END
+              {{- end }}
           resources:
             {{- toYaml .Values.components.cleanupHook.resources | nindent 12 }}
 {{- end }}
