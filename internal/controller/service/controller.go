@@ -89,9 +89,8 @@ type ServiceReconciler struct {
 
 	ClusterDomain string
 
-	IPPolicyResolver resolvers.IPPolicyResolver
-	SecretResolver   resolvers.SecretResolver
-	TCPAddresses     ngrokapi.TCPAddressesClient
+	SecretResolver resolvers.SecretResolver
+	TCPAddresses   ngrokapi.TCPAddressesClient
 }
 
 type ShouldHandleServicePredicate = TypedShouldHandleServicePredicate[client.Object]
@@ -129,10 +128,6 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if r.ClusterDomain == "" {
 		r.ClusterDomain = common.DefaultClusterDomain
-	}
-
-	if r.IPPolicyResolver == nil {
-		r.IPPolicyResolver = resolvers.NewDefaultIPPolicyResolver(mgr.GetClient())
 	}
 
 	if r.SecretResolver == nil {
