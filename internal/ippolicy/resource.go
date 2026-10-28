@@ -26,8 +26,7 @@ SOFTWARE.
 // ngrok.com/v1 IPPolicy and the deprecated ingress.k8s.ngrok.com/v1alpha1
 // IPPolicy, following the same shape as internal/trafficpolicy for the
 // TrafficPolicy kind + group migration (see
-// docs/superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md
-// and docs/developer-guide/passivity-shims.md §"Per-shim catalog: TrafficPolicy
+// docs/developer-guide/passivity-shims.md §"Per-shim catalog: TrafficPolicy
 // CRD kind + group rename" — IPPolicy follows the same LEGACY-KIND-MIGRATION
 // pattern documented there, tagged LEGACY-ippolicy-kind).
 package ippolicy
@@ -64,7 +63,9 @@ type IPPolicyResource interface {
 	// GetDescription returns the human-readable description from the spec.
 	GetDescription() string
 
-	// GetMetadata returns the raw JSON metadata blob from the spec.
+	// GetMetadata returns the spec metadata as key/value pairs, or nil if
+	// unset. Kinds that store metadata in another form (e.g. the legacy
+	// JSON-string form) must normalize it to a map here.
 	GetMetadata() map[string]string
 
 	// GetRulesJSON returns the spec rules re-encoded as JSON. Both kinds

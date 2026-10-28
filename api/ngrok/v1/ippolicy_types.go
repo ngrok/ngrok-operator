@@ -67,13 +67,10 @@ type IPPolicySpec struct {
 	// +kubebuilder:default:=`Created by ngrok-operator`
 	Description string `json:"description,omitempty"`
 	// Metadata is arbitrary key/value data associated with the object in the
-	// ngrok API/Dashboard. A raw JSON string is also accepted for backward
-	// compatibility and is deprecated; use a map of string values instead.
+	// ngrok API/Dashboard.
 	// The ngrokMetadata Helm value is not merged into this field.
 	//
-	// +kubebuilder:validation:Schemaless
-	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:default:=`{"owned-by":"ngrok-operator"}`
+	// +kubebuilder:default:={"owned-by":"ngrok-operator"}
 	Metadata map[string]string `json:"metadata,omitempty"`
 	// Rules is a list of rules that belong to the policy
 	Rules []IPPolicyRule `json:"rules,omitempty"`
@@ -110,9 +107,7 @@ type IPPolicyStatus struct {
 //
 // LEGACY-ippolicy-kind: this is the canonical half of a dual-CRD passive
 // migration, following the same pattern used for
-// ngrok.com/v1 TrafficPolicy (see
-// docs/superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md
-// and docs/developer-guide/passivity-shims.md
+// ngrok.com/v1 TrafficPolicy (see docs/developer-guide/passivity-shims.md
 // §"Per-shim catalog: TrafficPolicy CRD kind + group rename"). The deprecated
 // ingress.k8s.ngrok.com/v1alpha1 IPPolicy stays fully operable and readable
 // for the whole migration window; nothing about it changes here beyond
