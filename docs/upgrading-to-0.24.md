@@ -504,26 +504,6 @@ Do not write or select on the operator's `controller-name`,
 `controller-namespace`, or `computed-url` keys. They are internal ownership
 metadata and are migrated automatically.
 
-### Update self-authored IngressClasses
-
-If you manage your own IngressClass manifests, replace:
-
-```yaml
-spec:
-  controller: k8s.ngrok.com/ingress-controller
-```
-
-with:
-
-```yaml
-spec:
-  controller: ngrok.com/ingress-controller
-```
-
-The 0.24 operator recognizes both values. If you use the chart-rendered
-IngressClass, no action is required; the chart performs the transition in a
-later release.
-
 ## Prepare for later cleanup releases
 
 The 0.24 release intentionally retains compatibility code. Complete the
@@ -536,7 +516,6 @@ user-managed migrations above before their cleanup releases:
 | `Domain.spec.resolves_to` | Reads `resolves_to` and `resolvesTo` | Use only `resolvesTo` before the announced cleanup release |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
 | Bindings labels | Writes both prefixes | Update external selectors before the planned 1.0 write-side cleanup |
-| IngressClass controller | Recognizes both values | Self-authored manifests must use `ngrok.com/ingress-controller` before legacy matching is removed in 0.26 |
 
 The finalizer rename is handled entirely by the operator across the planned
 0.24, 0.25, and 0.26 sequence. In 0.25 the operator begins writing the new
@@ -544,11 +523,6 @@ finalizer; in 0.26 it removes legacy-read support. Do not edit operator
 finalizers manually. If external tooling matches the literal
 `k8s.ngrok.com/finalizer`, update that tooling before upgrading beyond 0.24.
 
-The chart-rendered IngressClass moves to
-`ngrok.com/ingress-controller` in 0.25, and the operator removes legacy
-matching in 0.26. The chart handles both steps unless you manage the
-IngressClass yourself.
-
-Do not skip 0.24 when later upgrading through the finalizer and IngressClass
-cleanup sequence. It is the compatibility checkpoint that allows the later
+Do not skip 0.24 when later upgrading through the finalizer cleanup
+sequence. It is the compatibility checkpoint that allows the later
 changes to roll out safely.

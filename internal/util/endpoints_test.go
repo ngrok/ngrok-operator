@@ -177,3 +177,111 @@ func TestParseAndSanitizeEndpointURL(t *testing.T) {
 		}
 	})
 }
+
+func TestIsWildcardDomain(t *testing.T) {
+	tests := []struct {
+		host     string
+		expected bool
+	}{
+		{"*.example.com", true},
+		{"*.EXAMPLE.com.", true},
+		{"  *.example.com  ", true},
+		{"example.com", false},
+		{"a.example.com", false},
+		{"", false},
+		// A "*" that is not the leading label is not a wildcard hostname.
+		{"a.*.example.com", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.host, func(t *testing.T) {
+			if result := IsWildcardDomain(tt.host); result != tt.expected {
+				t.Errorf("IsWildcardDomain(%q) = %v, want %v", tt.host, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestWildcardParentDomain(t *testing.T) {
+	tests := []struct {
+		name       string
+		host       string
+		wantParent string
+		wantOK     bool
+	}{
+		{
+			name:       "direct child",
+			host:       "a.mydomain.com",
+			wantParent: "*.mydomain.com",
+			wantOK:     true,
+		},
+		{
+			// DNS wildcards match exactly one label, so *.mydomain.com does NOT
+			// cover a.b.mydomain.com - only *.b.mydomain.com does.
+			name:       "grandchild resolves to its direct parent only",
+			host:       "a.b.mydomain.com",
+			wantParent: "*.b.mydomain.com",
+			wantOK:     true,
+		},
+		{
+			name:       "deeply nested child",
+			host:       "a.b.c.mydomain.com",
+			wantParent: "*.b.c.mydomain.com",
+			wantOK:     true,
+		},
+		{
+			name:       "ngrok owned subdomain",
+			host:       "a.mytest.ngrok.io",
+			wantParent: "*.mytest.ngrok.io",
+			wantOK:     true,
+		},
+		{
+			name:   "apex is not covered by its own wildcard",
+			host:   "mydomain.com",
+			wantOK: false,
+		},
+		{
+			name:   "already a wildcard",
+			host:   "*.mydomain.com",
+			wantOK: false,
+		},
+		{
+			name:   "single label",
+			host:   "localhost",
+			wantOK: false,
+		},
+		{
+			name:   "empty",
+			host:   "",
+			wantOK: false,
+		},
+		{
+			name:       "normalizes case, whitespace and trailing dot",
+			host:       "  A.MyDomain.CoM.  ",
+			wantParent: "*.mydomain.com",
+			wantOK:     true,
+		},
+		{
+			name:   "empty label",
+			host:   "a..com",
+			wantOK: false,
+		},
+		{
+			name:   "embedded wildcard label",
+			host:   "a.*.com",
+			wantOK: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parent, ok := WildcardParentDomain(tt.host)
+			if ok != tt.wantOK {
+				t.Fatalf("WildcardParentDomain(%q) ok = %v, want %v", tt.host, ok, tt.wantOK)
+			}
+			if parent != tt.wantParent {
+				t.Errorf("WildcardParentDomain(%q) = %q, want %q", tt.host, parent, tt.wantParent)
+			}
+		})
+	}
+}

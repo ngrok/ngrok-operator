@@ -1,4 +1,4 @@
-{{- if .Values.cleanupHook.enabled }}
+{{- if .Values.ngrok.features.cleanup.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -23,15 +23,15 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: cleanup
-          image: "{{ .Values.cleanupHook.image.repository }}:{{ .Values.cleanupHook.image.tag }}"
-          imagePullPolicy: {{ .Values.cleanupHook.image.pullPolicy }}
+          image: "{{ .Values.components.cleanupHook.image.repository }}:{{ .Values.components.cleanupHook.image.tag }}"
+          imagePullPolicy: {{ .Values.components.cleanupHook.image.pullPolicy }}
           command:
             - /bin/sh
             - -c
             - |
               set -e
               echo "Deleting KubernetesOperator '{{ .Release.Name }}' to trigger drain..."
-              kubectl delete kubernetesoperator "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.cleanupHook.timeout }}s || true
+              kubectl delete kubernetesoperator "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.ngrok.features.cleanup.timeout }}s || true
           resources:
-            {{- toYaml .Values.cleanupHook.resources | nindent 12 }}
+            {{- toYaml .Values.components.cleanupHook.resources | nindent 12 }}
 {{- end }}

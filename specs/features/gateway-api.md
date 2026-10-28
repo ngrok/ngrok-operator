@@ -10,8 +10,8 @@ The ngrok-operator supports the Kubernetes Gateway API, providing a role-oriente
 
 | Helm Value                         | Description                                          | Default |
 |------------------------------------|------------------------------------------------------|---------|
-| `features.gateway.enabled`                  | Enable Gateway API support (if CRDs detected)        | `true`  |
-| `features.gateway.disableReferenceGrants`   | Disable ReferenceGrant requirement                   | `false` |
+| `ngrok.features.gateway.enabled`                  | Enable Gateway API support (if CRDs detected)        | `true`  |
+| `ngrok.features.gateway.disableReferenceGrants`   | Disable ReferenceGrant requirement                   | `false` |
 
 ## Supported Resources
 
@@ -32,6 +32,7 @@ When enabled and Gateway API CRDs are detected:
 2. `Gateway` resources referencing that GatewayClass are reconciled by the operator.
 3. Route resources (`HTTPRoute`, `TCPRoute`, `TLSRoute`) referencing a managed Gateway are materialized as ngrok endpoints.
 4. `ReferenceGrant` resources enable cross-namespace references (e.g., a route in namespace A referencing a service in namespace B).
+5. Domain resources are managed for listener hostnames. A listener hostname that is a direct child of an already-reserved wildcard gets a Domain CR but no separate ngrok reservation — see [controllers/domain.md](../controllers/domain.md#wildcard-domain-coverage).
 
 ## Driver Pattern
 
@@ -76,10 +77,10 @@ Keys without the prefix are ignored. Supplying a reserved suffix fails translati
 
 ## ReferenceGrants
 
-By default, cross-namespace references require a `ReferenceGrant` in the target namespace. This can be disabled via `gateway.disableReferenceGrants: true`, which allows cross-namespace references without explicit grants.
+By default, cross-namespace references require a `ReferenceGrant` in the target namespace. This can be disabled via `ngrok.features.gateway.disableReferenceGrants: true`, which allows cross-namespace references without explicit grants.
 
 ## When Disabled
 
-When `gateway.enabled: false` or Gateway API CRDs are not installed:
+When `ngrok.features.gateway.enabled: false` or Gateway API CRDs are not installed:
 - Gateway API resources are not watched or reconciled
 - The feature is excluded from the KubernetesOperator's `enabledFeatures`

@@ -1,0 +1,31 @@
+# The operator environment variable for each setting, by its path under
+# `ngrok` in the values. A variable is NGROK_OPERATOR__ and the path with "__"
+# between levels and "_" between words: features.gateway.enabled is
+# NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED. The operator defines the same
+# names in internal/flags; the tests in cmd/chart_test.go check the two lists
+# match and follow that rule.
+description: NGROK_OPERATOR__DESCRIPTION
+region: NGROK_OPERATOR__REGION
+serverAddr: NGROK_OPERATOR__SERVER_ADDR
+apiURL: NGROK_OPERATOR__API_URL
+rootCAs: NGROK_OPERATOR__ROOT_CAS
+metadata: NGROK_OPERATOR__METADATA
+clusterDomain: NGROK_OPERATOR__CLUSTER_DOMAIN
+
+log.level: NGROK_OPERATOR__LOG__LEVEL
+log.format: NGROK_OPERATOR__LOG__FORMAT
+log.stacktraceLevel: NGROK_OPERATOR__LOG__STACKTRACE_LEVEL
+
+features.ingress.enabled: NGROK_OPERATOR__FEATURES__INGRESS__ENABLED
+features.ingress.controllerName: NGROK_OPERATOR__FEATURES__INGRESS__CONTROLLER_NAME
+features.ingress.watchNamespace: NGROK_OPERATOR__FEATURES__INGRESS__WATCH_NAMESPACE
+features.gateway.enabled: NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED
+features.gateway.disableReferenceGrants: NGROK_OPERATOR__FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+features.bindings.enabled: NGROK_OPERATOR__FEATURES__BINDINGS__ENABLED
+features.bindings.endpointSelectors: NGROK_OPERATOR__FEATURES__BINDINGS__ENDPOINT_SELECTORS
+features.bindings.serviceAnnotations: NGROK_OPERATOR__FEATURES__BINDINGS__SERVICE_ANNOTATIONS
+features.bindings.serviceLabels: NGROK_OPERATOR__FEATURES__BINDINGS__SERVICE_LABELS
+features.bindings.ingressEndpoint: NGROK_OPERATOR__FEATURES__BINDINGS__INGRESS_ENDPOINT
+features.domains.defaultReclaimPolicy: NGROK_OPERATOR__FEATURES__DOMAINS__DEFAULT_RECLAIM_POLICY
+features.cleanup.drainPolicy: NGROK_OPERATOR__FEATURES__CLEANUP__DRAIN_POLICY
+features.oneClickDemoMode.enabled: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED

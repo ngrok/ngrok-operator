@@ -20,12 +20,14 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 | **Endpoint Pooling** | Allows multiple endpoints to share the same public URL, distributing traffic across them. Controlled via the `ngrok.com/pooling-enabled` annotation. | [annotations.md](annotations.md) |
 | **Mapping Strategy** | Controls which ngrok endpoint resources are created: `endpoints` (AgentEndpoint only) or `endpoints-verbose` (CloudEndpoint + internal AgentEndpoint). | [annotations.md](annotations.md) |
 | **Traffic Policy** | A set of rules (rate limiting, header manipulation, authentication, etc.) applied to ngrok endpoints. Defined as an `TrafficPolicy` CR or inline JSON. | [features/traffic-policy.md](features/traffic-policy.md) |
+| **Wildcard Domain** | A reserved domain of the form `*.example.com`. Direct children of a reserved wildcard are not reserved individually — the wildcard's DNS record and certificate already cover them. | [controllers/domain.md](controllers/domain.md#wildcard-domain-coverage) |
 
 ## Directory Structure
 
 ### Top-Level Specs
 
-- [authentication.md](authentication.md) — Credentials, secrets, API key/authtoken management
+- [authentication.md](authentication.md) — Credentials, secrets, access token management
+- [configuration.md](configuration.md) — How app config reaches each component, its precedence, and where defaults live
 - [annotations.md](annotations.md) — Central reference for all `ngrok.com/` annotations
 - [upstream-protocols.md](upstream-protocols.md) — How the transport and application protocol to backend Services is selected (`app-protocols` annotation, `appProtocol` field values)
 - [design-decisions.md](design-decisions.md) — Settled architectural trade-offs and their rationale

@@ -35,6 +35,7 @@ import (
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -222,7 +223,7 @@ func TestOrchestrator_HandleDrain_TransientErrors_OutcomeRetry(t *testing.T) {
 	ingress := &netv1.Ingress{
 		Name:       "test-ingress",
 		Namespace:  "default",
-		Finalizers: []string{"k8s.ngrok.com/finalizer"},
+		Finalizers: []string{util.LegacyFinalizerName},
 	}
 
 	fakeClient := fake.NewClientBuilder().

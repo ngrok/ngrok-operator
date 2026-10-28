@@ -27,7 +27,7 @@ kubectl delete -f operator-manifests.yaml
 
 ## Drain Policies
 
-Configure via the `drainPolicy` Helm value:
+Configure via the `ngrok.features.cleanup.drainPolicy` Helm value:
 
 | Policy | ngrok API Resources | Best For |
 |--------|---------------------|----------|
@@ -53,7 +53,7 @@ When multiple operator instances exist, drain only affects resources managed by 
 
 - **Ingress**: Filtered by `IngressClass`
 - **Gateway/Routes**: Filtered by `GatewayClass`
-- **Other resources**: Filtered by namespace (if `watchNamespace` is set)
+- **Other resources**: Filtered by namespace (if `ngrok.features.ingress.watchNamespace` is set)
 
 ## Troubleshooting
 
@@ -71,8 +71,10 @@ When multiple operator instances exist, drain only affects resources managed by 
 
 Increase the hook timeout:
 ```yaml
-cleanupHook:
-  timeout: 600  # 10 minutes
+ngrok:
+  features:
+    cleanup:
+      timeout: 600  # 10 minutes
 ```
 
 ### Orphaned ngrok Resources
@@ -82,11 +84,12 @@ Delete manually from [ngrok Dashboard](https://dashboard.ngrok.com) or via the n
 ## Helm Configuration
 
 ```yaml
-drainPolicy: "Retain"  # or "Delete"
-
-cleanupHook:
-  enabled: true        # default
-  timeout: 300         # seconds
+ngrok:
+  features:
+    cleanup:
+      enabled: true          # default
+      timeout: 300           # seconds
+      drainPolicy: "Retain"  # or "Delete"
 ```
 
 ## Architecture

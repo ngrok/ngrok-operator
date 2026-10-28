@@ -238,35 +238,35 @@ var _ = Describe("Store", func() {
 				Expect(len(ics)).To(Equal(0))
 			})
 		})
-		Context("when an IngressClass uses the legacy controller name", func() {
+		Context("when an IngressClass uses the alias controller name", func() {
 			BeforeEach(func() {
-				ic := testutils.NewTestIngressClass("ngrok-legacy", true, false)
-				ic.Spec.Controller = testutils.LegacyControllerName
+				ic := testutils.NewTestIngressClass("ngrok-alias", true, false)
+				ic.Spec.Controller = aliasIngressControllerName
 				Expect(store.Add(ic)).To(BeNil())
 			})
-			It("is still selected during the migration window", func() {
+			It("is selected", func() {
 				ics := store.ListNgrokIngressClassesV1()
 				Expect(len(ics)).To(Equal(1))
-				Expect(ics[0].Name).To(Equal("ngrok-legacy"))
+				Expect(ics[0].Name).To(Equal("ngrok-alias"))
 			})
 		})
-		Context("when the operator runs under the legacy default controller name", func() {
-			var legacyStore Storer
+		Context("when the operator runs under the alias controller name", func() {
+			var aliasStore Storer
 			BeforeEach(func() {
 				logger := logr.New(logr.Discard().GetSink())
 				cs := NewCacheStores(logger)
-				legacyStore = New(cs, testutils.LegacyControllerName, logger)
+				aliasStore = New(cs, aliasIngressControllerName, logger)
 
-				icLegacy := testutils.NewTestIngressClass("legacy-class", true, false)
-				icLegacy.Spec.Controller = testutils.LegacyControllerName
-				Expect(legacyStore.Add(icLegacy)).To(BeNil())
+				icAlias := testutils.NewTestIngressClass("alias-class", true, false)
+				icAlias.Spec.Controller = aliasIngressControllerName
+				Expect(aliasStore.Add(icAlias)).To(BeNil())
 
 				icDefault := testutils.NewTestIngressClass("default-class", true, false)
 				icDefault.Spec.Controller = testutils.DefaultControllerName
-				Expect(legacyStore.Add(icDefault)).To(BeNil())
+				Expect(aliasStore.Add(icDefault)).To(BeNil())
 			})
-			It("dual-matches both stock defaults (R1 helm path)", func() {
-				ics := legacyStore.ListNgrokIngressClassesV1()
+			It("matches both the default and the alias", func() {
+				ics := aliasStore.ListNgrokIngressClassesV1()
 				Expect(len(ics)).To(Equal(2))
 			})
 		})
@@ -285,9 +285,9 @@ var _ = Describe("Store", func() {
 				icDefault.Spec.Controller = testutils.DefaultControllerName
 				Expect(customStore.Add(icDefault)).To(BeNil())
 
-				icLegacy := testutils.NewTestIngressClass("legacy-class", true, false)
-				icLegacy.Spec.Controller = testutils.LegacyControllerName
-				Expect(customStore.Add(icLegacy)).To(BeNil())
+				icAlias := testutils.NewTestIngressClass("alias-class", true, false)
+				icAlias.Spec.Controller = aliasIngressControllerName
+				Expect(customStore.Add(icAlias)).To(BeNil())
 			})
 			It("does NOT match the default-named IngressClasses (multi-instance isolation)", func() {
 				ics := customStore.ListNgrokIngressClassesV1()

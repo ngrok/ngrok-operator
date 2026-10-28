@@ -1,7 +1,9 @@
 # Values overlay to enable bindings feature
 # Use with: --values ../_fixtures/values-bindings-enabled.yaml
 
-bindings:
-  enabled: true
-  endpointSelectors:
-    - "true"  # Accept all kubernetes-bound endpoints
+ngrok:
+  features:
+    bindings:
+      enabled: true
+      endpointSelectors:
+        - "true"  # Accept all kubernetes-bound endpoints

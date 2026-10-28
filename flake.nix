@@ -66,10 +66,9 @@
 
             Welcome to the ngrok-operator development environment!
 
-            Please make sure you have the following environment variables set:
+            Please make sure you have the following environment variable set:
 
-              NGROK_API_KEY      - Your ngrok API key
-              NGROK_AUTHTOKEN    - Your ngrok authtoken
+              NGROK_ACCESS_TOKEN    - Your ngrok access token
 
             If you are using GitHub Codespaces, a kind cluster should
             already be running. You can verify this by running:

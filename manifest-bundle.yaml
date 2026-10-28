@@ -55,7 +55,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: boundendpoints.bindings.k8s.ngrok.com
 spec:
   group: bindings.k8s.ngrok.com
@@ -290,9 +290,6 @@ spec:
                     uri:
                       description: a uri for locating a resource
                       type: string
-                  required:
-                  - id
-                  - uri
                   type: object
                 type: array
               endpointsSummary:
@@ -348,7 +345,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: domains.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -384,6 +381,11 @@ spec:
       jsonPath: .status.cnameTarget
       name: CNAME Target
       priority: 2
+      type: string
+    - description: Wildcard domain covering this domain
+      jsonPath: .status.coveredByWildcardDomain.domain
+      name: Wildcard
+      priority: 1
       type: string
     - description: Ready Reason
       jsonPath: .status.conditions[?(@.type=='Ready')].reason
@@ -446,7 +448,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               reclaimPolicy:
                 default: Delete
@@ -456,21 +458,6 @@ spec:
                 - Delete
                 - Retain
                 type: string
-              resolves_to:
-                description: 'Deprecated: use resolvesTo instead. Will be removed
-                  in a future release.'
-                items:
-                  description: DomainResolvesToEntry contains a resolving target for
-                    this domain
-                  properties:
-                    value:
-                      description: Value is a point-of-presence alias, an IP address
-                        (coming soon), or an IP group alias (coming soon)
-                      type: string
-                  required:
-                  - value
-                  type: object
-                type: array
               resolvesTo:
                 description: ResolvesTo is the list of resolving targets for the domain
                 items:
@@ -614,8 +601,34 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              coveredByWildcardDomain:
+                description: |-
+                  CoveredByWildcardDomain is the wildcard reservation that already serves
+                  this hostname, e.g. "*.example.com" for "a.example.com". When set, the
+                  operator intentionally did not reserve this domain in the ngrok API
+                  because the wildcard's DNS record and certificate already cover it. It is
+                  unset when this Domain is not covered by a wildcard.
+
+                  status.id stays empty in this case: it is the handle the operator would
+                  delete, and the wildcard reservation is shared with every other subdomain
+                  under it. The wildcard's own ID is recorded here instead.
+                properties:
+                  domain:
+                    description: Domain is the wildcard domain name, e.g. "*.example.com"
+                    type: string
+                  id:
+                    description: ID is the unique identifier of the wildcard reservation
+                    type: string
+                required:
+                - domain
+                - id
+                type: object
               domain:
-                description: Domain is the domain that was reserved
+                description: |-
+                  Domain is the hostname this Domain represents. It is the reserved domain
+                  when the operator holds a reservation for it, and this Domain's own
+                  hostname (never the wildcard's) when it is covered by a wildcard
+                  reservation; see coveredByWildcardDomain.
                 type: string
               id:
                 description: ID is the unique identifier of the domain
@@ -642,6 +655,10 @@ spec:
                   type: object
                 type: array
             type: object
+            x-kubernetes-validations:
+            - message: status.id and status.coveredByWildcardDomain cannot both be
+                set
+              rule: '!(has(self.id) && has(self.coveredByWildcardDomain))'
         type: object
     served: true
     storage: true
@@ -654,7 +671,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: ippolicies.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -724,7 +741,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               rules:
                 description: Rules is a list of rules that belong to the policy
@@ -754,7 +771,7 @@ spec:
                         Metadata is arbitrary key/value data associated with the object in the
                         ngrok API/Dashboard. A raw JSON string is also accepted for backward
                         compatibility and is deprecated; use a map of string values instead.
-                        The ngrokMetadata Helm value is not merged into this field.
+                        The ngrok.metadata Helm value is not merged into this field.
                       x-kubernetes-preserve-unknown-fields: true
                   required:
                   - action
@@ -849,7 +866,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: trafficpolicies.ngrok.com
 spec:
   group: ngrok.com
@@ -1002,7 +1019,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: agentendpoints.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1105,7 +1122,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               tlsTermination:
                 description: |-
@@ -1372,7 +1389,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: cloudendpoints.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1458,7 +1475,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               poolingEnabled:
                 description: |-
@@ -1631,7 +1648,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: kubernetesoperators.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -1770,7 +1787,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               region:
                 default: global
@@ -1910,7 +1927,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: ngroktrafficpolicies.ngrok.k8s.ngrok.com
 spec:
   group: ngrok.k8s.ngrok.com
@@ -3395,8 +3412,6 @@ metadata:
     checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
 spec:
   replicas: 1
-  strategy:
-    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: ngrok-operator
@@ -3409,12 +3424,12 @@ spec:
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
         checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
+        checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/instance: ngrok-operator
         app.kubernetes.io/component: agent
     spec:
-      terminationGracePeriodSeconds: 30
       affinity:
         podAffinity:
           
@@ -3430,7 +3445,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator-agent
       containers:
       - name: agent
@@ -3440,25 +3454,17 @@ spec:
         - /ngrok-operator
         args:
         - agent-manager
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
+        - --release-name=ngrok-operator
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --manager-name=ngrok-operator-agent-manager
-        - --release-name=ngrok-operator
-        - --default-domain-reclaim-policy=Delete
         securityContext:
           allowPrivilegeEscalation: false
         env:
-        - name: NGROK_AUTHTOKEN
+        - name: NGROK_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
-              key: AUTHTOKEN
+              key: AGENT_ACCESS_TOKEN
               name: ngrok-operator-credentials
         - name: POD_NAMESPACE
           valueFrom:
@@ -3466,6 +3472,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR__FEATURES__BINDINGS__ENABLED
+          value: "false"
+        - name: NGROK_OPERATOR__FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+          value: "false"
+        - name: NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR__FEATURES__INGRESS__CONTROLLER_NAME
+          value: "k8s.ngrok.com/ingress-controller"
+        - name: NGROK_OPERATOR__FEATURES__INGRESS__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
+          value: "false"
         livenessProbe:
           httpGet:
             path: /healthz
@@ -3478,9 +3496,6 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        resources:
-          limits: {}
-          requests: {}
 
 ---
 # Source: ngrok-operator/templates/api-manager/deployment.yaml
@@ -3521,7 +3536,6 @@ spec:
         app.kubernetes.io/instance: ngrok-operator
         app.kubernetes.io/component: controller
     spec:
-      terminationGracePeriodSeconds: 30
       affinity:
         podAffinity:
           
@@ -3537,7 +3551,6 @@ spec:
               weight: 1
         nodeAffinity:
           
-      
       serviceAccountName: ngrok-operator
       containers:
       - name: ngrok-operator
@@ -3548,28 +3561,17 @@ spec:
         args:
         - api-manager
         - --release-name=ngrok-operator
-        - --drain-policy=Retain
-        - --default-domain-reclaim-policy=Delete
-        - --enable-feature-ingress=true
-        - --enable-feature-gateway=true
-        - --disable-reference-grants=false
-        - "--description=The official ngrok Kubernetes Operator."
-        - --ingress-controller-name=k8s.ngrok.com/ingress-controller
-        - --zap-log-level=info
-        - --zap-stacktrace-level=error
-        - --zap-encoder=json
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
         - --election-id=ngrok-operator-leader
         - --manager-name=ngrok-operator-manager
-        - --cluster-domain=svc.cluster.local
         securityContext:
           allowPrivilegeEscalation: false
         env:
-        - name: NGROK_API_KEY
+        - name: NGROK_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
-              key: API_KEY
+              key: API_MANAGER_ACCESS_TOKEN
               name: ngrok-operator-credentials
         - name: POD_NAMESPACE
           valueFrom:
@@ -3577,6 +3579,18 @@ spec:
               fieldPath: metadata.namespace
         - name: HELM_RELEASE_NAME
           value: "ngrok-operator"
+        - name: NGROK_OPERATOR__FEATURES__BINDINGS__ENABLED
+          value: "false"
+        - name: NGROK_OPERATOR__FEATURES__GATEWAY__DISABLE_REFERENCE_GRANTS
+          value: "false"
+        - name: NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR__FEATURES__INGRESS__CONTROLLER_NAME
+          value: "k8s.ngrok.com/ingress-controller"
+        - name: NGROK_OPERATOR__FEATURES__INGRESS__ENABLED
+          value: "true"
+        - name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
+          value: "false"
         livenessProbe:
           httpGet:
             path: /healthz
@@ -3589,9 +3603,6 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        resources:
-          limits: {}
-          requests: {}
 
 ---
 # Source: ngrok-operator/templates/ingress-class.yaml

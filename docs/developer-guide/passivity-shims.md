@@ -6,15 +6,19 @@ shims** — small pieces of read-side and/or write-side compatibility code
 that let an older operator coexist with a newer one during rolling
 upgrades and (where possible) survive a `helm rollback`. User-facing
 instructions belong in release-specific upgrade guides under `docs/`, such as
-[`docs/upgrading-to-0.24.md`](../upgrading-to-0.24.md).
+[`docs/upgrading-to-0.24.md`](../upgrading-to-0.24.md) and
+[`docs/upgrading-to-0.25.md`](../upgrading-to-0.25.md). A PR that ships any
+step of a shim with user-visible effect (a cleanup that removes a legacy form,
+a new canonical form users should adopt) updates the guide for the release it
+lands in.
 
 ## Why we need shims
 
 A `helm upgrade` (and a rolling `kubectl apply`) does not atomically swap
 the operator. For a window of seconds to minutes:
 
-1. The new manifest (with a new IngressClass `spec.controller`, new label
-   selectors expected on AEPs/CEPs, etc.) has been applied.
+1. The new manifest (with new label selectors expected on AEPs/CEPs,
+   etc.) has been applied.
 2. The **old** operator pod is still running, watching, and reconciling.
 3. The new operator pod is starting up.
 
@@ -61,15 +65,15 @@ release where the operator can still *see* legacy-only objects.
   Safe because R2 had a full release window to delete-on-reconcile every
   reachable object.
 
-The roles map to releases as follows. Only R1 is firm; the later numbers
-may still change, so the code and the rest of this guide refer to the
-roles by name rather than by version:
+The roles map to releases as follows. R1 and R2 are shipped; R3 may still
+move, so the code and the rest of this guide refer to the roles by name
+rather than by version:
 
 | Role | What it does                                                     | Release          |
 | ---- | ---------------------------------------------------------------- | ---------------- |
 | R1   | read both, write both, never delete legacy                       | 0.24             |
-| R2   | write new only, delete legacy on reconcile, keep dual-read       | 1.0 (planned)    |
-| R3   | drop dual-read and all `Legacy*` symbols                         | 1.1 (planned)    |
+| R2   | write new only, delete legacy on reconcile, keep dual-read       | 0.25 (#872)      |
+| R3   | drop dual-read and all `Legacy*` symbols                         | 0.26 (planned)   |
 
 Rollback from R1 to the prior release works because the legacy key is
 still on every object the operator wrote. Rollback from R2 to R1 works
@@ -127,15 +131,6 @@ unlike the default pattern above, R1 here single-writes the *legacy* key.
 
 Used for: the operator finalizer (`ngrok.com/finalizer`).
 
-## Deferral for rollout races
-
-Some changes are safe to ship in the operator binary but unsafe to ship in
-the rendered helm chart at the same time, because the rendered manifest
-takes effect mid-upgrade while the old operator pod is still running.
-The IngressClass `spec.controller` flip is the only example so far. The
-operator binary gains dual-match in R1; the rendered manifest stays on the
-legacy value until R2.
-
 ## `LEGACY-*` sentinels
 
 Every code site that exists *only* to support a legacy form during a
@@ -159,6 +154,16 @@ git grep '// LEGACY-'
 then narrow by tag (e.g. `git grep 'LEGACY-trafficpolicy-name'`). For each
 hit, delete the block between `BEGIN` / `END` or delete the marked line.
 
+`BEGIN` / `END` means *everything between the two markers goes*. Never wrap
+a region that contains a line the cleanup has to keep. When the lines to
+remove are interleaved with lines that survive — a legacy read near the top
+of a function and a legacy `delete` near the bottom, say — use a separate
+line marker on each piece instead, and have each marker name what it covers
+(`setComputedURLAnnotation` in
+`internal/controller/service/controller.go` is the worked example). One
+marker whose text describes lines further down is the failure mode to avoid:
+the sweep deletes what sits under the marker and silently leaves the rest.
+
 Markers say what *kind* of cleanup they are: a `(write-side cleanup)`
 marker stops dual-writing the legacy key, a `(read-side cleanup)` marker
 stops reading it. That distinction is the load-bearing part — write-side
@@ -166,7 +171,7 @@ cleanup must ship a release before read-side cleanup, or a rollback to the
 previous release can no longer find legacy-stamped objects. This guide
 prefers the cleanup-kind label over a release number in the marker text,
 since the target version may still change; a few earlier markers (the
-finalizer and IngressClass shims) instead embed a specific release like
+finalizer shim) instead embed a specific release like
 `drop ... in 1.0`, and the `LEGACY-trafficpolicy-*` tags embed `drop in
 cleanup release`. Either form is a valid `git grep` target. The sentinel
 exists so each cleanup release is a single, auditable sweep rather than
@@ -204,6 +209,7 @@ Current sentinel tags:
   paying two dual-read cycles.
 - `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
 - `LEGACY-enabledfeatures-format` — `KubernetesOperator.status.enabledFeatures` comma-separated **string** → `[]string` (a field *type* change on an operator-only, operator-written status field; same `json:` tag).
+- `LEGACY-values-layout` — Helm values moved in the 0.25 layout. `templates/_legacy-values.tpl` fails the render when an old top-level key is set, naming its new path, so old values are never silently ignored. Delete the file, its include and the tagged tests once 0.25 is the oldest release users upgrade from.
 
 ## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
 
@@ -274,13 +280,21 @@ and the precise code touched at each step.
   - `setComputedURLAnnotation`: drop the legacy write and the legacy
     comparison; add
     `delete(a, annotations.LegacyComputedURLAnnotation)` so existing
-    Services shed the legacy key on next reconcile.
+    Services shed the legacy key on next reconcile. The early return also
+    gains a `hadLegacy` guard — without it a Service whose new-prefix value
+    is already correct returns before reaching the delete and keeps its
+    legacy key forever.
   - **Keep** the legacy fallback read in `ExtractComputedURL`.
   - **Keep** the legacy delete in `clearComputedURLAnnotation` (no harm).
 - **R3 — read-side cleanup:** drop the
   `LegacyComputedURLAnnotation` const, the legacy fallback branch in
-  `ExtractComputedURL`, and the legacy delete in
-  `clearComputedURLAnnotation`.
+  `ExtractComputedURL`, the legacy delete in
+  `clearComputedURLAnnotation`, and — in `setComputedURLAnnotation` — the
+  `hadLegacy` read, the `&& !hadLegacy` clause, and the R2-added delete.
+  Those three sit in one function but are not contiguous (the lines between
+  them survive), so they carry two separate line markers rather than one
+  `BEGIN` / `END` block; see the note on non-contiguous regions under
+  [`LEGACY-*` sentinels](#legacy--sentinels).
 
 ### Bindings labels on Services owned by BoundEndpoint (operator-written)
 
@@ -312,7 +326,7 @@ and the precise code touched at each step.
   - `RemoveFinalizer` removes both (already implemented).
   - Update the doc comments on `AddFinalizer` and on the package to make
     clear this is R1 of the three-release pattern.
-- **R2 (0.25):** `AddFinalizer` switches to adding `FinalizerName` and
+- **R2 (0.25, #872):** `AddFinalizer` switches to adding `FinalizerName` and
   removing `LegacyFinalizerName`. `HasFinalizer` and `RemoveFinalizer`
   unchanged (still bridge both).
 - **R3 cleanup (0.26):** delete `LegacyFinalizerName`, the legacy branches
@@ -338,29 +352,6 @@ A few alternatives were considered and rejected:
 If you find yourself adding a new finalizer rename, follow the
 three-release pattern above; there is no two-release shortcut that
 preserves rollback safety.
-
-### IngressClass `spec.controller` (rollout-race deferral)
-
-- **Pattern:** Helm-rendered manifest deferred to cleanup release.
-- **R1 (0.24):**
-  - Operator binary: `internal/store/store.go::ListNgrokIngressClassesV1`
-    dual-matches whenever `controllerName` equals either stock default
-    (legacy `k8s.ngrok.com/ingress-controller` or new
-    `ngrok.com/ingress-controller`). Custom controller names retain
-    exact-match for multi-instance isolation. The Go code cannot
-    distinguish "default" from "explicitly set to the default value",
-    so both stock defaults are treated symmetrically; nobody sets the
-    legacy default explicitly to mean "exact-match legacy only".
-  - CLI flag default in `cmd/api-manager.go` flips to the new prefix.
-  - Helm chart **stays on legacy**: `helm/ngrok-operator/values.yaml`
-    `ingress.controllerName` remains `k8s.ngrok.com/ingress-controller`;
-    `values.schema.json` default matches; `README.md` table matches;
-    `tests/__snapshot__/ingress-class_test.yaml.snap` shows the legacy
-    controller. The helm `CHANGELOG.md` notes that the *default will
-    change in 0.25*, not that it does now.
-- **R2 (0.25):** flip the helm-rendered IngressClass to the new prefix.
-  At this point no pre-migration operator pod can observe the change.
-- **R3 cleanup:** drop the dual-match branch in `store.go`.
 
 ## Per-shim catalog: CloudEndpoint traffic policy field renames
 
@@ -486,12 +477,11 @@ concept during the migration window and let the controller resolve either.
 ### `ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy` → `ngrok.com/v1 TrafficPolicy`
 
 - **Pattern:** Two-release (deprecated kind + group, both change together
-  in one dual-CRD migration; see the analysis in
-  [`docs/superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md`](../superpowers/plans/2026-08-12-trafficpolicy-kind-migration-analysis.md)
-  §"Interaction with the `ngrok.com/v1` group move" for why kind + group
-  are folded into one sentinel rather than staged).
+  in one dual-CRD migration; see
+  [Why we don't shortcut](#why-we-dont-shortcut-the-trafficpolicy-kind--group-migration)
+  for why kind + group are folded into one sentinel rather than staged).
   Tag: `LEGACY-trafficpolicy-kind`.
-- **R1 — migration release:**
+- **R1 — migration release (0.25, #875):**
   - Two CRDs ship: canonical `trafficpolicies.ngrok.com` (`api/ngrok/v1`)
     and deprecated `ngroktrafficpolicies.ngrok.k8s.ngrok.com`
     (`api/ngrok/v1alpha1`). Spec is byte-compatible so a user migration
@@ -633,8 +623,11 @@ A few alternatives were considered and rejected:
   fallback infrastructure twice on the same conceptual resource. The
   intermediate state also has three shapes (`TP@old + NTP@old + TP@new`)
   in the release where the second migration overlaps the first cleanup,
-  which is a materially harder debugging surface. See the analysis doc
-  for the sequencing argument.
+  which is a materially harder debugging surface. A v1alpha1-only rename
+  also bought users nothing functional (same schema, same behavior), so
+  paying for it separately was all cost. The first cut of the rename
+  (`84c12924`) was a hard, non-passive rename at v1alpha1; it was reworked
+  into this single dual-CRD migration before it shipped.
 - **Operator-driven backfill copies legacy CRs into canonical CRs at
   R1.** Rejected because it creates duplicate storage rows that diverge
   on status (each CRD has its own status subresource) and mutates user
@@ -729,10 +722,10 @@ operator only reads spec, so there is nothing to dual-write.
   - `internal/controller/ingress/domain_controller.go` reads via
     `domain.Spec.GetResolvesTo()` at both call sites, never the fields
     directly.
-- **Cleanup release:** delete the `ResolvesToLegacy` field and the fallback
-  in `GetResolvesTo` (collapse to `return s.ResolvesTo`). `resolves_to` is
-  brand-new in 0.24, so the break window is small; still noted in the
-  user-facing migration guide.
+- **Cleanup release (0.25, #873):** deleted the `ResolvesToLegacy` field and
+  the fallback in `GetResolvesTo` (collapsed to `return s.ResolvesTo`).
+  `resolves_to` was brand-new in 0.24, so the break window is small; listed
+  as a required pre-upgrade step in the 0.25 upgrade guide.
 
 ### Note: `BoundEndpoint.spec.endpointURI` → `endpointURL` (removed)
 

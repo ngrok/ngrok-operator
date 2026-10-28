@@ -86,6 +86,32 @@ func createReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Doma
 	}
 }
 
+// createWildcardCoveredDomain builds a Domain whose ngrok reservation was
+// skipped because a wildcard parent already covers it: status.ID is empty on
+// purpose, and coveredByWildcardDomain names the covering wildcard.
+func createWildcardCoveredDomain(name, namespace, domainName, wildcard string) *ingressv1alpha1.Domain {
+	return &ingressv1alpha1.Domain{
+		Name:      name,
+		Namespace: namespace,
+		Spec: ingressv1alpha1.DomainSpec{
+			Domain: domainName,
+		},
+		Status: ingressv1alpha1.DomainStatus{
+			ID:                      "",
+			Domain:                  domainName,
+			CoveredByWildcardDomain: &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard},
+			Conditions: []metav1.Condition{
+				{
+					Type:    "Ready",
+					Status:  metav1.ConditionTrue,
+					Reason:  "CoveredByWildcardDomain",
+					Message: "Domain ready for use (covered by wildcard domain " + wildcard + ")",
+				},
+			},
+		},
+	}
+}
+
 func createNotReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Domain {
 	return &ingressv1alpha1.Domain{
 		Name:      name,
@@ -147,10 +173,7 @@ func assertDomainLabels(t *testing.T, c client.Client, name, namespace string, e
 	t.Helper()
 	var domain ingressv1alpha1.Domain
 	require.NoError(t, c.Get(t.Context(), types.NamespacedName{Name: name, Namespace: namespace}, &domain))
-	domainLabels := domain.GetLabels()
-	for k, v := range expectedLabels {
-		assert.Equal(t, v, domainLabels[k])
-	}
+	assert.Equal(t, expectedLabels, domain.GetLabels())
 }
 
 // Tests
@@ -308,9 +331,6 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 	assertDomainLabels(t, c, "example-com", "default", map[string]string{
 		labels.ControllerNamespace: "test-namespace",
 		labels.ControllerName:      "test-controller",
-		// LEGACY-PREFIX-MIGRATION: new domains are dual-stamped with the legacy pair.
-		labels.LegacyControllerNamespace: "test-namespace",
-		labels.LegacyControllerName:      "test-controller",
 	})
 }
 
@@ -621,34 +641,33 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 			name:           "adds labels to domain without labels",
 			existingLabels: nil,
 			wantLabels: map[string]string{
-				labels.ControllerNamespace:       "test-namespace",
-				labels.ControllerName:            "test-controller",
-				labels.LegacyControllerNamespace: "test-namespace",
-				labels.LegacyControllerName:      "test-controller",
+				labels.ControllerNamespace: "test-namespace",
+				labels.ControllerName:      "test-controller",
 			},
 		},
 		{
-			// LEGACY-PREFIX-MIGRATION: a domain stamped with only the new pair
-			// (e.g. by a partially-migrated operator) must get the legacy pair
-			// backfilled. The clone-and-probe detects the missing legacy keys
-			// because EnsureLabels would change the copy.
-			name: "backfills legacy pair when only new pair present",
+			// LEGACY-PREFIX-MIGRATION (write-side cleanup): a domain stamped
+			// with the legacy pair by a pre-migration operator must shed it on
+			// next reconcile. The clone-and-probe detects the stray legacy
+			// keys because EnsureLabels would change the copy.
+			name: "removes legacy pair when present",
 			existingLabels: map[string]string{
-				labels.ControllerNamespace: "test-namespace",
-				labels.ControllerName:      "test-controller",
-				"custom-label":             "custom-value",
-			},
-			wantLabels: map[string]string{
 				labels.ControllerNamespace:       "test-namespace",
 				labels.ControllerName:            "test-controller",
 				labels.LegacyControllerNamespace: "test-namespace",
 				labels.LegacyControllerName:      "test-controller",
 				"custom-label":                   "custom-value",
 			},
+			wantLabels: map[string]string{
+				labels.ControllerNamespace: "test-namespace",
+				labels.ControllerName:      "test-controller",
+				"custom-label":             "custom-value",
+			},
 		},
 		{
 			// The clone-and-probe checks label values, not just presence, so a
-			// controller label carrying a stale value gets corrected on reconcile.
+			// controller label carrying a stale value gets corrected on
+			// reconcile, and the legacy pair is removed at the same time.
 			name: "corrects stale controller label value",
 			existingLabels: map[string]string{
 				labels.ControllerNamespace:       "test-namespace",
@@ -657,10 +676,8 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 				labels.LegacyControllerName:      "stale-controller",
 			},
 			wantLabels: map[string]string{
-				labels.ControllerNamespace:       "test-namespace",
-				labels.ControllerName:            "test-controller",
-				labels.LegacyControllerNamespace: "test-namespace",
-				labels.LegacyControllerName:      "test-controller",
+				labels.ControllerNamespace: "test-namespace",
+				labels.ControllerName:      "test-controller",
 			},
 		},
 		{
@@ -669,11 +686,9 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 				"custom-label": "custom-value",
 			},
 			wantLabels: map[string]string{
-				labels.ControllerNamespace:       "test-namespace",
-				labels.ControllerName:            "test-controller",
-				labels.LegacyControllerNamespace: "test-namespace",
-				labels.LegacyControllerName:      "test-controller",
-				"custom-label":                   "custom-value",
+				labels.ControllerNamespace: "test-namespace",
+				labels.ControllerName:      "test-controller",
+				"custom-label":             "custom-value",
 			},
 		},
 	}
@@ -695,4 +710,60 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 			assertDomainLabels(t, c, "example-com", "default", tt.wantLabels)
 		})
 	}
+}
+
+// TestEnsureDomainExists_WildcardCoveredDomainIsReady is the single test that
+// proves the CloudEndpoint, AgentEndpoint and Service paths all unblock for a
+// wildcard-covered domain: cloudendpoint_controller.go and
+// agent_endpoint_controller.go both gate on DomainResult.RequeueError().
+func TestEnsureDomainExists_WildcardCoveredDomainIsReady(t *testing.T) {
+	covered := createWildcardCoveredDomain("a-example-com", "test-namespace", "a.example.com", "*.example.com")
+	m, _ := newTestManager(t, covered)
+	endpoint := createTestEndpoint("test-endpoint", "test-namespace", "https://a.example.com")
+
+	result, err := m.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.True(t, result.IsReady, "a wildcard-covered domain must be usable")
+	assert.Equal(t, "CoveredByWildcardDomain", result.ReadyReason)
+	assert.NoError(t, result.RequeueError(), "endpoints must not requeue on a covered domain")
+
+	// The endpoint still needs its domainRef: the Service controller clears
+	// LoadBalancer status for tls:// endpoints when domainRef is nil.
+	assertDomainRef(t, endpoint, "a-example-com", "test-namespace")
+	assertDomainCondition(t, endpoint, metav1.ConditionTrue, "covered by wildcard domain *.example.com")
+}
+
+// The manager creates a Domain for the exact hostname only. Deciding whether a
+// wildcard covers it belongs entirely to the Domain reconciler, which is what
+// keeps the behavior consistent across all five entry points.
+func TestEnsureDomainExists_DoesNotCreateWildcardParent(t *testing.T) {
+	m, c := newTestManager(t)
+	endpoint := createTestEndpoint("test-endpoint", "test-namespace", "https://a.example.com")
+
+	_, err := m.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+
+	domains := &ingressv1alpha1.DomainList{}
+	require.NoError(t, c.List(t.Context(), domains))
+	require.Len(t, domains.Items, 1)
+	assert.Equal(t, "a.example.com", domains.Items[0].Spec.Domain)
+	assert.Equal(t, "a-example-com", domains.Items[0].Name)
+}
+
+// A wildcard hostname on the endpoint itself must survive URL parsing and
+// produce a Domain named via HyphenatedDomainNameFromURL.
+func TestEnsureDomainExists_WildcardEndpointURL(t *testing.T) {
+	m, c := newTestManager(t)
+	endpoint := createTestEndpoint("test-endpoint", "test-namespace", "https://*.example.com")
+
+	_, err := m.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+
+	domains := &ingressv1alpha1.DomainList{}
+	require.NoError(t, c.List(t.Context(), domains))
+	require.Len(t, domains.Items, 1)
+	assert.Equal(t, "*.example.com", domains.Items[0].Spec.Domain)
+	assert.Equal(t, "wildcard-example-com", domains.Items[0].Name)
 }

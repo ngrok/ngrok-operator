@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: domains.ingress.k8s.ngrok.com
 spec:
   group: ingress.k8s.ngrok.com
@@ -39,6 +39,11 @@ spec:
       jsonPath: .status.cnameTarget
       name: CNAME Target
       priority: 2
+      type: string
+    - description: Wildcard domain covering this domain
+      jsonPath: .status.coveredByWildcardDomain.domain
+      name: Wildcard
+      priority: 1
       type: string
     - description: Ready Reason
       jsonPath: .status.conditions[?(@.type=='Ready')].reason
@@ -101,7 +106,7 @@ spec:
                   Metadata is arbitrary key/value data associated with the object in the
                   ngrok API/Dashboard. A raw JSON string is also accepted for backward
                   compatibility and is deprecated; use a map of string values instead.
-                  The ngrokMetadata Helm value is not merged into this field.
+                  The ngrok.metadata Helm value is not merged into this field.
                 x-kubernetes-preserve-unknown-fields: true
               reclaimPolicy:
                 default: Delete
@@ -111,21 +116,6 @@ spec:
                 - Delete
                 - Retain
                 type: string
-              resolves_to:
-                description: 'Deprecated: use resolvesTo instead. Will be removed
-                  in a future release.'
-                items:
-                  description: DomainResolvesToEntry contains a resolving target for
-                    this domain
-                  properties:
-                    value:
-                      description: Value is a point-of-presence alias, an IP address
-                        (coming soon), or an IP group alias (coming soon)
-                      type: string
-                  required:
-                  - value
-                  type: object
-                type: array
               resolvesTo:
                 description: ResolvesTo is the list of resolving targets for the domain
                 items:
@@ -269,8 +259,34 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              coveredByWildcardDomain:
+                description: |-
+                  CoveredByWildcardDomain is the wildcard reservation that already serves
+                  this hostname, e.g. "*.example.com" for "a.example.com". When set, the
+                  operator intentionally did not reserve this domain in the ngrok API
+                  because the wildcard's DNS record and certificate already cover it. It is
+                  unset when this Domain is not covered by a wildcard.
+
+                  status.id stays empty in this case: it is the handle the operator would
+                  delete, and the wildcard reservation is shared with every other subdomain
+                  under it. The wildcard's own ID is recorded here instead.
+                properties:
+                  domain:
+                    description: Domain is the wildcard domain name, e.g. "*.example.com"
+                    type: string
+                  id:
+                    description: ID is the unique identifier of the wildcard reservation
+                    type: string
+                required:
+                - domain
+                - id
+                type: object
               domain:
-                description: Domain is the domain that was reserved
+                description: |-
+                  Domain is the hostname this Domain represents. It is the reserved domain
+                  when the operator holds a reservation for it, and this Domain's own
+                  hostname (never the wildcard's) when it is covered by a wildcard
+                  reservation; see coveredByWildcardDomain.
                 type: string
               id:
                 description: ID is the unique identifier of the domain
@@ -297,6 +313,10 @@ spec:
                   type: object
                 type: array
             type: object
+            x-kubernetes-validations:
+            - message: status.id and status.coveredByWildcardDomain cannot both be
+                set
+              rule: '!(has(self.id) && has(self.coveredByWildcardDomain))'
         type: object
     served: true
     storage: true

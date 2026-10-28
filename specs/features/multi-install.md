@@ -19,8 +19,7 @@ This prevents one operator from interfering with another's registration or drain
 
 Each deployment has its own leader election lease:
 
-- Default lease name: `ngrok-operator-leader`
-- Configurable via `--election-id` flag
+- Lease name: `<fullname>-leader`, set by the chart with the `--election-id` flag
 - Different releases in different namespaces naturally isolate since leases are namespaced
 
 ### Drain State
@@ -35,8 +34,8 @@ Each operator instance maintains independent drain state:
 
 Each deployment MUST be scoped to watch different namespaces:
 
-- `features.ingress.watchNamespace` for the api-manager
-- `--watch-namespace` for the agent-manager
+- `ngrok.features.ingress.watchNamespace` for the api-manager
+- the same value for the agent-manager, which the chart passes it as `NGROK_OPERATOR__FEATURES__INGRESS__WATCH_NAMESPACE`
 - Scoping prevents resource conflicts between installations
 
 ## Deployment Model

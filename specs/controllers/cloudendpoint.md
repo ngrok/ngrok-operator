@@ -25,6 +25,11 @@ The CloudEndpoint controller reconciles `CloudEndpoint` resources by creating an
 - ngrok cloud endpoint (via ngrok API)
 - `Domain` CR (via DomainManager)
 
+A `Domain` whose reservation was skipped because a wildcard parent already
+covers it satisfies `DomainReady` like any other ready Domain, and the
+`CoveredByWildcardDomain` reason propagates onto the endpoint's condition. See
+[domain.md](domain.md#wildcard-domain-coverage).
+
 ## Status
 
 | Field        | Description                            |

@@ -19,7 +19,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -38,7 +37,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -50,6 +48,7 @@ import (
 	agentcontroller "github.com/ngrok/ngrok-operator/internal/controller/agent"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/drain"
+	"github.com/ngrok/ngrok-operator/internal/flags"
 	"github.com/ngrok/ngrok-operator/internal/healthcheck"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
@@ -69,15 +68,12 @@ func init() {
 }
 
 type agentManagerOpts struct {
+	flags.ManagerOptions
+
 	// flags
-	releaseName    string
-	metricsAddr    string
-	probeAddr      string
 	serverAddr     string
-	description    string
-	managerName    string
 	watchNamespace string
-	zapOpts        *zap.Options
+	log            *flags.LogOptions
 
 	// feature flags
 	enableFeatureIngress          bool
@@ -104,37 +100,34 @@ func agentCmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
-	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
-	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
-	// TODO(operator-rename): Same as above, but for the manager name.
-	c.Flags().StringVar(&opts.managerName, "manager-name", "agent-manager", "Manager name to identify unique ngrok operator agent instances")
-	c.Flags().StringVar(&opts.watchNamespace, "watch-namespace", "", "Namespace to watch for AgentEndpoint resources. Defaults to all namespaces.")
+	fs := c.Flags()
+	flags.Manager(fs, &opts.ManagerOptions, "agent-manager")
+	flags.IngressWatchNamespace(fs, &opts.watchNamespace)
 
 	// agent(tunnel driver) flags
-	c.Flags().StringVar(&opts.region, "region", "", "The region to use for ngrok tunnels")
-	c.Flags().StringVar(&opts.serverAddr, "server-addr", "", "The address of the ngrok server to use for tunnels")
-	c.Flags().StringVar(&opts.rootCAs, "root-cas", "trusted", "trusted (default) or host: use the trusted ngrok agent CA or the host CA")
+	flags.Region(fs, &opts.region)
+	flags.ServerAddr(fs, &opts.serverAddr)
+	flags.RootCAs(fs, &opts.rootCAs)
 
 	// feature flags
-	c.Flags().BoolVar(&opts.enableFeatureIngress, "enable-feature-ingress", true, "Enables the Ingress controller")
-	c.Flags().BoolVar(&opts.enableFeatureGateway, "enable-feature-gateway", true, "When true, enables support for Gateway API if the CRDs are detected. When false, Gateway API support will not be enabled")
-	c.Flags().BoolVar(&opts.disableGatewayReferenceGrants, "disable-reference-grants", false, "Opts-out of requiring ReferenceGrants for cross namespace references in Gateway API config")
-	c.Flags().BoolVar(&opts.enableFeatureBindings, "enable-feature-bindings", false, "Enables the Endpoint Bindings controller")
+	flags.IngressEnabled(fs, &opts.enableFeatureIngress)
+	flags.GatewayEnabled(fs, &opts.enableFeatureGateway)
+	flags.GatewayDisableReferenceGrants(fs, &opts.disableGatewayReferenceGrants)
+	flags.BindingsEnabled(fs, &opts.enableFeatureBindings)
+	flags.DefaultDomainReclaimPolicy(fs, &opts.defaultDomainReclaimPolicy)
 
-	c.Flags().StringVar(&opts.defaultDomainReclaimPolicy, "default-domain-reclaim-policy", string(ingressv1alpha1.DomainReclaimPolicyDelete), "The default domain reclaim policy to apply to created domains")
-
-	opts.zapOpts = &zap.Options{}
-	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
-	opts.zapOpts.BindFlags(goFlagSet)
-	c.Flags().AddGoFlagSet(goFlagSet)
+	opts.log = flags.Log(fs)
 
 	return c
 }
 
 func runAgentController(_ context.Context, opts agentManagerOpts) error {
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+	logger, err := opts.log.Logger()
+	if err != nil {
+		return err
+	}
+	ctrl.SetLogger(logger)
+	warnUnknownEnv()
 
 	defaultDomainReclaimPolicy, err := validateDomainReclaimPolicy(opts.defaultDomainReclaimPolicy)
 	if err != nil {
@@ -153,10 +146,10 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 	options := ctrl.Options{
 		Scheme: scheme,
 		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
+			BindAddress: opts.MetricsAddr,
 		},
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
+		HealthProbeBindAddress: opts.ProbeAddr,
 		LeaderElection:         false,
 
 		// The KubernetesOperator CR is a singleton owned by the operator and always
@@ -212,7 +205,7 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 	healthcheck.RegisterHealthChecker(ad)
 
 	// Create drain state checker - controller will use this to check if draining
-	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.releaseName)
+	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.ReleaseName)
 
 	if err = (&agentcontroller.AgentEndpointReconciler{
 		Client:                     mgr.GetClient(),
@@ -221,7 +214,7 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		Recorder:                   mgr.GetEventRecorder("agentendpoint-controller"),
 		AgentDriver:                ad,
 		DefaultDomainReclaimPolicy: defaultDomainReclaimPolicy,
-		ControllerLabels:           labels.NewControllerLabelValues(opts.namespace, opts.managerName),
+		ControllerLabels:           labels.NewControllerLabelValues(opts.namespace, opts.ManagerName),
 		DrainState:                 drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentEndpoint")

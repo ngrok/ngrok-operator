@@ -5,6 +5,7 @@ import (
 	"time"
 
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -264,7 +265,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
 
 						g.Expect(obj.Status.Parents).To(BeEmpty())
-						g.Expect(obj.Finalizers).NotTo(ContainElement("k8s.ngrok.com/finalizer"))
+						g.Expect(util.HasFinalizer(obj)).To(BeFalse())
 					}, duration, interval).Should(Succeed())
 				})
 			})
@@ -307,7 +308,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
 
 					g.Expect(obj.Status.Parents).To(BeEmpty())
-					g.Expect(obj.Finalizers).NotTo(ContainElement("k8s.ngrok.com/finalizer"))
+					g.Expect(util.HasFinalizer(obj)).To(BeFalse())
 				}, duration, interval).Should(Succeed())
 			})
 		})
@@ -363,7 +364,7 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
 
 					// The ngrok controller must not add its finalizer to routes it does not own
-					g.Expect(obj.Finalizers).NotTo(ContainElement("k8s.ngrok.com/finalizer"))
+					g.Expect(util.HasFinalizer(obj)).To(BeFalse())
 
 					// The ngrok controller must not write any .status.parents entries for routes it does not own
 					for _, parent := range obj.Status.Parents {

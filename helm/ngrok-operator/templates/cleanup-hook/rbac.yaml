@@ -1,4 +1,4 @@
-{{- if .Values.cleanupHook.enabled }}
+{{- if .Values.ngrok.features.cleanup.enabled }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:

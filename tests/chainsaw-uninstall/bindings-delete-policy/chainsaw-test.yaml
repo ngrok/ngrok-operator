@@ -52,8 +52,7 @@ spec:
                 --create-namespace \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values.yaml \
-                --set credentials.apiKey=${NGROK_API_KEY} \
-                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --set ngrok.credentials.accessToken=${NGROK_ACCESS_TOKEN} \
                 --wait \
                 --timeout 2m
 
@@ -98,7 +97,7 @@ spec:
                 name: bound-endpoint-test
                 namespace: uninstall-test
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
               status:
                 (id != null): true
 

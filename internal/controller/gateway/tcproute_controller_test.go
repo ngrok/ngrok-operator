@@ -28,6 +28,7 @@ import (
 	"time"
 
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/ptr"
@@ -94,7 +95,7 @@ var _ = Describe("TCPRoute controller", Ordered, func() {
 				Eventually(func(g Gomega) {
 					obj := &gatewayv1alpha2.TCPRoute{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
-					g.Expect(obj.Finalizers).To(ContainElement("k8s.ngrok.com/finalizer"))
+					g.Expect(obj.Finalizers).To(ContainElement(util.FinalizerName))
 
 					routes := driver.GetStore().ListTCPRoutes()
 					g.Expect(routes).To(HaveLen(1))
@@ -166,7 +167,7 @@ var _ = Describe("TCPRoute controller", Ordered, func() {
 				Consistently(func(g Gomega) {
 					obj := &gatewayv1alpha2.TCPRoute{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
-					g.Expect(obj.Finalizers).NotTo(ContainElement("k8s.ngrok.com/finalizer"))
+					g.Expect(util.HasFinalizer(obj)).To(BeFalse())
 
 					routes := driver.GetStore().ListTCPRoutes()
 					g.Expect(routes).To(BeEmpty())

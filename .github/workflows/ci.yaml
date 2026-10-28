@@ -42,6 +42,7 @@ jobs:
       go-changed: ${{ needs.changes.outputs.go == 'true' }}
       make-changed: ${{ needs.changes.outputs.make == 'true' }}
       nix-changed: ${{ needs.changes.outputs.nix == 'true' }}
+      charts-changed: ${{ needs.changes.outputs.charts == 'true' }}
 
   manifest-bundle-diff:
     name: Manifest Bundle Diff
@@ -79,10 +80,10 @@ jobs:
       with:
         persist-credentials: false
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
     - id: buildx-setup
       name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       with:
         platforms: ${{ env.DOCKER_BUILDX_PLATFORMS }}
     - name: Setup Nix
@@ -92,7 +93,7 @@ jobs:
     - name: Build binaries
       run: make image-binaries IMAGE_PLATFORMS=${{ env.DOCKER_BUILDX_PLATFORMS }}
     - name: Build
-      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       with:
         context: .
         platforms: ${{ steps.buildx-setup.outputs.platforms }}
@@ -190,8 +191,7 @@ jobs:
     - uses: "./.github/actions/build-and-test"
       with:
         run-e2e: true
-        ngrok-api-key: ${{ secrets.NGROK_CI_API_KEY }}
-        ngrok-authtoken: ${{ secrets.NGROK_CI_AUTHTOKEN }}
+        ngrok-access-token: ${{ secrets.NGROK_CI_ACCESS_TOKEN }}
 
   e2e-multi-namespace:
     runs-on: ubuntu-latest
@@ -229,8 +229,7 @@ jobs:
     - name: Deploy
       run: make deploy_multi_namespace
       env:
-        NGROK_API_KEY: ${{ secrets.NGROK_CI_API_KEY }}
-        NGROK_AUTHTOKEN: ${{ secrets.NGROK_CI_AUTHTOKEN }}
+        NGROK_ACCESS_TOKEN: ${{ secrets.NGROK_CI_ACCESS_TOKEN }}
     - name: Test
       run: make e2e-tests-multi-ns
     - name: Cleanup
@@ -278,8 +277,7 @@ jobs:
       run: make kind-create
     - name: Run Uninstall E2E Tests
       env:
-        NGROK_API_KEY: ${{ secrets.NGROK_CI_API_KEY }}
-        NGROK_AUTHTOKEN: ${{ secrets.NGROK_CI_AUTHTOKEN }}
+        NGROK_ACCESS_TOKEN: ${{ secrets.NGROK_CI_ACCESS_TOKEN }}
       run: make e2e-uninstall-all
     - name: Cleanup
       if: always()

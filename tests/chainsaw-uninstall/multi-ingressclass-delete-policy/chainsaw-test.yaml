@@ -72,8 +72,7 @@ spec:
                 --namespace namespace-a \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values-operator-a.yaml \
-                --set credentials.apiKey=${NGROK_API_KEY} \
-                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --set ngrok.credentials.accessToken=${NGROK_ACCESS_TOKEN} \
                 --wait --timeout 2m
 
     - name: deploy operator-b (watches namespace-b, ingress class ngrok-b)
@@ -86,8 +85,7 @@ spec:
                 --namespace namespace-b \
                 --values ../_fixtures/values-base.yaml \
                 --values ./values-operator-b.yaml \
-                --set credentials.apiKey=${NGROK_API_KEY} \
-                --set credentials.authtoken=${NGROK_AUTHTOKEN} \
+                --set ngrok.credentials.accessToken=${NGROK_ACCESS_TOKEN} \
                 --wait --timeout 2m
 
     - name: wait for both KubernetesOperators to be registered
@@ -154,7 +152,7 @@ spec:
                 name: uninstall-test-ingress-a
                 namespace: namespace-a
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
         - assert:
             timeout: 2m
             resource:
@@ -164,7 +162,7 @@ spec:
                 name: uninstall-test-ingress-b
                 namespace: namespace-b
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
 
     - name: verify Ingresses created CloudEndpoints and AgentEndpoints
       try:
@@ -282,7 +280,7 @@ spec:
                 name: uninstall-test-ingress-b
                 namespace: namespace-b
                 finalizers:
-                  - k8s.ngrok.com/finalizer
+                  - ngrok.com/finalizer
 
     - name: verify operator-b's endpoint STILL EXISTS in ngrok API
       try:

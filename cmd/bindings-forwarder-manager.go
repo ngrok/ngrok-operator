@@ -19,7 +19,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 
@@ -39,7 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -48,6 +46,7 @@ import (
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	bindingscontroller "github.com/ngrok/ngrok-operator/internal/controller/bindings"
 	"github.com/ngrok/ngrok-operator/internal/drain"
+	"github.com/ngrok/ngrok-operator/internal/flags"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
@@ -64,13 +63,9 @@ func init() {
 }
 
 type bindingsForwarderManagerOpts struct {
-	// flags
-	releaseName string
-	metricsAddr string
-	probeAddr   string
-	description string
-	managerName string
-	zapOpts     *zap.Options
+	flags.ManagerOptions
+
+	log *flags.LogOptions
 
 	// env vars
 	namespace string
@@ -85,22 +80,19 @@ func bindingsForwarderCmd() *cobra.Command {
 		},
 	}
 
-	c.Flags().StringVar(&opts.releaseName, "release-name", "ngrok-operator", "Helm Release name for the deployed operator")
-	c.Flags().StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to")
-	c.Flags().StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	c.Flags().StringVar(&opts.description, "description", "Created by the ngrok-operator", "Description for this installation")
-	c.Flags().StringVar(&opts.managerName, "manager-name", "bindings-forwarder-manager", "Manager name to identify unique ngrok operator agent instances")
-
-	opts.zapOpts = &zap.Options{}
-	goFlagSet := flag.NewFlagSet("manager", flag.ContinueOnError)
-	opts.zapOpts.BindFlags(goFlagSet)
-	c.Flags().AddGoFlagSet(goFlagSet)
+	flags.Manager(c.Flags(), &opts.ManagerOptions, "bindings-forwarder-manager")
+	opts.log = flags.Log(c.Flags())
 
 	return c
 }
 
 func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(opts.zapOpts)))
+	logger, err := opts.log.Logger()
+	if err != nil {
+		return err
+	}
+	ctrl.SetLogger(logger)
+	warnUnknownEnv()
 
 	buildInfo := version.Get()
 	setupLog.Info("starting bindings-forwarder-manager", "version", buildInfo.Version, "commit", buildInfo.GitCommit)
@@ -122,10 +114,10 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 			},
 		},
 		Metrics: server.Options{
-			BindAddress: opts.metricsAddr,
+			BindAddress: opts.MetricsAddr,
 		},
 		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
-		HealthProbeBindAddress: opts.probeAddr,
+		HealthProbeBindAddress: opts.ProbeAddr,
 		LeaderElection:         false,
 	}
 
@@ -144,7 +136,7 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 	}
 
 	// Create drain state checker - controller will use this to check if draining
-	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.releaseName)
+	drainState := drain.NewStateChecker(mgr.GetClient(), opts.namespace, opts.ReleaseName)
 
 	if err = (&bindingscontroller.ForwarderReconciler{
 		Client:                 mgr.GetClient(),
@@ -152,7 +144,7 @@ func runController(_ context.Context, opts bindingsForwarderManagerOpts) error {
 		Scheme:                 mgr.GetScheme(),
 		Recorder:               mgr.GetEventRecorder("bindings-forwarder-controller"),
 		BindingsDriver:         bd,
-		KubernetesOperatorName: opts.releaseName,
+		KubernetesOperatorName: opts.ReleaseName,
 		RootCAs:                certPool,
 		DrainState:             drainState,
 	}).SetupWithManager(mgr); err != nil {
