@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 )
@@ -47,7 +48,7 @@ func ippolicyResourceCases() map[string]IPPolicyResource {
 				Description: "test policy",
 				Metadata:    map[string]string{"owned-by": "ngrok-operator"},
 				Rules: []ngrokv1.IPPolicyRule{
-					{CIDR: "10.0.0.0/8", Action: "allow"},
+					{CIDR: "10.0.0.0/8", Action: "allow", Metadata: map[string]string{"team": "edge"}},
 				},
 			},
 			Status: ngrokv1.IPPolicyStatus{ID: "ipp_123"},
@@ -58,7 +59,7 @@ func ippolicyResourceCases() map[string]IPPolicyResource {
 				Description: "test policy",
 				Metadata:    json.RawMessage(`{"owned-by":"ngrok-operator"}`),
 				Rules: []ingressv1alpha1.IPPolicyRule{
-					{CIDR: "10.0.0.0/8", Action: "allow"},
+					{CIDR: "10.0.0.0/8", Action: "allow", Metadata: json.RawMessage(`{"team":"edge"}`)},
 				},
 			},
 			Status: ingressv1alpha1.IPPolicyStatus{ID: "ipp_123"},
@@ -73,11 +74,14 @@ func TestIPPolicyResource_Accessors(t *testing.T) {
 	for name, res := range ippolicyResourceCases() {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, "test policy", res.GetDescription())
-			assert.Equal(t, map[string]string{"owned-by": "ngrok-operator"}, res.GetMetadata())
+			assert.Equal(t, `{"owned-by":"ngrok-operator"}`, res.GetMetadataAPIString())
 
-			rulesJSON, err := res.GetRulesJSON()
+			rules, err := DecodeRules(res)
 			require.NoError(t, err)
-			assert.JSONEq(t, `[{"cidr":"10.0.0.0/8","action":"allow"}]`, string(rulesJSON))
+			require.Len(t, rules, 1)
+			assert.Equal(t, "10.0.0.0/8", rules[0].CIDR)
+			assert.Equal(t, "allow", rules[0].Action)
+			assert.Equal(t, `{"team":"edge"}`, rules[0].MetadataAPIString())
 
 			assert.Equal(t, "ipp_123", res.GetID())
 			res.SetID("ipp_456")
@@ -96,8 +100,46 @@ func TestIPPolicyResource_Accessors(t *testing.T) {
 				Message: "IP Policy is active",
 			})
 			assert.Len(t, *res.GetConditions(), 1, "GetConditions must return a pointer into the live status, not a copy")
+
+			res.ResetStatus()
+			assert.Empty(t, res.GetID())
+			assert.Empty(t, *res.GetConditions())
+			assert.Equal(t, int64(0), res.GetObservedGeneration())
 		})
 	}
+}
+
+// LEGACY-ippolicy-kind: delete this test at cleanup.
+//
+// The legacy kind must send the ngrok API exactly what the operator has
+// always sent, including metadata that isn't a flat string map; otherwise
+// upgrading would overwrite users' existing remote metadata.
+func TestLegacyIPPolicy_MetadataAPIStringPassthrough(t *testing.T) {
+	cases := map[string]string{
+		"object form":      `{"owned-by":"ngrok-operator"}`,
+		"legacy string":    `"{\"owned-by\":\"ngrok-operator\"}"`,
+		"free-text string": `"some free text"`,
+		"non-string value": `{"a":1}`,
+	}
+	for name, raw := range cases {
+		t.Run(name, func(t *testing.T) {
+			p := &ingressv1alpha1.IPPolicy{Spec: ingressv1alpha1.IPPolicySpec{Metadata: json.RawMessage(raw)}}
+			assert.Equal(t, common.MetadataAPIString(json.RawMessage(raw)), p.GetMetadataAPIString())
+
+			p.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "deny", Metadata: json.RawMessage(raw)}}
+			rules, err := DecodeRules(p)
+			require.NoError(t, err)
+			assert.Equal(t, common.MetadataAPIString(json.RawMessage(raw)), rules[0].MetadataAPIString())
+		})
+	}
+}
+
+// Both kinds must encode equivalent metadata to the same API string, or
+// adopting a legacy policy would trigger a spurious remote update.
+func TestMetadataAPIString_SameAcrossKinds(t *testing.T) {
+	canonical := &ngrokv1.IPPolicy{Spec: ngrokv1.IPPolicySpec{Metadata: map[string]string{"zeta": "1", "alpha": "2"}}}
+	legacy := &ingressv1alpha1.IPPolicy{Spec: ingressv1alpha1.IPPolicySpec{Metadata: json.RawMessage(`{"zeta":"1","alpha":"2"}`)}}
+	assert.Equal(t, canonical.GetMetadataAPIString(), legacy.GetMetadataAPIString())
 }
 
 // newIPPolicyResource allocates a fresh, empty instance of kind T the same

@@ -63,17 +63,16 @@ type IPPolicyResource interface {
 	// GetDescription returns the human-readable description from the spec.
 	GetDescription() string
 
-	// GetMetadata returns the spec metadata as key/value pairs, or nil if
-	// unset. Kinds that store metadata in another form (e.g. the legacy
-	// JSON-string form) must normalize it to a map here.
-	GetMetadata() map[string]string
+	// GetMetadataAPIString returns the spec metadata encoded as the string
+	// the ngrok API stores. This is the only form reconcilers send to, or
+	// compare with, the API, so each kind keeps exactly the encoding the
+	// operator has always produced for it.
+	GetMetadataAPIString() string
 
 	// GetRulesJSON returns the spec rules re-encoded as JSON. Both kinds
-	// declare byte-compatible IPPolicyRule schemas (identical field names and
-	// validation), but as distinct Go types, so JSON is the kind-agnostic
-	// wire format generic callers decode into whatever shape they need,
-	// mirroring how TrafficPolicyResource.GetPolicy exposes its schemaless
-	// spec.
+	// declare IPPolicyRule types with the same field names, but as distinct
+	// Go types, so JSON is the kind-agnostic wire format. Use DecodeRules
+	// rather than decoding it by hand.
 	GetRulesJSON() (json.RawMessage, error)
 
 	// GetID returns the ngrok API ID assigned to this policy, if any.
@@ -91,6 +90,10 @@ type IPPolicyResource interface {
 
 	// SetObservedGeneration records the generation just reconciled.
 	SetObservedGeneration(int64)
+
+	// ResetStatus clears the whole status (ID, conditions, observed
+	// generation) so the next reconcile recreates the remote policy.
+	ResetStatus()
 }
 
 // IPPolicyResourcePtr constrains PT to *T where *T is an IPPolicyResource.

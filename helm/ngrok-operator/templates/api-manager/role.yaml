@@ -237,6 +237,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-ippolicy-kind: BEGIN — drop these three rule blocks at cleanup.
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
@@ -263,6 +264,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-ippolicy-kind: END
 # --- bindings.k8s.ngrok.com ---
 # BoundEndpoint rules require a ClusterRole (the binding poller reconciles
 # BoundEndpoints and creates Services in any namespace, independent of
@@ -374,6 +376,35 @@ rules:
   - ngrok.com
   resources:
   - trafficpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+# Canonical ngrok.com/v1 IPPolicy rules. Same verbs as the legacy
+# ingress.k8s.ngrok.com ippolicies blocks above: the api-manager owns these
+# objects' finalizers and status, and manages the remote policy they describe.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies/status
   verbs:
   - get
   - patch

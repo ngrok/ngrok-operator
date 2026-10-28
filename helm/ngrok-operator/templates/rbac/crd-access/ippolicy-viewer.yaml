@@ -12,6 +12,21 @@ metadata:
   {{- end }}
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies/status
+  verbs:
+  - get
+# LEGACY-ippolicy-kind: BEGIN — drop these two rule blocks at cleanup.
+- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - ippolicies
@@ -25,4 +40,5 @@ rules:
   - ippolicies/status
   verbs:
   - get
+# LEGACY-ippolicy-kind: END
 {{- end }}
