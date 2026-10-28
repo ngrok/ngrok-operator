@@ -1,15 +1,19 @@
-package ingress
+package ngrok
 
 import (
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/ippolicy"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -252,5 +256,176 @@ var _ = Describe("IPPolicy schema validation", func() {
 			Expect(err).To(HaveOccurred(), "expected CIDR %q to be rejected", cidr)
 			Expect(err.Error()).To(ContainSubstring("cidr"), "expected error for CIDR %q to mention the cidr field", cidr)
 		}
+	})
+})
+
+// LEGACY-ippolicy-kind: delete this Describe at cleanup, except the
+// "serves the canonical kind on its own" spec.
+var _ = Describe("IPPolicy migration", func() {
+	const (
+		timeout  = 10 * time.Second
+		interval = 250 * time.Millisecond
+	)
+
+	// Each spec gives its policies a unique description, so remote policies
+	// left behind by other specs don't affect the counts.
+	remotePoliciesWithDescription := func(ctx context.Context, desc string) []*ngrok.IPPolicy {
+		var out []*ngrok.IPPolicy
+		iter := ipPolicyClient.List(&ngrok.FilteredPaging{})
+		for iter.Next(ctx) {
+			if iter.Item().Description == desc {
+				out = append(out, iter.Item())
+			}
+		}
+		Expect(iter.Err()).NotTo(HaveOccurred())
+		return out
+	}
+
+	newLegacy := func(name, desc string) *ingressv1alpha1.IPPolicy {
+		return &ingressv1alpha1.IPPolicy{
+			Name: name, Namespace: "default",
+			Spec: ingressv1alpha1.IPPolicySpec{
+				Description: desc,
+				Rules:       []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "allow"}},
+			},
+		}
+	}
+
+	newV1 := func(name, desc string) *ngrokv1.IPPolicy {
+		return &ngrokv1.IPPolicy{
+			Name: name, Namespace: "default",
+			Spec: ngrokv1.IPPolicySpec{
+				Description: desc,
+				Rules:       []ngrokv1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "deny"}},
+			},
+		}
+	}
+
+	idOf := func(ctx context.Context, p ippolicy.IPPolicyResource) func(g Gomega) string {
+		return func(g Gomega) string {
+			obj := p.DeepCopyObject().(client.Object)
+			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(p), obj)).To(Succeed())
+			return obj.(ippolicy.IPPolicyResource).GetID()
+		}
+	}
+
+	readyReason := func(ctx context.Context, p ippolicy.IPPolicyResource) func(g Gomega) string {
+		return func(g Gomega) string {
+			obj := p.DeepCopyObject().(client.Object)
+			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(p), obj)).To(Succeed())
+			c := meta.FindStatusCondition(*obj.(ippolicy.IPPolicyResource).GetConditions(), ippolicy.ConditionIPPolicyReady)
+			g.Expect(c).NotTo(BeNil())
+			g.Expect(c.Status).To(Equal(metav1.ConditionTrue))
+			return c.Reason
+		}
+	}
+
+	ruleActions := func(id string) func() []string {
+		return func() []string {
+			var out []string
+			for _, r := range ipPolicyRuleClient.Items() {
+				if r.IPPolicy.ID == id {
+					out = append(out, r.Action)
+				}
+			}
+			return out
+		}
+	}
+
+	gone := func(ctx context.Context, obj client.Object) func() bool {
+		return func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj.DeepCopyObject().(client.Object)))
+		}
+	}
+
+	It("serves the canonical kind on its own", func(ctx SpecContext) {
+		v1 := newV1("mig-v1-only", "mig-v1-only")
+		Expect(k8sClient.Create(ctx, v1)).To(Succeed())
+
+		kginkgo.EventuallyIPPolicyHasCondition(ctx, v1, ippolicy.ConditionIPPolicyReady, metav1.ConditionTrue)
+		Eventually(idOf(ctx, v1), timeout, interval).ShouldNot(BeEmpty())
+		Expect(remotePoliciesWithDescription(ctx, "mig-v1-only")).To(HaveLen(1))
+
+		Expect(k8sClient.Delete(ctx, v1)).To(Succeed())
+		Eventually(gone(ctx, v1), timeout, interval).Should(BeTrue())
+		Eventually(func() int { return len(remotePoliciesWithDescription(ctx, "mig-v1-only")) }, timeout, interval).Should(BeZero())
+	})
+
+	It("adopts the legacy remote policy, then keeps it when the legacy object is deleted", func(ctx SpecContext) {
+		legacy := newLegacy("mig-adopt", "mig-adopt")
+		Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+		Eventually(idOf(ctx, legacy), timeout, interval).ShouldNot(BeEmpty())
+		legacyID := idOf(ctx, legacy)(Default)
+
+		By("applying the re-stamped v1 object")
+		v1 := newV1("mig-adopt", "mig-adopt")
+		Expect(k8sClient.Create(ctx, v1)).To(Succeed())
+
+		Eventually(idOf(ctx, v1), timeout, interval).Should(Equal(legacyID))
+		Eventually(readyReason(ctx, legacy), timeout, interval).Should(Equal(ippolicy.ReasonSupersededByV1))
+		Expect(remotePoliciesWithDescription(ctx, "mig-adopt")).To(HaveLen(1))
+
+		By("pushing the v1 spec to the shared remote policy")
+		Eventually(ruleActions(legacyID), timeout, interval).Should(ConsistOf("deny"))
+
+		By("deleting the legacy object")
+		Expect(k8sClient.Delete(ctx, legacy)).To(Succeed())
+		Eventually(gone(ctx, legacy), timeout, interval).Should(BeTrue())
+		Consistently(func() int { return len(remotePoliciesWithDescription(ctx, "mig-adopt")) }, 2*time.Second, interval).Should(Equal(1))
+		Expect(idOf(ctx, v1)(Default)).To(Equal(legacyID))
+	})
+
+	It("hands the remote policy back to legacy when the v1 object is deleted", func(ctx SpecContext) {
+		legacy := newLegacy("mig-handback", "mig-handback")
+		Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+		Eventually(idOf(ctx, legacy), timeout, interval).ShouldNot(BeEmpty())
+		id := idOf(ctx, legacy)(Default)
+
+		v1 := newV1("mig-handback", "mig-handback")
+		Expect(k8sClient.Create(ctx, v1)).To(Succeed())
+		Eventually(idOf(ctx, v1), timeout, interval).Should(Equal(id))
+		Eventually(ruleActions(id), timeout, interval).Should(ConsistOf("deny"))
+
+		Expect(k8sClient.Delete(ctx, v1)).To(Succeed())
+		Eventually(gone(ctx, v1), timeout, interval).Should(BeTrue())
+
+		By("the legacy object becoming the writer again and pushing its spec")
+		Eventually(readyReason(ctx, legacy), timeout, interval).Should(Equal(ippolicy.ReasonIPPolicyActive))
+		Eventually(ruleActions(id), timeout, interval).Should(ConsistOf("allow"))
+		Expect(idOf(ctx, legacy)(Default)).To(Equal(id))
+		Expect(remotePoliciesWithDescription(ctx, "mig-handback")).To(HaveLen(1))
+	})
+
+	It("keeps the remote policy when v1 is applied and legacy deleted back to back", func(ctx SpecContext) {
+		legacy := newLegacy("mig-race", "mig-race")
+		Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+		Eventually(idOf(ctx, legacy), timeout, interval).ShouldNot(BeEmpty())
+		id := idOf(ctx, legacy)(Default)
+
+		v1 := newV1("mig-race", "mig-race")
+		Expect(k8sClient.Create(ctx, v1)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, legacy)).To(Succeed())
+
+		Eventually(gone(ctx, legacy), timeout, interval).Should(BeTrue())
+		Eventually(idOf(ctx, v1), timeout, interval).Should(Equal(id))
+		Expect(remotePoliciesWithDescription(ctx, "mig-race")).To(HaveLen(1))
+	})
+
+	It("deletes the shared remote policy once both objects are gone", func(ctx SpecContext) {
+		legacy := newLegacy("mig-both-gone", "mig-both-gone")
+		Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+		Eventually(idOf(ctx, legacy), timeout, interval).ShouldNot(BeEmpty())
+		id := idOf(ctx, legacy)(Default)
+
+		v1 := newV1("mig-both-gone", "mig-both-gone")
+		Expect(k8sClient.Create(ctx, v1)).To(Succeed())
+		Eventually(idOf(ctx, v1), timeout, interval).Should(Equal(id))
+
+		Expect(k8sClient.Delete(ctx, legacy)).To(Succeed())
+		Eventually(gone(ctx, legacy), timeout, interval).Should(BeTrue())
+		Expect(k8sClient.Delete(ctx, v1)).To(Succeed())
+		Eventually(gone(ctx, v1), timeout, interval).Should(BeTrue())
+
+		Eventually(func() int { return len(remotePoliciesWithDescription(ctx, "mig-both-gone")) }, timeout, interval).Should(BeZero())
 	})
 })

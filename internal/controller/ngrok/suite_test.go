@@ -59,7 +59,9 @@ var (
 	cancel context.CancelFunc
 
 	// Mock clients for testing
-	mockClientset *nmockapi.Clientset
+	mockClientset      *nmockapi.Clientset
+	ipPolicyClient     *nmockapi.IPPolicyClient
+	ipPolicyRuleClient *nmockapi.IPPolicyRuleClient
 
 	kginkgo *testutils.KGinkgo
 )
@@ -166,6 +168,19 @@ var _ = BeforeSuite(func() {
 	}
 
 	err = koReconciler.SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	ipPolicyClient = nmockapi.NewIPPolicyClient()
+	ipPolicyRuleClient = nmockapi.NewIPPolicyRuleClient(ipPolicyClient)
+
+	err = (&IPPolicyReconciler{
+		Client:              k8sManager.GetClient(),
+		Log:                 logf.Log.WithName("controllers").WithName("IPPolicy"),
+		Recorder:            k8sManager.GetEventRecorder("ippolicy-controller"),
+		Scheme:              k8sManager.GetScheme(),
+		IPPoliciesClient:    ipPolicyClient,
+		IPPolicyRulesClient: ipPolicyRuleClient,
+	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
 	go func() {
