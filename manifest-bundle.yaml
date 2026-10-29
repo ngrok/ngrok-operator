@@ -3284,6 +3284,70 @@ rules:
   - get
 
 ---
+# Source: ngrok-operator/templates/rbac/crd-access/privateendpoint-editor.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-privateendpoint-editor-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.24.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.22.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.com
+  resources:
+  - privateendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - privateendpoints/status
+  verbs:
+  - get
+
+---
+# Source: ngrok-operator/templates/rbac/crd-access/privateendpoint-viewer.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ngrok-operator-privateendpoint-viewer-role
+  labels:
+    app.kubernetes.io/component: rbac
+    helm.sh/chart: ngrok-operator-0.24.0
+    app.kubernetes.io/name: ngrok-operator
+    app.kubernetes.io/instance: ngrok-operator
+    app.kubernetes.io/version: "0.22.0"
+    app.kubernetes.io/part-of: ngrok-operator
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ngrok.com
+  resources:
+  - privateendpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - privateendpoints/status
+  verbs:
+  - get
+
+---
 # Source: ngrok-operator/templates/rbac/crd-access/trafficpolicy-editor.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

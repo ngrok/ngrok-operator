@@ -158,7 +158,7 @@ These rules are **not** gated on `ngrok.features.bindings.enabled`. The BoundEnd
 
 ## Private endpoints (Role in release namespace, conditional)
 
-The PrivateEndpoint poller and controller act only in the release namespace: the CRs and the per-hostname Services both live there, regardless of `watchNamespace`. The Role (`<fullname>-private-endpoints-manager`, in `templates/private-endpoints/rbac.yaml`) is rendered only when `ngrok.features.privateEndpoints.enabled: true`, because nothing else reads PrivateEndpoints.
+The PrivateEndpoint poller and controller act only in the release namespace: the CRs and the per-hostname Services both live there, regardless of `watchNamespace`. The Role (`<fullname>-private-endpoints-manager`, in `templates/api-manager/private-endpoints-role.yaml`) is rendered only when `ngrok.features.privateEndpoints.enabled: true`, because nothing else reads PrivateEndpoints.
 
 ### ngrok API (`ngrok.com`)
 

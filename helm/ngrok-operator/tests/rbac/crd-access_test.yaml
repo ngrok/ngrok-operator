@@ -12,6 +12,8 @@ templates:
 - rbac/crd-access/ippolicy-viewer.yaml
 - rbac/crd-access/kubernetesoperator-editor.yaml
 - rbac/crd-access/kubernetesoperator-viewer.yaml
+- rbac/crd-access/privateendpoint-editor.yaml
+- rbac/crd-access/privateendpoint-viewer.yaml
 # LEGACY-trafficpolicy-kind: drop these two entries at cleanup; the canonical
 # trafficpolicy-{editor,viewer} entries below stay.
 - rbac/crd-access/ngroktrafficpolicy-editor.yaml
