@@ -605,7 +605,7 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 				URL:            computedEndpointURL,
 				Bindings:       useBindings,
 				PoolingEnabled: useEndpointPooling,
-				TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+				TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
 					Inline: rawPolicy,
 				},
 			},

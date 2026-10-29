@@ -198,7 +198,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://new-shape.internal",
-					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
 						Reference: &ngrokv1alpha1.K8sObjectRef{
 							Name: "new-shape-policy",
 						},
@@ -290,24 +290,15 @@ var _ = Describe("CloudEndpoint Controller", func() {
 		})
 	})
 
-	// R1 of the two-release CloudEndpoint trafficpolicy field migration.
-	// These cases assert the legacy/canonical coexistence semantics needed
-	// for rollback safety: legacy + canonical together is the recommended
-	// R1 manifest shape during the deprecation window. Cleanup release
-	// must delete every R1-prefixed case in this Context.
 	Context("Traffic policy validation", func() {
 		It("rejects spec.trafficPolicy.inline + spec.trafficPolicy.targetRef at admission", func() {
-			// Both canonical fields together is ambiguous — not a
-			// migration scenario. The CEL rule on
-			// CloudEndpointTrafficPolicyCfg rejects this. `policy` may
-			// coexist with either canonical field during R1; only the
-			// inline+targetRef union is rejected.
+			// Both endpoint kinds use the shared TrafficPolicyCfg union.
 			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
 				Name:      "invalid-tp-union-endpoint",
 				Namespace: namespace,
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					URL: "https://invalid-tp-union.internal",
-					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
 						Inline:    json.RawMessage(`{"on_http_request":[]}`),
 						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy"},
 					},
@@ -316,9 +307,23 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 			err := k8sClient.Create(context.Background(), cloudEndpoint)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("inline and spec.trafficPolicy.targetRef cannot both be set"))
+			Expect(err.Error()).To(ContainSubstring("exactly one of inline or targetRef must be set on trafficPolicy"))
 		})
 
+		It("rejects an empty spec.trafficPolicy at admission", func(ctx SpecContext) {
+			cloudEndpoint = &ngrokv1alpha1.CloudEndpoint{
+				Name:      "empty-tp-endpoint",
+				Namespace: namespace,
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL:           "https://empty-tp.internal",
+					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{},
+				},
+			}
+
+			err := k8sClient.Create(ctx, cloudEndpoint)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("exactly one of inline or targetRef must be set on trafficPolicy"))
+		})
 	})
 
 	Context("Metadata format", func() {
@@ -438,7 +443,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 					URL:         "https://policy-update.internal",
 					Description: "Endpoint with updatable policy",
 					Metadata:    commonv1alpha1.MetadataFromLegacyString("{}"),
-					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
 						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy-v1"},
 					},
 				},
@@ -471,7 +476,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				obj := &ngrokv1alpha1.CloudEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
 
-				obj.Spec.TrafficPolicy = &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+				obj.Spec.TrafficPolicy = &ngrokv1alpha1.TrafficPolicyCfg{
 					Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy-v2"},
 				}
 				g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())

@@ -187,7 +187,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 			clep: &ngrokv1alpha1.CloudEndpoint{
 				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
-					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
 						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy"},
 					},
 				},
@@ -199,7 +199,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 			clep: &ngrokv1alpha1.CloudEndpoint{
 				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
-					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
 						Inline: json.RawMessage(`{"on_http_request":[]}`),
 					},
 				},
@@ -211,7 +211,7 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 			clep: &ngrokv1alpha1.CloudEndpoint{
 				Namespace: "ns",
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
-					TrafficPolicy: &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{},
+					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{},
 				},
 			},
 			want: nil,

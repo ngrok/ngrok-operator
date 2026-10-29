@@ -58,7 +58,7 @@ type CloudEndpointSpec struct {
 
 	// TrafficPolicy attached to this CloudEndpoint, either inline or by reference
 	// to an NgrokTrafficPolicy resource in the same namespace as the endpoint.
-	TrafficPolicy *CloudEndpointTrafficPolicyCfg `json:"trafficPolicy,omitempty"`
+	TrafficPolicy *TrafficPolicyCfg `json:"trafficPolicy,omitempty"`
 
 	// Human-readable description of this cloud endpoint
 	//
@@ -153,42 +153,9 @@ var _ EndpointWithDomain = &CloudEndpoint{}
 // EndpointWithTrafficPolicy implementation for CloudEndpoint
 var _ EndpointWithTrafficPolicy = &CloudEndpoint{}
 
-// CloudEndpointTrafficPolicyCfg is the CloudEndpoint-specific TrafficPolicy
-// configuration. Exactly one of inline or targetRef may be set.
-//
-// +kubebuilder:validation:XValidation:rule="!(has(self.inline) && has(self.targetRef))", message="spec.trafficPolicy.inline and spec.trafficPolicy.targetRef cannot both be set"
-type CloudEndpointTrafficPolicyCfg struct {
-	// Inline definition of a TrafficPolicy to attach to the CloudEndpoint.
-	// The raw JSON-encoded policy that was applied to the ngrok API.
-	//
-	// +kubebuilder:validation:Schemaless
-	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:validation:Type=object
-	Inline json.RawMessage `json:"inline,omitempty"`
-
-	// Reference to a TrafficPolicy resource to attach to the CloudEndpoint. The
-	// referenced NgrokTrafficPolicy must live in the same namespace as the
-	// endpoint.
-	Reference *K8sObjectRef `json:"targetRef,omitempty"`
-}
-
-// ToTrafficPolicyCfg returns the canonical TrafficPolicyCfg for the resolver.
-// Returns nil when no policy is configured.
-func (c *CloudEndpointTrafficPolicyCfg) ToTrafficPolicyCfg() *TrafficPolicyCfg {
-	if c == nil || (c.Inline == nil && c.Reference == nil) {
-		return nil
-	}
-	return &TrafficPolicyCfg{
-		Inline:    c.Inline,
-		Reference: c.Reference,
-	}
-}
-
-// GetTrafficPolicyCfg returns the canonical traffic policy configuration for
-// CloudEndpoint. Legacy fields are normalized by the controller before
-// resolution; this method exposes only the canonical shape to shared code.
+// GetTrafficPolicyCfg returns the traffic policy configuration for CloudEndpoint.
 func (c *CloudEndpoint) GetTrafficPolicyCfg() *TrafficPolicyCfg {
-	return c.Spec.TrafficPolicy.ToTrafficPolicyCfg()
+	return c.Spec.TrafficPolicy
 }
 
 // GetConditions returns a pointer to the conditions slice for CloudEndpoint

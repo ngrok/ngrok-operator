@@ -426,12 +426,15 @@ and the precise code touched at each step.
     (controller OwnerReference for the Service path, operator
     controller label for the managerdriver Ingress/Gateway path).
 - **Cleanup release (0.25, K8SOP-298):** deleted the `Policy` field,
-  `HasDeprecatedPolicy`, the fallback branch in `ToTrafficPolicyCfg`, the
-  deprecation events in the controller, and the dual-write in
+  `HasDeprecatedPolicy`, the CloudEndpoint-specific configuration type and
+  `ToTrafficPolicyCfg` conversion helper, the deprecation events in the
+  controller, and the dual-write in
   `pkg/managerdriver/translator.go` and
   `internal/controller/service/controller.go`. Rollback to 0.24 stays safe
   for generated objects because 0.24 reads `inline`. Listed as a required
-  pre-upgrade step in the 0.25 upgrade guide.
+  pre-upgrade step in the 0.25 upgrade guide. Both endpoint kinds now use
+  `TrafficPolicyCfg` from `api/ngrok/v1alpha1/common_types.go`, including its
+  exactly-one-of validation for `inline` and `targetRef`.
 
 #### Why we don't shortcut the CloudEndpoint trafficpolicy migration
 

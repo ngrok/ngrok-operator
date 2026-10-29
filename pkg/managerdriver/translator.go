@@ -280,7 +280,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 				)
 				continue
 			}
-			cloudEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.CloudEndpointTrafficPolicyCfg{
+			cloudEndpoint.Spec.TrafficPolicy = &ngrokv1alpha1.TrafficPolicyCfg{
 				Inline: json.RawMessage(listenerPolicyJSON),
 			}
 			cloudEndpoints[types.NamespacedName{
