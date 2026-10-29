@@ -251,8 +251,12 @@ The deprecated `CloudEndpoint.spec.trafficPolicyName` and
 `spec.trafficPolicy.policy` fields have been removed from the CRD. The 0.25
 operator reads only `spec.trafficPolicy.targetRef` and
 `spec.trafficPolicy.inline`. A CloudEndpoint that still sets only a legacy
-field is reconciled with no traffic policy attached, and the field is pruned
-the next time the object is written.
+field no longer has a traffic policy the operator can resolve. ngrok rejects
+the resulting empty-policy update, so an existing endpoint reports
+`Ready=False` while its last applied policy can continue serving traffic.
+Migrate these fields before upgrading; the retained remote policy does not
+preserve reconciliation of the legacy configuration. The removed fields are
+pruned the next time the object is written.
 Applying a manifest that still sets a legacy field fails `kubectl apply`'s
 strict field validation with an `unknown field` error.
 
