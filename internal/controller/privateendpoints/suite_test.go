@@ -556,7 +556,7 @@ func newCR(ns, url string) *ngrokv1.PrivateEndpoint {
 	Expect(err).NotTo(HaveOccurred())
 	return &ngrokv1.PrivateEndpoint{
 		Name: pe.CRName(spec), Namespace: ns,
-		Labels: map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey(spec.Hostname)},
+		Labels: map[string]string{pe.ManagedByLabel: pe.ManagedByValue},
 		Spec:   spec,
 	}
 }

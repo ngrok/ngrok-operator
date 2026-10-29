@@ -835,6 +835,7 @@ func enablePrivateEndpointsFeatureSet(opts apiManagerOpts, mgr ctrl.Manager, ngr
 	return mgr.Add(&privateendpointscontroller.PrivateEndpointPoller{
 		Client:    mgr.GetClient(),
 		Log:       ctrl.Log.WithName("controllers").WithName("PrivateEndpointPoller"),
+		Recorder:  mgr.GetEventRecorder("private-endpoint-poller"),
 		Namespace: opts.namespace,
 		Endpoints: ngrokClientset.Endpoints(),
 		Interval:  10 * time.Second,

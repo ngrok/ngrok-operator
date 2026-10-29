@@ -12,6 +12,7 @@ import (
 	"github.com/ngrok/ngrok-api-go/v9"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
@@ -100,19 +101,22 @@ func (it *itemsThenErr) Err() error {
 // ticker.
 var _ = Describe("PrivateEndpoint poller", func() {
 	var (
-		ns     string
-		api    *endpointLister
-		calls  *boundary
-		poller *PrivateEndpointPoller
+		ns       string
+		api      *endpointLister
+		calls    *boundary
+		recorder *events.FakeRecorder
+		poller   *PrivateEndpointPoller
 	)
 
 	BeforeEach(func() {
 		ns = createNamespace()
 		api = &endpointLister{eps: nmockapi.NewEndpointsClient()}
 		calls = &boundary{}
+		recorder = events.NewFakeRecorder(10)
 		poller = &PrivateEndpointPoller{
 			Client:    interceptor.NewClient(k8sClient, calls.funcs("")),
 			Log:       GinkgoLogr,
+			Recorder:  recorder,
 			Namespace: ns,
 			Endpoints: api,
 			Interval:  time.Hour,
@@ -175,7 +179,7 @@ var _ = Describe("PrivateEndpoint poller", func() {
 		Expect(poller.Sync(ctx)).To(Succeed())
 
 		cr := getCR(ns, "tcp://bar.ngrok.direct:6379")
-		Expect(cr.Labels).To(Equal(map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey("bar.ngrok.direct")}))
+		Expect(cr.Labels).To(Equal(map[string]string{pe.ManagedByLabel: pe.ManagedByValue}))
 		Expect(cr.Spec).To(Equal(ngrokv1.PrivateEndpointSpec{
 			URL: "tcp://Bar.ngrok.direct:6379", Scheme: ngrokv1.PrivateEndpointSchemeTCP, Hostname: "bar.ngrok.direct", Port: 6379,
 		}))
@@ -195,17 +199,17 @@ var _ = Describe("PrivateEndpoint poller", func() {
 	})
 
 	It("deletes managed CRs whose endpoint is gone and keeps hand-made ones", func() {
-		ep := api.add("http://foo.ngrok.direct")
-		api.add("http://gone.ngrok.direct")
+		gone := api.add("http://gone.ngrok.direct")
+		api.add("http://kept.ngrok.direct")
 		Expect(poller.Sync(ctx)).To(Succeed())
 		handmade := newCR(ns, "http://handmade.ngrok.direct")
 		delete(handmade.Labels, pe.ManagedByLabel)
 		Expect(k8sClient.Create(ctx, handmade)).To(Succeed())
 
-		api.remove(ep)
+		api.remove(gone)
 		Expect(poller.Sync(ctx)).To(Succeed())
 
-		Expect(crURLs()).To(ConsistOf("http://gone.ngrok.direct", "http://handmade.ngrok.direct"))
+		Expect(crURLs()).To(ConsistOf("http://kept.ngrok.direct", "http://handmade.ngrok.direct"))
 	})
 
 	DescribeTable("changes nothing when the API list fails",
@@ -242,6 +246,7 @@ var _ = Describe("PrivateEndpoint poller", func() {
 		Expect(got.Labels).NotTo(HaveKey(pe.ManagedByLabel))
 		Expect(got.Spec.Port).To(Equal(int32(22)))
 		Expect(got.ResourceVersion).To(Equal(handmade.ResourceVersion))
+		Expect(recorder.Events).To(Receive(Equal("Warning NotAdopted Not managing this PrivateEndpoint for tcp://bar.ngrok.direct:6379: it has no ngrok.com/managed-by label")))
 	})
 
 	DescribeTable("puts a managed CR back when it drifts",
@@ -267,8 +272,8 @@ var _ = Describe("PrivateEndpoint poller", func() {
 		Entry("edited spec", func(cr *ngrokv1.PrivateEndpoint) {
 			cr.Spec = ngrokv1.PrivateEndpointSpec{URL: "http://evil.ngrok.direct", Scheme: ngrokv1.PrivateEndpointSchemeHTTP, Hostname: "evil.ngrok.direct", Port: 80}
 		}, nil),
-		Entry("edited host label, keeping foreign labels", func(cr *ngrokv1.PrivateEndpoint) {
-			cr.Labels[pe.HostLabel] = "wrong"
+		Entry("edited spec, keeping foreign labels", func(cr *ngrokv1.PrivateEndpoint) {
+			cr.Spec.Port = 1
 			cr.Labels["team"] = "a"
 		}, map[string]string{"team": "a"}),
 	)

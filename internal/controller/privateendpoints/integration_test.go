@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/events"
 
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 )
@@ -24,7 +25,7 @@ var _ = Describe("Private endpoints end to end", func() {
 	BeforeEach(func() {
 		e = newPEEnv(peEnvOpts{controller: true, forwarder: true})
 		eps = nmockapi.NewEndpointsClient()
-		poller = &PrivateEndpointPoller{Client: k8sClient, Log: GinkgoLogr, Namespace: e.ns, Endpoints: eps, Interval: time.Hour}
+		poller = &PrivateEndpointPoller{Client: k8sClient, Log: GinkgoLogr, Recorder: events.NewFakeRecorder(10), Namespace: e.ns, Endpoints: eps, Interval: time.Hour}
 	})
 
 	It("serves an API endpoint through its Service's forwarder port until it is removed", func() {

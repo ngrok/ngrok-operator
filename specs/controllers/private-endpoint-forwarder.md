@@ -14,12 +14,12 @@ The cache is scoped to the forwarder's own namespace.
 
 ## Reconciliation Flow
 
-Every reconcile runs the same full sync, whatever the request:
+Every reconcile runs the same full sync, whatever the request. Duplicate detection and closing a listener depend on every endpoint that claims a port, not just the one that changed, so each sync recomputes from the cached list (no API call) instead of applying a single change. Deletes need no finalizer: listeners are in-process state.
 
 1. List all PrivateEndpoints in the namespace.
 2. Build the routing table from those with both `status.clusterIP` and `status.forwarderPort` set: `forwarderPort → hostname:port`.
 3. Swap the table in atomically.
-4. Open a listener on `0.0.0.0:<port>` for each port in the table that has none.
+4. Open a listener on `0.0.0.0:<forwarderPort>` for each port in the table that has none.
 5. Close the listener of each port no longer in the table.
 6. Return any bind failures, so controller-runtime retries them with backoff.
 

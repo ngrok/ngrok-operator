@@ -13,6 +13,7 @@ Private endpoints is opt-in (`ngrok.features.privateEndpoints.enabled: false` by
 | Helm Value                                                | Description                                                      | Default |
 |-----------------------------------------------------------|------------------------------------------------------------------|---------|
 | `ngrok.features.privateEndpoints.enabled`                 | Enable the private endpoints feature                             | `false` |
+| `ngrok.features.privateEndpoints.privateDialServer`       | Private dial server (host:port) the forwarder connects through. QUIC only | `quic.connect-endpoint.ngrok.com:443` |
 | `ngrok.credentials.privateEndpointForwarder.accessToken`  | Access token for the forwarder; falls back to `ngrok.credentials.accessToken` | `""` |
 
 There are no selectors: every eligible private endpoint in the account is mirrored. The poll interval (10s) and the forwarder port range (20000–20999) are fixed.
@@ -104,7 +105,7 @@ Leftover Services select no pods, so their names still resolve through the CoreD
 | UDP/443 egress | The forwarder dials over QUIC only, so the cluster needs outbound UDP/443. |
 | Capacity | Forwarder ports come from 20000–20999, so a cluster serves at most 1000 endpoint-ports. Forwarder replicas add throughput, not capacity. |
 | `Ready` means configured | `Ready=True` means the Service and forwarder port are in place, not that a forwarder has bound the port, that DNS is configured, or that the endpoint is reachable. |
-| IPv4 | Forwarder listeners bind `0.0.0.0` and status carries one ClusterIP. |
+| IPv4 | Forwarder listeners bind `0.0.0.0`, and each hostname's Service is single-stack, so a PrivateEndpoint's `status.clusterIP` holds one IPv4 address. |
 | One install per cluster | The DNS rule sends `*.ngrok.direct` to one namespace, so only one installation per cluster can serve private endpoints. |
 | No idle timeout | A connection stays open until one side closes it. |
 | Trusted namespace | The controller and forwarder act on any PrivateEndpoint in the operator namespace. Write access to PrivateEndpoints or their status there amounts to routing control. |

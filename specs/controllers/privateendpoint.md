@@ -25,8 +25,8 @@ Errors on individual CRs are collected and the rest of the sync continues.
 | Situation | Behavior |
 |-----------|----------|
 | The ngrok API list fails | Nothing is created, changed or deleted; the error is logged and the next poll retries. An API outage never deletes CRs. |
-| A managed CR's spec or poller-owned labels were edited | Spec and the `managed-by` and host labels are restored. Other labels and status are left alone. |
-| A CR with the desired name exists without the `managed-by` label | Logged and left alone, never adopted or overwritten. The log repeats every poll. |
+| A managed CR's spec or poller-owned labels were edited | Spec and the `managed-by` label are restored. Other labels and status are left alone. |
+| A CR with the desired name exists without the `managed-by` label | Left alone, never adopted or overwritten. A `NotAdopted` Warning Event is recorded on it each poll; the API server folds repeats into one Event with a count. |
 | A managed CR's endpoint is gone, or no longer eligible | The CR is deleted. |
 
 ## Controller
@@ -35,20 +35,20 @@ Errors on individual CRs are collected and the rest of the sync continues.
 
 | Resource          | Relation  | Predicate / Mapping                                                   |
 |-------------------|-----------|-----------------------------------------------------------------------|
-| `PrivateEndpoint` | Primary   | GenerationChanged; mapped to its `ngrok.com/private-endpoint-host` label |
-| `Service`         | Secondary | Mapped to its `ngrok.com/private-endpoint-host` label                 |
+| `PrivateEndpoint` | Primary   | GenerationChanged; mapped to its normalized `spec.hostname`           |
+| `Service`         | Secondary | Only with the `managed-by` label; mapped from its name back to the hostname (`foo-ngrok-direct` → `foo.ngrok.direct`) |
 
-The controller is keyed by **hostname**, not by CR: the request name is the host label. Every endpoint on a hostname shares the one IP that DNS returns for it. Objects outside the operator namespace or without the host label are ignored. `MaxConcurrentReconciles` is 1, because port allocation assumes a single worker.
+The controller is keyed by **hostname**, not by CR: the request name is the normalized hostname. Every endpoint on a hostname shares the one IP that DNS returns for it. Objects outside the operator namespace, and Services without the `managed-by` label, are ignored. `MaxConcurrentReconciles` is 1, because port allocation assumes a single worker.
 
 ### Reconciliation Flow
 
 1. List all PrivateEndpoints in the operator namespace, uncached. CRs being deleted are skipped.
-2. If no CR has this host label, delete the hostname's managed Services and stop.
-3. Derive the Service name from the hostname. If it cannot be mapped, set `UnsupportedHostname` on every CR of the hostname and delete its Services.
+2. Derive the Service name from the hostname. If it cannot be mapped, set `UnsupportedHostname` on every CR of the hostname and stop: such a hostname never has a Service.
+3. If no CR has this `spec.hostname`, delete the hostname's Service if it is managed, and stop.
 4. Order the hostname's CRs by `spec.port`, then name. The first CR on each port gets a Service port; later ones get `PortConflict`.
 5. Keep each CR's existing forwarder port where allowed, and allocate one otherwise (see [Port Allocation](#port-allocation)). A CR that gets no port gets `PortsExhausted`.
-6. If no CR got a Service port, delete the hostname's Services and stop.
-7. Create or update the Service (see [Created Resources](#created-resources)). If a Service with that name exists without this hostname's `managed-by` and host labels, it is not modified and each CR that would have had a port gets `ServiceConflict`.
+6. If no CR got a Service port, delete the hostname's Service and stop.
+7. Create or update the Service (see [Created Resources](#created-resources)). If a Service with that name exists without the `managed-by` label, it is not modified and each CR that would have had a port gets `ServiceConflict`.
 8. Write `status.clusterIP`, `status.forwarderPort` and `Ready=True` on each served CR, or `ServiceNotReady` if the Service has no ClusterIP yet.
 
 Status is written only when it changes.
@@ -81,17 +81,17 @@ One `Service` per hostname, in the operator namespace:
 | Field       | Value                                                                    |
 |-------------|--------------------------------------------------------------------------|
 | Name        | `<label>-ngrok-direct` for `<label>.ngrok.direct`                         |
-| Labels      | `ngrok.com/managed-by: private-endpoint-poller`, `ngrok.com/private-endpoint-host: <host key>` |
+| Labels      | `ngrok.com/managed-by: private-endpoint-poller`                           |
 | Type        | `ClusterIP`                                                              |
 | Selector    | `app.kubernetes.io/component: private-endpoint-forwarder`               |
 | Ports       | One per served endpoint: name `port-<port>`, protocol TCP, `port: spec.port`, `targetPort: status.forwarderPort` |
 
-The Service is deleted by label when its hostname has no CRs left, or none that can be served.
+The Service is deleted by name when its hostname has no CRs left, or none that can be served.
 
 Neither CRs nor Services carry finalizers or owner references, and neither controller takes part in the [drain](../features/draining.md). See [Uninstall](../features/private-endpoints.md#uninstall).
 
 ## Notes
 
-- The controller acts on any PrivateEndpoint in the operator namespace that carries a host label, not only those the poller created, and trusts that label.
+- The controller acts on any PrivateEndpoint in the operator namespace, not only those the poller created. A CR only ever serves its own `spec.hostname`.
 - If a hostname's Service is replaced by a foreign one, the foreign Service is never modified or deleted.
 - See [features/private-endpoints.md](../features/private-endpoints.md) for the full feature overview.

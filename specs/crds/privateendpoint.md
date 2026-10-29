@@ -38,7 +38,6 @@ metadata:
   namespace: ngrok-operator
   labels:
     ngrok.com/managed-by: private-endpoint-poller
-    ngrok.com/private-endpoint-host: <sha256(hostname)[:16]>
 spec:
   url: tcp://bar.ngrok.direct:6379
   scheme: tcp
@@ -86,9 +85,8 @@ Status is written only by the PrivateEndpoint controller. The forwarder serves a
 | Label                              | Value                          | Set on              |
 |------------------------------------|--------------------------------|---------------------|
 | `ngrok.com/managed-by`             | `private-endpoint-poller`      | CRs and Services    |
-| `ngrok.com/private-endpoint-host`  | First 16 hex characters of the SHA-256 of the normalized hostname | CRs and Services |
 
-The poller manages only CRs that carry the `managed-by` label. The controller groups CRs and Services by the host label.
+The poller manages only CRs that carry the `managed-by` label. The controller groups CRs by `spec.hostname` and finds each hostname's Service by name, so it needs no other label.
 
 ## Naming
 
@@ -119,7 +117,5 @@ The PrivateEndpoint CRD does not consume annotations.
 
 - PrivateEndpoint CRs are created by the operator's poller in the operator namespace, not by users. The poller restores any edit to the spec or to its labels on the next poll.
 - A same-named CR without the `managed-by` label is never adopted or overwritten.
-- No editor/viewer aggregation roles are shipped for PrivateEndpoint.
-- See [features/private-endpoints.md](../features/private-endpoints.md) for the full feature overview.
-
 - PrivateEndpoint CRs carry no finalizers, so deleting them, their namespace, or the CRD never waits on the operator. They are not part of the [drain](../features/draining.md).
+- See [features/private-endpoints.md](../features/private-endpoints.md) for the full feature overview.

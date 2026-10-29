@@ -120,7 +120,16 @@ func TestCRName(t *testing.T) {
 	}
 }
 
-func TestHostKey(t *testing.T) {
-	assert.Equal(t, HostKey("FOO.ngrok.direct"), HostKey("foo.ngrok.direct."))
-	assert.Regexp(t, `^[0-9a-f]{16}$`, HostKey("foo.ngrok.direct"))
+func TestHostnameForService(t *testing.T) {
+	for _, host := range []string{"foo.ngrok.direct", "my-app2.ngrok.direct", "a-ngrok-direct.ngrok.direct"} {
+		name, err := ServiceName(host)
+		require.NoError(t, err)
+		got, ok := HostnameForService(name)
+		assert.True(t, ok)
+		assert.Equal(t, host, got)
+	}
+	for _, name := range []string{"kubernetes", "-ngrok-direct", "foo-ngrok-direct-x"} {
+		_, ok := HostnameForService(name)
+		assert.False(t, ok, name)
+	}
 }

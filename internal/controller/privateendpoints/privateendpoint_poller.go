@@ -12,7 +12,9 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
@@ -27,6 +29,7 @@ type EndpointLister interface {
 type PrivateEndpointPoller struct {
 	client.Client
 	Log       logr.Logger
+	Recorder  events.EventRecorder
 	Namespace string
 	Endpoints EndpointLister
 	Interval  time.Duration
@@ -35,6 +38,7 @@ type PrivateEndpointPoller struct {
 func (p *PrivateEndpointPoller) Start(ctx context.Context) error {
 	t := time.NewTicker(p.Interval)
 	defer t.Stop()
+	// Sync before the first tick so CRs exist right after startup.
 	for {
 		if err := p.Sync(ctx); err != nil {
 			p.Log.Error(err, "private endpoint sync failed, keeping current PrivateEndpoints")
@@ -60,11 +64,15 @@ func (p *PrivateEndpointPoller) Sync(ctx context.Context) error {
 	}
 	desired := desiredSpecs(p.Log, eps)
 
+	// Only CRs with the managed-by label are the poller's to heal or delete;
+	// hand-made ones are never listed here.
 	var existing ngrokv1.PrivateEndpointList
 	if err := p.List(ctx, &existing, client.InNamespace(p.Namespace), client.MatchingLabels{pe.ManagedByLabel: pe.ManagedByValue}); err != nil {
 		return fmt.Errorf("listing PrivateEndpoints: %w", err)
 	}
 
+	// Keep going past per-CR errors so one bad CR doesn't block the rest;
+	// the next poll retries whatever failed.
 	var errs []error
 	for i := range existing.Items {
 		cr := &existing.Items[i]
@@ -81,7 +89,7 @@ func (p *PrivateEndpointPoller) Sync(ctx context.Context) error {
 	}
 	for name, spec := range desired {
 		cr := &ngrokv1.PrivateEndpoint{
-			Name: name, Namespace: p.Namespace, Labels: managedLabels(spec),
+			Name: name, Namespace: p.Namespace, Labels: managedLabels(),
 			Spec: spec,
 		}
 		err := p.Create(ctx, cr)
@@ -89,7 +97,7 @@ func (p *PrivateEndpointPoller) Sync(ctx context.Context) error {
 		case apierrors.IsAlreadyExists(err):
 			// Only labeled CRs are ours; a same-named CR without the label may
 			// be hand-made, so don't adopt or overwrite it.
-			p.Log.Info("PrivateEndpoint exists without managed-by label, leaving it alone", "name", name, "url", spec.URL)
+			p.warnNotAdopted(ctx, name, spec)
 		case err != nil:
 			errs = append(errs, fmt.Errorf("creating PrivateEndpoint for %s: %w", spec.URL, err))
 		}
@@ -97,10 +105,23 @@ func (p *PrivateEndpointPoller) Sync(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
+// warnNotAdopted records an Event on the unlabeled CR. This runs every poll,
+// and the API server folds repeats into one Event with a count, which a log
+// line wouldn't do.
+func (p *PrivateEndpointPoller) warnNotAdopted(ctx context.Context, name string, spec ngrokv1.PrivateEndpointSpec) {
+	cr := &ngrokv1.PrivateEndpoint{}
+	if err := p.Get(ctx, client.ObjectKey{Namespace: p.Namespace, Name: name}, cr); err != nil {
+		p.Log.Error(err, "getting unlabeled PrivateEndpoint", "name", name)
+		return
+	}
+	p.Recorder.Eventf(cr, nil, corev1.EventTypeWarning, "NotAdopted", "Mirror",
+		"Not managing this PrivateEndpoint for %s: it has no %s label", spec.URL, pe.ManagedByLabel)
+}
+
 // heal puts a managed CR's spec and poller-owned labels back to desired. Other
 // labels and status are left alone.
 func (p *PrivateEndpointPoller) heal(ctx context.Context, cr *ngrokv1.PrivateEndpoint, spec ngrokv1.PrivateEndpointSpec) error {
-	want := managedLabels(spec)
+	want := managedLabels()
 	drifted := cr.Spec != spec
 	for k, v := range want {
 		if cr.Labels[k] != v {
@@ -113,17 +134,16 @@ func (p *PrivateEndpointPoller) heal(ctx context.Context, cr *ngrokv1.PrivateEnd
 	p.Log.Info("restoring drifted PrivateEndpoint", "name", cr.Name, "url", spec.URL)
 	cr.Spec = spec
 	maps.Copy(cr.Labels, want)
+	// NotFound means it was deleted since the list; the next poll recreates it.
 	if err := p.Update(ctx, cr); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("restoring PrivateEndpoint %s: %w", cr.Name, err)
 	}
 	return nil
 }
 
-func managedLabels(spec ngrokv1.PrivateEndpointSpec) map[string]string {
-	return map[string]string{
-		pe.ManagedByLabel: pe.ManagedByValue,
-		pe.HostLabel:      pe.HostKey(spec.Hostname),
-	}
+// managedLabels marks a CR as the poller's.
+func managedLabels() map[string]string {
+	return map[string]string{pe.ManagedByLabel: pe.ManagedByValue}
 }
 
 // desiredSpecs keeps *.ngrok.direct, non-kubernetes-bound endpoints, keyed by
@@ -131,6 +151,8 @@ func managedLabels(spec ngrokv1.PrivateEndpointSpec) map[string]string {
 func desiredSpecs(log logr.Logger, eps []*ngrok.Endpoint) map[string]ngrokv1.PrivateEndpointSpec {
 	out := map[string]ngrokv1.PrivateEndpointSpec{}
 	for _, ep := range eps {
+		// kubernetes-bound endpoints are already served in-cluster by the
+		// bindings feature.
 		if slices.Contains(ep.Bindings, "kubernetes") {
 			continue
 		}

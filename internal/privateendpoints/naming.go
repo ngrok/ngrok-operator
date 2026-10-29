@@ -18,8 +18,8 @@ import (
 const (
 	ManagedByLabel     = "ngrok.com/managed-by"
 	ManagedByValue     = "private-endpoint-poller"
-	HostLabel          = "ngrok.com/private-endpoint-host"
 	ForwarderComponent = "private-endpoint-forwarder"
+	serviceSuffix      = "-ngrok-direct"
 )
 
 var defaultPorts = map[ngrokv1.PrivateEndpointScheme]int32{
@@ -58,14 +58,14 @@ func ParseURL(raw string) (ngrokv1.PrivateEndpointSpec, error) {
 	return ngrokv1.PrivateEndpointSpec{URL: raw, Scheme: scheme, Hostname: host, Port: port}, nil
 }
 
-// PrivateTLD is the only TLD whose private endpoints are mirrored. *.internal
+// privateTLD is the only TLD whose private endpoints are mirrored. *.internal
 // is not supported: its names collide with cloud provider DNS and with the
 // operator's own Ingress/Gateway AgentEndpoints.
-const PrivateTLD = ".ngrok.direct"
+const privateTLD = ".ngrok.direct"
 
-// IsPrivateHostname reports whether h is under PrivateTLD.
+// IsPrivateHostname reports whether h is under privateTLD.
 func IsPrivateHostname(h string) bool {
-	return strings.HasSuffix(NormalizeHost(h), PrivateTLD)
+	return strings.HasSuffix(NormalizeHost(h), privateTLD)
 }
 
 // ServiceName returns the in-cluster Service name that CoreDNS rewrites
@@ -73,11 +73,13 @@ func IsPrivateHostname(h string) bool {
 // hostnames are supported, because Service names can't contain dots. Keep in
 // sync with the CoreDNS rewrite rule in scripts/kind-private-endpoints-dns.sh.
 func ServiceName(hostname string) (string, error) {
-	label, ok := strings.CutSuffix(NormalizeHost(hostname), PrivateTLD)
+	label, ok := strings.CutSuffix(NormalizeHost(hostname), privateTLD)
 	if !ok {
-		return "", fmt.Errorf("hostname %q is not under %s", hostname, PrivateTLD)
+		return "", fmt.Errorf("hostname %q is not under %s", hostname, privateTLD)
 	}
-	name := label + "-ngrok-direct"
+	name := label + serviceSuffix
+	// name alone isn't enough: a label ending in '-' (foo-) still makes a
+	// valid name (foo--ngrok-direct), so the label is checked too.
 	if len(validation.IsDNS1035Label(label)) > 0 || len(validation.IsDNS1035Label(name)) > 0 {
 		return "", fmt.Errorf("hostname %q can't be mapped to a Service name: only single-label names made of lowercase letters, digits and '-', starting with a letter, are supported", hostname)
 	}
@@ -105,4 +107,12 @@ func CRName(spec ngrokv1.PrivateEndpointSpec) string {
 	return name
 }
 
-func HostKey(hostname string) string { return shortHash(NormalizeHost(hostname)) }
+// HostnameForService reverses ServiceName: foo-ngrok-direct is
+// foo.ngrok.direct.
+func HostnameForService(name string) (string, bool) {
+	label, ok := strings.CutSuffix(name, serviceSuffix)
+	if !ok || label == "" {
+		return "", false
+	}
+	return label + privateTLD, true
+}

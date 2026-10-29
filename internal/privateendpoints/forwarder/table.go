@@ -27,24 +27,31 @@ type Table struct {
 
 func NewTable() *Table { return &Table{} }
 
-// Replace returns the ports claimed by more than one entry, sorted. Those
-// resolve to nothing: an ambiguous port fails rather than guessing a target.
+// Replace swaps in a table built from entries and returns the ports claimed
+// by more than one entry, sorted. Those resolve to nothing: an ambiguous port
+// fails rather than guessing a target.
 func (t *Table) Replace(entries []Entry) []int32 {
-	ports := map[int32]string{}
-	var dupes []int32
+	claims := map[int32]int{}
 	for _, e := range entries {
-		if _, ok := ports[e.ForwarderPort]; ok && !slices.Contains(dupes, e.ForwarderPort) {
-			dupes = append(dupes, e.ForwarderPort)
-		}
-		ports[e.ForwarderPort] = net.JoinHostPort(pe.NormalizeHost(e.Hostname), strconv.Itoa(int(e.Port)))
+		claims[e.ForwarderPort]++
 	}
-	for _, p := range dupes {
-		delete(ports, p)
+	var dupes []int32
+	for port, n := range claims {
+		if n > 1 {
+			dupes = append(dupes, port)
+		}
 	}
 	slices.Sort(dupes)
+
+	next := map[int32]string{}
+	for _, e := range entries {
+		if claims[e.ForwarderPort] == 1 {
+			next[e.ForwarderPort] = net.JoinHostPort(pe.NormalizeHost(e.Hostname), strconv.Itoa(int(e.Port)))
+		}
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.ports, t.synced = ports, true
+	t.ports, t.synced = next, true
 	return dupes
 }
 

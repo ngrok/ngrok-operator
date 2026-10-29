@@ -5,8 +5,11 @@ metadata:
   name: private-endpoints-dns
 spec:
   description: |
-    Unknown *.ngrok.direct names are NXDOMAIN, cluster DNS keeps working, and
-    *.internal private endpoints are not mirrored.
+    Negative checks only: *.internal endpoints are not mirrored into
+    PrivateEndpoints, unknown *.ngrok.direct names are NXDOMAIN, and ordinary
+    cluster DNS (e.g. kubernetes.default) still resolves with the rewrite in
+    place. Resolving and reaching real *.ngrok.direct endpoints is covered by
+    the http, tls and tcp tests.
   bindings:
     - name: operatorNamespace
       value: (env('KUBE_NAMESPACE') || 'ngrok-operator')

@@ -47,7 +47,7 @@ var _ = Describe("PrivateEndpoint controller", func() {
 			g.Expect(servicePorts(svc)).To(Equal(map[int32]int32{80: cr.Status.ForwarderPort}))
 		})
 		Expect(svc.Name).To(Equal("foo-ngrok-direct"))
-		Expect(svc.Labels).To(Equal(map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey("foo.ngrok.direct")}))
+		Expect(svc.Labels).To(Equal(map[string]string{pe.ManagedByLabel: pe.ManagedByValue}))
 		Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
 		Expect(svc.Spec.Selector).To(Equal(forwarderSelector))
 		Expect(svc.Spec.Ports[0].Name).To(Equal("port-80"))
@@ -148,7 +148,7 @@ var _ = Describe("PrivateEndpoint controller", func() {
 		Expect(k8sClient.Update(ctx, svc)).To(Succeed())
 
 		eventuallyService(e.ns, "tamper.ngrok.direct", func(g Gomega, svc *corev1.Service) {
-			g.Expect(svc.Labels).To(Equal(map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: pe.HostKey("tamper.ngrok.direct")}))
+			g.Expect(svc.Labels).To(Equal(map[string]string{pe.ManagedByLabel: pe.ManagedByValue}))
 			g.Expect(svc.Spec.Selector).To(Equal(forwarderSelector))
 			g.Expect(servicePorts(svc)).To(Equal(map[int32]int32{80: cr.Status.ForwarderPort}))
 		})
@@ -237,22 +237,15 @@ var _ = Describe("PrivateEndpoint controller", func() {
 		})
 	})
 
-	It("ignores PrivateEndpoints without a host label", func() {
+	It("wires a PrivateEndpoint that has no labels", func() {
 		cr := newCR(e.ns, "http://nolabel.ngrok.direct")
-		delete(cr.Labels, pe.HostLabel)
+		cr.Labels = nil
 		Expect(k8sClient.Create(ctx, cr)).To(Succeed())
-		// The watch handles events in order, so once a later endpoint is
-		// served the unlabeled one's event has been handled too.
-		createCR(e.ns, "http://sentinel.ngrok.direct")
-		eventuallyReady(e.ns, "http://sentinel.ngrok.direct")
 
-		var svcs corev1.ServiceList
-		Expect(k8sClient.List(ctx, &svcs, client.InNamespace(e.ns))).To(Succeed())
-		Expect(svcs.Items).To(HaveLen(1))
-		Expect(svcs.Items[0].Name).To(Equal("sentinel-ngrok-direct"))
-		Expect(e.boundary.count("", "Service", "nolabel-ngrok-direct")).To(BeZero(), "the unlabeled endpoint's hostname was never reconciled")
-		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), cr)).To(Succeed())
-		Expect(cr.Status.Conditions).To(BeEmpty())
+		ready := eventuallyReady(e.ns, "http://nolabel.ngrok.direct")
+		eventuallyService(e.ns, "nolabel.ngrok.direct", func(g Gomega, svc *corev1.Service) {
+			g.Expect(servicePorts(svc)).To(Equal(map[int32]int32{80: ready.Status.ForwarderPort}))
+		})
 	})
 
 	It("doesn't reuse a freed port while higher ones are free", func() {
@@ -569,18 +562,6 @@ var _ = Describe("PrivateEndpoint controller under faults", func() {
 		Expect(k8sClient.Create(ctx, foreign)).To(Succeed())
 		createCR(unmanaged.ns, "http://polled.ngrok.direct")
 
-		By("blocking another with a managed Service of a different hostname, whose cleanup is held")
-		other := newPEEnv(peEnvOpts{controller: true, deferStart: true})
-		otherSvc := &corev1.Service{
-			Name: "clash-ngrok-direct", Namespace: other.ns,
-			Labels: map[string]string{pe.ManagedByLabel: pe.ManagedByValue, pe.HostLabel: "someotherhost"},
-			Spec:   corev1.ServiceSpec{Ports: []corev1.ServicePort{{Port: 80}}},
-		}
-		Expect(k8sClient.Create(ctx, otherSvc)).To(Succeed())
-		held := other.boundary.inject(&fault{op: "Delete", kind: "Service", name: "clash-ngrok-direct", err: errBoom})
-		other.start()
-		createCR(other.ns, "http://clash.ngrok.direct")
-
 		By("exhausting a one-port range")
 		full := newPEEnv(peEnvOpts{controller: true, ports: 1})
 		createCR(full.ns, "tcp://ex-a.ngrok.direct:5432")
@@ -588,24 +569,17 @@ var _ = Describe("PrivateEndpoint controller under faults", func() {
 		createCR(full.ns, "tcp://ex-b.ngrok.direct:5432")
 
 		Expect(eventuallyNotReady(unmanaged.ns, "http://polled.ngrok.direct", "ServiceConflict").Message).To(ContainSubstring("polled-ngrok-direct"))
-		eventuallyNotReady(other.ns, "http://clash.ngrok.direct", "ServiceConflict")
-		Expect(held.Hits()).To(BeNumerically(">=", 1), "the stale Service's cleanup was attempted")
 		Expect(eventuallyNotReady(full.ns, "tcp://ex-b.ngrok.direct:5432", "PortsExhausted").Message).To(ContainSubstring("no free forwarder ports"))
 		kginkgo.ConsistentlyExpectResourceVersionNotToChange(ctx, foreign, testutils.WithTimeout(time.Second))
-		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(otherSvc), otherSvc)).To(Succeed())
-		Expect(otherSvc.Labels[pe.HostLabel]).To(Equal("someotherhost"), "not adopted")
 
 		By("clearing every obstacle without touching the blocked endpoints")
 		Expect(k8sClient.Delete(ctx, foreign)).To(Succeed())
-		held.Release()
-		eventuallyNoService(other.ns, "clash.ngrok.direct")
 		deleteCR(full.ns, "tcp://ex-a.ngrok.direct:5432")
 		eventuallyNoService(full.ns, "ex-a.ngrok.direct")
 
 		stillBlocked := func(g Gomega) {
 			for _, c := range []struct{ ns, url, reason string }{
 				{unmanaged.ns, "http://polled.ngrok.direct", "ServiceConflict"},
-				{other.ns, "http://clash.ngrok.direct", "ServiceConflict"},
 				{full.ns, "tcp://ex-b.ngrok.direct:5432", "PortsExhausted"},
 			} {
 				cond := meta.FindStatusCondition(getCR(c.ns, c.url).Status.Conditions, ngrokv1.PrivateEndpointConditionReady)
@@ -619,10 +593,6 @@ var _ = Describe("PrivateEndpoint controller under faults", func() {
 			g.Expect(svc.Labels).To(HaveKeyWithValue(pe.ManagedByLabel, pe.ManagedByValue))
 		}, poll)
 		eventuallyReady(unmanaged.ns, "http://polled.ngrok.direct")
-		eventuallyService(other.ns, "clash.ngrok.direct", func(g Gomega, svc *corev1.Service) {
-			g.Expect(svc.Labels).To(HaveKeyWithValue(pe.HostLabel, pe.HostKey("clash.ngrok.direct")))
-		}, poll)
-		eventuallyReady(other.ns, "http://clash.ngrok.direct")
 		b := eventuallyReady(full.ns, "tcp://ex-b.ngrok.direct:5432")
 		Expect(b.Status.ForwarderPort).To(Equal(full.portMin))
 		eventuallyService(full.ns, "ex-b.ngrok.direct", func(g Gomega, svc *corev1.Service) {
@@ -651,17 +621,17 @@ var _ = Describe("PrivateEndpoint controller under faults", func() {
 		Entry("creating the Service", func() *fault { return &fault{op: "Create", kind: "Service", err: errBoom} }),
 	)
 
-	It("retries listing a removed hostname's Services until it can clean them up", func() {
+	It("retries reading a removed hostname's Service until it can clean it up", func() {
 		const url = "http://cleanup.ngrok.direct"
 		createCR(e.ns, url)
 		eventuallyReady(e.ns, url)
-		list := e.boundary.inject(&fault{op: "List", kind: "ServiceList", err: errBoom})
+		get := e.boundary.inject(&fault{op: "Get", kind: "Service", name: "cleanup-ngrok-direct", err: errBoom})
 
 		deleteCR(e.ns, url)
-		Eventually(list.Hits).Should(BeNumerically(">=", 2))
+		Eventually(get.Hits).Should(BeNumerically(">=", 2))
 		Expect(k8sClient.Get(ctx, serviceKey(e.ns, "cleanup.ngrok.direct"), &corev1.Service{})).To(Succeed(), "the Service survives a failed cleanup")
 
-		list.Release()
+		get.Release()
 		eventuallyNoService(e.ns, "cleanup.ngrok.direct")
 	})
 })
