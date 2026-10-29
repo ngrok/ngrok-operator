@@ -12,6 +12,22 @@ metadata:
   {{- end }}
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - domains
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains/status
+  verbs:
+  - get
+# LEGACY-domain-kind: BEGIN — drop these two rule blocks at cleanup. The role
+# keeps its name, so bindings to it keep working.
+- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - domains
@@ -25,4 +41,5 @@ rules:
   - domains/status
   verbs:
   - get
+# LEGACY-domain-kind: END
 {{- end }}

@@ -66,6 +66,43 @@ tests:
         - patch
         - update
         - watch
+- it: should grant ngrok.com domains in the domain editor
+  template: rbac/crd-access/domain-editor.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ngrok.com
+        resources:
+        - domains
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
+# LEGACY-domain-kind: drop this test at cleanup.
+- it: should keep the deprecated ingress.k8s.ngrok.com domains in the domain editor
+  template: rbac/crd-access/domain-editor.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ingress.k8s.ngrok.com
+        resources:
+        - domains
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
 - it: should use ngrok.com for the canonical trafficpolicy editor
   template: rbac/crd-access/trafficpolicy-editor.yaml
   asserts:

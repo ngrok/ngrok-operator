@@ -2836,8 +2836,23 @@ rules:
   - get
   - list
   - watch
+# LEGACY-domain-kind: BEGIN — drop this rule block at cleanup.
 - apiGroups:
   - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# LEGACY-domain-kind: END
+# AgentEndpoints create ngrok.com/v1 Domains for their hostnames.
+- apiGroups:
+  - ngrok.com
   resources:
   - domains
   verbs:
@@ -3181,6 +3196,7 @@ rules:
   - list
   - watch
 # --- ingress.k8s.ngrok.com ---
+# LEGACY-domain-kind: BEGIN — drop these three rule blocks at cleanup.
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
@@ -3208,6 +3224,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-domain-kind: END
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
@@ -3345,6 +3362,36 @@ rules:
   - ngrok.com
   resources:
   - trafficpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+# Canonical ngrok.com/v1 Domain rules. The operator creates Domains for
+# Ingress, Gateway, CloudEndpoint and AgentEndpoint hostnames, reconciles them
+# against reserved domains in ngrok, and deletes stale ones.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains/status
   verbs:
   - get
   - patch
@@ -3602,6 +3649,26 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains/status
+  verbs:
+  - get
+# LEGACY-domain-kind: BEGIN — drop these two rule blocks at cleanup. The role
+# keeps its name, so bindings to it keep working.
+- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - domains
@@ -3619,6 +3686,7 @@ rules:
   - domains/status
   verbs:
   - get
+# LEGACY-domain-kind: END
 
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/domain-viewer.yaml
@@ -3636,6 +3704,22 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - domains
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains/status
+  verbs:
+  - get
+# LEGACY-domain-kind: BEGIN — drop these two rule blocks at cleanup. The role
+# keeps its name, so bindings to it keep working.
+- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - domains
@@ -3649,6 +3733,7 @@ rules:
   - domains/status
   verbs:
   - get
+# LEGACY-domain-kind: END
 
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/ippolicy-editor.yaml
@@ -4205,7 +4290,7 @@ metadata:
   name: ngrok-operator-agent
   namespace: ngrok-operator
   annotations:
-    checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
+    checksum/rbac: 5de0db54a2a8d817649567938274291f308f915d4aaeb88b48e41a995e530018
 spec:
   replicas: 1
   selector:
@@ -4219,7 +4304,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/rbac: 1ba728932d93568a0c05e9a997b46e60b7c9ef1eb8d1f9f3cc6d1c90c42edd9f
+        checksum/rbac: 5de0db54a2a8d817649567938274291f308f915d4aaeb88b48e41a995e530018
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
         app.kubernetes.io/name: ngrok-operator
@@ -4311,7 +4396,7 @@ metadata:
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
+    checksum/controller-role: a31e93aa317987d12484feced689bd1b4e8232259d86b0a647e38d4b69e75e47
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -4326,7 +4411,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
+        checksum/controller-role: a31e93aa317987d12484feced689bd1b4e8232259d86b0a647e38d4b69e75e47
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:

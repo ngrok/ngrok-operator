@@ -210,6 +210,7 @@ rules:
   - list
   - watch
 # --- ingress.k8s.ngrok.com ---
+# LEGACY-domain-kind: BEGIN — drop these three rule blocks at cleanup.
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
@@ -237,6 +238,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-domain-kind: END
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
@@ -374,6 +376,36 @@ rules:
   - ngrok.com
   resources:
   - trafficpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+# Canonical ngrok.com/v1 Domain rules. The operator creates Domains for
+# Ingress, Gateway, CloudEndpoint and AgentEndpoint hostnames, reconciles them
+# against reserved domains in ngrok, and deletes stale ones.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - domains/status
   verbs:
   - get
   - patch
