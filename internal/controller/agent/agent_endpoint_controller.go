@@ -30,6 +30,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -157,6 +158,9 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 		Delete:     r.delete,
 		StatusID:   r.statusID,
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.AgentEndpoint, err error) (ctrl.Result, error) {
+			if errors.Is(err, domainpkg.ErrDomainNotReady) {
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			}
 			if errors.Is(err, trafficpolicypkg.ErrInvalidConfig) || errors.Is(err, trafficpolicypkg.ErrInvalidPolicyJSON) {
 				r.Recorder.Eventf(cr, nil, v1.EventTypeWarning, "ConfigError", "Reconcile", err.Error())
 				r.Log.Error(err, "invalid TrafficPolicy configuration", "name", cr.Name, "namespace", cr.Namespace)
@@ -564,8 +568,14 @@ func (r *AgentEndpointReconciler) updateStatus(ctx context.Context, endpoint *ng
 	// Calculate overall Ready condition based on other conditions and domain status
 	calculateAgentEndpointReadyCondition(endpoint, domainResult)
 
-	// No requeue when the domain isn't ready: the Domain watch
-	// (findAgentEndpointsForDomain) re-triggers this endpoint when the Domain's
-	// status changes, and the domain controller retries with backoff.
-	return r.controller.ReconcileStatus(ctx, endpoint, statusErr)
+	// Write status to k8s API
+	if err := r.controller.ReconcileStatus(ctx, endpoint, statusErr); err != nil {
+		return err
+	}
+
+	// Requeue if domain is not ready (fallback to watch for convergence)
+	if domainResult != nil {
+		return domainResult.RequeueError()
+	}
+	return nil
 }

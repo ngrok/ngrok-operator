@@ -715,8 +715,7 @@ func TestManager_EnsureDomainExists_ControllerLabels(t *testing.T) {
 // TestEnsureDomainExists_WildcardCoveredDomainIsReady is the single test that
 // proves the CloudEndpoint, AgentEndpoint and Service paths all unblock for a
 // wildcard-covered domain: cloudendpoint_controller.go and
-// agent_endpoint_controller.go both gate their Ready condition on
-// DomainResult.IsReady.
+// agent_endpoint_controller.go both gate on DomainResult.RequeueError().
 func TestEnsureDomainExists_WildcardCoveredDomainIsReady(t *testing.T) {
 	covered := createWildcardCoveredDomain("a-example-com", "test-namespace", "a.example.com", "*.example.com")
 	m, _ := newTestManager(t, covered)
@@ -728,6 +727,7 @@ func TestEnsureDomainExists_WildcardCoveredDomainIsReady(t *testing.T) {
 
 	assert.True(t, result.IsReady, "a wildcard-covered domain must be usable")
 	assert.Equal(t, "CoveredByWildcardDomain", result.ReadyReason)
+	assert.NoError(t, result.RequeueError(), "endpoints must not requeue on a covered domain")
 
 	// The endpoint still needs its domainRef: the Service controller clears
 	// LoadBalancer status for tls:// endpoints when domainRef is nil.
