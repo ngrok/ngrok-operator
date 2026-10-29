@@ -102,7 +102,7 @@ type AgentEndpointReconciler struct {
 	controller *controller.BaseController[*ngrokv1alpha1.AgentEndpoint]
 
 	ControllerLabels           labels.ControllerLabelValues
-	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+	DefaultDomainReclaimPolicy *ngrokv1.DomainReclaimPolicy
 	DomainManager              *domainpkg.Manager
 	TrafficPolicyManager       *trafficpolicypkg.Manager
 
@@ -238,6 +238,11 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 			&v1.Secret{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointForSecret),
 		).
+		Watches(
+			&ngrokv1.Domain{},
+			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointsForDomain),
+		).
+		// LEGACY-domain-kind: delete this Watches call at cleanup.
 		Watches(
 			&ingressv1alpha1.Domain{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findAgentEndpointsForDomain),
@@ -388,20 +393,19 @@ func (r *AgentEndpointReconciler) findAgentEndpointForSecret(ctx context.Context
 }
 
 // findAgentEndpointsForDomain searches for any AgentEndpoint CRs that reference a particular Domain
-func (r *AgentEndpointReconciler) findAgentEndpointsForDomain(ctx context.Context, o client.Object) []ctrl.Request {
-	domain, ok := o.(*ingressv1alpha1.Domain)
+func (r *AgentEndpointReconciler) findAgentEndpointsForDomain(ctx context.Context, domain client.Object) []ctrl.Request {
+	// Get the domain name from the Domain CR
+	domainName, ok := domainpkg.HostnameOf(domain)
 	if !ok {
 		return nil
 	}
 
 	var endpoints ngrokv1alpha1.AgentEndpointList
-	if err := r.Client.List(ctx, &endpoints, client.InNamespace(domain.Namespace)); err != nil {
+	if err := r.Client.List(ctx, &endpoints, client.InNamespace(domain.GetNamespace())); err != nil {
 		return nil
 	}
 
-	// Get the domain name from the Domain CR
-	domainName := domain.Spec.Domain
-	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domainName)
+	hyphenatedDomain := ngrokv1.HyphenatedDomainNameFromURL(domainName)
 
 	var requests []ctrl.Request
 	// First match by domainRef
@@ -417,7 +421,7 @@ func (r *AgentEndpointReconciler) findAgentEndpointsForDomain(ctx context.Contex
 		// When old pod creates domain, domainRef might not be set yet in the cached view
 		if ep.Spec.URL != "" {
 			parsedURL, err := util.ParseAndSanitizeEndpointURL(ep.Spec.URL, true)
-			if err == nil && ingressv1alpha1.HyphenatedDomainNameFromURL(parsedURL.Hostname()) == hyphenatedDomain {
+			if err == nil && ngrokv1.HyphenatedDomainNameFromURL(parsedURL.Hostname()) == hyphenatedDomain {
 				requests = append(requests, ctrl.Request{
 					NamespacedName: client.ObjectKeyFromObject(&ep),
 				})

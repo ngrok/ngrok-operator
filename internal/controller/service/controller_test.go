@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
@@ -676,10 +676,10 @@ var _ = Describe("ServiceController", func() {
 					}, timeout, interval).Should(Succeed())
 
 					By("creating a Domain CRD for the ngrok domain")
-					domain := &ingressv1alpha1.Domain{
+					domain := &ngrokv1.Domain{
 						Name:      domainName,
 						Namespace: namespace,
-						Spec: ingressv1alpha1.DomainSpec{
+						Spec: ngrokv1.DomainSpec{
 							Domain: tlsDomain,
 						},
 					}
@@ -687,7 +687,7 @@ var _ = Describe("ServiceController", func() {
 
 					By("updating the Domain status (ngrok domains don't have CNAME target)")
 					Eventually(func(_ Gomega) error {
-						fetchedDomain := &ingressv1alpha1.Domain{}
+						fetchedDomain := &ngrokv1.Domain{}
 						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), fetchedDomain); err != nil {
 							return err
 						}
@@ -790,10 +790,10 @@ var _ = Describe("ServiceController", func() {
 
 					By("creating a Domain CRD with CNAME target in status")
 					domainName := strings.ReplaceAll(customDomain, ".", "-")
-					domain := &ingressv1alpha1.Domain{
+					domain := &ngrokv1.Domain{
 						Name:      domainName,
 						Namespace: namespace,
-						Spec: ingressv1alpha1.DomainSpec{
+						Spec: ngrokv1.DomainSpec{
 							Domain: customDomain,
 						},
 					}
@@ -801,7 +801,7 @@ var _ = Describe("ServiceController", func() {
 
 					By("updating the Domain status with CNAME target")
 					Eventually(func(_ Gomega) error {
-						fetchedDomain := &ingressv1alpha1.Domain{}
+						fetchedDomain := &ngrokv1.Domain{}
 						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), fetchedDomain); err != nil {
 							return err
 						}
@@ -858,10 +858,10 @@ var _ = Describe("ServiceController", func() {
 
 					By("creating a Domain CRD covered by a wildcard parent")
 					domainName := strings.ReplaceAll(customDomain, ".", "-")
-					domain := &ingressv1alpha1.Domain{
+					domain := &ngrokv1.Domain{
 						Name:      domainName,
 						Namespace: namespace,
-						Spec: ingressv1alpha1.DomainSpec{
+						Spec: ngrokv1.DomainSpec{
 							Domain: customDomain,
 						},
 					}
@@ -869,7 +869,7 @@ var _ = Describe("ServiceController", func() {
 
 					By("updating the Domain status as wildcard-covered with no reservation of its own")
 					Eventually(func(_ Gomega) error {
-						fetchedDomain := &ingressv1alpha1.Domain{}
+						fetchedDomain := &ngrokv1.Domain{}
 						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), fetchedDomain); err != nil {
 							return err
 						}
@@ -878,7 +878,7 @@ var _ = Describe("ServiceController", func() {
 						fetchedDomain.Status.CNAMETarget = ptr.To(cnameTarget)
 						fetchedDomain.Status.Domain = customDomain
 						fetchedDomain.Status.ID = ""
-						fetchedDomain.Status.CoveredByWildcardDomain = &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.custom-domain.xyz"}
+						fetchedDomain.Status.CoveredByWildcardDomain = &ngrokv1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.custom-domain.xyz"}
 						return k8sClient.Status().Update(ctx, fetchedDomain)
 					}, timeout, interval).Should(Succeed())
 

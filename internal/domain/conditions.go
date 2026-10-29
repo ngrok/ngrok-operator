@@ -1,4 +1,4 @@
-package ingress
+package domain
 
 import (
 	"fmt"
@@ -8,14 +8,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/ngrok/ngrok-api-go/v9"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 )
 
 const (
 	// condition types for Domain
-	ConditionDomainReady      = "Ready"
+	ConditionReady            = "Ready"
 	ConditionDomainCreated    = "DomainCreated"
 	ConditionCertificateReady = "CertificateReady"
 	ConditionDNSConfigured    = "DNSConfigured"
@@ -35,30 +35,36 @@ const (
 	ReasonProtectedDomain         = "ProtectedDomain"
 	ReasonDomainCreationFailed    = "DomainCreationFailed"
 	ReasonCoveredByWildcardDomain = "CoveredByWildcardDomain"
+
+	// ReasonSupersededByV1 is the Ready reason on a legacy Domain whose
+	// ngrok.com/v1 twin now manages the reservation.
+	//
+	// LEGACY-domain-kind: delete at cleanup.
+	ReasonSupersededByV1 = "SupersededByV1"
 )
 
 // setReadyCondition sets the Ready condition based on the overall domain state
-func setDomainReadyCondition(domain *ingressv1alpha1.Domain, ready bool, reason, message string) {
-	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionDomainReady, ready, reason, message)
+func setDomainReadyCondition(domain Resource, ready bool, reason, message string) {
+	conditions.Set(&domain.Status().Conditions, domain.Object().GetGeneration(), ConditionReady, ready, reason, message)
 }
 
 // setDomainCreatedCondition sets the DomainCreated condition
-func setDomainCreatedCondition(domain *ingressv1alpha1.Domain, created bool, reason, message string) {
-	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionDomainCreated, created, reason, message)
+func setDomainCreatedCondition(domain Resource, created bool, reason, message string) {
+	conditions.Set(&domain.Status().Conditions, domain.Object().GetGeneration(), ConditionDomainCreated, created, reason, message)
 }
 
 // setCertificateReadyCondition sets the CertificateReady condition
-func setCertificateReadyCondition(domain *ingressv1alpha1.Domain, ready bool, reason, message string) {
-	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionCertificateReady, ready, reason, message)
+func setCertificateReadyCondition(domain Resource, ready bool, reason, message string) {
+	conditions.Set(&domain.Status().Conditions, domain.Object().GetGeneration(), ConditionCertificateReady, ready, reason, message)
 }
 
 // setDNSConfiguredCondition sets the DNSConfigured condition
-func setDNSConfiguredCondition(domain *ingressv1alpha1.Domain, configured bool, reason, message string) {
-	conditions.Set(&domain.Status.Conditions, domain.Generation, ConditionDNSConfigured, configured, reason, message)
+func setDNSConfiguredCondition(domain Resource, configured bool, reason, message string) {
+	conditions.Set(&domain.Status().Conditions, domain.Object().GetGeneration(), ConditionDNSConfigured, configured, reason, message)
 }
 
-// updateDomainConditions updates all domain conditions based on the ngrok domain state and any creation errors
-func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.ReservedDomain, createErr error) {
+// UpdateConditions updates all domain conditions based on the ngrok domain state and any creation errors
+func UpdateConditions(domain Resource, ngrokDomain *ngrok.ReservedDomain, createErr error) {
 	// Handle creation errors first
 	if createErr != nil {
 		message := ngrokapi.SanitizeErrorMessage(createErr.Error())
@@ -71,9 +77,9 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 
 	// A wildcard-covered domain holds no reservation of its own, so an empty
 	// status.id is the expected steady state rather than a failure.
-	coveredByWildcard := domain.Status.CoveredByWildcardDomain != nil
+	coveredByWildcard := domain.Status().CoveredByWildcardDomain != nil
 
-	if domain.Status.ID == "" && !coveredByWildcard {
+	if domain.Status().ID == "" && !coveredByWildcard {
 		message := "Domain could not be reserved"
 		setDomainCreatedCondition(domain, false, ReasonDomainInvalid, message)
 		setCertificateReadyCondition(domain, false, ReasonDomainInvalid, message)
@@ -88,9 +94,9 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 	readyMessage := "Domain ready for use"
 	if coveredByWildcard {
 		readyReason = ReasonCoveredByWildcardDomain
-		readyMessage = fmt.Sprintf("Domain ready for use (covered by wildcard domain %s)", domain.Status.CoveredByWildcardDomain.Domain)
+		readyMessage = fmt.Sprintf("Domain ready for use (covered by wildcard domain %s)", domain.Status().CoveredByWildcardDomain.Domain)
 		setDomainCreatedCondition(domain, true, ReasonCoveredByWildcardDomain,
-			fmt.Sprintf("Reservation skipped: already covered by wildcard domain %s", domain.Status.CoveredByWildcardDomain.Domain))
+			fmt.Sprintf("Reservation skipped: already covered by wildcard domain %s", domain.Status().CoveredByWildcardDomain.Domain))
 	} else {
 		setDomainCreatedCondition(domain, true, ReasonDomainCreated, "Domain successfully reserved")
 	}
@@ -105,7 +111,7 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 	}
 
 	// If the certificate is not null, then the certificate is provisioned and the domain is ready.
-	if domain.Status.Certificate != nil {
+	if domain.Status().Certificate != nil {
 		setCertificateReadyCondition(domain, true, ReasonCertificateReady, "Certificate provisioned successfully")
 		setDNSConfiguredCondition(domain, true, ReasonDomainCreated, "DNS records configured")
 		setDomainReadyCondition(domain, true, readyReason, readyMessage)
@@ -114,7 +120,7 @@ func updateDomainConditions(domain *ingressv1alpha1.Domain, ngrokDomain *ngrok.R
 
 	// Otherwise for custom domains, check the certificate management status
 	message := "Certificate provisioning in progress"
-	job := currentProvisioningJob(domain.Status.CertificateManagementStatus)
+	job := currentProvisioningJob(domain.Status().CertificateManagementStatus)
 	if job != nil {
 		// Check for errors
 		if job.ErrorCode != "" {
@@ -152,28 +158,41 @@ func isNgrokManagedDomain(ngrokDomain *ngrok.ReservedDomain) bool {
 }
 
 // currentProvisioningJob returns the current provisioning job from the domain status with nil checks
-func currentProvisioningJob(status *ingressv1alpha1.DomainStatusCertificateManagementStatus) *ingressv1alpha1.DomainStatusProvisioningJob {
+func currentProvisioningJob(status *ngrokv1.DomainStatusCertificateManagementStatus) *ngrokv1.DomainStatusProvisioningJob {
 	if status == nil {
 		return nil
 	}
 	return status.ProvisioningJob
 }
 
-// IsDomainReady checks if a domain is usable: it must be backed by a reservation
+// IsReady checks if a domain is usable: it must be backed by a reservation
 // -- either its own, or a wildcard parent's -- and its Ready condition must be true.
-func IsDomainReady(domain *ingressv1alpha1.Domain) bool {
+func IsReady(domain Resource) bool {
 	// A domain is only usable if it is backed by a reservation: its own, or the
 	// wildcard parent's when the operator skipped reserving it.
-	if domain.Status.ID == "" && domain.Status.CoveredByWildcardDomain == nil {
+	if !IsBacked(domain) {
 		return false
 	}
 
 	// Then check the Ready condition for more detailed status
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domain.Status().Conditions, ConditionReady)
 	if readyCondition == nil {
 		// No ready condition set yet, so it's not ready
 		return false
 	}
 
 	return readyCondition.Status == metav1.ConditionTrue
+}
+
+// SetSupersededCondition marks a legacy Domain as superseded by its
+// ngrok.com/v1 twin. Ready stays True so alerts on a legacy Ready=False don't
+// fire mid-migration; the reservation is healthy, it is just managed by the
+// twin now. Only the Ready condition changes; every other status field is left
+// as it was when the twin took over.
+//
+// LEGACY-domain-kind: delete at cleanup.
+func SetSupersededCondition(legacy Resource, twinNamespace, twinName string) {
+	setDomainReadyCondition(legacy, true, ReasonSupersededByV1, fmt.Sprintf(
+		"Superseded by domains.ngrok.com %s/%s, which now manages this domain's reservation. Changes to this object have no effect; delete it once you've migrated.",
+		twinNamespace, twinName))
 }

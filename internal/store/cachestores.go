@@ -51,7 +51,12 @@ type CacheStores struct {
 	ReferenceGrant cache.Store
 
 	// Ngrok Stores
+	// DomainV1 caches the canonical ngrok.com/v1 Domain.
 	DomainV1 cache.Store
+	// LEGACY-domain-kind: LegacyDomainV1 backs the deprecated
+	// ingress.k8s.ngrok.com/v1alpha1 Domain. Drop this field, its initializer,
+	// and the *ingressv1alpha1.Domain dispatch cases at cleanup.
+	LegacyDomainV1 cache.Store
 	// LEGACY-trafficpolicy-kind: NgrokTrafficPolicyV1 backs the deprecated
 	// ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy. TrafficPolicyV1 below
 	// is the canonical replacement; ResolveTrafficPolicy prefers it and only
@@ -87,6 +92,8 @@ func NewCacheStores(logger logr.Logger) CacheStores {
 		ReferenceGrant: cache.NewStore(keyFunc),
 		// Ngrok Stores
 		DomainV1: cache.NewStore(keyFunc),
+		// LEGACY-domain-kind: drop with the field declaration above.
+		LegacyDomainV1: cache.NewStore(keyFunc),
 		// LEGACY-trafficpolicy-kind: drop with the field declaration above.
 		NgrokTrafficPolicyV1: cache.NewStore(keyFunc),
 		TrafficPolicyV1:      cache.NewStore(keyFunc),
@@ -155,8 +162,10 @@ func (c CacheStores) Get(obj runtime.Object) (item any, exists bool, err error) 
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
 	// ----------------------------------------------------------------------------
-	case *ingressv1alpha1.Domain:
+	case *ngrokv1.Domain:
 		return c.DomainV1.Get(obj)
+	case *ingressv1alpha1.Domain: // LEGACY-domain-kind: drop at cleanup.
+		return c.LegacyDomainV1.Get(obj)
 	case *ngrokv1alpha1.NgrokTrafficPolicy: // LEGACY-trafficpolicy-kind: drop at cleanup.
 		return c.NgrokTrafficPolicyV1.Get(obj)
 	case *ngrokv1.TrafficPolicy:
@@ -212,8 +221,10 @@ func (c CacheStores) Add(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
 	// ----------------------------------------------------------------------------
-	case *ingressv1alpha1.Domain:
+	case *ngrokv1.Domain:
 		return c.DomainV1.Add(obj)
+	case *ingressv1alpha1.Domain: // LEGACY-domain-kind: drop at cleanup.
+		return c.LegacyDomainV1.Add(obj)
 	case *ngrokv1alpha1.NgrokTrafficPolicy: // LEGACY-trafficpolicy-kind: drop at cleanup.
 		return c.NgrokTrafficPolicyV1.Add(obj)
 	case *ngrokv1.TrafficPolicy:
@@ -270,8 +281,10 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
 	// ----------------------------------------------------------------------------
-	case *ingressv1alpha1.Domain:
+	case *ngrokv1.Domain:
 		return c.DomainV1.Delete(obj)
+	case *ingressv1alpha1.Domain: // LEGACY-domain-kind: drop at cleanup.
+		return c.LegacyDomainV1.Delete(obj)
 	case *ngrokv1alpha1.NgrokTrafficPolicy: // LEGACY-trafficpolicy-kind: drop at cleanup.
 		return c.NgrokTrafficPolicyV1.Delete(obj)
 	case *ngrokv1.TrafficPolicy:
