@@ -69,6 +69,7 @@ type Driver struct {
 	gatewayControllerName         string
 
 	defaultDomainReclaimPolicy *ngrokv1.DomainReclaimPolicy
+	apiReader                  client.Reader
 
 	recorder events.EventRecorder
 
@@ -127,6 +128,14 @@ func WithGatewayTLSRouteEnabled(enabled bool) DriverOpt {
 func WithDefaultDomainReclaimPolicy(policy ngrokv1.DomainReclaimPolicy) DriverOpt {
 	return func(d *Driver) {
 		d.defaultDomainReclaimPolicy = &policy
+	}
+}
+
+// WithAPIReader sets a reader that bypasses the cache, used when migrating
+// legacy Domains to ngrok.com/v1 (see domain.EnsureV1).
+func WithAPIReader(r client.Reader) DriverOpt {
+	return func(d *Driver) {
+		d.apiReader = r
 	}
 }
 

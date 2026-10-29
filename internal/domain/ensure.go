@@ -43,8 +43,18 @@ import (
 // Otherwise defaults fills in the new object (name and namespace are already
 // set).
 //
+// live, if non-nil, reads straight from the API server. It is used for the
+// two reads a stale cache would get wrong: whether a legacy Domain exists (a
+// miss would create the v1 object from defaults instead of a copy), and the
+// re-read after a concurrent create. Pass the manager's API reader; nil falls
+// back to c.
+//
 // The returned bool reports whether this call created the object.
-func EnsureV1(ctx context.Context, c client.Client, key client.ObjectKey, defaults func(*ngrokv1.Domain)) (*ngrokv1.Domain, bool, error) {
+func EnsureV1(ctx context.Context, c client.Client, live client.Reader, key client.ObjectKey, defaults func(*ngrokv1.Domain)) (*ngrokv1.Domain, bool, error) {
+	if live == nil {
+		live = c
+	}
+
 	existing := &ngrokv1.Domain{}
 	err := c.Get(ctx, key, existing)
 	if err == nil {
@@ -60,7 +70,7 @@ func EnsureV1(ctx context.Context, c client.Client, key client.ObjectKey, defaul
 
 	// LEGACY-domain-kind: BEGIN
 	legacy := &ingressv1alpha1.Domain{}
-	err = c.Get(ctx, key, legacy)
+	err = live.Get(ctx, key, legacy)
 	switch {
 	case err == nil:
 		if desired, err = V1FromLegacy(legacy); err != nil {
@@ -78,7 +88,8 @@ func EnsureV1(ctx context.Context, c client.Client, key client.ObjectKey, defaul
 			return nil, false, err
 		}
 		// Created concurrently, e.g. by the driver and an endpoint reconcile.
-		if err := c.Get(ctx, key, existing); err != nil {
+		// The cache may not have it yet.
+		if err := live.Get(ctx, key, existing); err != nil {
 			return nil, false, err
 		}
 		return existing, false, nil

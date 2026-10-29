@@ -30,7 +30,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -102,9 +101,10 @@ func convertJSON(src, dst any) error {
 // the v1 map type can't hold.
 var ErrMigrationBlocked = errors.New("legacy Domain cannot be migrated to ngrok.com/v1 automatically")
 
-// V1FromLegacy builds the v1 copy of a legacy Domain: same name, namespace,
-// labels and spec. Annotations are not copied; they belong to whatever applied
-// the legacy object.
+// V1FromLegacy builds the v1 copy of a legacy Domain: same name, namespace and
+// spec. Labels and annotations are not copied: they belong to whatever applied
+// the legacy object, and a GitOps tool's tracking label on an object it didn't
+// create makes it prune that object. Callers add the operator's own labels.
 func V1FromLegacy(legacy *ingressv1alpha1.Domain) (*ngrokv1.Domain, error) {
 	metadata := commonv1alpha1.MetadataToMap(legacy.Spec.Metadata)
 	// An unset or empty legacy value maps to nil, and v1 then gets the CRD
@@ -118,7 +118,6 @@ func V1FromLegacy(legacy *ingressv1alpha1.Domain) (*ngrokv1.Domain, error) {
 	v1 := &ngrokv1.Domain{}
 	v1.Name = legacy.Name
 	v1.Namespace = legacy.Namespace
-	v1.Labels = maps.Clone(legacy.Labels)
 	v1.Spec = ngrokv1.DomainSpec{
 		Description:   legacy.Spec.Description,
 		Metadata:      metadata,

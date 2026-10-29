@@ -334,7 +334,10 @@ func (r *DomainReconciler) finalizeDelete(ctx context.Context, domain, twin doma
 		keptFor := ""
 		// LEGACY-domain-kind: BEGIN
 		switch {
-		case twin != nil && !isDeleting(twin):
+		// A twin without a finalizer (a legacy Domain created after its v1 twin
+		// took over) can vanish without this controller seeing its delete, so
+		// it only counts if the API server still has it.
+		case twin != nil && !isDeleting(twin) && util.HasFinalizer(twin.Object()):
 			keptFor = humanKind(twin)
 		default:
 			// The two kinds come from separate informers, so the cache can be
@@ -628,8 +631,14 @@ func (r *DomainReconciler) pushSpec(ctx context.Context, domain domainpkg.Resour
 		Metadata:    &specMetadata,
 		ResolvesTo:  specResolvesTo,
 	}
-	resp, err := r.DomainsClient.Update(ctx, req)
-	return r.updateStatus(ctx, domain, resp, err)
+	updated, err := r.DomainsClient.Update(ctx, req)
+	if err != nil {
+		// Record the reservation as it is, not an empty one: on adoption this is
+		// the first status this Domain gets, and readers need its CNAME target
+		// and certificate state, not just an ID.
+		return r.updateStatus(ctx, domain, resp, err)
+	}
+	return r.updateStatus(ctx, domain, updated, nil)
 }
 
 // deleteRemote releases domain's reservation, honoring its reclaim policy.

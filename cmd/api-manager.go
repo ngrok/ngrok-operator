@@ -543,6 +543,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
 		managerdriver.WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),
 		managerdriver.WithEventRecorder(mgr.GetEventRecorder("k8s-resource-driver")),
+		managerdriver.WithAPIReader(mgr.GetAPIReader()),
 		managerdriver.WithDrainState(drainState),
 	}
 
