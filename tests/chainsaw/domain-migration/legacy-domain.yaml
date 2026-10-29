@@ -1,0 +1,7 @@
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: Domain
+metadata:
+  name: (join('', ['dom-migrate', $ngrokDomainSuffixDashes]))
+spec:
+  domain: (join('', ['dom-migrate', $ngrokDomainSuffix]))
+  description: created as a legacy Domain

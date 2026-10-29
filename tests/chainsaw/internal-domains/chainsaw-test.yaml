@@ -23,7 +23,9 @@ spec:
           # Wait a bit for the operator to process
           sleep 3
           # Check that no Domain CRD was created for the internal domain
-          if kubectl get domain foo-internal -n $NAMESPACE 2>/dev/null; then
+          # Both Domain kinds share the plural, so check each by its full name.
+          if kubectl get domains.ngrok.com foo-internal -n $NAMESPACE 2>/dev/null || \
+             kubectl get domains.ingress.k8s.ngrok.com foo-internal -n $NAMESPACE 2>/dev/null; then
             echo "ERROR: Domain CRD was created for foo.internal, but should have been skipped"
             exit 1
           fi
@@ -37,7 +39,9 @@ spec:
           # Wait for the operator to process
           sleep 3
           # Check that no Domain CRD was created for the internal domain
-          if kubectl get domain service-namespace-internal -n $NAMESPACE 2>/dev/null; then
+          # Both Domain kinds share the plural, so check each by its full name.
+          if kubectl get domains.ngrok.com service-namespace-internal -n $NAMESPACE 2>/dev/null || \
+             kubectl get domains.ingress.k8s.ngrok.com service-namespace-internal -n $NAMESPACE 2>/dev/null; then
             echo "ERROR: Domain CRD was created for service.namespace.internal, but should have been skipped"
             exit 1
           fi
@@ -45,7 +49,7 @@ spec:
     - assert:
         timeout: 30s
         resource:
-          apiVersion: ingress.k8s.ngrok.com/v1alpha1
+          apiVersion: ngrok.com/v1
           kind: Domain
           metadata:
             # The domain name gets hyphenated: app.example.com -> app-example-com

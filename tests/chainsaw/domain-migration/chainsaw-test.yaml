@@ -1,0 +1,92 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+# LEGACY-domain-kind: delete this test at cleanup.
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: domain-migration
+spec:
+  description: |
+    Verifies the move from ingress.k8s.ngrok.com/v1alpha1 Domain to
+    ngrok.com/v1 Domain: an endpoint using an existing legacy Domain gets a
+    v1 copy of it, the copy takes over the same reservation, the legacy
+    Domain is marked superseded, and deleting the legacy Domain keeps the
+    reservation.
+  bindings:
+    - name: ngrokDomainSuffix
+      value: (env('CHAINSAW_NGROK_DOMAIN_SUFFIX'))
+    - name: ngrokDomainSuffixDashes
+      value: (env('CHAINSAW_NGROK_DOMAIN_SUFFIX_DASHES'))
+    - name: domainName
+      value: (join('', ['dom-migrate', $ngrokDomainSuffixDashes]))
+  steps:
+  - name: create a legacy Domain and wait for its reservation
+    try:
+    - create:
+        file: ./legacy-domain.yaml
+    - assert:
+        timeout: 60s
+        resource:
+          apiVersion: ingress.k8s.ngrok.com/v1alpha1
+          kind: Domain
+          metadata:
+            name: ($domainName)
+          (status.id != null): true
+
+  - name: create an endpoint for the domain
+    try:
+    - create:
+        file: ./agentendpoint.yaml
+
+  - name: the v1 copy takes over the legacy reservation
+    try:
+    - assert:
+        timeout: 60s
+        resource:
+          apiVersion: ngrok.com/v1
+          kind: Domain
+          metadata:
+            name: ($domainName)
+          spec:
+            description: created as a legacy Domain
+    - assert:
+        timeout: 60s
+        resource:
+          apiVersion: ingress.k8s.ngrok.com/v1alpha1
+          kind: Domain
+          metadata:
+            name: ($domainName)
+          status:
+            (conditions[?type == 'Ready']):
+            - status: 'True'
+              reason: SupersededByV1
+    - script:
+        timeout: 30s
+        env:
+        - name: DOMAIN
+          value: ($domainName)
+        content: |
+          legacy=$(kubectl get domains.ingress.k8s.ngrok.com "$DOMAIN" -n "$NAMESPACE" -o jsonpath='{.status.id}')
+          v1=$(kubectl get domains.ngrok.com "$DOMAIN" -n "$NAMESPACE" -o jsonpath='{.status.id}')
+          if [ -z "$v1" ] || [ "$legacy" != "$v1" ]; then
+            echo "ERROR: v1 status.id '$v1' does not match legacy status.id '$legacy'"
+            exit 1
+          fi
+          echo "PASS: both kinds hold reservation $v1"
+
+  - name: deleting the legacy Domain keeps the reservation
+    try:
+    - delete:
+        ref:
+          apiVersion: ingress.k8s.ngrok.com/v1alpha1
+          kind: Domain
+          name: ($domainName)
+    - assert:
+        timeout: 30s
+        resource:
+          apiVersion: ngrok.com/v1
+          kind: Domain
+          metadata:
+            name: ($domainName)
+          status:
+            (conditions[?type == 'Ready']):
+            - status: 'True'
