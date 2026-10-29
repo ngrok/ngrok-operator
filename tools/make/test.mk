@@ -52,7 +52,7 @@ e2e-tests-multi-ns: ## Run multi-namespace e2e tests
 		--cleanup-timeout 2m
 
 .PHONY: e2e-tests-private-endpoints
-e2e-tests-private-endpoints: ## Run private endpoints e2e tests in parallel. Needs the feature on and kind DNS set up (make pe-demo-up).
+e2e-tests-private-endpoints: ## Run private endpoints e2e tests in parallel. Needs the feature on and kind DNS set up (make deploy_with_private_endpoints kind-private-endpoints-dns).
 	KUBE_NAMESPACE=$(KUBE_NAMESPACE) \
 	chainsaw test ./tests/chainsaw-private-endpoints \
 		--parallel 4 \
