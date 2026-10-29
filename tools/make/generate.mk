@@ -12,6 +12,14 @@ generate-mocks:
 manifests: ## Generate WebhookConfiguration and CustomResourceDefinition objects.
 	controller-gen crd webhook paths="$(CONTROLLER_GEN_PATHS)" \
 		output:crd:artifacts:config=$(CRD_TEMPLATES_DIR)
+	@# LEGACY-domain-kind: delete at cleanup. Keep the ngrok.com/v1 Domain CRD
+	@# when Helm rolls back to a release without it: deleting the CRD would
+	@# cascade-delete every v1 Domain, and their reconciles could release
+	@# reservations the rolled-back operator still serves through the legacy
+	@# kind. controller-gen has no marker for CRD annotations, so add it here.
+	@sed -e 's|^    controller-gen.kubebuilder.io/version: \(.*\)$$|    controller-gen.kubebuilder.io/version: \1\n    helm.sh/resource-policy: keep|' \
+		$(CRD_TEMPLATES_DIR)/ngrok.com_domains.yaml > $(CRD_TEMPLATES_DIR)/ngrok.com_domains.yaml.tmp
+	@mv $(CRD_TEMPLATES_DIR)/ngrok.com_domains.yaml.tmp $(CRD_TEMPLATES_DIR)/ngrok.com_domains.yaml
 
 
 .PHONY: manifest-bundle

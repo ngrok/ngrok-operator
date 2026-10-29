@@ -26,9 +26,10 @@ package v1alpha1
 
 import (
 	"encoding/json"
-	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 )
 
 type DomainReclaimPolicy string
@@ -186,6 +187,7 @@ type DomainStatusProvisioningJob struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="ingress.k8s.ngrok.com/v1alpha1 Domain is deprecated; use ngrok.com/v1 Domain instead. Re-stamp the manifest's apiVersion (spec.metadata must be a map, not a JSON string), apply it, wait for the new object to be Ready, then delete the old object."
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
 // +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.status.domain`,description="Domain"
 // +kubebuilder:printcolumn:name="Reclaim Policy",type=string,JSONPath=`.spec.reclaimPolicy`,description="Reclaim Policy"
@@ -197,6 +199,10 @@ type DomainStatusProvisioningJob struct {
 // +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].message`,description="Ready Message",priority=1
 
 // Domain is the Schema for the domains API
+//
+// Deprecated: use the canonical ngrok.com/v1 Domain. This kind is still
+// served and reconciled for one migration release; see
+// docs/developer-guide/passivity-shims.md.
 type Domain struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -219,11 +225,10 @@ type DomainList struct {
 	Items           []Domain `json:"items"`
 }
 
-var domainNameForResourceNameReplacer = strings.NewReplacer(
-	".", "-", // replace dots with dashes
-	"*", "wildcard", // replace wildcard with the literal "wildcard"
-)
-
+// HyphenatedDomainNameFromURL returns the Kubernetes object name for the
+// Domain the operator creates for a hostname.
+//
+// LEGACY-domain-kind: delete at cleanup; use ngrokv1.HyphenatedDomainNameFromURL.
 func HyphenatedDomainNameFromURL(domain string) string {
-	return domainNameForResourceNameReplacer.Replace(domain)
+	return ngrokv1.HyphenatedDomainNameFromURL(domain)
 }
