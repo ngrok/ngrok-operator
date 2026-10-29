@@ -98,7 +98,7 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 			// than replaced by defaults: the two share one reservation and the
 			// v1 object becomes the one that pushes its spec to it. Once the v1
 			// object exists the CreateOrPatch below only patches it.
-			_, _, err := domainpkg.EnsureV1(ctx, c, client.ObjectKeyFromObject(domain), func(n *ngrokv1.Domain) {
+			_, _, err := domainpkg.EnsureV1(ctx, c, d.apiReader, client.ObjectKeyFromObject(domain), func(n *ngrokv1.Domain) {
 				n.Spec.Domain = desiredDomain.Spec.Domain
 				if d.defaultDomainReclaimPolicy != nil {
 					n.Spec.ReclaimPolicy = *d.defaultDomainReclaimPolicy

@@ -27,6 +27,8 @@ package domain
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -89,13 +91,14 @@ func (p Pair) Matched() bool {
 // Authoritative returns the Domain readers should use for this key, or nil if
 // neither kind exists:
 //
-//  1. the v1 Domain, once it is alive and backed by a reservation;
+//  1. the v1 Domain, once it is alive and has taken over from its legacy twin
+//     (see v1TakesOver);
 //  2. otherwise the legacy Domain, if there is one;
 //  3. otherwise the v1 Domain.
 func (p Pair) Authoritative() (Resource, error) {
 	if p.V1 != nil {
 		v1 := FromV1(p.V1)
-		if p.Legacy == nil || (IsAlive(p.V1) && IsBacked(v1)) {
+		if p.Legacy == nil || v1TakesOver(p.V1, v1, p.Legacy) {
 			return v1, nil
 		}
 	}
@@ -129,11 +132,31 @@ func ByHostname(v1 []ngrokv1.Domain, legacy []ingressv1alpha1.Domain) (map[strin
 	for i := range v1 {
 		r := FromV1(&v1[i])
 		cur, found := out[v1[i].Spec.Domain]
-		if !found || !cur.IsLegacy() || (IsAlive(&v1[i]) && IsBacked(r)) {
+		if !found || !cur.IsLegacy() || v1TakesOver(&v1[i], r, cur.Object().(*ingressv1alpha1.Domain)) {
 			out[v1[i].Spec.Domain] = r
 		}
 	}
 	return out, nil
+}
+
+// v1TakesOver reports whether readers should use a v1 Domain over its legacy
+// twin: the v1 Domain must be alive, and either Ready or already the one the
+// reconciler superseded the legacy Domain for. Until then the legacy Domain
+// is the one serving the hostname. Requiring Ready (not just a reservation ID)
+// keeps a v1 Domain whose first status write recorded an error from shadowing
+// a working legacy one; once the legacy Domain is superseded its status is
+// frozen, so from then on the v1 Domain is the truth, ready or not.
+//
+// LEGACY-domain-kind: delete at cleanup.
+func v1TakesOver(obj *ngrokv1.Domain, v1 Resource, legacy *ingressv1alpha1.Domain) bool {
+	if !IsAlive(obj) {
+		return false
+	}
+	if IsReady(v1) {
+		return true
+	}
+	ready := meta.FindStatusCondition(legacy.Status.Conditions, ConditionReady)
+	return ready != nil && ready.Reason == ReasonSupersededByV1
 }
 
 // IsAlive reports whether obj is not being deleted. obj must be non-nil: a

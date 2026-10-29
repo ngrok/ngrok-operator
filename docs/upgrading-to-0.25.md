@@ -627,8 +627,9 @@ except that `spec.metadata` must be a map of strings.
 Domain for every hostname it serves: Ingress and Gateway hosts, and the
 hostnames of AgentEndpoints and CloudEndpoints. When an
 `ingress.k8s.ngrok.com/v1alpha1` Domain already exists for that hostname, the
-new object is a copy of it: same name, namespace, labels and spec, including a
-`resolvesTo`, `reclaimPolicy` or `description` you set. The reserved domain in
+new object is a copy of it: same name, namespace and spec, including a
+`resolvesTo`, `reclaimPolicy` or `description` you set. Labels and annotations
+are not copied; the new object gets the operator's own labels. The reserved domain in
 ngrok, its ID and its CNAME target don't change.
 
 Once the `ngrok.com/v1` Domain holds the reservation:

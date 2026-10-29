@@ -136,6 +136,7 @@ case "$mode" in
       ([$legacy.items[] | {key: (.metadata.namespace + "/" + .metadata.name), value: (.status.id // "")}]
         | from_entries) as $ids
       | .items[]
+      | select(.metadata.deletionTimestamp == null)
       | (.metadata.namespace + "/" + .metadata.name) as $k
       | select($ids | has($k))
       | (.status.id // "") as $id

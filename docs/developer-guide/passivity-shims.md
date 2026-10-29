@@ -683,9 +683,11 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
     if the two kinds' JSON fields drift. Conditions moved here from
     `internal/controller/ingress`.
   - **Readers** use `domain.GetPair(...).Authoritative()` or
-    `domain.ByHostname(...)`: a v1 Domain wins only once it is alive and backed
-    by a reservation (`status.id` or `coveredByWildcardDomain`); until then the
-    legacy one is used. Callers: `internal/domain/manager.go` (endpoint
+    `domain.ByHostname(...)`: a v1 Domain wins only once it is alive and either
+    Ready or the one its legacy twin was superseded for (`v1TakesOver`); until
+    then the legacy one is used. Requiring Ready rather than just a
+    reservation ID keeps a v1 Domain whose first spec push failed from
+    shadowing a working legacy one. Callers: `internal/domain/manager.go` (endpoint
     `DomainReady`), `pkg/managerdriver/driver.go::getDomainsByDomain` (Ingress
     and Gateway status), `internal/controller/service/controller.go`
     (`updateStatus`, tls).
@@ -693,8 +695,10 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
     `applyDomains` and `domain.Manager.getOrCreateDomain`
     (CloudEndpoint/AgentEndpoint). When a legacy Domain exists at the name the
     v1 object is a copy of its spec as-is (`domain.V1FromLegacy`), whoever
-    created it, never defaults. Legacy metadata a map can't hold returns
-    `ErrMigrationBlocked`: no copy, the legacy Domain keeps serving, a
+    created it, never defaults. Labels and annotations are not copied (a
+    GitOps tool's tracking label would make it prune the copy); the writers
+    stamp the operator's controller labels. Legacy metadata a map can't hold
+    returns `ErrMigrationBlocked`: no copy, the legacy Domain keeps serving, a
     `DomainMigrationBlocked` event on the endpoint. Nothing ever writes to a
     legacy Domain's spec.
   - **One pair reconciler** (`internal/controller/ngrok/domain_controller.go`,

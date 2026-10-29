@@ -791,8 +791,7 @@ func createReadyLegacyDomain(name, namespace, domainName string) *ingressv1alpha
 }
 
 // A legacy Domain at the endpoint's name gets a v1 copy, but until that copy
-// holds a reservation the endpoint keeps being served by the ready legacy
-// object. Reporting the brand-new v1 instead would flap the endpoint to
+// is Ready the endpoint keeps being served by the ready legacy object. Reporting the brand-new v1 instead would flap the endpoint to
 // DomainReady=False on upgrade.
 func TestManager_EnsureDomainExists_LegacyDomainGetsV1CopyAndStaysAuthoritative(t *testing.T) {
 	legacy := createReadyLegacyDomain("example-com", "default", "example.com")
@@ -814,17 +813,42 @@ func TestManager_EnsureDomainExists_LegacyDomainGetsV1CopyAndStaysAuthoritative(
 	assert.Equal(t, "test-controller", created.Labels[labels.ControllerName])
 }
 
-func TestManager_EnsureDomainExists_BackedV1WinsOverLegacy(t *testing.T) {
+func TestManager_EnsureDomainExists_ReadyV1WinsOverLegacy(t *testing.T) {
 	legacy := createReadyLegacyDomain("example-com", "default", "example.com")
-	v1 := createNotReadyDomain("example-com", "default", "example.com")
-	v1.Status.ID = "domain-123"
+	v1 := createReadyDomain("example-com", "default", "example.com")
+	v1.Status.Conditions[0].Message = "from v1"
 	manager, _ := newTestManager(t, legacy, v1)
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
 
 	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
 	require.NoError(t, err)
 	assert.False(t, result.Domain.IsLegacy())
-	assert.False(t, result.IsReady, "the endpoint follows the v1 Domain once it holds the reservation")
+	assert.Equal(t, "from v1", result.ReadyMessage)
+}
+
+// A v1 Domain with a reservation ID that isn't Ready yet doesn't shadow a
+// working legacy twin, until the reconciler has superseded the legacy one.
+func TestManager_EnsureDomainExists_NotReadyV1(t *testing.T) {
+	v1 := createNotReadyDomain("example-com", "default", "example.com")
+	v1.Status.ID = "domain-123"
+
+	t.Run("legacy not superseded", func(t *testing.T) {
+		manager, _ := newTestManager(t, createReadyLegacyDomain("example-com", "default", "example.com"), v1.DeepCopy())
+		result, err := manager.EnsureDomainExists(t.Context(), createTestEndpoint("test-endpoint", "default", "https://example.com"))
+		require.NoError(t, err)
+		assert.True(t, result.Domain.IsLegacy())
+		assert.True(t, result.IsReady)
+	})
+
+	t.Run("legacy superseded", func(t *testing.T) {
+		legacy := createReadyLegacyDomain("example-com", "default", "example.com")
+		legacy.Status.Conditions[0].Reason = ReasonSupersededByV1
+		manager, _ := newTestManager(t, legacy, v1.DeepCopy())
+		result, err := manager.EnsureDomainExists(t.Context(), createTestEndpoint("test-endpoint", "default", "https://example.com"))
+		require.NoError(t, err)
+		assert.False(t, result.Domain.IsLegacy())
+		assert.False(t, result.IsReady, "the endpoint follows the v1 Domain once it has taken over")
+	})
 }
 
 func TestManager_EnsureDomainExists_MigrationBlockedKeepsLegacy(t *testing.T) {

@@ -29,6 +29,7 @@ package ngrok
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -504,4 +505,60 @@ func TestEarliest(t *testing.T) {
 	assert.Equal(t, soon, earliest(soon, none))
 	assert.Equal(t, now, earliest(later, now))
 	assert.Equal(t, none, earliest(none, none))
+}
+
+// If pushing the v1 spec fails while adopting the legacy reservation, the v1
+// Domain records the reservation as it is (not just its ID) and the legacy
+// Domain stays the one readers use.
+func TestDomainPair_FailedPushOnAdoption(t *testing.T) {
+	p := newPairTest(t,
+		v1Fixture(pairHostname, ""),
+		legacyFixture(pairHostname, "rd_existing"),
+	)
+	p.api.SetUpdateError(errors.New("boom"))
+
+	_, err := p.r.Reconcile(t.Context(), ctrl.Request{NamespacedName: pairKey})
+	require.Error(t, err)
+
+	v1 := p.v1(t)
+	assert.Equal(t, p.rd.ID, v1.Status.ID)
+	assert.Equal(t, pairHostname, v1.Status.Domain, "status is filled from the adopted reservation")
+	assert.False(t, meta.IsStatusConditionTrue(v1.Status.Conditions, domainpkg.ConditionReady))
+
+	legacy := p.legacy(t)
+	ready := meta.FindStatusCondition(legacy.Status.Conditions, domainpkg.ConditionReady)
+	assert.True(t, ready == nil || ready.Reason != domainpkg.ReasonSupersededByV1, "not superseded")
+
+	pair, err := domainpkg.GetPair(t.Context(), p.c, pairKey)
+	require.NoError(t, err)
+	got, err := pair.Authoritative()
+	require.NoError(t, err)
+	assert.True(t, got.IsLegacy(), "readers stay on the working legacy Domain")
+}
+
+// A legacy Domain created after its v1 twin took over never gets a finalizer,
+// so it can disappear without this controller seeing it. Deleting the v1
+// Domain only keeps the reservation if the API server still has that twin.
+func TestDomainPair_FinalizerlessTwinIsRecheckedLive(t *testing.T) {
+	legacy := legacyFixture(pairHostname, "rd_existing")
+	legacy.Finalizers = nil
+
+	t.Run("twin gone", func(t *testing.T) {
+		p := newPairTest(t, v1Fixture(pairHostname, "rd_existing", deleting()), legacy.DeepCopy())
+		p.r.APIReader = fake.NewClientBuilder().WithScheme(pairScheme(t)).Build()
+
+		// The cache still shows the twin, so the pass goes on to sync it and
+		// fails on the released reservation; the next pass sees it gone.
+		_, _ = p.r.Reconcile(t.Context(), ctrl.Request{NamespacedName: pairKey})
+
+		assert.Empty(t, p.api.reservations(t), "released per the v1 reclaim policy")
+	})
+	t.Run("twin still there", func(t *testing.T) {
+		p := newPairTest(t, v1Fixture(pairHostname, "rd_existing", deleting()), legacy.DeepCopy())
+
+		p.reconcile(t)
+
+		assert.Len(t, p.api.reservations(t), 1)
+		assert.Contains(t, p.legacy(t).Finalizers, util.FinalizerName, "the legacy Domain is the writer again")
+	})
 }

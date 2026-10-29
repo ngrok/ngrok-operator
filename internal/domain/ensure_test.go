@@ -54,7 +54,7 @@ func ensureDefaults(d *ngrokv1.Domain) {
 func TestEnsureV1_CreatesFromDefaultsWithoutLegacy(t *testing.T) {
 	_, c := newTestManager(t)
 
-	got, created, err := EnsureV1(t.Context(), c, ensureKey, ensureDefaults)
+	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, ensureDefaults)
 	require.NoError(t, err)
 	assert.True(t, created)
 	assert.Equal(t, "a.example.com", got.Spec.Domain)
@@ -71,7 +71,7 @@ func TestEnsureV1_ReturnsExisting(t *testing.T) {
 	}
 	_, c := newTestManager(t, existing)
 
-	got, created, err := EnsureV1(t.Context(), c, ensureKey, func(*ngrokv1.Domain) {
+	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, func(*ngrokv1.Domain) {
 		t.Fatal("defaults must not run for an existing object")
 	})
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestEnsureV1_CopiesLegacySpec(t *testing.T) {
 	}
 	_, c := newTestManager(t, legacy)
 
-	got, created, err := EnsureV1(t.Context(), c, ensureKey, func(*ngrokv1.Domain) {
+	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, func(*ngrokv1.Domain) {
 		t.Fatal("defaults must not run when a legacy object exists")
 	})
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestEnsureV1_CopiesLegacySpec(t *testing.T) {
 		ResolvesTo:    []ngrokv1.DomainResolvesToEntry{{Value: "eu"}},
 		ReclaimPolicy: ngrokv1.DomainReclaimPolicyRetain,
 	}, got.Spec)
-	assert.Equal(t, map[string]string{"team": "edge"}, got.Labels)
+	assert.Empty(t, got.Labels, "labels belong to whatever applied the legacy object")
 	assert.Empty(t, got.Annotations, "annotations belong to whatever applied the legacy object")
 }
 
@@ -124,7 +124,7 @@ func TestEnsureV1_BlockedByUnmappableMetadata(t *testing.T) {
 			}
 			_, c := newTestManager(t, legacy)
 
-			_, _, err := EnsureV1(t.Context(), c, ensureKey, ensureDefaults)
+			_, _, err := EnsureV1(t.Context(), c, nil, ensureKey, ensureDefaults)
 			require.ErrorIs(t, err, ErrMigrationBlocked)
 
 			err = c.Get(t.Context(), ensureKey, &ngrokv1.Domain{})
@@ -140,7 +140,7 @@ func TestEnsureV1_EmptyLegacyMetadataIsNotBlocked(t *testing.T) {
 	}
 	_, c := newTestManager(t, legacy)
 
-	got, _, err := EnsureV1(t.Context(), c, ensureKey, ensureDefaults)
+	got, _, err := EnsureV1(t.Context(), c, nil, ensureKey, ensureDefaults)
 	require.NoError(t, err)
 	assert.Nil(t, got.Spec.Metadata)
 }
@@ -160,7 +160,7 @@ func TestEnsureV1_ConcurrentCreate(t *testing.T) {
 		},
 	}).Build()
 
-	got, created, err := EnsureV1(t.Context(), c, ensureKey, ensureDefaults)
+	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, ensureDefaults)
 	require.NoError(t, err)
 	assert.False(t, created)
 	assert.Equal(t, "winner", got.Spec.Description)

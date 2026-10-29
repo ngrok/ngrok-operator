@@ -100,7 +100,7 @@ Steps:
 4. `Domain` is the exception to steps 2 and 3: the operator writes Domains
    itself, so it creates the `ngrok.com/v1` Domain for every hostname it
    serves, copying the spec of any legacy Domain at that name, and the
-   canonical object wins only once it holds the domain reservation. Domains
+   canonical object wins only once it is Ready or has superseded the legacy one. Domains
    only users create are re-stamped as above (or with
    `scripts/migrate-domains-to-ngrok-v1.sh`). Both kinds share the plural
    `domains`, so use `domains.ngrok.com` and `domains.ingress.k8s.ngrok.com`.

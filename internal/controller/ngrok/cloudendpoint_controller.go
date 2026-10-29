@@ -86,6 +86,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 		opts := []domainpkg.ManagerOption{
 			domainpkg.WithControllerLabels(r.ControllerLabels),
+			domainpkg.WithAPIReader(mgr.GetAPIReader()),
 		}
 
 		if r.DefaultDomainReclaimPolicy != nil {

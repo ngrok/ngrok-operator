@@ -70,6 +70,15 @@ func WithDefaultDomainReclaimPolicy(policy ngrokv1.DomainReclaimPolicy) ManagerO
 	}
 }
 
+// WithAPIReader sets a reader that bypasses the cache, used where a stale
+// cache would make EnsureV1 create a Domain from defaults instead of copying
+// a legacy Domain.
+func WithAPIReader(r client.Reader) ManagerOption {
+	return func(m *Manager) {
+		m.apiReader = r
+	}
+}
+
 // WithControllerLabels sets the controller labels for the Domain Manager
 func WithControllerLabels(clv labels.ControllerLabelValues) ManagerOption {
 	return func(m *Manager) {
@@ -83,6 +92,7 @@ type Manager struct {
 	Recorder                   events.EventRecorder
 	defaultDomainReclaimPolicy *ngrokv1.DomainReclaimPolicy
 	controllerLabels           *labels.ControllerLabelValues
+	apiReader                  client.Reader
 }
 
 func NewManager(client client.Client, recorder events.EventRecorder, opts ...ManagerOption) (*Manager, error) {
@@ -192,7 +202,7 @@ func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.
 	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain)
 	domainKey := client.ObjectKey{Name: ngrokv1.HyphenatedDomainNameFromURL(domain), Namespace: endpoint.GetNamespace()}
 
-	v1, _, err := EnsureV1(ctx, m.Client, domainKey, func(d *ngrokv1.Domain) {
+	v1, _, err := EnsureV1(ctx, m.Client, m.apiReader, domainKey, func(d *ngrokv1.Domain) {
 		d.Spec.Domain = domain
 		if m.controllerLabels != nil {
 			m.controllerLabels.EnsureLabels(d)

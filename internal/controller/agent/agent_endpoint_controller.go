@@ -132,6 +132,7 @@ func (r *AgentEndpointReconciler) SetupWithManagerNamed(mgr ctrl.Manager, contro
 
 		opts := []domainpkg.ManagerOption{
 			domainpkg.WithControllerLabels(r.ControllerLabels),
+			domainpkg.WithAPIReader(mgr.GetAPIReader()),
 		}
 
 		if r.DefaultDomainReclaimPolicy != nil {

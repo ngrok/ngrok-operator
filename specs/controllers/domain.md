@@ -171,5 +171,5 @@ reconcile pass handles both:
 The operator creates `ngrok.com/v1` Domains for the hostnames it serves. When
 a legacy Domain exists at that name, the v1 Domain is a copy of its spec.
 Readers (Ingress, Gateway and Service load balancer status, endpoint
-`DomainReady`) use the v1 Domain only once it holds a reservation, and the
-legacy one until then.
+`DomainReady`) use the v1 Domain only once it is Ready or has superseded the
+legacy one, and the legacy one until then.

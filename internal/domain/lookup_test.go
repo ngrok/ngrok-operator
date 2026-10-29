@@ -41,7 +41,8 @@ type v1State int
 const (
 	v1None v1State = iota
 	v1Unbacked
-	v1Backed
+	v1Backed // backed and Ready
+	v1BackedNotReady
 	v1Covered
 	v1Deleting
 )
@@ -51,8 +52,11 @@ type legacyState int
 const (
 	legacyNone legacyState = iota
 	legacyAlive
+	legacySuperseded
 	legacyDeleting
 )
+
+var readyConditions = []metav1.Condition{{Type: ConditionReady, Status: metav1.ConditionTrue, Reason: ReasonDomainActive}}
 
 func pairFixture(v1 v1State, legacy legacyState) Pair {
 	var p Pair
@@ -62,11 +66,16 @@ func pairFixture(v1 v1State, legacy legacyState) Pair {
 	case v1Unbacked:
 		p.V1 = &ngrokv1.Domain{Spec: ngrokv1.DomainSpec{Domain: "a.example.com"}}
 	case v1Backed:
+		p.V1 = &ngrokv1.Domain{Spec: ngrokv1.DomainSpec{Domain: "a.example.com"}, Status: ngrokv1.DomainStatus{ID: "rd_1", Conditions: readyConditions}}
+	case v1BackedNotReady:
 		p.V1 = &ngrokv1.Domain{Spec: ngrokv1.DomainSpec{Domain: "a.example.com"}, Status: ngrokv1.DomainStatus{ID: "rd_1"}}
 	case v1Covered:
 		p.V1 = &ngrokv1.Domain{
-			Spec:   ngrokv1.DomainSpec{Domain: "a.example.com"},
-			Status: ngrokv1.DomainStatus{CoveredByWildcardDomain: &ngrokv1.DomainStatusWildcardDomain{ID: "rd_w", Domain: "*.example.com"}},
+			Spec: ngrokv1.DomainSpec{Domain: "a.example.com"},
+			Status: ngrokv1.DomainStatus{
+				CoveredByWildcardDomain: &ngrokv1.DomainStatusWildcardDomain{ID: "rd_w", Domain: "*.example.com"},
+				Conditions:              readyConditions,
+			},
 		}
 	case v1Deleting:
 		p.V1 = &ngrokv1.Domain{
@@ -79,6 +88,13 @@ func pairFixture(v1 v1State, legacy legacyState) Pair {
 	case legacyNone:
 	case legacyAlive:
 		p.Legacy = &ingressv1alpha1.Domain{Spec: ingressv1alpha1.DomainSpec{Domain: "a.example.com"}, Status: ingressv1alpha1.DomainStatus{ID: "rd_1"}}
+	case legacySuperseded:
+		p.Legacy = &ingressv1alpha1.Domain{
+			Spec: ingressv1alpha1.DomainSpec{Domain: "a.example.com"},
+			Status: ingressv1alpha1.DomainStatus{ID: "rd_1", Conditions: []metav1.Condition{{
+				Type: ConditionReady, Status: metav1.ConditionTrue, Reason: ReasonSupersededByV1,
+			}}},
+		}
 	case legacyDeleting:
 		p.Legacy = &ingressv1alpha1.Domain{
 			ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &deleting, Finalizers: []string{"x"}},
@@ -112,6 +128,14 @@ func TestPairAuthoritative(t *testing.T) {
 		{v1Backed, legacyAlive, v1},
 		{v1Backed, legacyDeleting, v1},
 		{v1Covered, legacyAlive, v1},
+		// A v1 Domain with a reservation ID but not Ready (say its first spec
+		// push failed) must not shadow a working legacy twin...
+		{v1BackedNotReady, legacyAlive, legacy},
+		{v1BackedNotReady, legacyNone, v1},
+		// ...but once the legacy twin is superseded its status is frozen, and
+		// the v1 Domain is the truth, ready or not.
+		{v1BackedNotReady, legacySuperseded, v1},
+		{v1Unbacked, legacySuperseded, v1},
 		{v1Deleting, legacyNone, v1},
 		{v1Deleting, legacyAlive, legacy},
 		{v1Deleting, legacyDeleting, legacy},
@@ -148,7 +172,7 @@ func TestPairMatched(t *testing.T) {
 
 func TestByHostname(t *testing.T) {
 	v1s := []ngrokv1.Domain{
-		{ObjectMeta: metav1.ObjectMeta{Name: "backed"}, Spec: ngrokv1.DomainSpec{Domain: "backed.example.com"}, Status: ngrokv1.DomainStatus{ID: "rd_v1"}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "backed"}, Spec: ngrokv1.DomainSpec{Domain: "backed.example.com"}, Status: ngrokv1.DomainStatus{ID: "rd_v1", Conditions: readyConditions}},
 		{ObjectMeta: metav1.ObjectMeta{Name: "unbacked"}, Spec: ngrokv1.DomainSpec{Domain: "unbacked.example.com"}},
 		{ObjectMeta: metav1.ObjectMeta{Name: "v1-only"}, Spec: ngrokv1.DomainSpec{Domain: "v1-only.example.com"}},
 	}
