@@ -207,6 +207,10 @@ Current sentinel tags:
   `ngrok.com/v1 TrafficPolicy`. Covers both the kind change and the group
   move, since we fold them into a single dual-CRD migration rather than
   paying two dual-read cycles.
+- `LEGACY-domain-kind` — CRD **group** move for a kind that both users and
+  the operator write, and that owns an ngrok resource:
+  `ingress.k8s.ngrok.com/v1alpha1 Domain` → `ngrok.com/v1 Domain`. The kind
+  keeps its name.
 - `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
 - `LEGACY-enabledfeatures-format` — `KubernetesOperator.status.enabledFeatures` comma-separated **string** → `[]string` (a field *type* change on an operator-only, operator-written status field; same `json:` tag).
 - `LEGACY-values-layout` — Helm values moved in the 0.25 layout. `templates/_legacy-values.tpl` fails the render when an old top-level key is set, naming its new path, so old values are never silently ignored. Delete the file, its include and the tagged tests once 0.25 is the oldest release users upgrade from.
@@ -639,6 +643,136 @@ this pattern: two coexisting CRDs, canonical-first dual-read helper on
 the store, `DeprecatedAPIGroup` warning event on legacy fallback,
 sentinel-tag every legacy-only code path, no operator-driven backfill.
 
+## Per-shim catalog: Domain CRD group move (user- and operator-written)
+
+### `ingress.k8s.ngrok.com/v1alpha1 Domain` → `ngrok.com/v1 Domain`
+
+- **Pattern:** Two-release dual-CRD migration with a single pair reconciler.
+  Tag: `LEGACY-domain-kind`.
+- **Why it differs from TrafficPolicy and KubernetesOperator.**
+  - A Domain owns a reserved domain in ngrok, and `reclaimPolicy: Delete`
+    releases it when the CR is deleted. For a custom domain a re-reservation
+    gets a new CNAME target, so releasing a reservation the other kind still
+    uses is a DNS outage. The delete path is the hazard.
+  - `create()` adopts an existing reservation by hostname, so a v1 Domain
+    and a legacy Domain with the same hostname always share one reservation.
+    No ID hand-off is needed (unlike IPPolicy).
+  - Both users and the operator write Domains. The operator stamps its
+    controller labels on any Domain it uses, so labels can't tell the two
+    apart.
+  - Domain status feeds Ingress, Gateway and Service load balancer status and
+    endpoint readiness, so readers must not switch to a v1 Domain that has no
+    reservation yet.
+- **R1 — migration release:**
+  - **Types.** `api/ngrok/v1/domain_types.go` is the legacy schema except
+    `spec.metadata` is `map[string]string`. The legacy type carries
+    `+kubebuilder:deprecatedversion:warning` and a `Deprecated:` comment; the
+    SA1019 exclusion in `.golangci.yml` is tagged.
+    `HyphenatedDomainNameFromURL` lives in `api/ngrok/v1`; the legacy one
+    delegates.
+  - **The v1 CRD is kept on rollback.** `make manifests` adds
+    `helm.sh/resource-policy: keep` to `ngrok.com_domains.yaml`
+    (`tools/make/generate.mk`; controller-gen has no marker for it). A
+    `helm rollback` to a release without the CRD therefore can't
+    cascade-delete every v1 Domain, which would otherwise race the R1 pod's
+    delete path. Uninstall leaves the CRD behind (`docs/uninstall.md`).
+  - **Kind-agnostic layer** (`internal/domain`): `Resource` is the view every
+    reconciler and reader uses. Its `Status()` is always `*ngrokv1.DomainStatus`;
+    the legacy adapter (`resource_legacy.go`) bridges status through JSON
+    and `CommitStatus` writes it back. `TestDomainKindsHaveTheSameShape` fails
+    if the two kinds' JSON fields drift. Conditions moved here from
+    `internal/controller/ingress`.
+  - **Readers** use `domain.GetPair(...).Authoritative()` or
+    `domain.ByHostname(...)`: a v1 Domain wins only once it is alive and backed
+    by a reservation (`status.id` or `coveredByWildcardDomain`); until then the
+    legacy one is used. Callers: `internal/domain/manager.go` (endpoint
+    `DomainReady`), `pkg/managerdriver/driver.go::getDomainsByDomain` (Ingress
+    and Gateway status), `internal/controller/service/controller.go`
+    (`updateStatus`, tls).
+  - **Writers** create v1 only, through `domain.EnsureV1`: the driver's
+    `applyDomains` and `domain.Manager.getOrCreateDomain`
+    (CloudEndpoint/AgentEndpoint). When a legacy Domain exists at the name the
+    v1 object is a copy of its spec as-is (`domain.V1FromLegacy`), whoever
+    created it, never defaults. Legacy metadata a map can't hold returns
+    `ErrMigrationBlocked`: no copy, the legacy Domain keeps serving, a
+    `DomainMigrationBlocked` event on the endpoint. Nothing ever writes to a
+    legacy Domain's spec.
+  - **One pair reconciler** (`internal/controller/ngrok/domain_controller.go`,
+    `.Named("domain")`) reconciles both kinds: `For(&ngrokv1.Domain{})` plus a
+    tagged legacy `Watches` with `EnqueueRequestForObject`, so twins share a
+    workqueue key. Predicates are per source, not `WithEventFilter`. Each pass:
+    1. Deletes: a deleting Domain skips the ngrok delete while a *matched* twin
+       (same namespace/name and hostname) is alive. With no twin in the cache,
+       the twin is re-read through `APIReader` right before the delete.
+    2. Writer: v1 while alive, else legacy. Deleting v1 hands the reservation
+       back to legacy in the same pass.
+    3. Supersede: once v1 is backed, the legacy twin gets `Ready=True` with
+       reason `SupersededByV1` (written only when that or observedGeneration
+       changes), no ngrok API calls, other status fields frozen, and a
+       `DeprecatedAPIGroup` warning when edited. **It keeps its finalizer until
+       it is deleted**, and R1 never deletes it.
+    4. Mismatched twins (same name, different hostnames) are reconciled
+       independently with a `DomainTwinMismatch` warning.
+    5. Adopting a reservation pushes the Domain's spec immediately.
+  - **Watches/caches:** both kinds in `internal/store` (`DomainV1` is now the
+    canonical cache; `LegacyDomainV1` is tagged), `BaseSeededTypes`,
+    `listObjectsForType`, the Ingress/Gateway/HTTPRoute `storeFedResources`,
+    and both endpoint controllers (`domain.HostnameOf` in the mappers).
+  - **Drain:** the legacy entry runs before the v1 entry, so the v1 delete is
+    the one that applies `reclaimPolicy`.
+  - **RBAC:** `ngrok.com` domains rules in the api-manager and agent roles,
+    and in the existing `domain-{editor,viewer}` roles (names unchanged);
+    legacy rules tagged.
+  - **Users** re-stamp hand-written Domains the operator doesn't use;
+    `scripts/migrate-domains-to-ngrok-v1.sh` does it in bulk and deletes
+    legacy Domains whose twin is Ready with the same reservation.
+- **R-cleanup:** `git grep 'LEGACY-domain-kind'` and sweep. Before it ships,
+  decide how legacy Domains still carrying a finalizer are released: R1 keeps
+  the finalizer until deletion, and nothing in the cleanup release can remove
+  it once the type is gone. The 0.25 guide tells users to run
+  `--delete-legacy` first.
+  - Delete `api/ingress/v1alpha1/domain_types.go` (stops
+    `ingress.k8s.ngrok.com_domains.yaml` being emitted) and its scheme entries;
+    regenerate deepcopy.
+  - Delete `internal/domain/resource_legacy.go`, `domain_migration_test.go`,
+    `pkg/managerdriver/domains_migration_test.go`, and the tagged halves of
+    `lookup.go` (`Pair.Legacy`, `Matched`, legacy branches of `Authoritative`,
+    `ByHostname`, `HostnameOf`) and `ensure.go` (the copy branch: `EnsureV1`
+    collapses to create-with-defaults, and the driver's `applyDomains` drops
+    its `EnsureV1` block since `CreateOrPatch` creates).
+  - Pair reconciler: delete the legacy `Watches`, the legacy branches of
+    `Reconcile`/`reconcilePair`/`finalizeDelete`, `liveTwin`, `supersede`,
+    `warnDeprecatedLegacy`, `warnTwinMismatch`, `earliest`, and the migration
+    event constants. What's left is a one-object reconcile; optionally move it
+    back onto `BaseController.Reconcile`.
+  - Drop the tagged watches, storeFed entries, seed and list cases, store
+    field, drain entry, Helm rule blocks, `testutils.NewLegacyDomain`, the
+    SA1019 exclusion, the `PROJECT` entry, the `keep` step in
+    `tools/make/generate.mk` (no later rollback removes the v1 CRD), the
+    chainsaw `domain-migration` test, and the migration script.
+
+#### Why we don't shortcut the Domain migration
+
+- **Dual-write both kinds for operator-generated Domains (three releases).**
+  Doubles the objects per hostname for a release and still doesn't protect a
+  user's v1-only Domain from a rollback cascade, which needed the `keep`
+  annotation anyway. A 0.24 driver recreates its legacy Domain for every
+  Ingress host on rollback, so it gains nothing.
+- **Copy defaults, not the legacy spec.** A hand-written legacy Domain an
+  endpoint uses would lose its `resolvesTo` and `reclaimPolicy` the moment the
+  v1 copy became the writer.
+- **Detect user-created legacy Domains and leave them alone.** No reliable
+  signal: labels are stamped on every Domain the operator uses, and
+  `managedFields` depend on field-manager names. Copying as-is is correct for
+  both.
+- **Strip the legacy finalizer once superseded (KubernetesOperator style).**
+  Not done: a superseded legacy Domain keeps its finalizer until it is
+  deleted, so it stays exactly as an older operator expects it. The cost is
+  the open R-cleanup question above.
+- **A CRD-read guard instead of `keep`.** Needs a cluster-scoped `get` on the
+  CRD and an RBAC-ordering argument on rollback; the KubernetesOperator move
+  removed exactly that. `keep` stops the cascade at the source.
+
 ## Per-shim catalog: user-facing key compatibility (read-side only)
 
 ### User-facing annotations (read-side compatibility)
@@ -774,9 +908,10 @@ normalizes both.
     admission — a hard error that supersedes any transient event. The deprecation
     lives in the docs (this guide, the migration guide, and the CRD field
     description) only.
-  - Operator-generated objects (`pkg/managerdriver/translator.go`,
-    `pkg/managerdriver/domains.go`) keep writing the **string** form via
-    `commonv1alpha1.MetadataFromLegacyString` for rollback safety.
+  - Operator-generated objects (`pkg/managerdriver/translator.go`) keep writing
+    the **string** form via `commonv1alpha1.MetadataFromLegacyString` for
+    rollback safety. (Operator-generated Domains are `ngrok.com/v1`, whose
+    `spec.metadata` is already a map; see the Domain catalog entry.)
 - **R-cleanup:** drop the legacy string branch in `MetadataAPIString` and delete
   `MetadataFromLegacyString`; change the fields from `json.RawMessage` to
   `map[string]string`; flip the CRD default to the object form; switch the
