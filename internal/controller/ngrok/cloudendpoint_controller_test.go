@@ -31,7 +31,7 @@ import (
 	"time"
 
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
@@ -134,7 +134,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 			By("Verifying no domain CR was created for TCP endpoint")
 			Eventually(func(g Gomega) {
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(domains.Items).To(BeEmpty())
 			}, timeout, interval).Should(Succeed())
@@ -170,7 +170,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 			By("Verifying no domain CR was created for custom TCP endpoint")
 			Eventually(func(g Gomega) {
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(domains.Items).To(BeEmpty())
 			}, timeout, interval).Should(Succeed())
@@ -987,7 +987,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Verifying no Domain CRD was created")
-			domains := &ingressv1alpha1.DomainList{}
+			domains := &ngrokv1.DomainList{}
 			Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 			Expect(domains.Items).To(BeEmpty())
 
@@ -1048,9 +1048,9 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, cloudEndpoint)).To(Succeed())
 
 			By("Waiting for controller to create Domain CR")
-			var domain *ingressv1alpha1.Domain
+			var domain *ngrokv1.Domain
 			Eventually(func(g Gomega) {
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(domains.Items).To(HaveLen(1))
 				domain = &domains.Items[0]
@@ -1078,7 +1078,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 			By("Making the domain ready")
 			Eventually(func(g Gomega) {
-				latestDomain := &ingressv1alpha1.Domain{}
+				latestDomain := &ngrokv1.Domain{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: domain.Name, Namespace: namespace}, latestDomain)).To(Succeed())
 				domain = latestDomain
 			}, timeout, interval).Should(Succeed())
@@ -1193,7 +1193,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			}
 
 			By("Verifying no Domain CRD was created")
-			domains := &ingressv1alpha1.DomainList{}
+			domains := &ngrokv1.DomainList{}
 			Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 			Expect(domains.Items).To(BeEmpty())
 
@@ -1231,17 +1231,17 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			wildcard := "*.wildcard-covered.example.com"
 
 			By("Creating a Domain that a wildcard already covers")
-			domain := &ingressv1alpha1.Domain{
-				Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(hostname),
+			domain := &ngrokv1.Domain{
+				Name:      ngrokv1.HyphenatedDomainNameFromURL(hostname),
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: hostname,
 				},
 			}
 			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 
 			Eventually(func(g Gomega) {
-				latest := &ingressv1alpha1.Domain{}
+				latest := &ngrokv1.Domain{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), latest)).To(Succeed())
 				domain = latest
 			}, timeout, interval).Should(Succeed())
@@ -1249,7 +1249,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 			// No reservation of its own: exactly the state the reconciler writes.
 			domain.Status.ID = ""
 			domain.Status.Domain = hostname
-			domain.Status.CoveredByWildcardDomain = &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard}
+			domain.Status.CoveredByWildcardDomain = &ngrokv1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard}
 			domain.Status.Conditions = []metav1.Condition{
 				{
 					Type:               "Ready",

@@ -179,8 +179,8 @@ var _ = Describe("Driver", func() {
 				err := driver.Sync(GinkgoT().Context(), c)
 				Expect(err).ToNot(HaveOccurred())
 
-				domains := &ingressv1alpha1.DomainList{}
-				err = c.List(GinkgoT().Context(), &ingressv1alpha1.DomainList{})
+				domains := &ngrokv1.DomainList{}
+				err = c.List(GinkgoT().Context(), &ngrokv1.DomainList{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(domains.Items).To(HaveLen(0))
 
@@ -224,7 +224,7 @@ var _ = Describe("Driver", func() {
 				err = driver.Sync(GinkgoT().Context(), c)
 				Expect(err).ToNot(HaveOccurred())
 
-				foundDomain := &ingressv1alpha1.Domain{}
+				foundDomain := &ngrokv1.Domain{}
 				err = c.Get(GinkgoT().Context(), types.NamespacedName{
 					Namespace: "test-namespace",
 					Name:      "example-com",
@@ -639,7 +639,7 @@ var _ = Describe("Driver", func() {
 
 		When("The defaultDomainReclaimPolicy is set", func() {
 			var (
-				defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy
+				defaultDomainReclaimPolicy ngrokv1.DomainReclaimPolicy
 				objs                       []runtime.Object
 				c                          client.WithWatch
 			)
@@ -669,15 +669,15 @@ var _ = Describe("Driver", func() {
 
 			When("policy is Delete", func() {
 				BeforeEach(func() {
-					defaultDomainReclaimPolicy = ingressv1alpha1.DomainReclaimPolicyDelete
+					defaultDomainReclaimPolicy = ngrokv1.DomainReclaimPolicyDelete
 				})
 
 				When("no domains exist", func() {
 					It("should create new domains with ReclaimPolicy set to Delete", func(ctx SpecContext) {
-						domains := &ingressv1alpha1.DomainList{}
+						domains := &ngrokv1.DomainList{}
 						Expect(c.List(ctx, domains)).To(Succeed())
 						Expect(domains.Items).To(HaveLen(1))
-						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ingressv1alpha1.DomainReclaimPolicyDelete))
+						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ngrokv1.DomainReclaimPolicyDelete))
 					})
 				})
 
@@ -685,31 +685,31 @@ var _ = Describe("Driver", func() {
 					BeforeEach(func() {
 						d := testutils.NewDomainV1("example.com", "test-namespace")
 						d.ObjectMeta.SetCreationTimestamp(metav1.Now())
-						d.Spec.ReclaimPolicy = ingressv1alpha1.DomainReclaimPolicyRetain
+						d.Spec.ReclaimPolicy = ngrokv1.DomainReclaimPolicyRetain
 
 						objs = append(objs, d)
 					})
 
 					It("should not modify the reclaim policy of existing domains", func(ctx SpecContext) {
-						domains := &ingressv1alpha1.DomainList{}
+						domains := &ngrokv1.DomainList{}
 						Expect(c.List(ctx, domains)).To(Succeed())
 						Expect(domains.Items).To(HaveLen(1))
-						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ingressv1alpha1.DomainReclaimPolicyRetain))
+						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ngrokv1.DomainReclaimPolicyRetain))
 					})
 				})
 			})
 
 			When("policy is Retain", func() {
 				BeforeEach(func() {
-					defaultDomainReclaimPolicy = ingressv1alpha1.DomainReclaimPolicyRetain
+					defaultDomainReclaimPolicy = ngrokv1.DomainReclaimPolicyRetain
 				})
 
 				When("no domains exist", func() {
 					It("should create new domains with ReclaimPolicy set to Retain", func(ctx SpecContext) {
-						domains := &ingressv1alpha1.DomainList{}
+						domains := &ngrokv1.DomainList{}
 						Expect(c.List(ctx, domains)).To(Succeed())
 						Expect(domains.Items).To(HaveLen(1))
-						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ingressv1alpha1.DomainReclaimPolicyRetain))
+						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ngrokv1.DomainReclaimPolicyRetain))
 					})
 				})
 
@@ -717,16 +717,16 @@ var _ = Describe("Driver", func() {
 					BeforeEach(func() {
 						d := testutils.NewDomainV1("example.com", "test-namespace")
 						d.ObjectMeta.SetCreationTimestamp(metav1.Now())
-						d.Spec.ReclaimPolicy = ingressv1alpha1.DomainReclaimPolicyDelete
+						d.Spec.ReclaimPolicy = ngrokv1.DomainReclaimPolicyDelete
 
 						objs = append(objs, d)
 					})
 
 					It("should not modify the reclaim policy of existing domains", func(ctx SpecContext) {
-						domains := &ingressv1alpha1.DomainList{}
+						domains := &ngrokv1.DomainList{}
 						Expect(c.List(ctx, domains)).To(Succeed())
 						Expect(domains.Items).To(HaveLen(1))
-						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ingressv1alpha1.DomainReclaimPolicyDelete))
+						Expect(domains.Items[0].Spec.ReclaimPolicy).To(Equal(ngrokv1.DomainReclaimPolicyDelete))
 					})
 				})
 			})
@@ -780,13 +780,13 @@ var _ = Describe("Driver", func() {
 				Expect(driver.Sync(ctx, c)).To(Succeed())
 
 				// Verify only the non-internal domain was created
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				Expect(c.List(ctx, domains)).To(Succeed())
 				Expect(domains.Items).To(HaveLen(1))
 				Expect(domains.Items[0].Spec.Domain).To(Equal("app.example.com"))
 
 				// Verify no domain was created for the internal hostname
-				internalDomain := &ingressv1alpha1.Domain{}
+				internalDomain := &ngrokv1.Domain{}
 				err := c.Get(ctx, types.NamespacedName{
 					Namespace: "test-namespace",
 					Name:      "service-namespace-internal",
@@ -853,7 +853,7 @@ var _ = Describe("Driver", func() {
 				Expect(driver.Sync(ctx, c)).To(Succeed())
 
 				// Verify no domains were created
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				Expect(c.List(ctx, domains)).To(Succeed())
 				Expect(domains.Items).To(HaveLen(0))
 			})
@@ -861,7 +861,7 @@ var _ = Describe("Driver", func() {
 	})
 
 	Describe("calculateIngressLoadBalancerIPStatus", func() {
-		var domains []ingressv1alpha1.Domain
+		var domains []ngrokv1.Domain
 		var ingress *netv1.Ingress
 		var c client.WithWatch
 		var status []netv1.IngressLoadBalancerIngress
@@ -869,7 +869,7 @@ var _ = Describe("Driver", func() {
 		JustBeforeEach(func() {
 			c = fake.NewClientBuilder().
 				WithLists(
-					&ingressv1alpha1.DomainList{
+					&ngrokv1.DomainList{
 						Items: domains,
 					},
 				).
@@ -888,19 +888,19 @@ var _ = Describe("Driver", func() {
 				Host: hostname,
 			})
 		}
-		newTestDomain := func(name, domain string, cnameTarget *string) ingressv1alpha1.Domain {
-			return ingressv1alpha1.Domain{
+		newTestDomain := func(name, domain string, cnameTarget *string) ngrokv1.Domain {
+			return ngrokv1.Domain{
 				Name: name,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: domain,
 				},
-				Status: ingressv1alpha1.DomainStatus{
+				Status: ngrokv1.DomainStatus{
 					Domain:      domain,
 					CNAMETarget: cnameTarget,
 				},
 			}
 		}
-		newTestDomainList := func(domains ...ingressv1alpha1.Domain) []ingressv1alpha1.Domain {
+		newTestDomainList := func(domains ...ngrokv1.Domain) []ngrokv1.Domain {
 			return domains
 		}
 
@@ -943,12 +943,12 @@ var _ = Describe("Driver", func() {
 			BeforeEach(func() {
 				ingress = testutils.NewTestIngressV1("test-ingress", "test-namespace")
 				domains = newTestDomainList(
-					ingressv1alpha1.Domain{
+					ngrokv1.Domain{
 						Name: "example-com",
-						Spec: ingressv1alpha1.DomainSpec{
+						Spec: ngrokv1.DomainSpec{
 							Domain: "example.com",
 						},
-						Status: ingressv1alpha1.DomainStatus{},
+						Status: ngrokv1.DomainStatus{},
 					},
 				)
 			})
@@ -996,7 +996,7 @@ var _ = Describe("Driver", func() {
 				// A covered Domain holds no reservation of its own, so status.id
 				// is empty and status.domain is the fallback the LB status reads.
 				covered := newTestDomain("a-example-ngrok-io", "a.example.ngrok.io", nil)
-				covered.Status.CoveredByWildcardDomain = &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.ngrok.io"}
+				covered.Status.CoveredByWildcardDomain = &ngrokv1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.ngrok.io"}
 				domains = newTestDomainList(covered)
 			})
 

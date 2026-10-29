@@ -61,7 +61,6 @@ var (
 	k8sClient          client.Client
 	testEnv            *envtest.Environment
 	driver             *managerdriver.Driver
-	domainClient       *nmockapi.DomainClient
 	ipPolicyClient     *nmockapi.IPPolicyClient
 	ipPolicyRuleClient *nmockapi.IPPolicyRuleClient
 
@@ -137,18 +136,6 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sManager).NotTo(BeNil())
-
-	domainClient = nmockapi.NewDomainClient()
-
-	err = (&DomainReconciler{
-		Client:        k8sManager.GetClient(),
-		Log:           logf.Log.WithName("controllers").WithName("Domain"),
-		Recorder:      k8sManager.GetEventRecorder("domain-controller"),
-		Scheme:        k8sManager.GetScheme(),
-		DomainsClient: domainClient,
-	}).SetupWithManager(k8sManager)
-
-	Expect(err).NotTo(HaveOccurred())
 
 	ipPolicyClient = nmockapi.NewIPPolicyClient()
 	ipPolicyRuleClient = nmockapi.NewIPPolicyRuleClient(ipPolicyClient)

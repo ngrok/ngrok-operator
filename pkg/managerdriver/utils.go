@@ -12,7 +12,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/gobwas/glob"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -241,7 +241,7 @@ func findServicesPort(log logr.Logger, service *corev1.Service, backendSvcPort n
 	return nil, fmt.Errorf("could not find matching port for service %s, backend port %v, name %s", service.Name, backendSvcPort.Number, backendSvcPort.Name)
 }
 
-func calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, domains map[string]ingressv1alpha1.Domain) []netv1.IngressLoadBalancerIngress {
+func calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, domains map[string]domainpkg.Resource) []netv1.IngressLoadBalancerIngress {
 	ingressHosts := map[string]bool{}
 	for _, rule := range ing.Spec.Rules {
 		ingressHosts[rule.Host] = true
@@ -257,14 +257,15 @@ func calculateIngressLoadBalancerIPStatus(ing *netv1.Ingress, domains map[string
 
 		var hostname string
 
+		domainStatus := d.Status()
 		switch {
 		// Custom domain
-		case d.Status.CNAMETarget != nil:
-			hostname = *d.Status.CNAMETarget
+		case domainStatus.CNAMETarget != nil:
+			hostname = *domainStatus.CNAMETarget
 		// ngrok managed domain
 		default:
 			// Trim the wildcard prefix if it exists for ngrok managed domains
-			hostname = strings.TrimPrefix(d.Status.Domain, "*.")
+			hostname = strings.TrimPrefix(domainStatus.Domain, "*.")
 		}
 
 		if hostname != "" {

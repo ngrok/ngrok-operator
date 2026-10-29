@@ -1,4 +1,4 @@
-package ingress
+package domain
 
 import (
 	"errors"
@@ -11,36 +11,36 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 )
 
 // Helper function to create a test domain
-func createTestDomain(name, domainName, id string) *ingressv1alpha1.Domain {
-	return &ingressv1alpha1.Domain{
+func createTestDomain(name, domainName, id string) *ngrokv1.Domain {
+	return &ngrokv1.Domain{
 		Name:       name,
 		Generation: 1,
-		Spec: ingressv1alpha1.DomainSpec{
+		Spec: ngrokv1.DomainSpec{
 			Domain: domainName,
 		},
-		Status: ingressv1alpha1.DomainStatus{
+		Status: ngrokv1.DomainStatus{
 			ID: id,
 		},
 	}
 }
 
 // Helper function to create a test domain with certificate
-func createTestDomainWithCertificate(name, domainName, id string) *ingressv1alpha1.Domain {
+func createTestDomainWithCertificate(name, domainName, id string) *ngrokv1.Domain {
 	domain := createTestDomain(name, domainName, id)
-	domain.Status.Certificate = &ingressv1alpha1.DomainStatusCertificateInfo{
+	domain.Status.Certificate = &ngrokv1.DomainStatusCertificateInfo{
 		ID: "cert_123",
 	}
 	return domain
 }
 
 // Helper function to create a test domain with certificate management status
-func createTestDomainWithCertManagement(name, domainName, id string, job *ingressv1alpha1.DomainStatusProvisioningJob) *ingressv1alpha1.Domain {
+func createTestDomainWithCertManagement(name, domainName, id string, job *ngrokv1.DomainStatusProvisioningJob) *ngrokv1.Domain {
 	domain := createTestDomain(name, domainName, id)
-	domain.Status.CertificateManagementStatus = &ingressv1alpha1.DomainStatusCertificateManagementStatus{
+	domain.Status.CertificateManagementStatus = &ngrokv1.DomainStatusCertificateManagementStatus{
 		ProvisioningJob: job,
 	}
 	return domain
@@ -48,10 +48,10 @@ func createTestDomainWithCertManagement(name, domainName, id string, job *ingres
 
 // Helper function to create a test domain whose reservation was skipped because
 // a wildcard parent already covers it. status.ID stays empty on purpose.
-func createTestDomainCoveredByWildcard(name, domainName, wildcard string) *ingressv1alpha1.Domain {
+func createTestDomainCoveredByWildcard(name, domainName, wildcard string) *ngrokv1.Domain {
 	domain := createTestDomain(name, domainName, "")
 	domain.Status.Domain = domainName
-	domain.Status.CoveredByWildcardDomain = &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard}
+	domain.Status.CoveredByWildcardDomain = &ngrokv1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard}
 	return domain
 }
 
@@ -59,10 +59,10 @@ func TestUpdateDomainConditions_CreationError(t *testing.T) {
 	domain := createTestDomain("test-domain", "test.example.com", "rd_123")
 	createErr := errors.New("domain creation failed")
 
-	updateDomainConditions(domain, nil, createErr)
+	UpdateConditions(FromV1(domain), nil, createErr)
 
 	// All conditions should be false with creation failed reason
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
 	assert.Equal(t, ReasonDomainCreationFailed, readyCondition.Reason)
@@ -86,10 +86,10 @@ func TestUpdateDomainConditions_CreationError(t *testing.T) {
 func TestUpdateDomainConditions_NoID(t *testing.T) {
 	domain := createTestDomain("test-domain", "test.example.com", "")
 
-	updateDomainConditions(domain, nil, nil)
+	UpdateConditions(FromV1(domain), nil, nil)
 
 	// All conditions should be false with invalid reason
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
 	assert.Equal(t, ReasonDomainInvalid, readyCondition.Reason)
@@ -103,10 +103,10 @@ func TestUpdateDomainConditions_NgrokManagedDomain(t *testing.T) {
 		// No CertificateManagementPolicy = ngrok managed
 	}
 
-	updateDomainConditions(domain, ngrokDomain, nil)
+	UpdateConditions(FromV1(domain), ngrokDomain, nil)
 
 	// All conditions should be true for ngrok managed domains
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionTrue, readyCondition.Status)
 	assert.Equal(t, ReasonDomainActive, readyCondition.Reason)
@@ -135,10 +135,10 @@ func TestUpdateDomainConditions_CustomDomainWithCertificate(t *testing.T) {
 		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
 	}
 
-	updateDomainConditions(domain, ngrokDomain, nil)
+	UpdateConditions(FromV1(domain), ngrokDomain, nil)
 
 	// All conditions should be true when certificate is provisioned
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionTrue, readyCondition.Status)
 	assert.Equal(t, ReasonDomainActive, readyCondition.Reason)
@@ -162,7 +162,7 @@ func TestUpdateDomainConditions_CustomDomainProvisioning(t *testing.T) {
 		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
 	}
 
-	updateDomainConditions(domain, ngrokDomain, nil)
+	UpdateConditions(FromV1(domain), ngrokDomain, nil)
 
 	// Domain should be created but not ready
 	createdCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainCreated)
@@ -171,7 +171,7 @@ func TestUpdateDomainConditions_CustomDomainProvisioning(t *testing.T) {
 	assert.Equal(t, ReasonDomainCreated, createdCondition.Reason)
 
 	// But not ready due to provisioning
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Equal(t, metav1.ConditionFalse, readyCondition.Status)
 	assert.Equal(t, ReasonProvisioningError, readyCondition.Reason)
@@ -180,7 +180,7 @@ func TestUpdateDomainConditions_CustomDomainProvisioning(t *testing.T) {
 func TestUpdateDomainConditions_CustomDomainWithProvisioningJob(t *testing.T) {
 	startTime := metav1.NewTime(time.Now())
 	retryTime := metav1.NewTime(time.Now().Add(time.Hour))
-	job := &ingressv1alpha1.DomainStatusProvisioningJob{
+	job := &ngrokv1.DomainStatusProvisioningJob{
 		ErrorCode: "DNS_ERROR",
 		Message:   "DNS records not configured",
 		StartedAt: &startTime,
@@ -193,10 +193,10 @@ func TestUpdateDomainConditions_CustomDomainWithProvisioningJob(t *testing.T) {
 		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
 	}
 
-	updateDomainConditions(domain, ngrokDomain, nil)
+	UpdateConditions(FromV1(domain), ngrokDomain, nil)
 
 	// Should include job details in message
-	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	assert.NotNil(t, readyCondition)
 	assert.Contains(t, readyCondition.Message, "DNS_ERROR")
 	assert.Contains(t, readyCondition.Message, "DNS records not configured")
@@ -246,8 +246,8 @@ func TestIsNgrokManagedDomain(t *testing.T) {
 func TestCurrentProvisioningJob(t *testing.T) {
 	tests := []struct {
 		name     string
-		status   *ingressv1alpha1.DomainStatusCertificateManagementStatus
-		expected *ingressv1alpha1.DomainStatusProvisioningJob
+		status   *ngrokv1.DomainStatusCertificateManagementStatus
+		expected *ngrokv1.DomainStatusProvisioningJob
 	}{
 		{
 			name:     "nil status",
@@ -256,18 +256,18 @@ func TestCurrentProvisioningJob(t *testing.T) {
 		},
 		{
 			name:     "status with nil job",
-			status:   &ingressv1alpha1.DomainStatusCertificateManagementStatus{},
+			status:   &ngrokv1.DomainStatusCertificateManagementStatus{},
 			expected: nil,
 		},
 		{
 			name: "status with job",
-			status: &ingressv1alpha1.DomainStatusCertificateManagementStatus{
-				ProvisioningJob: &ingressv1alpha1.DomainStatusProvisioningJob{
+			status: &ngrokv1.DomainStatusCertificateManagementStatus{
+				ProvisioningJob: &ngrokv1.DomainStatusProvisioningJob{
 					ErrorCode: "DNS_ERROR",
 					Message:   "DNS not configured",
 				},
 			},
-			expected: &ingressv1alpha1.DomainStatusProvisioningJob{
+			expected: &ngrokv1.DomainStatusProvisioningJob{
 				ErrorCode: "DNS_ERROR",
 				Message:   "DNS not configured",
 			},
@@ -282,16 +282,16 @@ func TestCurrentProvisioningJob(t *testing.T) {
 	}
 }
 
-func TestIsDomainReady(t *testing.T) {
+func TestIsReady(t *testing.T) {
 	tests := []struct {
 		name     string
-		domain   *ingressv1alpha1.Domain
+		domain   *ngrokv1.Domain
 		expected bool
 	}{
 		{
 			name: "domain with no ID",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
+			domain: &ngrokv1.Domain{
+				Status: ngrokv1.DomainStatus{
 					ID: "",
 				},
 			},
@@ -299,8 +299,8 @@ func TestIsDomainReady(t *testing.T) {
 		},
 		{
 			name: "domain with ID but no Ready condition",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
+			domain: &ngrokv1.Domain{
+				Status: ngrokv1.DomainStatus{
 					ID:         "rd_123",
 					Conditions: []metav1.Condition{},
 				},
@@ -311,12 +311,12 @@ func TestIsDomainReady(t *testing.T) {
 			// A wildcard-covered domain holds no reservation of its own, so an
 			// empty ID is its steady state rather than a failure.
 			name: "wildcard-covered domain with no ID but Ready=True",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
+			domain: &ngrokv1.Domain{
+				Status: ngrokv1.DomainStatus{
 					ID:                      "",
-					CoveredByWildcardDomain: &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.com"},
+					CoveredByWildcardDomain: &ngrokv1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.com"},
 					Conditions: []metav1.Condition{{
-						Type:   ConditionDomainReady,
+						Type:   ConditionReady,
 						Status: metav1.ConditionTrue,
 					}},
 				},
@@ -325,12 +325,12 @@ func TestIsDomainReady(t *testing.T) {
 		},
 		{
 			name: "wildcard-covered domain with Ready=False",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
+			domain: &ngrokv1.Domain{
+				Status: ngrokv1.DomainStatus{
 					ID:                      "",
-					CoveredByWildcardDomain: &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.com"},
+					CoveredByWildcardDomain: &ngrokv1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.com"},
 					Conditions: []metav1.Condition{{
-						Type:   ConditionDomainReady,
+						Type:   ConditionReady,
 						Status: metav1.ConditionFalse,
 					}},
 				},
@@ -339,22 +339,22 @@ func TestIsDomainReady(t *testing.T) {
 		},
 		{
 			name: "wildcard-covered domain with no Ready condition",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
+			domain: &ngrokv1.Domain{
+				Status: ngrokv1.DomainStatus{
 					ID:                      "",
-					CoveredByWildcardDomain: &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.com"},
+					CoveredByWildcardDomain: &ngrokv1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: "*.example.com"},
 				},
 			},
 			expected: false,
 		},
 		{
 			name: "domain with ID and Ready condition false",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
+			domain: &ngrokv1.Domain{
+				Status: ngrokv1.DomainStatus{
 					ID: "rd_123",
 					Conditions: []metav1.Condition{
 						{
-							Type:   ConditionDomainReady,
+							Type:   ConditionReady,
 							Status: metav1.ConditionFalse,
 							Reason: ReasonProvisioningError,
 						},
@@ -365,12 +365,12 @@ func TestIsDomainReady(t *testing.T) {
 		},
 		{
 			name: "domain with ID and Ready condition true",
-			domain: &ingressv1alpha1.Domain{
-				Status: ingressv1alpha1.DomainStatus{
+			domain: &ngrokv1.Domain{
+				Status: ngrokv1.DomainStatus{
 					ID: "rd_123",
 					Conditions: []metav1.Condition{
 						{
-							Type:   ConditionDomainReady,
+							Type:   ConditionReady,
 							Status: metav1.ConditionTrue,
 							Reason: ReasonDomainActive,
 						},
@@ -383,79 +383,7 @@ func TestIsDomainReady(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := IsDomainReady(tt.domain)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestBuildResolvesToRequest(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    []ingressv1alpha1.DomainResolvesToEntry
-		expected []ngrok.ReservedDomainResolvesToEntry
-	}{
-		{
-			name:     "nil input",
-			input:    nil,
-			expected: nil,
-		},
-		{
-			name:     "empty slice",
-			input:    []ingressv1alpha1.DomainResolvesToEntry{},
-			expected: nil,
-		},
-		{
-			name:     "single entry",
-			input:    []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
-			expected: []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}},
-		},
-		{
-			name:     "multiple entries",
-			input:    []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
-			expected: []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := buildResolvesToRequest(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestBuildResolvesToStatus(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    []ngrok.ReservedDomainResolvesToEntry
-		expected []ingressv1alpha1.DomainResolvesToEntry
-	}{
-		{
-			name:     "nil input",
-			input:    nil,
-			expected: nil,
-		},
-		{
-			name:     "empty slice",
-			input:    []ngrok.ReservedDomainResolvesToEntry{},
-			expected: nil,
-		},
-		{
-			name:     "single entry",
-			input:    []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}},
-			expected: []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
-		},
-		{
-			name:     "multiple entries",
-			input:    []ngrok.ReservedDomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
-			expected: []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}, {Value: "eu"}},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := buildResolvesToStatus(tt.input)
+			result := IsReady(FromV1(tt.domain))
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -467,7 +395,7 @@ func TestUpdateDomainConditions_CoveredByWildcard_NgrokManaged(t *testing.T) {
 	// handles DNS and certificates.
 	wildcard := &ngrok.ReservedDomain{ID: "rd_wildcard", Domain: "*.example.ngrok.app"}
 
-	updateDomainConditions(domain, wildcard, nil)
+	UpdateConditions(FromV1(domain), wildcard, nil)
 
 	// The empty status.ID must not be mistaken for "could not be reserved".
 	created := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainCreated)
@@ -476,30 +404,30 @@ func TestUpdateDomainConditions_CoveredByWildcard_NgrokManaged(t *testing.T) {
 	assert.Equal(t, ReasonCoveredByWildcardDomain, created.Reason)
 	assert.Contains(t, created.Message, "*.example.ngrok.app")
 
-	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	require.NotNil(t, ready)
 	assert.Equal(t, metav1.ConditionTrue, ready.Status)
 	assert.Equal(t, ReasonCoveredByWildcardDomain, ready.Reason)
 	assert.Contains(t, ready.Message, "*.example.ngrok.app")
 
-	assert.True(t, IsDomainReady(domain))
+	assert.True(t, IsReady(FromV1(domain)))
 }
 
 func TestUpdateDomainConditions_CoveredByWildcard_CustomWithCertificate(t *testing.T) {
 	domain := createTestDomainCoveredByWildcard("test-domain", "a.custom.xyz", "*.custom.xyz")
-	domain.Status.Certificate = &ingressv1alpha1.DomainStatusCertificateInfo{ID: "cert_123"}
+	domain.Status.Certificate = &ngrokv1.DomainStatusCertificateInfo{ID: "cert_123"}
 	wildcard := &ngrok.ReservedDomain{
 		ID:                          "rd_wildcard",
 		Domain:                      "*.custom.xyz",
 		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
 	}
 
-	updateDomainConditions(domain, wildcard, nil)
+	UpdateConditions(FromV1(domain), wildcard, nil)
 
-	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	require.NotNil(t, ready)
 	assert.Equal(t, metav1.ConditionTrue, ready.Status)
-	assert.True(t, IsDomainReady(domain))
+	assert.True(t, IsReady(FromV1(domain)))
 }
 
 // A custom wildcard whose certificate has not provisioned cannot actually serve
@@ -507,8 +435,8 @@ func TestUpdateDomainConditions_CoveredByWildcard_CustomWithCertificate(t *testi
 // endpoints from coming up and failing TLS at request time.
 func TestUpdateDomainConditions_CoveredByWildcard_CustomStillProvisioning(t *testing.T) {
 	domain := createTestDomainCoveredByWildcard("test-domain", "a.custom.xyz", "*.custom.xyz")
-	domain.Status.CertificateManagementStatus = &ingressv1alpha1.DomainStatusCertificateManagementStatus{
-		ProvisioningJob: &ingressv1alpha1.DomainStatusProvisioningJob{
+	domain.Status.CertificateManagementStatus = &ngrokv1.DomainStatusCertificateManagementStatus{
+		ProvisioningJob: &ngrokv1.DomainStatusProvisioningJob{
 			Message: "provisioning certificate",
 		},
 	}
@@ -518,15 +446,15 @@ func TestUpdateDomainConditions_CoveredByWildcard_CustomStillProvisioning(t *tes
 		CertificateManagementPolicy: &ngrok.ReservedDomainCertPolicy{Authority: "letsencrypt"},
 	}
 
-	updateDomainConditions(domain, wildcard, nil)
+	UpdateConditions(FromV1(domain), wildcard, nil)
 
-	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	require.NotNil(t, ready)
 	assert.Equal(t, metav1.ConditionFalse, ready.Status)
 	assert.Equal(t, ReasonProvisioningError, ready.Reason)
 	assert.Contains(t, ready.Message, "provisioning certificate")
 
-	assert.False(t, IsDomainReady(domain))
+	assert.False(t, IsReady(FromV1(domain)))
 }
 
 // Guards against relaxing the empty-ID check too far: without wildcard
@@ -534,22 +462,22 @@ func TestUpdateDomainConditions_CoveredByWildcard_CustomStillProvisioning(t *tes
 func TestUpdateDomainConditions_EmptyIDWithoutWildcardStillInvalid(t *testing.T) {
 	domain := createTestDomain("test-domain", "a.example.com", "")
 
-	updateDomainConditions(domain, nil, nil)
+	UpdateConditions(FromV1(domain), nil, nil)
 
-	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	require.NotNil(t, ready)
 	assert.Equal(t, metav1.ConditionFalse, ready.Status)
 	assert.Equal(t, ReasonDomainInvalid, ready.Reason)
-	assert.False(t, IsDomainReady(domain))
+	assert.False(t, IsReady(FromV1(domain)))
 }
 
 // Creation errors keep precedence over wildcard coverage.
 func TestUpdateDomainConditions_CreateErrorWinsOverWildcard(t *testing.T) {
 	domain := createTestDomainCoveredByWildcard("test-domain", "a.custom.xyz", "*.custom.xyz")
 
-	updateDomainConditions(domain, nil, errors.New("boom"))
+	UpdateConditions(FromV1(domain), nil, errors.New("boom"))
 
-	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionDomainReady)
+	ready := meta.FindStatusCondition(domain.Status.Conditions, ConditionReady)
 	require.NotNil(t, ready)
 	assert.Equal(t, metav1.ConditionFalse, ready.Status)
 	assert.Equal(t, ReasonDomainCreationFailed, ready.Reason)

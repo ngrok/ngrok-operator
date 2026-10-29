@@ -533,7 +533,7 @@ func loadNgrokClientset(ctx context.Context, opts apiManagerOpts) (ngrokapi.Clie
 }
 
 // getK8sResourceDriver returns a new Driver instance that is seeded with the current state of the cluster.
-func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiManagerOpts, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy, drainState managerdriver.DrainState) (*managerdriver.Driver, error) {
+func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiManagerOpts, tcpRouteCRDInstalled, tlsRouteCRDInstalled bool, defaultDomainReclaimPolicy ngrokv1.DomainReclaimPolicy, drainState managerdriver.DrainState) (*managerdriver.Driver, error) {
 	logger := mgr.GetLogger().WithName("cache-store-driver")
 
 	driverOpts := []managerdriver.DriverOpt{
@@ -582,7 +582,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 }
 
 // enableIngressFeatureSet enables the Ingress feature set for the operator
-func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ingressv1alpha1.DomainReclaimPolicy, drainState controller.DrainState) error {
+func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Manager, driver *managerdriver.Driver, ngrokClientset ngrokapi.Clientset, defaultDomainReclaimPolicy ngrokv1.DomainReclaimPolicy, drainState controller.DrainState) error {
 	controllerLabels := labels.NewControllerLabelValues(opts.namespace, opts.ManagerName)
 
 	if err := (&ingresscontroller.IngressReconciler{
@@ -613,8 +613,9 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		os.Exit(1)
 	}
 
-	if err := (&ingresscontroller.DomainReconciler{
+	if err := (&ngrokcontroller.DomainReconciler{
 		Client:        mgr.GetClient(),
+		APIReader:     mgr.GetAPIReader(),
 		Log:           ctrl.Log.WithName("controllers").WithName("domain"),
 		Scheme:        mgr.GetScheme(),
 		Recorder:      mgr.GetEventRecorder("domain-controller"),

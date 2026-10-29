@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 )
 
 // invalidDomainErr mimics what the API server returns when the CEL immutability
@@ -44,7 +45,8 @@ func domainsTestScheme(t *testing.T) *runtime.Scheme {
 
 	scheme := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(scheme))
-	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme)) // LEGACY-domain-kind: delete at cleanup.
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	return scheme
 }
 
@@ -62,11 +64,11 @@ func newDomainsTestDriver(scheme *runtime.Scheme) *Driver {
 	)
 }
 
-func desiredDomain(name, domain string) ingressv1alpha1.Domain {
-	return ingressv1alpha1.Domain{
+func desiredDomain(name, domain string) ngrokv1.Domain {
+	return ngrokv1.Domain{
 		Name:      name,
 		Namespace: "default",
-		Spec:      ingressv1alpha1.DomainSpec{Domain: domain},
+		Spec:      ngrokv1.DomainSpec{Domain: domain},
 	}
 }
 
@@ -79,10 +81,10 @@ func desiredDomain(name, domain string) ingressv1alpha1.Domain {
 func TestApplyDomains_InvalidDomainIsNonFatal(t *testing.T) {
 	scheme := domainsTestScheme(t)
 
-	drifted := &ingressv1alpha1.Domain{
+	drifted := &ngrokv1.Domain{
 		Name:      "drifted-example-com",
 		Namespace: "default",
-		Spec:      ingressv1alpha1.DomainSpec{Domain: "renamed.example.com"},
+		Spec:      ngrokv1.DomainSpec{Domain: "renamed.example.com"},
 	}
 
 	c := fake.NewClientBuilder().
@@ -98,7 +100,7 @@ func TestApplyDomains_InvalidDomainIsNonFatal(t *testing.T) {
 		}).
 		Build()
 
-	desired := map[string]ingressv1alpha1.Domain{
+	desired := map[string]ngrokv1.Domain{
 		"drifted.example.com": desiredDomain(drifted.Name, "drifted.example.com"),
 		"healthy.example.com": desiredDomain("healthy-example-com", "healthy.example.com"),
 	}
@@ -109,12 +111,12 @@ func TestApplyDomains_InvalidDomainIsNonFatal(t *testing.T) {
 	)
 
 	// The healthy domain in the same batch was still applied.
-	healthy := &ingressv1alpha1.Domain{}
+	healthy := &ngrokv1.Domain{}
 	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "healthy-example-com"}, healthy))
 	assert.Equal(t, "healthy.example.com", healthy.Spec.Domain)
 
 	// The rejected Domain keeps its drifted spec; nothing was silently forced.
-	got := &ingressv1alpha1.Domain{}
+	got := &ngrokv1.Domain{}
 	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(drifted), got))
 	assert.Equal(t, "renamed.example.com", got.Spec.Domain)
 }
@@ -124,10 +126,10 @@ func TestApplyDomains_InvalidDomainIsNonFatal(t *testing.T) {
 func TestApplyDomains_OtherErrorsAreFatal(t *testing.T) {
 	scheme := domainsTestScheme(t)
 
-	existing := &ingressv1alpha1.Domain{
+	existing := &ngrokv1.Domain{
 		Name:      "example-com",
 		Namespace: "default",
-		Spec:      ingressv1alpha1.DomainSpec{Domain: "example.com"},
+		Spec:      ngrokv1.DomainSpec{Domain: "example.com"},
 	}
 
 	boom := errors.New("boom")
@@ -142,7 +144,7 @@ func TestApplyDomains_OtherErrorsAreFatal(t *testing.T) {
 		}).
 		Build()
 
-	desired := map[string]ingressv1alpha1.Domain{
+	desired := map[string]ngrokv1.Domain{
 		// A label backfill is enough to make CreateOrPatch issue a Patch.
 		"example.com": desiredDomain(existing.Name, "example.com"),
 	}

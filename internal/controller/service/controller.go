@@ -36,13 +36,13 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/deprecation"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -950,16 +950,23 @@ func updateStatus(ctx context.Context, c client.Client, svc *corev1.Service, end
 				return clearIngressStatus(svc)
 			}
 
-			domain := &ingressv1alpha1.Domain{}
-			if err := c.Get(ctx, dr.ToClientObjectKey(svc.Namespace), domain); err != nil {
+			// Read whichever kind of Domain the endpoint is served by; during the
+			// migration window a ready legacy Domain wins over a v1 Domain that
+			// has no reservation yet.
+			pair, err := domainpkg.GetPair(ctx, c, dr.ToClientObjectKey(svc.Namespace))
+			if err != nil {
+				return clearIngressStatus(svc)
+			}
+			domain, err := pair.Authoritative()
+			if err != nil || domain == nil {
 				// If we can't fetch the domain, we can't determine the CNAME target.
 				// Clear the status until the domain is available.
 				return clearIngressStatus(svc)
 			}
 
 			// Use CNAME target if available (for custom domains), otherwise use the domain itself
-			if domain.Status.CNAMETarget != nil && *domain.Status.CNAMETarget != "" {
-				hostname = *domain.Status.CNAMETarget
+			if cname := domain.Status().CNAMETarget; cname != nil && *cname != "" {
+				hostname = *cname
 			}
 		}
 	case !errors.IsMissingAnnotations(err): // Some other error

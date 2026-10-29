@@ -32,6 +32,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
@@ -67,7 +68,7 @@ type Driver struct {
 	disableGatewayReferenceGrants bool
 	gatewayControllerName         string
 
-	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+	defaultDomainReclaimPolicy *ngrokv1.DomainReclaimPolicy
 
 	recorder events.EventRecorder
 
@@ -123,7 +124,7 @@ func WithGatewayTLSRouteEnabled(enabled bool) DriverOpt {
 	}
 }
 
-func WithDefaultDomainReclaimPolicy(policy ingressv1alpha1.DomainReclaimPolicy) DriverOpt {
+func WithDefaultDomainReclaimPolicy(policy ngrokv1.DomainReclaimPolicy) DriverOpt {
 	return func(d *Driver) {
 		d.defaultDomainReclaimPolicy = &policy
 	}
@@ -269,6 +270,11 @@ func listObjectsForType(ctx context.Context, client client.Reader, v any, listOp
 	// ----------------------------------------------------------------------------
 	// Ngrok API Support
 	// ----------------------------------------------------------------------------
+	case *ngrokv1.Domain:
+		domains := &ngrokv1.DomainList{}
+		err := client.List(ctx, domains, listOpts...)
+		return util.ToClientObjects(domains.Items), err
+	// LEGACY-domain-kind: drop this case at cleanup.
 	case *ingressv1alpha1.Domain:
 		domains := &ingressv1alpha1.DomainList{}
 		err := client.List(ctx, domains, listOpts...)
@@ -333,6 +339,8 @@ func BaseSeededTypes() []any {
 		&corev1.Namespace{},
 		&corev1.ConfigMap{},
 		// CRDs
+		&ngrokv1.Domain{},
+		// LEGACY-domain-kind: drop the legacy Domain seed at cleanup.
 		&ingressv1alpha1.Domain{},
 		// LEGACY-trafficpolicy-kind: drop the NgrokTrafficPolicy seed at cleanup.
 		&ngrokv1alpha1.NgrokTrafficPolicy{},
@@ -691,18 +699,23 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 	return d.updateStatuses(ctx, c)
 }
 
-func getDomainsByDomain(ctx context.Context, c client.Client) (map[string]ingressv1alpha1.Domain, error) {
-	domainsByDomain := map[string]ingressv1alpha1.Domain{}
-
-	domains := &ingressv1alpha1.DomainList{}
+// getDomainsByDomain returns the Domain to read for each hostname. During the
+// migration window a hostname can have a Domain of either kind, or both; see
+// domainpkg.ByHostname for which one wins.
+func getDomainsByDomain(ctx context.Context, c client.Client) (map[string]domainpkg.Resource, error) {
+	domains := &ngrokv1.DomainList{}
 	if err := c.List(ctx, domains); err != nil {
-		return domainsByDomain, err
+		return map[string]domainpkg.Resource{}, err
 	}
 
-	for _, domain := range domains.Items {
-		domainsByDomain[domain.Spec.Domain] = domain
+	// LEGACY-domain-kind: BEGIN
+	legacyDomains := &ingressv1alpha1.DomainList{}
+	if err := c.List(ctx, legacyDomains); err != nil {
+		return map[string]domainpkg.Resource{}, err
 	}
-	return domainsByDomain, nil
+	// LEGACY-domain-kind: END
+
+	return domainpkg.ByHostname(domains.Items, legacyDomains.Items)
 }
 
 // updateStatuses updates the statuses of all the resources that need
@@ -793,7 +806,7 @@ func (d *Driver) updateIngressStatuses(ctx context.Context, c client.Client) err
 // recordDomainEventsForIngress records events to the ingress based on the Ready condition
 // of its associated domains. This helps users understand domain-related issues (e.g., using
 // an invalid domain on a free account) without needing to inspect Domain CRs directly.
-func (d *Driver) recordDomainEventsForIngress(ingress *netv1.Ingress, domains map[string]ingressv1alpha1.Domain) {
+func (d *Driver) recordDomainEventsForIngress(ingress *netv1.Ingress, domains map[string]domainpkg.Resource) {
 	if d.recorder == nil {
 		return
 	}
@@ -804,7 +817,7 @@ func (d *Driver) recordDomainEventsForIngress(ingress *netv1.Ingress, domains ma
 			continue
 		}
 
-		readyCondition := meta.FindStatusCondition(domain.Status.Conditions, "Ready")
+		readyCondition := meta.FindStatusCondition(domain.Status().Conditions, "Ready")
 		if readyCondition == nil {
 			continue
 		}
@@ -855,11 +868,11 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 
 			var hostname string
 
-			if d.Status.CNAMETarget != nil {
-				hostname = *d.Status.CNAMETarget
+			if status := d.Status(); status.CNAMETarget != nil {
+				hostname = *status.CNAMETarget
 			} else {
 				// Trim the wildcard prefix if it exists for ngrok managed domains
-				hostname = strings.TrimPrefix(d.Status.Domain, ".*")
+				hostname = strings.TrimPrefix(status.Domain, ".*")
 			}
 
 			if hostname != "" {
