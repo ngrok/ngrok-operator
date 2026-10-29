@@ -111,6 +111,8 @@ func (p Pair) Authoritative() (Resource, error) {
 // for each spec.domain, applying the same precedence as Authoritative. Within
 // one kind, duplicates of a hostname (Domains in different namespaces) keep
 // the existing last-one-wins behavior.
+//
+// LEGACY-domain-kind: at cleanup drop the legacy parameter and its loop.
 func ByHostname(v1 []ngrokv1.Domain, legacy []ingressv1alpha1.Domain) (map[string]Resource, error) {
 	out := make(map[string]Resource, len(v1)+len(legacy))
 

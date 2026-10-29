@@ -489,6 +489,7 @@ func TestDomainPair_DrainStillProcessesDeletes(t *testing.T) {
 
 	assert.Nil(t, p.legacy(t))
 	assert.Len(t, p.api.reservations(t), 1, "the v1 twin still holds the reservation")
+	assert.Zero(t, p.api.writes(), "no sync of the surviving twin while draining")
 }
 
 func TestEarliest(t *testing.T) {
