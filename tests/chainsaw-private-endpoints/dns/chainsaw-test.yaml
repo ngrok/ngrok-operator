@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: private-endpoints-dns
+spec:
+  description: |
+    Negative checks only: *.internal endpoints are not mirrored into
+    PrivateEndpoints, unknown *.ngrok.direct names are NXDOMAIN, and ordinary
+    cluster DNS (e.g. kubernetes.default) still resolves with the rewrite in
+    place. Resolving and reaching real *.ngrok.direct endpoints is covered by
+    the http, tls and tcp tests.
+  bindings:
+    - name: operatorNamespace
+      value: (env('KUBE_NAMESPACE') || 'ngrok-operator')
+    - name: internalHost
+      value: (join('', [$namespace, '-web.internal']))
+  steps:
+    - name: create client and an internal endpoint
+      try:
+        - apply: { file: ../_fixtures/client.yaml }
+        - apply:
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: AgentEndpoint
+              metadata:
+                name: web-internal
+              spec:
+                url: (join('', ['http://', $internalHost]))
+                bindings: [internal]
+                upstream:
+                  url: (join('', ['http://web.', $namespace, ':80']))
+        - assert:
+            timeout: 2m
+            resource:
+              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              kind: AgentEndpoint
+              metadata:
+                name: web-internal
+              status:
+                (conditions[?type == 'Ready']):
+                  - status: 'True'
+
+    - name: internal endpoint is not mirrored
+      try:
+        # Two polls (10s each) after the endpoint exists in the API.
+        - sleep:
+            duration: 25s
+        - error:
+            resource:
+              apiVersion: ngrok.com/v1
+              kind: PrivateEndpoint
+              metadata:
+                namespace: ($operatorNamespace)
+              spec:
+                hostname: ($internalHost)
+
+    - name: cluster DNS behavior
+      try:
+        - wait:
+            apiVersion: v1
+            kind: Pod
+            name: client
+            timeout: 2m
+            for:
+              condition:
+                name: Ready
+        - script:
+            timeout: 3m
+            content: |
+              set -e
+              ../_fixtures/check.sh "status: NXDOMAIN" "dig $NAMESPACE-nope.ngrok.direct | grep -o 'status: [A-Z]*'"
+              ../_fixtures/check.sh "status: NOERROR" "dig kubernetes.default.svc.cluster.local | grep -o 'status: [A-Z]*'"
