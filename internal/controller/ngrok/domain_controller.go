@@ -238,6 +238,12 @@ func (r *DomainReconciler) reconcilePair(ctx context.Context, canonical, legacy 
 		}
 	}
 
+	// While draining only deletes run, as in BaseController: no syncs, no new
+	// finalizers.
+	if basecontroller.IsDraining(ctx, r.DrainState) {
+		return ctrl.Result{}, nil
+	}
+
 	// 2. The writer: v1 while it's alive, otherwise legacy. A v1 Domain
 	//    deleted while a legacy twin exists hands the reservation back to the
 	//    twin in this same pass.
