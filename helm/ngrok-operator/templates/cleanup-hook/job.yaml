@@ -30,25 +30,36 @@ spec:
             - -c
             - |
               set -e
-              echo "Deleting KubernetesOperator '{{ .Release.Name }}' to trigger drain..."
-              # Both KubernetesOperator kinds share the plural, so names are
-              # fully qualified; a bare "kubernetesoperator" is ambiguous.
-              # LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup. The
-              # operator skips the drain while a legacy object still exists,
-              # so remove it first. The operator releases the legacy
-              # finalizer on delete; patch it here too in case it is not
-              # running, so the delete never waits on it.
-              kubectl patch kubernetesoperators.ngrok.k8s.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --type=merge -p '{"metadata":{"finalizers":null}}' || true
-              kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --ignore-not-found --wait=true --timeout=60s || true
+              RELEASE="{{ .Release.Name }}"
+              NAMESPACE="{{ .Release.Namespace }}"
+              # Both KubernetesOperator kinds use the plural
+              # "kubernetesoperators", so every name below is fully qualified.
+
+              # LEGACY-kubernetesoperator-kind: BEGIN — drop in R2.
+              # 1. Remove the legacy KubernetesOperator. While it exists, the
+              #    operator treats deleting the v1 object as a rollback and
+              #    skips the drain. Clear its finalizer first in case the
+              #    operator is not running.
+              echo "Removing the legacy KubernetesOperator..."
+              kubectl patch kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                --type=merge -p '{"metadata":{"finalizers":null}}' || true
+              kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                --ignore-not-found --wait=true --timeout=60s || true
               # LEGACY-kubernetesoperator-kind: END
-              kubectl delete kubernetesoperators.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.ngrok.features.cleanup.timeout }}s || true
+
+              # 2. Delete the KubernetesOperator. Its finalizer runs the drain.
+              echo "Deleting KubernetesOperator '$RELEASE' to trigger drain..."
+              kubectl delete kubernetesoperators.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                --wait=true --timeout={{ .Values.ngrok.features.cleanup.timeout }}s || true
               {{- if .Values.installCRDs }}
+
               # LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind:
-              # BEGIN — drop at cleanup. The ngrok.com CRDs carry
-              # helm.sh/resource-policy=keep so a rollback cannot delete them,
-              # which also stops helm uninstall from deleting them. Delete them
-              # here, but only once the drain has finished.
-              if KO=$(kubectl get kubernetesoperators.ngrok.com "{{ .Release.Name }}" -n {{ .Release.Namespace }} --ignore-not-found -o name) && [ -z "$KO" ]; then
+              # BEGIN — drop in R2.
+              # 3. Delete the ngrok.com CRDs. They carry
+              #    helm.sh/resource-policy=keep so a rollback cannot delete
+              #    them, which also stops helm uninstall from deleting them.
+              #    Only delete them once the KubernetesOperator is gone.
+              if KO=$(kubectl get kubernetesoperators.ngrok.com "$RELEASE" -n "$NAMESPACE" --ignore-not-found -o name) && [ -z "$KO" ]; then
                 echo "Deleting the ngrok.com CRDs kept for rollback..."
                 kubectl delete crd kubernetesoperators.ngrok.com trafficpolicies.ngrok.com --ignore-not-found || true
               else

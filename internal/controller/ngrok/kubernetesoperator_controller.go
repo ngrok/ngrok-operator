@@ -52,6 +52,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
@@ -669,28 +670,18 @@ func (r *KubernetesOperatorReconciler) bindingCertRenewalWindow() time.Duration 
 // This is done to see if we can adopt an existing KubernetesOperator in the ngrok API going forward.
 // If there are any errors, the original metadata is returned.
 func (r *KubernetesOperatorReconciler) tryMergeMetadata(ctx context.Context, ko *ngrokv1.KubernetesOperator) string {
+	apiMetadata := commonv1alpha1.MetadataAPIString(commonv1alpha1.MetadataFromMap(ko.Spec.Metadata))
 	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
 	if err != nil {
-		return metadataForAPI(ko.Spec.Metadata)
+		return apiMetadata
 	}
 
-	metadata, err := mergeMetadata(metadataForAPI(ko.Spec.Metadata), namespaceUID)
+	metadata, err := mergeMetadata(apiMetadata, namespaceUID)
 	if err != nil {
-		return metadataForAPI(ko.Spec.Metadata)
+		return apiMetadata
 	}
 
 	return metadata
-}
-
-// metadataForAPI renders the KubernetesOperator metadata map as the JSON string
-// the ngrok API stores. json.Marshal sorts map keys, so the output is stable.
-func metadataForAPI(m map[string]string) string {
-	if len(m) == 0 {
-		return ""
-	}
-	// Marshaling a map[string]string cannot fail.
-	b, _ := json.Marshal(m)
-	return string(b)
 }
 
 const UIDNamespaceMetadataKey = "namespace.uid"

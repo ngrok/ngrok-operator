@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
@@ -545,27 +546,9 @@ func TestReconcileBindingCertRenewalInvalidatesCSR(t *testing.T) {
 	assert.NotContains(t, updated.Data, "tls.csr")
 }
 
-func TestMetadataForAPI(t *testing.T) {
-	tests := []struct {
-		name     string
-		metadata map[string]string
-		expected string
-	}{
-		{name: "nil", metadata: nil, expected: ""},
-		{name: "empty", metadata: map[string]string{}, expected: ""},
-		{name: "default", metadata: map[string]string{"owned-by": "ngrok-operator"}, expected: `{"owned-by":"ngrok-operator"}`},
-		{name: "sorted keys", metadata: map[string]string{"b": "2", "a": "1"}, expected: `{"a":"1","b":"2"}`},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, metadataForAPI(tt.metadata))
-		})
-	}
-}
-
-func TestMetadataForAPIMergesNamespaceUID(t *testing.T) {
-	merged, err := mergeMetadata(metadataForAPI(map[string]string{"owned-by": "ngrok-operator"}), "ns-uid")
+func TestMergeMetadataAddsNamespaceUID(t *testing.T) {
+	apiMetadata := commonv1alpha1.MetadataAPIString(commonv1alpha1.MetadataFromMap(map[string]string{"owned-by": "ngrok-operator"}))
+	merged, err := mergeMetadata(apiMetadata, "ns-uid")
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"owned-by":"ngrok-operator","namespace.uid":"ns-uid"}`, merged)
 }

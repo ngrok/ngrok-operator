@@ -100,9 +100,9 @@ left it.
   - add an SA1019 exclusion in `.golangci.yml`;
   - tag everything `LEGACY-kubernetesoperator-kind`;
   - keep its constants for the code that still touches it.
-- Shared helper for the API metadata string: a small function that marshals the
-  v1 map (plus the `namespace.uid` merge) to the string the ngrok API takes.
-  `mergeMetadata` already works on strings, so marshal the map and reuse it.
+- API metadata string: reuse the shared `commonv1alpha1.MetadataAPIString`
+  (via `MetadataFromMap` for the v1 map), as the v1 IPPolicy work does, then
+  `mergeMetadata` adds `namespace.uid`. No KubernetesOperator-specific helper.
 
 ### Writer: api-manager
 

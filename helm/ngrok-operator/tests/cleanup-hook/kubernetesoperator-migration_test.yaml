@@ -1,0 +1,36 @@
+# LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind: drop this suite
+# in R2, with the legacy and CRD-deletion blocks of the cleanup hook.
+suite: test cleanup hook during the KubernetesOperator migration
+templates:
+- cleanup-hook/job.yaml
+- cleanup-hook/rbac.yaml
+set:
+  ngrok.features.cleanup.enabled: true
+tests:
+- it: removes the legacy KubernetesOperator before the one whose deletion drains
+  template: cleanup-hook/job.yaml
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: (?s)kubectl delete kubernetesoperators\.ngrok\.k8s\.ngrok\.com .*kubectl delete kubernetesoperators\.ngrok\.com
+- it: deletes the kept ngrok.com CRDs when the chart installs them
+  template: cleanup-hook/job.yaml
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: kubectl delete crd
+- it: leaves separately installed CRDs alone
+  template: cleanup-hook/job.yaml
+  set:
+    installCRDs: false
+  asserts:
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: kubectl delete crd
+- it: grants CRD deletion only when the chart installs the CRDs
+  template: cleanup-hook/rbac.yaml
+  set:
+    installCRDs: false
+  asserts:
+  - hasDocuments:
+      count: 3
