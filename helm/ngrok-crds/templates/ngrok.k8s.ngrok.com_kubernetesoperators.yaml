@@ -48,11 +48,18 @@ spec:
       name: Drain Total
       priority: 1
       type: integer
+    deprecated: true
+    deprecationWarning: ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator is deprecated;
+      the operator now manages the ngrok.com/v1 KubernetesOperator and leaves this
+      object in place until a later release removes it. No action is needed.
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: KubernetesOperator is the Schema for the ngrok kubernetesoperators
-          API
+        description: |-
+          KubernetesOperator is the Schema for the ngrok kubernetesoperators API
+
+          Deprecated: use the canonical ngrok.com/v1 KubernetesOperator. The operator
+          writes the canonical kind and stops reconciling this one.
         properties:
           apiVersion:
             description: |-

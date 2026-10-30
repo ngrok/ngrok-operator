@@ -22,6 +22,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+// LEGACY-kubernetesoperator-kind: delete this whole file at cleanup, together
+// with kubernetesoperator_status_compat.go and both tests, then re-run
+// `make manifests` and delete the CRD manifest it stops emitting,
+// helm/ngrok-crds/templates/ngrok.k8s.ngrok.com_kubernetesoperators.yaml.
+// The canonical replacement is api/ngrok/v1.KubernetesOperator, which the
+// operator writes and reconciles; this kind is only read as a fallback and
+// marked superseded. See docs/developer-guide/passivity-shims.md.
+
 package v1alpha1
 
 import (
@@ -212,6 +220,7 @@ type DrainConfig struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator is deprecated; the operator now manages the ngrok.com/v1 KubernetesOperator and leaves this object in place until a later release removes it. No action is needed."
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Kubernetes Operator ID"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`
 // +kubebuilder:printcolumn:name="Enabled Features",type="string",JSONPath=".status.enabledFeatures"
@@ -223,6 +232,9 @@ type DrainConfig struct {
 // +kubebuilder:printcolumn:name="Drain Total",type=integer,JSONPath=`.status.drain.totalResources`,priority=1
 
 // KubernetesOperator is the Schema for the ngrok kubernetesoperators API
+//
+// Deprecated: use the canonical ngrok.com/v1 KubernetesOperator. The operator
+// writes the canonical kind and stops reconciling this one.
 type KubernetesOperator struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -6,9 +6,9 @@ Previous releases of the ngrok-operator used three separate API groups at `v1alp
 
 | Old API Group                    | Resources                                                   |
 |----------------------------------|-------------------------------------------------------------|
-| `ngrok.k8s.ngrok.com/v1alpha1`   | KubernetesOperator, NgrokTrafficPolicy                      |
-| `ingress.k8s.ngrok.com/v1alpha1` | Domain, IPPolicy, CloudEndpoint, AgentEndpoint              |
-| `bindings.k8s.ngrok.com/v1alpha1`| BoundEndpoint, BindingConfiguration                         |
+| `ngrok.k8s.ngrok.com/v1alpha1`   | KubernetesOperator, NgrokTrafficPolicy, CloudEndpoint, AgentEndpoint |
+| `ingress.k8s.ngrok.com/v1alpha1` | Domain, IPPolicy                                            |
+| `bindings.k8s.ngrok.com/v1alpha1`| BoundEndpoint                                               |
 
 All resources are consolidated into a single group in v1:
 
@@ -20,6 +20,14 @@ All resources are consolidated into a single group in v1:
 The `Ngrok` prefix was redundant once the group is `ngrok.com`. The spec is
 unchanged, so migrating an object is a manifest re-stamp — see
 [Upgrade Path](#upgrade-path).
+
+`KubernetesOperator` needs no user action. The operator writes and reconciles
+`ngrok.com/v1` itself, attaches to the same ngrok KubernetesOperator, and
+leaves the old `ngrok.k8s.ngrok.com/v1alpha1` object in place with no
+finalizer until the cleanup release removes its CRD. The v1 kind has a strict
+`spec.metadata` map (no JSON string form) and an array `status.enabledFeatures`.
+The re-stamp recipe in [Upgrade Path](#upgrade-path) is for user-written kinds
+only.
 
 ## Status Field Changes
 

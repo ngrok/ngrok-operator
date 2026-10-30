@@ -207,6 +207,11 @@ Current sentinel tags:
   `ngrok.com/v1 TrafficPolicy`. Covers both the kind change and the group
   move, since we fold them into a single dual-CRD migration rather than
   paying two dual-read cycles.
+- `LEGACY-kubernetesoperator-kind` — CRD **kind and group** move for an
+  operator-written kind: `ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator` →
+  `ngrok.com/v1 KubernetesOperator`. Unlike `LEGACY-trafficpolicy-kind`, users
+  never re-stamp anything; the operator adopts the ID and leaves the legacy
+  object passive.
 - `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
 - `LEGACY-enabledfeatures-format` — `KubernetesOperator.status.enabledFeatures` comma-separated **string** → `[]string` (a field *type* change on an operator-only, operator-written status field; same `json:` tag).
 - `LEGACY-values-layout` — Helm values moved in the 0.25 layout. `templates/_legacy-values.tpl` fails the render when an old top-level key is set, naming its new path, so old values are never silently ignored. Delete the file, its include and the tagged tests once 0.25 is the oldest release users upgrade from.
@@ -647,6 +652,111 @@ If you find yourself adding another CRD kind or group rename, follow
 this pattern: two coexisting CRDs, canonical-first dual-read helper on
 the store, `DeprecatedAPIGroup` warning event on legacy fallback,
 sentinel-tag every legacy-only code path, no operator-driven backfill.
+That pattern is for **user-written** kinds with no ngrok-side state. For a
+kind the operator writes itself, or one whose `status.id` owns an ngrok
+resource, see the KubernetesOperator section below.
+
+## Per-shim catalog: KubernetesOperator CRD kind + group move (operator-written)
+
+### `ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator` → `ngrok.com/v1 KubernetesOperator`
+
+- **Pattern:** Three-release, shared with every kind that moves to
+  `ngrok.com/v1`: R1 (0.25) serves both kinds, R2 (1.0) strips legacy
+  finalizers, and R3 (1.1) drops the legacy CRD. Tag:
+  `LEGACY-kubernetesoperator-kind`. Plan and twin rules:
+  `specs/crd-group-migration.md`. KubernetesOperator details:
+  `specs/design-docs/2026-10-26-kubernetesoperator-v1-migration.md`.
+- **Why it differs from TrafficPolicy.** Users never write a
+  KubernetesOperator, so there is nothing for them to re-stamp. It also backs
+  an ngrok API resource, and deleting it runs the full drain.
+- **R1 — 0.25 (K8SOP-318):**
+  - **Types.** The v1 type drops both shape shims:
+    - `spec.metadata` is a strict `map[string]string`;
+    - `status.enabledFeatures` is a plain `[]string`.
+
+    The legacy type keeps `LEGACY-enabledfeatures-format` and carries
+    `+kubebuilder:deprecatedversion:warning` plus a `Deprecated:` doc comment,
+    with the SA1019 exclusion tagged in `.golangci.yml`.
+  - **The operator writes and reconciles only v1:**
+    - `createKubernetesOperator` in `cmd/api-manager.go`;
+    - `KubernetesOperatorReconciler`;
+    - `drain.Orchestrator`.
+
+    `findExisting` adopts the ngrok KubernetesOperator the legacy object
+    registered, matching deployment name, namespace and the `namespace.uid`
+    metadata key. The ID, bindings cert and endpoints carry over.
+  - **The legacy object is passive, never deleted**
+    (`reconcileLegacy` in
+    `internal/controller/ngrok/kubernetesoperator_legacy.go`). One reconciler
+    watches both kinds under the same key. After the v1 object has its ID:
+    - a live legacy object keeps its finalizer and gets `Ready=False`,
+      reason `SupersededByV1`. No `DeprecatedAPIGroup` warning: users never
+      write this object, so there is nothing for them to act on;
+    - a deleted legacy object has its finalizer released with no ngrok call.
+
+    It is never deleted, and keeps its finalizer, so `helm rollback` hands
+    0.24 the object exactly as it left it.
+  - **Readers** use `internal/kubernetesoperator.Lookup`:
+    - the drain state checker in api-manager and agent-manager;
+    - the bindings forwarder.
+
+    It returns the v1 object once it is registered or draining, and otherwise
+    falls back to the legacy object. That covers the window before api-manager
+    registers the v1 object. The BoundEndpoint poller reads v1 only.
+  - **Caches:** the api-manager and agent-manager caches pin both kinds to the
+    release namespace. The legacy entries are tagged.
+  - **Drain guard** (`shouldSkipDrain`, tagged). The v1 `delete()` first reads
+    the same-named legacy object, uncached, and fails closed:
+    - a drain already in progress (`Draining=True`) always continues;
+    - a legacy twin exists, or the read is Forbidden: skip the drain and the
+      ngrok delete, and emit `LegacyTwinSkippedDrain`;
+    - NotFound, or the legacy kind is not served: drain as before;
+    - any other error: requeue.
+  - **CRD retention.** Both `ngrok.com` CRDs (KubernetesOperator and
+    TrafficPolicy) carry `helm.sh/resource-policy: keep`
+    (`+kubebuilder:metadata:annotations`, tagged), so `helm rollback` to 0.24
+    leaves them and their objects in place. Because keep also stops
+    `helm uninstall` from deleting them, the uninstall hook deletes them once
+    the v1 KubernetesOperator is gone (bundled CRDs only), through a hook-only
+    ClusterRole limited to those two CRD names.
+  - **Helm:**
+    - `ngrok.com` rules sit next to tagged legacy rules in the api-manager,
+      agent, bindings-forwarder and cleanup-hook roles;
+    - the `kubernetesoperator-{editor,viewer}` aggregated roles keep their
+      file and role names and gain `ngrok.com` rules, with the legacy rules
+      tagged. The kind name did not change, so new files would collide;
+    - the uninstall hook releases the legacy finalizer, deletes the legacy
+      object, then deletes the v1 object (which drains). All names are fully
+      qualified, because both kinds share the plural.
+- **R2 — 1.0:** run `git grep 'LEGACY-kubernetesoperator-kind'` and sweep:
+  - Delete `api/ngrok/v1alpha1/kubernetesoperator_types.go`,
+    `kubernetesoperator_status_compat.go` and both tests. This ends
+    `LEGACY-enabledfeatures-format`, K8SOP-306 and K8SOP-321. Drop the tagged
+    `addKnownTypes` entries in `api/ngrok/v1alpha1/groupversion_info.go` and
+    regenerate deepcopy. The legacy CRD itself stays in the chart until R3
+    (keep its generated template by hand, or generate it from a frozen copy).
+  - Delete `internal/controller/ngrok/kubernetesoperator_legacy.go` and its
+    test, the legacy `Watches`, the tagged `reconcileLegacy` block in
+    `Reconcile`, and the tagged drain-guard block at the top of `delete()`.
+  - In `internal/kubernetesoperator/lookup.go`, collapse `Lookup` to a plain
+    v1 Get. Delete `isAuthoritative` and `fromLegacy`.
+  - Drop the tagged legacy cache entries in `cmd/api-manager.go` and
+    `cmd/agent-manager.go`.
+  - Remove both `helm.sh/resource-policy: keep` markers, the hook's CRD
+    deletion block, and the hook ClusterRole and binding. Helm deletes the
+    bundled CRDs again.
+  - Helm: delete the tagged legacy rule blocks in the agent,
+    bindings-forwarder and cleanup-hook roles and in the two crd-access
+    roles, and the legacy block in `cleanup-hook/job.yaml`. The shared R2
+    finalizer sweeper brings its own list/watch/patch on the legacy groups.
+  - Delete the SA1019 exclusion in `.golangci.yml` and the legacy `PROJECT`
+    entry.
+  - **Keep** `LEGACY-metadata-format`. `MetadataAPIString` and friends are
+    still used by Domain, IPPolicy, CloudEndpoint and AgentEndpoint.
+- **R3 — 1.1:** drop the legacy CRD template from `ngrok-crds`. Helm deletes
+  it on upgrade, and the legacy objects, finalizer-free since R2, go with it.
+  0.25 and 1.0 are required stops (`specs/crd-group-migration.md`, "Required
+  stops").
 
 ## Per-shim catalog: user-facing key compatibility (read-side only)
 

@@ -70,6 +70,7 @@ resources:
   domain: k8s.ngrok.com
   kind: Secret
   version: v1
+# LEGACY-kubernetesoperator-kind: delete this scaffold entry at cleanup.
 - api:
     crdVersion: v1
     namespaced: true
@@ -85,6 +86,13 @@ resources:
   controller: true
   domain: ngrok.com
   kind: TrafficPolicy
+  path: github.com/ngrok/ngrok-operator/api/ngrok/v1
+  version: v1
+- api:
+    namespaced: true
+  controller: true
+  domain: ngrok.com
+  kind: KubernetesOperator
   path: github.com/ngrok/ngrok-operator/api/ngrok/v1
   version: v1
 version: "3"

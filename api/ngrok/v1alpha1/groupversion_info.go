@@ -50,8 +50,12 @@ func addKnownTypes(s *runtime.Scheme) error {
 		&AgentEndpointList{},
 		&CloudEndpoint{},
 		&CloudEndpointList{},
+		// LEGACY-kubernetesoperator-kind: BEGIN — drop the two KubernetesOperator
+		// registrations at cleanup; the canonical replacement lives in
+		// api/ngrok/v1.
 		&KubernetesOperator{},
 		&KubernetesOperatorList{},
+		// LEGACY-kubernetesoperator-kind: END
 		// LEGACY-trafficpolicy-kind: BEGIN — drop the two NgrokTrafficPolicy
 		// registrations at cleanup; the canonical replacement lives in
 		// api/ngrok/v1.

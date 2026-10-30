@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ngrok/ngrok-api-go/v9"
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -37,7 +37,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 	// forceDeleteKO removes the finalizer and deletes the KubernetesOperator to
 	// avoid triggering the drain workflow during test cleanup.
 	forceDeleteKO := func(ctx context.Context) {
-		ko := &ngrokv1alpha1.KubernetesOperator{}
+		ko := &ngrokv1.KubernetesOperator{}
 		err := k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: controllerNamespace,
 			Name:      k8sOpName,
@@ -57,7 +57,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 			err := k8sClient.Get(ctx, client.ObjectKey{
 				Namespace: controllerNamespace,
 				Name:      k8sOpName,
-			}, &ngrokv1alpha1.KubernetesOperator{})
+			}, &ngrokv1.KubernetesOperator{})
 			return apierrors.IsNotFound(err)
 		}).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
 	}
@@ -70,13 +70,13 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 	})
 
 	It("should register successfully with ingress feature enabled", func(ctx SpecContext) {
-		ko := &ngrokv1alpha1.KubernetesOperator{
+		ko := &ngrokv1.KubernetesOperator{
 			Name:      k8sOpName,
 			Namespace: controllerNamespace,
-			Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+			Spec: ngrokv1.KubernetesOperatorSpec{
 				Description:     "test operator",
-				Metadata:        commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"test"}`),
-				EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
+				Metadata:        map[string]string{"owned-by": "test"},
+				EnabledFeatures: []string{ngrokv1.KubernetesOperatorFeatureIngress},
 				Region:          "global",
 			},
 		}
@@ -89,25 +89,25 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 
 		By("Expecting registration to succeed")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
-			koFetched := fetched.(*ngrokv1alpha1.KubernetesOperator)
+			koFetched := fetched.(*ngrokv1.KubernetesOperator)
 			g.Expect(koFetched.Status.ID).NotTo(BeEmpty())
 			g.Expect(koFetched.Status.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered)
+			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionRegistered)
 			g.Expect(registered).NotTo(BeNil())
 			g.Expect(registered.Status).To(Equal(metav1.ConditionTrue))
-			g.Expect(registered.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonRegistered))
+			g.Expect(registered.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonRegistered))
 			g.Expect(registered.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)
 			g.Expect(ready).NotTo(BeNil())
 			g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
-			g.Expect(ready.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonRegistered))
+			g.Expect(ready.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonRegistered))
 			g.Expect(ready.ObservedGeneration).To(Equal(koFetched.Generation))
 		}, testutils.WithTimeout(timeout))
 
 		By("Updating the registered KubernetesOperator")
-		current := &ngrokv1alpha1.KubernetesOperator{}
+		current := &ngrokv1.KubernetesOperator{}
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ko), current)).To(Succeed())
 		registeredGeneration := current.Generation
 		current.Spec.Description = "updated test operator"
@@ -115,16 +115,16 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 
 		By("Expecting the remote registration and status to reflect the new generation")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
-			koFetched := fetched.(*ngrokv1alpha1.KubernetesOperator)
+			koFetched := fetched.(*ngrokv1.KubernetesOperator)
 			g.Expect(koFetched.Generation).To(BeNumerically(">", registeredGeneration))
 			g.Expect(koFetched.Status.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered)
+			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionRegistered)
 			g.Expect(registered).NotTo(BeNil())
 			g.Expect(registered.Status).To(Equal(metav1.ConditionTrue))
 			g.Expect(registered.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)
 			g.Expect(ready).NotTo(BeNil())
 			g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
 			g.Expect(ready.ObservedGeneration).To(Equal(koFetched.Generation))
@@ -136,13 +136,13 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 	})
 
 	It("should report and recover from an invalid bindings configuration", func(ctx SpecContext) {
-		ko := &ngrokv1alpha1.KubernetesOperator{
+		ko := &ngrokv1.KubernetesOperator{
 			Name:      k8sOpName,
 			Namespace: controllerNamespace,
-			Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+			Spec: ngrokv1.KubernetesOperatorSpec{
 				Description:     "test operator with nil binding",
-				Metadata:        commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"test"}`),
-				EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
+				Metadata:        map[string]string{"owned-by": "test"},
+				EnabledFeatures: []string{ngrokv1.KubernetesOperatorFeatureBindings},
 				Binding:         nil,
 				Region:          "global",
 			},
@@ -156,49 +156,206 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 
 		By("Expecting the public failure condition contract")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
-			koFetched := fetched.(*ngrokv1alpha1.KubernetesOperator)
+			koFetched := fetched.(*ngrokv1.KubernetesOperator)
 			g.Expect(koFetched.Status.ID).To(BeEmpty())
 			g.Expect(koFetched.Status.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered)
+			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionRegistered)
 			g.Expect(registered).NotTo(BeNil())
 			g.Expect(registered.Status).To(Equal(metav1.ConditionFalse))
-			g.Expect(registered.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed))
+			g.Expect(registered.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonRegistrationFailed))
 			g.Expect(registered.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)
 			g.Expect(ready).NotTo(BeNil())
 			g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
-			g.Expect(ready.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonConfigurationFailed))
+			g.Expect(ready.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonConfigurationFailed))
 			g.Expect(ready.ObservedGeneration).To(Equal(koFetched.Generation))
 		}, testutils.WithTimeout(timeout))
 
 		By("Fixing the configuration")
-		current := &ngrokv1alpha1.KubernetesOperator{}
+		current := &ngrokv1.KubernetesOperator{}
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ko), current)).To(Succeed())
 		failedGeneration := current.Generation
-		current.Spec.EnabledFeatures = []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress}
+		current.Spec.EnabledFeatures = []string{ngrokv1.KubernetesOperatorFeatureIngress}
 		Expect(k8sClient.Update(ctx, current)).To(Succeed())
 
 		By("Expecting registration and readiness to recover for the new generation")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
-			koFetched := fetched.(*ngrokv1alpha1.KubernetesOperator)
+			koFetched := fetched.(*ngrokv1.KubernetesOperator)
 			g.Expect(koFetched.Generation).To(BeNumerically(">", failedGeneration))
 			g.Expect(koFetched.Status.ID).NotTo(BeEmpty())
 			g.Expect(koFetched.Status.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered)
+			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionRegistered)
 			g.Expect(registered).NotTo(BeNil())
 			g.Expect(registered.Status).To(Equal(metav1.ConditionTrue))
-			g.Expect(registered.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonRegistered))
+			g.Expect(registered.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonRegistered))
 			g.Expect(registered.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)
 			g.Expect(ready).NotTo(BeNil())
 			g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
-			g.Expect(ready.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonRegistered))
+			g.Expect(ready.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonRegistered))
 			g.Expect(ready.ObservedGeneration).To(Equal(koFetched.Generation))
 		}, testutils.WithTimeout(timeout))
+	})
+
+	Context("legacy ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator", func() {
+		legacyKey := client.ObjectKey{Namespace: controllerNamespace, Name: k8sOpName}
+
+		// createLegacyKO creates the legacy object an older operator would have
+		// left behind, carrying the operator finalizer.
+		createLegacyKO := func(ctx context.Context, finalizers ...string) *ngrokv1alpha1.KubernetesOperator {
+			legacy := &ngrokv1alpha1.KubernetesOperator{
+				Name:       k8sOpName,
+				Namespace:  controllerNamespace,
+				Finalizers: finalizers,
+				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+					Description: "legacy operator",
+					Region:      "global",
+				},
+			}
+			Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+			DeferCleanup(func() {
+				current := &ngrokv1alpha1.KubernetesOperator{}
+				if err := k8sClient.Get(context.Background(), legacyKey, current); err != nil {
+					return
+				}
+				if len(current.Finalizers) > 0 {
+					current.Finalizers = nil
+					_ = k8sClient.Update(context.Background(), current)
+				}
+				_ = client.IgnoreNotFound(k8sClient.Delete(context.Background(), current))
+			})
+			return legacy
+		}
+
+		// seedRemoteKO registers a KubernetesOperator in the mock ngrok API that
+		// findExisting will adopt, as if the legacy operator had registered it.
+		seedRemoteKO := func(ctx context.Context) string {
+			ns := &v1.Namespace{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: controllerNamespace}, ns)).To(Succeed())
+			remote, err := mockClientset.KubernetesOperators().Create(ctx, &ngrok.KubernetesOperatorCreate{
+				Description: "legacy operator",
+				Metadata:    `{"owned-by":"ngrok-operator","namespace.uid":"` + string(ns.UID) + `"}`,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			remote.Deployment = ngrok.KubernetesOperatorDeployment{Name: "ngrok-operator", Namespace: controllerNamespace}
+			return remote.ID
+		}
+
+		canonicalKO := func() *ngrokv1.KubernetesOperator {
+			return &ngrokv1.KubernetesOperator{
+				Name: k8sOpName, Namespace: controllerNamespace,
+				Spec: ngrokv1.KubernetesOperatorSpec{
+					Description:     "canonical operator",
+					EnabledFeatures: []string{ngrokv1.KubernetesOperatorFeatureIngress},
+					Region:          "global",
+					Deployment:      &ngrokv1.KubernetesOperatorDeployment{Name: "ngrok-operator", Namespace: controllerNamespace},
+				},
+			}
+		}
+
+		expectRemoteKOCount := func(ctx context.Context, n int) {
+			count := 0
+			iter := mockClientset.KubernetesOperators().List(&ngrok.Paging{})
+			for iter.Next(ctx) {
+				count++
+			}
+			Expect(iter.Err()).NotTo(HaveOccurred())
+			Expect(count).To(Equal(n))
+		}
+
+		expectLegacySuperseded := func(ctx context.Context) {
+			Eventually(func(g Gomega) {
+				legacy := &ngrokv1alpha1.KubernetesOperator{}
+				g.Expect(k8sClient.Get(ctx, legacyKey, legacy)).To(Succeed())
+				g.Expect(legacy.Finalizers).To(ContainElement(util.FinalizerName))
+				ready := meta.FindStatusCondition(legacy.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+				g.Expect(ready).NotTo(BeNil())
+				g.Expect(ready.Reason).To(Equal(ReasonSupersededByV1))
+			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+		}
+
+		It("adopts the legacy ID and leaves the legacy KO passive with its finalizer", func(ctx SpecContext) {
+			remoteID := seedRemoteKO(ctx)
+			createLegacyKO(ctx, util.FinalizerName)
+
+			Expect(k8sClient.Create(ctx, canonicalKO())).To(Succeed())
+
+			By("adopting the legacy operator's ngrok KubernetesOperator")
+			kginkgo.EventuallyWithObject(ctx, canonicalKO(), func(g Gomega, fetched client.Object) {
+				g.Expect(fetched.(*ngrokv1.KubernetesOperator).Status.ID).To(Equal(remoteID))
+			}, testutils.WithTimeout(timeout))
+
+			By("marking the legacy object superseded, keeping its finalizer")
+			expectLegacySuperseded(ctx)
+			expectRemoteKOCount(ctx, 1)
+
+			By("releasing the finalizer when the legacy object is deleted, without an ngrok call")
+			legacy := &ngrokv1alpha1.KubernetesOperator{}
+			Expect(k8sClient.Get(ctx, legacyKey, legacy)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, legacy)).To(Succeed())
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, legacyKey, &ngrokv1alpha1.KubernetesOperator{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			_, err := mockClientset.KubernetesOperators().Get(ctx, remoteID)
+			Expect(err).NotTo(HaveOccurred())
+			kginkgo.EventuallyWithObject(ctx, canonicalKO(), func(g Gomega, fetched client.Object) {
+				ko := fetched.(*ngrokv1.KubernetesOperator)
+				g.Expect(ko.Status.ID).To(Equal(remoteID))
+				g.Expect(meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining)).To(BeNil())
+			}, testutils.WithTimeout(timeout))
+		})
+
+		It("releases a legacy KO that is already terminating once the v1 KO holds the ID", func(ctx SpecContext) {
+			remoteID := seedRemoteKO(ctx)
+			legacy := createLegacyKO(ctx, util.FinalizerName)
+			Expect(k8sClient.Delete(ctx, legacy)).To(Succeed())
+
+			Expect(k8sClient.Create(ctx, canonicalKO())).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, legacyKey, &ngrokv1alpha1.KubernetesOperator{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			_, err := mockClientset.KubernetesOperators().Get(ctx, remoteID)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("leaves the legacy KO alone while the canonical KO is terminating", func(ctx SpecContext) {
+			const holdFinalizer = "test.ngrok.com/hold"
+			seedRemoteKO(ctx)
+
+			canonical := canonicalKO()
+			canonical.Finalizers = []string{holdFinalizer}
+			Expect(k8sClient.Create(ctx, canonical)).To(Succeed())
+			kginkgo.EventuallyWithObject(ctx, canonicalKO(), func(g Gomega, fetched client.Object) {
+				g.Expect(fetched.(*ngrokv1.KubernetesOperator).Status.ID).NotTo(BeEmpty())
+			}, testutils.WithTimeout(timeout))
+			// Take the canonical KO out of the drain path: strip the operator
+			// finalizer so deletion only waits on the test hold finalizer.
+			current := &ngrokv1.KubernetesOperator{}
+			Expect(k8sClient.Get(ctx, legacyKey, current)).To(Succeed())
+			util.RemoveFinalizer(current)
+			Expect(k8sClient.Update(ctx, current)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, current)).To(Succeed())
+
+			createLegacyKO(ctx, util.FinalizerName)
+
+			Consistently(func(g Gomega) {
+				legacy := &ngrokv1alpha1.KubernetesOperator{}
+				g.Expect(k8sClient.Get(ctx, legacyKey, legacy)).To(Succeed())
+				g.Expect(legacy.Finalizers).To(ContainElement(util.FinalizerName))
+			}).WithTimeout(3 * time.Second).WithPolling(interval).Should(Succeed())
+
+			// Release the hold before AfterEach waits for the canonical KO to go.
+			Expect(k8sClient.Get(ctx, legacyKey, current)).To(Succeed())
+			controllerutil.RemoveFinalizer(current, holdFinalizer)
+			Expect(k8sClient.Update(ctx, current)).To(Succeed())
+		})
 	})
 
 	// Keep this last: drain state intentionally latches for the lifetime of the
@@ -206,16 +363,16 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 	It("should publish drain conditions and clean up through a real deletion event", func(ctx SpecContext) {
 		const holdFinalizer = "test.ngrok.com/hold"
 
-		ko := &ngrokv1alpha1.KubernetesOperator{
+		ko := &ngrokv1.KubernetesOperator{
 			Name:      k8sOpName,
 			Namespace: controllerNamespace,
-			Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+			Spec: ngrokv1.KubernetesOperatorSpec{
 				Description:     "drain lifecycle envtest",
-				Metadata:        commonv1alpha1.MetadataFromLegacyString(`{"owned-by":"test"}`),
-				EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureIngress},
+				Metadata:        map[string]string{"owned-by": "test"},
+				EnabledFeatures: []string{ngrokv1.KubernetesOperatorFeatureIngress},
 				Region:          "global",
-				Drain: &ngrokv1alpha1.DrainConfig{
-					Policy: ngrokv1alpha1.DrainPolicyRetain,
+				Drain: &ngrokv1.DrainConfig{
+					Policy: ngrokv1.DrainPolicyRetain,
 				},
 			},
 		}
@@ -229,7 +386,7 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		}
 
 		DeferCleanup(func() {
-			remainingKO := &ngrokv1alpha1.KubernetesOperator{}
+			remainingKO := &ngrokv1.KubernetesOperator{}
 			if err := k8sClient.Get(context.Background(), client.ObjectKeyFromObject(ko), remainingKO); err == nil {
 				if controllerutil.RemoveFinalizer(remainingKO, holdFinalizer) {
 					_ = k8sClient.Update(context.Background(), remainingKO)
@@ -241,12 +398,12 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		By("Registering the KubernetesOperator")
 		Expect(k8sClient.Create(ctx, ko)).To(Succeed())
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
-			koFetched := fetched.(*ngrokv1alpha1.KubernetesOperator)
+			koFetched := fetched.(*ngrokv1.KubernetesOperator)
 			g.Expect(koFetched.Status.ID).NotTo(BeEmpty())
-			g.Expect(meta.IsStatusConditionTrue(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)).To(BeTrue())
+			g.Expect(meta.IsStatusConditionTrue(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)).To(BeTrue())
 		}, testutils.WithTimeout(timeout))
 
-		current := &ngrokv1alpha1.KubernetesOperator{}
+		current := &ngrokv1.KubernetesOperator{}
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ko), current)).To(Succeed())
 		remoteID := current.Status.ID
 		controllerutil.AddFinalizer(current, holdFinalizer)
@@ -258,43 +415,43 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 
 		By("Observing the in-progress drain conditions")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
-			koFetched := fetched.(*ngrokv1alpha1.KubernetesOperator)
+			koFetched := fetched.(*ngrokv1.KubernetesOperator)
 
-			draining := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+			draining := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining)
 			g.Expect(draining).NotTo(BeNil())
 			g.Expect(draining.Status).To(Equal(metav1.ConditionTrue))
-			g.Expect(draining.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress))
+			g.Expect(draining.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonDrainInProgress))
 
-			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)
 			g.Expect(ready).NotTo(BeNil())
 			g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
-			g.Expect(ready.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonDraining))
+			g.Expect(ready.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonDraining))
 		}, testutils.WithTimeout(timeout), testutils.WithInterval(50*time.Millisecond))
 
 		By("Observing the completed drain and deregistration contract")
 		kginkgo.EventuallyWithObject(ctx, ko.DeepCopy(), func(g Gomega, fetched client.Object) {
-			koFetched := fetched.(*ngrokv1alpha1.KubernetesOperator)
+			koFetched := fetched.(*ngrokv1.KubernetesOperator)
 			g.Expect(koFetched.Status.ObservedGeneration).To(Equal(koFetched.Generation))
 			g.Expect(koFetched.Status.ID).To(BeEmpty())
 			g.Expect(util.HasFinalizer(koFetched)).To(BeFalse())
 			g.Expect(controllerutil.ContainsFinalizer(koFetched, holdFinalizer)).To(BeTrue())
 
-			draining := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+			draining := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining)
 			g.Expect(draining).NotTo(BeNil())
 			g.Expect(draining.Status).To(Equal(metav1.ConditionFalse))
-			g.Expect(draining.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted))
+			g.Expect(draining.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonDrainCompleted))
 			g.Expect(draining.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+			ready := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)
 			g.Expect(ready).NotTo(BeNil())
 			g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
-			g.Expect(ready.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted))
+			g.Expect(ready.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonDrainCompleted))
 			g.Expect(ready.ObservedGeneration).To(Equal(koFetched.Generation))
 
-			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered)
+			registered := meta.FindStatusCondition(koFetched.Status.Conditions, ngrokv1.KubernetesOperatorConditionRegistered)
 			g.Expect(registered).NotTo(BeNil())
 			g.Expect(registered.Status).To(Equal(metav1.ConditionFalse))
-			g.Expect(registered.Reason).To(Equal(ngrokv1alpha1.KubernetesOperatorReasonDeregistered))
+			g.Expect(registered.Reason).To(Equal(ngrokv1.KubernetesOperatorReasonDeregistered))
 			g.Expect(registered.ObservedGeneration).To(Equal(koFetched.Generation))
 
 			g.Expect(koFetched.Status.Drain).NotTo(BeNil())
@@ -312,12 +469,12 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 		Expect(ngrok.IsNotFound(err)).To(BeTrue())
 
 		By("Releasing the test hold finalizer")
-		completed := &ngrokv1alpha1.KubernetesOperator{}
+		completed := &ngrokv1.KubernetesOperator{}
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ko), completed)).To(Succeed())
 		Expect(controllerutil.RemoveFinalizer(completed, holdFinalizer)).To(BeTrue())
 		Expect(k8sClient.Update(ctx, completed)).To(Succeed())
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(ko), &ngrokv1alpha1.KubernetesOperator{})
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(ko), &ngrokv1.KubernetesOperator{})
 			return apierrors.IsNotFound(err)
 		}).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
 	})

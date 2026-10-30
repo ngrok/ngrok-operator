@@ -314,6 +314,24 @@ should match snapshot with defaults:
       name: RELEASE-NAME-ngrok-operator-kubernetesoperator-editor-role
     rules:
       - apiGroups:
+          - ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - kubernetesoperators/status
+        verbs:
+          - get
+      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - kubernetesoperators
@@ -345,6 +363,20 @@ should match snapshot with defaults:
         helm.sh/chart: ngrok-operator-0.24.0
       name: RELEASE-NAME-ngrok-operator-kubernetesoperator-viewer-role
     rules:
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - kubernetesoperators/status
+        verbs:
+          - get
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:

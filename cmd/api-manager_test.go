@@ -8,6 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 )
 
 // byObjectNamespaces returns the namespaces pinned for the first ByObject key
@@ -74,6 +75,13 @@ func TestManagerCacheOptions(t *testing.T) {
 			assert.ElementsMatch(t, tt.wantService, svc)
 
 			assert.Equal(t, tt.wantDefaultNS, got.DefaultNamespaces != nil)
+
+			ko, ok := byObjectNamespaces[*ngrokv1.KubernetesOperator](got)
+			assert.True(t, ok)
+			assert.Equal(t, []string{"op"}, ko)
+			legacyKO, ok := byObjectNamespaces[*ngrokv1alpha1.KubernetesOperator](got)
+			assert.True(t, ok)
+			assert.Equal(t, []string{"op"}, legacyKO)
 		})
 	}
 }

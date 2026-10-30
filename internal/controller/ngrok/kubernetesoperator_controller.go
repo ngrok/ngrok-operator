@@ -44,13 +44,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/drain"
@@ -59,9 +62,9 @@ import (
 )
 
 var featureMap = map[string]string{
-	ngrokv1alpha1.KubernetesOperatorFeatureBindings: "bindings",
-	ngrokv1alpha1.KubernetesOperatorFeatureIngress:  "ingress",
-	ngrokv1alpha1.KubernetesOperatorFeatureGateway:  "gateway",
+	ngrokv1.KubernetesOperatorFeatureBindings: "bindings",
+	ngrokv1.KubernetesOperatorFeatureIngress:  "ingress",
+	ngrokv1.KubernetesOperatorFeatureGateway:  "gateway",
 }
 
 const (
@@ -76,7 +79,11 @@ var errBindingsConfiguration = errors.New("bindings feature enabled but spec.bin
 type KubernetesOperatorReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
-	controller *controller.BaseController[*ngrokv1alpha1.KubernetesOperator]
+	controller *controller.BaseController[*ngrokv1.KubernetesOperator]
+
+	// APIReader reads uncached, so decisions that gate a drain never act on a
+	// stale cache.
+	APIReader client.Reader
 
 	Log            logr.Logger
 	Recorder       events.EventRecorder
@@ -106,14 +113,14 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		return errors.New("NgrokClientset is required")
 	}
 
-	r.controller = &controller.BaseController[*ngrokv1alpha1.KubernetesOperator]{
+	r.controller = &controller.BaseController[*ngrokv1.KubernetesOperator]{
 		Kube:     r.Client,
 		Log:      r.Log,
 		Recorder: r.Recorder,
 
 		Namespace: &r.K8sOpNamespace,
 
-		StatusID: func(obj *ngrokv1alpha1.KubernetesOperator) string { return obj.Status.ID },
+		StatusID: func(obj *ngrokv1.KubernetesOperator) string { return obj.Status.ID },
 		Create:   r.create,
 		Update:   r.update,
 		Delete:   r.delete,
@@ -126,12 +133,16 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 	})
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ngrokv1alpha1.KubernetesOperator{}).
-		WithEventFilter(
-			predicate.And(
-				ownKOPredicate,
-				kubernetesOperatorReconcilePredicate(),
-			),
+		For(&ngrokv1.KubernetesOperator{}, builder.WithPredicates(
+			ownKOPredicate,
+			kubernetesOperatorReconcilePredicate(),
+		)).
+		// LEGACY-kubernetesoperator-kind: drop this Watches at cleanup. Legacy
+		// events, its deletion included, enqueue the same namespace/name key
+		// as the v1 object, so one reconcile handles both halves of the pair.
+		Watches(&ngrokv1alpha1.KubernetesOperator{},
+			handler.EnqueueRequestsFromMapFunc(legacyKubernetesOperatorToRequest),
+			builder.WithPredicates(ownKOPredicate),
 		).
 		Complete(r)
 }
@@ -149,15 +160,28 @@ func kubernetesOperatorReconcilePredicate() predicate.Predicate {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	res, err := r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.KubernetesOperator))
+	res, err := r.controller.Reconcile(ctx, req, new(ngrokv1.KubernetesOperator))
 	if err != nil || res.RequeueAfter > 0 {
 		return res, err
 	}
 
-	ko := new(ngrokv1alpha1.KubernetesOperator)
+	ko := new(ngrokv1.KubernetesOperator)
 	if err := r.Client.Get(ctx, req.NamespacedName, ko); err != nil {
 		return res, client.IgnoreNotFound(err)
 	}
+
+	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup. Runs after the
+	// v1 object has adopted its ID, and never while it is being deleted.
+	if ko.DeletionTimestamp.IsZero() {
+		legacyRes, err := r.reconcileLegacy(ctx, ko)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if legacyRes.RequeueAfter > 0 {
+			return legacyRes, nil
+		}
+	}
+	// LEGACY-kubernetesoperator-kind: END
 
 	renewalRes, err := r.reconcileBindingCertRenewal(ctx, ko, time.Now())
 	if err != nil {
@@ -171,7 +195,7 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return res, nil
 }
 
-func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (err error) {
+func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1.KubernetesOperator) (err error) {
 	var k8sOp *ngrok.KubernetesOperator
 	k8sOp, err = r.findExisting(ctx, ko)
 	if err != nil {
@@ -201,7 +225,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 		Deployment:      deployment,
 	}
 
-	bindingsEnabled := slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
+	bindingsEnabled := slices.Contains(ko.Spec.EnabledFeatures, ngrokv1.KubernetesOperatorFeatureBindings)
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
@@ -234,7 +258,7 @@ func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1al
 	return r.updateStatus(ctx, ko, k8sOp, err)
 }
 
-func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
+func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1.KubernetesOperator) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("id", ko.Status.ID)
 
 	log.V(3).Info("fetching KubernetesOperator from ngrok API")
@@ -246,15 +270,28 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1al
 	return r._update(ctx, ko, ngrokKo)
 }
 
-func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
+func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1.KubernetesOperator) error {
 	log := ctrl.LoggerFrom(ctx)
 
+	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup.
+	skipDrain, err := r.shouldSkipDrain(ctx, ko)
+	if err != nil {
+		return err
+	}
+	if skipDrain {
+		log.Info("legacy KubernetesOperator still present, skipping drain and ngrok API deletion")
+		r.Recorder.Eventf(ko, nil, v1.EventTypeWarning, ReasonLegacyTwinSkippedDrain, "Delete",
+			"The legacy ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator still exists; skipped the drain and left the ngrok KubernetesOperator and managed resources in place")
+		return nil
+	}
+	// LEGACY-kubernetesoperator-kind: END
+
 	// Step 1: Initiate drain if it is neither in progress nor already complete.
-	if !meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining) &&
+	if !meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining) &&
 		!ko.IsDrainComplete() {
 		log.Info("KubernetesOperator deletion detected, initiating drain")
-		setKubernetesOperatorDrainingCondition(ko, true, ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress, "Drain initiated")
-		setKubernetesOperatorReadyCondition(ko, false, ngrokv1alpha1.KubernetesOperatorReasonDraining, "KubernetesOperator is being deleted")
+		setKubernetesOperatorDrainingCondition(ko, true, ngrokv1.KubernetesOperatorReasonDrainInProgress, "Drain initiated")
+		setKubernetesOperatorReadyCondition(ko, false, ngrokv1.KubernetesOperatorReasonDraining, "KubernetesOperator is being deleted")
 		ko.SetObservedGeneration(ko.Generation)
 		if err := r.Client.Status().Update(ctx, ko); err != nil {
 			return err
@@ -288,7 +325,7 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1al
 	}
 	ko.Status.ID = ""
 	ko.Status.URI = ""
-	setKubernetesOperatorRegisteredCondition(ko, false, ngrokv1alpha1.KubernetesOperatorReasonDeregistered, "Deregistered from the ngrok API")
+	setKubernetesOperatorRegisteredCondition(ko, false, ngrokv1.KubernetesOperatorReasonDeregistered, "Deregistered from the ngrok API")
 	ko.SetObservedGeneration(ko.Generation)
 	if err := r.Client.Status().Update(ctx, ko); err != nil {
 		return err
@@ -299,7 +336,7 @@ func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1al
 }
 
 // updateStatus fills in the status fields of the KubernetesOperator CRD based on the current state of the ngrok API and updates the status in k8s
-func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator, err error) error {
+func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngrokv1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator, err error) error {
 	existsInNgrokAPI := ngrokKo != nil && ngrokKo.ID != ""
 
 	if existsInNgrokAPI {
@@ -311,7 +348,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 		}
 	}
 
-	errReason := ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed
+	errReason := ngrokv1.KubernetesOperatorReasonRegistrationFailed
 	errMessage := ""
 	if err != nil {
 		errMessage = err.Error()
@@ -333,16 +370,16 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 	}
 
 	registered := existsInNgrokAPI
-	registeredReason := ngrokv1alpha1.KubernetesOperatorReasonPending
+	registeredReason := ngrokv1.KubernetesOperatorReasonPending
 	registeredMessage := "Waiting to be registered with the ngrok API"
 	ready := existsInNgrokAPI
 	readyReason := registeredReason
 	readyMessage := registeredMessage
 
 	if existsInNgrokAPI {
-		registeredReason = ngrokv1alpha1.KubernetesOperatorReasonRegistered
+		registeredReason = ngrokv1.KubernetesOperatorReasonRegistered
 		registeredMessage = "Registered with the ngrok API"
-		readyReason = ngrokv1alpha1.KubernetesOperatorReasonRegistered
+		readyReason = ngrokv1.KubernetesOperatorReasonRegistered
 		readyMessage = "KubernetesOperator is registered and ready"
 	}
 	if err != nil {
@@ -354,7 +391,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 		readyReason = errReason
 		readyMessage = errMessage
 		if existsInNgrokAPI || errors.Is(err, errBindingsConfiguration) {
-			readyReason = ngrokv1alpha1.KubernetesOperatorReasonConfigurationFailed
+			readyReason = ngrokv1.KubernetesOperatorReasonConfigurationFailed
 		}
 	}
 
@@ -366,7 +403,7 @@ func (r *KubernetesOperatorReconciler) updateStatus(ctx context.Context, ko *ngr
 	return r.controller.ReconcileStatus(ctx, ko, err)
 }
 
-func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator) (err error) {
+func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1.KubernetesOperator, ngrokKo *ngrok.KubernetesOperator) (err error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	// In our spec, this is possibly nil, so we need to guard against it.
@@ -388,7 +425,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 		Deployment:      deployment,
 	}
 
-	bindingsEnabled := slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings)
+	bindingsEnabled := slices.Contains(ko.Spec.EnabledFeatures, ngrokv1.KubernetesOperatorFeatureBindings)
 	var tlsSecret *v1.Secret
 
 	if bindingsEnabled {
@@ -427,7 +464,7 @@ func (r *KubernetesOperatorReconciler) _update(ctx context.Context, ko *ngrokv1a
 }
 
 // fuzzy match against the ngrok API to find an existing KubernetesOperator
-func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (*ngrok.KubernetesOperator, error) {
+func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngrokv1.KubernetesOperator) (*ngrok.KubernetesOperator, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
@@ -477,7 +514,7 @@ func (r *KubernetesOperatorReconciler) findExisting(ctx context.Context, ko *ngr
 	return nil, iter.Err()
 }
 
-func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
+func calculateFeaturesEnabled(ko *ngrokv1.KubernetesOperator) []string {
 	var features []string
 
 	for _, f := range ko.Spec.EnabledFeatures {
@@ -488,7 +525,7 @@ func calculateFeaturesEnabled(ko *ngrokv1alpha1.KubernetesOperator) []string {
 	return features
 }
 
-func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (secret *v1.Secret, err error) {
+func (r *KubernetesOperatorReconciler) findOrCreateTLSSecret(ctx context.Context, ko *ngrokv1.KubernetesOperator) (secret *v1.Secret, err error) {
 	secret = &v1.Secret{}
 	err = r.Client.Get(ctx, client.ObjectKey{Namespace: ko.GetNamespace(), Name: ko.Spec.Binding.TlsSecretName}, secret)
 	switch {
@@ -564,8 +601,8 @@ func (r *KubernetesOperatorReconciler) updateTLSSecretCert(ctx context.Context, 
 	return r.Client.Patch(ctx, newSecret, client.MergeFrom(secret))
 }
 
-func (r *KubernetesOperatorReconciler) reconcileBindingCertRenewal(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator, now time.Time) (ctrl.Result, error) {
-	if ko.Status.ID == "" || ko.Spec.Binding == nil || !slices.Contains(ko.Spec.EnabledFeatures, ngrokv1alpha1.KubernetesOperatorFeatureBindings) {
+func (r *KubernetesOperatorReconciler) reconcileBindingCertRenewal(ctx context.Context, ko *ngrokv1.KubernetesOperator, now time.Time) (ctrl.Result, error) {
+	if ko.Status.ID == "" || ko.Spec.Binding == nil || !slices.Contains(ko.Spec.EnabledFeatures, ngrokv1.KubernetesOperatorFeatureBindings) {
 		return ctrl.Result{}, nil
 	}
 
@@ -607,7 +644,7 @@ func bindingCertRenewalState(ngrokKo *ngrok.KubernetesOperator, now time.Time, r
 	return notAfter, shouldRenew, nil
 }
 
-func (r *KubernetesOperatorReconciler) invalidateTLSSecretCSR(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
+func (r *KubernetesOperatorReconciler) invalidateTLSSecretCSR(ctx context.Context, ko *ngrokv1.KubernetesOperator) error {
 	secret := &v1.Secret{}
 	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: ko.GetNamespace(), Name: ko.Spec.Binding.TlsSecretName}, secret); err != nil {
 		return client.IgnoreNotFound(err)
@@ -632,15 +669,16 @@ func (r *KubernetesOperatorReconciler) bindingCertRenewalWindow() time.Duration 
 // Try merging the user-provided metadata in the KubernetesOperator spec with the namespace UID.
 // This is done to see if we can adopt an existing KubernetesOperator in the ngrok API going forward.
 // If there are any errors, the original metadata is returned.
-func (r *KubernetesOperatorReconciler) tryMergeMetadata(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) string {
+func (r *KubernetesOperatorReconciler) tryMergeMetadata(ctx context.Context, ko *ngrokv1.KubernetesOperator) string {
+	apiMetadata := commonv1alpha1.MetadataAPIString(commonv1alpha1.MetadataFromMap(ko.Spec.Metadata))
 	namespaceUID, err := getNamespaceUID(ctx, r.Client, ko.GetNamespace())
 	if err != nil {
-		return commonv1alpha1.MetadataAPIString(ko.Spec.Metadata)
+		return apiMetadata
 	}
 
-	metadata, err := mergeMetadata(commonv1alpha1.MetadataAPIString(ko.Spec.Metadata), namespaceUID)
+	metadata, err := mergeMetadata(apiMetadata, namespaceUID)
 	if err != nil {
-		return commonv1alpha1.MetadataAPIString(ko.Spec.Metadata)
+		return apiMetadata
 	}
 
 	return metadata
