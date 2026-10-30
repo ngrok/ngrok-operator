@@ -9,7 +9,7 @@ spec:
   description: "Uninstall test CloudEndpoint"
   metadata: '{"test":"uninstall-e2e"}'
   trafficPolicy:
-    policy:
+    inline:
       on_http_request:
         - name: test-response
           actions:
