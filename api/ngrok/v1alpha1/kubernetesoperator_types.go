@@ -28,7 +28,7 @@ SOFTWARE.
 // helm/ngrok-crds/templates/ngrok.k8s.ngrok.com_kubernetesoperators.yaml.
 // The canonical replacement is api/ngrok/v1.KubernetesOperator, which the
 // operator writes and reconciles; this kind is only read as a fallback and
-// neutralized. See docs/developer-guide/passivity-shims.md.
+// marked superseded. See docs/developer-guide/passivity-shims.md.
 
 package v1alpha1
 

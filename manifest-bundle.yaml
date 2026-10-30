@@ -4180,8 +4180,9 @@ spec:
               # fully qualified; a bare "kubernetesoperator" is ambiguous.
               # LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup. The
               # operator skips the drain while a legacy object still exists,
-              # so remove it first. Release its finalizer in case the operator
-              # never did, so nothing tries to drain it.
+              # so remove it first. The operator releases the legacy
+              # finalizer on delete; patch it here too in case it is not
+              # running, so the delete never waits on it.
               kubectl patch kubernetesoperators.ngrok.k8s.ngrok.com "ngrok-operator" -n ngrok-operator --type=merge -p '{"metadata":{"finalizers":null}}' || true
               kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "ngrok-operator" -n ngrok-operator --ignore-not-found --wait=true --timeout=60s || true
               # LEGACY-kubernetesoperator-kind: END

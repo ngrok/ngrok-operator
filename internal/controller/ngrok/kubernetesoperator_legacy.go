@@ -10,23 +10,24 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // LEGACY-kubernetesoperator-kind: delete this whole file at cleanup, together
-// with the legacy Watches and the neutralizeLegacy call in
+// with the legacy Watches and the reconcileLegacy call in
 // kubernetesoperator_controller.go.
 
 const (
-	// AnnotationSupersededBy marks a legacy KubernetesOperator that the operator
-	// no longer reconciles, naming the ngrok.com/v1 object that replaced it.
-	AnnotationSupersededBy = "ngrok.com/superseded-by"
+	// ReasonSupersededByV1 is the Ready condition reason set on a legacy
+	// KubernetesOperator whose ngrok.com/v1 twin the operator now reconciles.
+	ReasonSupersededByV1 = "SupersededByV1"
 
-	// ReasonLegacyKubernetesOperatorSuperseded is the event reason emitted on the
-	// v1 KubernetesOperator when its legacy twin's finalizer is removed.
-	ReasonLegacyKubernetesOperatorSuperseded = "LegacyKubernetesOperatorSuperseded"
+	// ReasonDeprecatedAPIGroup is the warning event reason emitted on a legacy
+	// KubernetesOperator when it is first marked superseded.
+	ReasonDeprecatedAPIGroup = "DeprecatedAPIGroup"
 
 	// ReasonLegacyTwinSkippedDrain is the event reason emitted when the v1
 	// KubernetesOperator is deleted while its legacy twin still exists, and the
@@ -34,17 +35,15 @@ const (
 	ReasonLegacyTwinSkippedDrain = "LegacyTwinSkippedDrain"
 )
 
-// neutralizeLegacy makes the legacy ngrok.k8s.ngrok.com/v1alpha1 object at the
-// same key inert: it removes the operator finalizer, so deleting it can never
-// run a drain, and marks it superseded. It never deletes the object, because an
-// older operator started by a helm rollback recreates and relies on it.
-// Older operators re-add the finalizer whenever they reconcile, so this runs on
-// every reconcile, triggered by a watch on the legacy kind.
-func (r *KubernetesOperatorReconciler) neutralizeLegacy(ctx context.Context, canonical *ngrokv1.KubernetesOperator) error {
-	if !canonical.DeletionTimestamp.IsZero() {
-		return nil
-	}
-
+// reconcileLegacy keeps the legacy ngrok.k8s.ngrok.com/v1alpha1 object at the
+// same key passive while the v1 object is the writer. It never calls the ngrok
+// API and never deletes the legacy object: a helm rollback hands the cluster
+// back to an older operator that relies on it, finalizer and ID intact.
+//   - A live legacy object is marked superseded (Ready=False, SupersededByV1).
+//   - A deleted legacy object has its finalizer released once the v1 object
+//     holds the ID, so "apply v1, then delete legacy" never hangs and never
+//     drains.
+func (r *KubernetesOperatorReconciler) reconcileLegacy(ctx context.Context, canonical *ngrokv1.KubernetesOperator) error {
 	legacy := &ngrokv1alpha1.KubernetesOperator{}
 	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(canonical), legacy); err != nil {
 		if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
@@ -53,27 +52,37 @@ func (r *KubernetesOperatorReconciler) neutralizeLegacy(ctx context.Context, can
 		return err
 	}
 
-	supersededBy := "kubernetesoperators.ngrok.com/" + canonical.Name
-	original := legacy.DeepCopy()
-	removedFinalizer := util.RemoveFinalizer(legacy)
-	if !removedFinalizer && legacy.Annotations[AnnotationSupersededBy] == supersededBy {
+	if !legacy.DeletionTimestamp.IsZero() {
+		if canonical.Status.ID == "" || !util.HasFinalizer(legacy) {
+			return nil
+		}
+		original := legacy.DeepCopy()
+		util.RemoveFinalizer(legacy)
+		if err := r.Client.Patch(ctx, legacy, client.MergeFrom(original)); err != nil {
+			return client.IgnoreNotFound(err)
+		}
+		ctrl.LoggerFrom(ctx).Info("released the finalizer of the deleted legacy KubernetesOperator; the v1 object holds the ID",
+			"legacy", client.ObjectKeyFromObject(legacy).String(), "id", canonical.Status.ID)
 		return nil
 	}
-	if legacy.Annotations == nil {
-		legacy.Annotations = map[string]string{}
-	}
-	legacy.Annotations[AnnotationSupersededBy] = supersededBy
 
-	if err := r.Client.Patch(ctx, legacy, client.MergeFrom(original)); err != nil {
+	ready := meta.FindStatusCondition(legacy.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+	if ready != nil && ready.Status == metav1.ConditionFalse && ready.Reason == ReasonSupersededByV1 {
+		return nil
+	}
+	supersededBy := "kubernetesoperators.ngrok.com/" + canonical.Name
+	meta.SetStatusCondition(&legacy.Status.Conditions, metav1.Condition{
+		Type:               ngrokv1alpha1.KubernetesOperatorConditionReady,
+		Status:             metav1.ConditionFalse,
+		Reason:             ReasonSupersededByV1,
+		Message:            "Superseded by " + supersededBy + "; this object is no longer reconciled",
+		ObservedGeneration: legacy.Generation,
+	})
+	if err := r.Client.Status().Update(ctx, legacy); err != nil {
 		return client.IgnoreNotFound(err)
 	}
-
-	if removedFinalizer {
-		ctrl.LoggerFrom(ctx).Info("removed the finalizer from the legacy KubernetesOperator; it is no longer reconciled",
-			"legacy", client.ObjectKeyFromObject(legacy).String())
-		r.Recorder.Eventf(canonical, nil, v1.EventTypeNormal, ReasonLegacyKubernetesOperatorSuperseded, "Supersede",
-			"Removed the finalizer from the legacy ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator; it is no longer reconciled")
-	}
+	r.Recorder.Eventf(legacy, canonical, v1.EventTypeWarning, ReasonDeprecatedAPIGroup, "Supersede",
+		"ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator is deprecated; the operator now manages %s. No action is needed", supersededBy)
 	return nil
 }
 

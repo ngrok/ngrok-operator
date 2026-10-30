@@ -12,6 +12,7 @@ import (
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
+	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -116,4 +117,120 @@ func TestDeleteSkipsDrainWhenLegacyTwinExists(t *testing.T) {
 	assert.Nil(t, meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining))
 	require.Len(t, recorder.Events, 1)
 	assert.Contains(t, <-recorder.Events, ReasonLegacyTwinSkippedDrain)
+}
+
+func TestReconcileLegacy(t *testing.T) {
+	legacyGK := schema.GroupKind{Group: "ngrok.k8s.ngrok.com", Kind: "KubernetesOperator"}
+	superseded := []metav1.Condition{{
+		Type:   ngrokv1alpha1.KubernetesOperatorConditionReady,
+		Status: metav1.ConditionFalse,
+		Reason: ReasonSupersededByV1,
+	}}
+	now := metav1.Now()
+
+	tests := []struct {
+		name          string
+		legacy        *ngrokv1alpha1.KubernetesOperator
+		canonicalID   string
+		getErr        error
+		wantGone      bool
+		wantFinalizer bool
+		wantReason    string
+		wantEvents    int
+	}{
+		{
+			name:          "live legacy keeps its finalizer and is marked superseded",
+			legacy:        &ngrokv1alpha1.KubernetesOperator{Name: "ko", Namespace: "test-ns", Finalizers: []string{util.LegacyFinalizerName}},
+			canonicalID:   "k8sop_123",
+			wantFinalizer: true,
+			wantReason:    ReasonSupersededByV1,
+			wantEvents:    1,
+		},
+		{
+			name: "already superseded legacy is left alone",
+			legacy: &ngrokv1alpha1.KubernetesOperator{
+				Name: "ko", Namespace: "test-ns", Finalizers: []string{util.LegacyFinalizerName},
+				Status: ngrokv1alpha1.KubernetesOperatorStatus{Conditions: superseded},
+			},
+			canonicalID:   "k8sop_123",
+			wantFinalizer: true,
+			wantReason:    ReasonSupersededByV1,
+		},
+		{
+			name: "deleted legacy is released while the v1 twin holds the ID",
+			legacy: &ngrokv1alpha1.KubernetesOperator{
+				Name: "ko", Namespace: "test-ns", DeletionTimestamp: &now,
+				Finalizers: []string{util.LegacyFinalizerName, util.FinalizerName},
+			},
+			canonicalID: "k8sop_123",
+			wantGone:    true,
+		},
+		{
+			name: "deleted legacy keeps its finalizer until the v1 twin holds the ID",
+			legacy: &ngrokv1alpha1.KubernetesOperator{
+				Name: "ko", Namespace: "test-ns", DeletionTimestamp: &now,
+				Finalizers: []string{util.LegacyFinalizerName},
+			},
+			wantFinalizer: true,
+		},
+		{name: "no legacy object", canonicalID: "k8sop_123"},
+		{name: "legacy kind not installed", canonicalID: "k8sop_123", getErr: &meta.NoKindMatchError{GroupKind: legacyGK}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, ngrokv1.AddToScheme(scheme))
+			require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+
+			canonical := &ngrokv1.KubernetesOperator{
+				Name: "ko", Namespace: "test-ns",
+				Status: ngrokv1.KubernetesOperatorStatus{ID: tt.canonicalID},
+			}
+			builder := fake.NewClientBuilder().WithScheme(scheme).
+				WithObjects(canonical).
+				WithStatusSubresource(canonical, &ngrokv1alpha1.KubernetesOperator{})
+			if tt.legacy != nil {
+				builder = builder.WithObjects(tt.legacy)
+			}
+			if tt.getErr != nil {
+				builder = builder.WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+						if _, ok := obj.(*ngrokv1alpha1.KubernetesOperator); ok {
+							return tt.getErr
+						}
+						return c.Get(ctx, key, obj, opts...)
+					},
+				})
+			}
+			fakeClient := builder.Build()
+			recorder := events.NewFakeRecorder(10)
+			// NgrokClientset is nil: any ngrok API call would panic.
+			reconciler := &KubernetesOperatorReconciler{Client: fakeClient, Recorder: recorder}
+
+			require.NoError(t, reconciler.reconcileLegacy(context.Background(), canonical))
+			assert.Len(t, recorder.Events, tt.wantEvents)
+			for range tt.wantEvents {
+				assert.Contains(t, <-recorder.Events, ReasonDeprecatedAPIGroup)
+			}
+			if tt.legacy == nil {
+				return
+			}
+
+			got := &ngrokv1alpha1.KubernetesOperator{}
+			err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(tt.legacy), got)
+			if tt.wantGone {
+				assert.True(t, apierrors.IsNotFound(err), "legacy object should be released and gone, got %v", err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantFinalizer, util.HasFinalizer(got))
+			if tt.wantReason != "" {
+				ready := meta.FindStatusCondition(got.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+				require.NotNil(t, ready)
+				assert.Equal(t, tt.wantReason, ready.Reason)
+				assert.Equal(t, metav1.ConditionFalse, ready.Status)
+			}
+		})
+	}
 }

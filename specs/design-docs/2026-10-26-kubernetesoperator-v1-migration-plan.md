@@ -15,9 +15,13 @@
 
 **Spec:** `specs/design-docs/2026-10-26-kubernetesoperator-v1-migration.md`
 
-> **Superseded in part (2026-10-27):** Task 5's CRD-read guard, its ClusterRole
-> and the uninstall-hook annotation were replaced by a legacy-twin check. The
-> spec's "Rollback must not drain" section is authoritative.
+> **Superseded in part.** This is the original R1 implementation plan, kept
+> for history. On 2026-10-27, Task 5's CRD-read guard, its ClusterRole and the
+> uninstall-hook annotation were replaced by a legacy-twin check. On
+> 2026-10-29 the branch was brought in line with `specs/crd-group-migration.md`:
+> the legacy finalizer is kept rather than stripped, the `superseded-by`
+> annotation is gone, and the `ngrok.com` CRDs carry `helm.sh/resource-policy:
+> keep`. The design doc is authoritative.
 
 ## Global Constraints
 

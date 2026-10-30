@@ -136,9 +136,9 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 			ownKOPredicate,
 			kubernetesOperatorReconcilePredicate(),
 		)).
-		// LEGACY-kubernetesoperator-kind: drop this Watches at cleanup. Every
-		// change to the legacy object (an older operator re-adding its
-		// finalizer included) re-enqueues the v1 object so neutralizeLegacy runs.
+		// LEGACY-kubernetesoperator-kind: drop this Watches at cleanup. Legacy
+		// events, its deletion included, enqueue the same namespace/name key
+		// as the v1 object, so one reconcile handles both halves of the pair.
 		Watches(&ngrokv1alpha1.KubernetesOperator{},
 			handler.EnqueueRequestsFromMapFunc(legacyKubernetesOperatorToRequest),
 			builder.WithPredicates(ownKOPredicate),
@@ -159,16 +159,6 @@ func kubernetesOperatorReconcilePredicate() predicate.Predicate {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup.
-	canonical := new(ngrokv1.KubernetesOperator)
-	if err := r.Client.Get(ctx, req.NamespacedName, canonical); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-	if err := r.neutralizeLegacy(ctx, canonical); err != nil {
-		return ctrl.Result{}, err
-	}
-	// LEGACY-kubernetesoperator-kind: END
-
 	res, err := r.controller.Reconcile(ctx, req, new(ngrokv1.KubernetesOperator))
 	if err != nil || res.RequeueAfter > 0 {
 		return res, err
@@ -178,6 +168,15 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if err := r.Client.Get(ctx, req.NamespacedName, ko); err != nil {
 		return res, client.IgnoreNotFound(err)
 	}
+
+	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup. Runs after the
+	// v1 object has adopted its ID, and never while it is being deleted.
+	if ko.DeletionTimestamp.IsZero() {
+		if err := r.reconcileLegacy(ctx, ko); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+	// LEGACY-kubernetesoperator-kind: END
 
 	renewalRes, err := r.reconcileBindingCertRenewal(ctx, ko, time.Now())
 	if err != nil {

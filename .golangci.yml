@@ -75,8 +75,8 @@ linters:
       #
       # Same reasoning as the NgrokTrafficPolicy rule above: the v1alpha1
       # KubernetesOperator is deprecated for importers, but the operator keeps
-      # reading it as a fallback and neutralizing it during the migration
-      # release.
+      # reading it as a fallback and marking it superseded during the
+      # migration release.
       - linters:
           - staticcheck
         text: 'SA1019: .*\bKubernetesOperator is deprecated'

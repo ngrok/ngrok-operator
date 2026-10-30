@@ -30,7 +30,7 @@ tests:
         apiGroups: [ngrok.com]
         resources: [kubernetesoperators/status]
         verbs: [get, patch, update]
-- it: keeps api-manager able to neutralize the legacy KubernetesOperator
+- it: keeps api-manager able to supersede and release the legacy KubernetesOperator
   template: api-manager/release-namespace-role.yaml
   documentIndex: 0
   asserts:
