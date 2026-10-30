@@ -286,7 +286,7 @@ tests:
       path: rules
       value:
       - apiGroups: [""]
-        resources: ["nodes", "pods"]
+        resources: ["nodes"]
         verbs: ["get", "list"]
       - apiGroups: ["metrics.k8s.io"]
         resources: ["nodes"]
