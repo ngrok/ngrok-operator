@@ -27,6 +27,7 @@ SOFTWARE.
 package domain
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,6 +51,10 @@ func FromLegacy(d *ingressv1alpha1.Domain) (Resource, error) {
 	return legacyResource{d: d, status: status}, nil
 }
 
+// legacyResource adapts a legacy Domain to Resource. status is a v1-typed copy
+// of d.Status, made once by FromLegacy; it is a pointer so every copy of this
+// value shares it. Changes made through Status() reach d only when
+// CommitStatus runs, which writeStatus does right before each status write.
 type legacyResource struct {
 	d      *ingressv1alpha1.Domain
 	status *ngrokv1.DomainStatus
@@ -100,6 +105,18 @@ func convertJSON(src, dst any) error {
 // spec.metadata is a string that isn't a flat JSON object of strings, which
 // the v1 map type can't hold.
 var ErrMigrationBlocked = errors.New("legacy Domain cannot be migrated to ngrok.com/v1 automatically")
+
+// copyOfLegacy returns the v1 copy of the legacy Domain at key, or nil if there
+// is none. It reads through r, which should bypass the cache: missing a legacy
+// Domain here means EnsureV1 creates a defaults-only v1 Domain that would then
+// overwrite the legacy Domain's settings on the shared reservation.
+func copyOfLegacy(ctx context.Context, r client.Reader, key client.ObjectKey) (*ngrokv1.Domain, error) {
+	legacy := &ingressv1alpha1.Domain{}
+	if err := r.Get(ctx, key, legacy); err != nil {
+		return nil, client.IgnoreNotFound(err)
+	}
+	return V1FromLegacy(legacy)
+}
 
 // V1FromLegacy builds the v1 copy of a legacy Domain: same name, namespace and
 // spec. Labels and annotations are not copied: they belong to whatever applied

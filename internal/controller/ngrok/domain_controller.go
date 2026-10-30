@@ -172,6 +172,8 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	// canonical is the ngrok.com/v1 Domain, legacy the deprecated
+	// ingress.k8s.ngrok.com/v1alpha1 one. Either may be nil.
 	var canonical, legacy domainpkg.Resource
 	if pair.V1 != nil {
 		canonical = domainpkg.FromV1(pair.V1)
@@ -199,7 +201,8 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		legacy = nil
 	}
 
-	// Skip non-delete work during drain to prevent adding new finalizers.
+	// Skip non-delete work during drain to prevent adding new finalizers. A
+	// pass with a delete in it goes on; reconcilePair stops after the deletes.
 	if basecontroller.IsDraining(ctx, r.DrainState) && !isDeleting(canonical) && !isDeleting(legacy) {
 		log.V(1).Info("Draining, skipping non-delete reconcile")
 		return ctrl.Result{}, nil
@@ -211,7 +214,7 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if canonical != nil && legacy != nil && !pair.Matched() {
 		r.warnTwinMismatch(canonical, legacy)
 		res1, err1 := r.reconcilePair(ctx, canonical, nil)
-		res2, err2 := r.reconcilePair(ctx, legacy, nil)
+		res2, err2 := r.reconcilePair(ctx, nil, legacy)
 		if err := errors.Join(err1, err2); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -222,8 +225,10 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return r.reconcilePair(ctx, canonical, legacy)
 }
 
-// reconcilePair runs one pass over a v1 Domain and its matched legacy twin.
-// Either may be nil.
+// reconcilePair runs one pass over a v1 Domain and its matched legacy twin
+// (same name and hostname, so they share one reservation). Either may be nil.
+// The pass has three steps: finish any deletes, sync the one writer, and
+// supersede the legacy twin once the v1 Domain has taken over.
 func (r *DomainReconciler) reconcilePair(ctx context.Context, canonical, legacy domainpkg.Resource) (ctrl.Result, error) {
 	// 1. Deletes. Each one checks whether its twin still uses the
 	//    reservation, so the order only decides which delete releases it.
@@ -239,7 +244,7 @@ func (r *DomainReconciler) reconcilePair(ctx context.Context, canonical, legacy 
 	}
 
 	// While draining only deletes run, as in BaseController: no syncs, no new
-	// finalizers.
+	// finalizers. Reconcile already returned for passes with nothing to delete.
 	if basecontroller.IsDraining(ctx, r.DrainState) {
 		return ctrl.Result{}, nil
 	}
@@ -248,9 +253,11 @@ func (r *DomainReconciler) reconcilePair(ctx context.Context, canonical, legacy 
 	//    deleted while a legacy twin exists hands the reservation back to the
 	//    twin in this same pass.
 	var writer domainpkg.Resource
+	canonicalWrites := false
 	switch {
 	case canonical != nil && !isDeleting(canonical):
 		writer = canonical
+		canonicalWrites = true
 	case legacy != nil && !isDeleting(legacy):
 		writer = legacy
 		r.warnDeprecatedLegacy(legacy) // LEGACY-domain-kind: delete at cleanup.
@@ -264,10 +271,13 @@ func (r *DomainReconciler) reconcilePair(ctx context.Context, canonical, legacy 
 	}
 
 	// 3. LEGACY-domain-kind: BEGIN
-	// Supersede the legacy twin once the v1 Domain holds the reservation.
+	// Supersede the legacy twin once the v1 Domain holds the reservation and
+	// its spec push succeeded (sync returned no error). This is the handoff:
+	// from here readers use the v1 Domain even while it isn't Ready, because
+	// the legacy Domain's status stops updating (see domain.Pair.Authoritative).
 	// Until then the legacy object is left exactly as it is: readers keep
 	// using it, and its finalizer keeps guarding the reservation.
-	if writer == canonical && legacy != nil && !isDeleting(legacy) && domainpkg.IsBacked(canonical) {
+	if canonicalWrites && legacy != nil && !isDeleting(legacy) && domainpkg.IsBacked(canonical) {
 		if err := r.supersede(ctx, legacy, canonical); err != nil {
 			return r.errResult(err)
 		}
@@ -331,6 +341,8 @@ func (r *DomainReconciler) finalizeDelete(ctx context.Context, domain, twin doma
 	objName := util.ObjToHumanName(obj)
 
 	if releasesReservation(domain) {
+		// keptFor names the twin that still uses the reservation. Empty means
+		// nothing does, and the reservation is released.
 		keptFor := ""
 		// LEGACY-domain-kind: BEGIN
 		switch {
@@ -394,6 +406,8 @@ func (r *DomainReconciler) liveTwin(ctx context.Context, domain domainpkg.Resour
 		return nil, err
 	}
 
+	// The twin is the other kind: for a legacy Domain, the v1 one, and the
+	// other way around. Only an alive twin naming the same hostname counts.
 	var twin domainpkg.Resource
 	switch {
 	case domain.IsLegacy() && pair.V1 != nil && domainpkg.IsAlive(pair.V1):
@@ -425,8 +439,12 @@ func (r *DomainReconciler) supersede(ctx context.Context, legacy, canonical doma
 
 	ready := meta.FindStatusCondition(legacy.Status().Conditions, domainpkg.ConditionReady)
 	alreadySuperseded := ready != nil && ready.Reason == domainpkg.ReasonSupersededByV1
+	// The status write below records the current generation as observed, so a
+	// spec edit shows up here exactly once: generation moves ahead of
+	// observedGeneration until the next supersede pass catches up.
 	edited := generation != legacy.Status().ObservedGeneration
 
+	// Nothing changed since the last pass: don't touch the legacy object.
 	if alreadySuperseded && !edited {
 		return nil
 	}
@@ -611,18 +629,19 @@ func (r *DomainReconciler) update(ctx context.Context, domain domainpkg.Resource
 	return r.pushSpec(ctx, domain, resp)
 }
 
-// pushSpec updates the reservation resp to match domain's spec, if it differs,
-// and records the result in domain's status.
-func (r *DomainReconciler) pushSpec(ctx context.Context, domain domainpkg.Resource, resp *ngrok.ReservedDomain) error {
+// pushSpec updates the reservation to match domain's spec, if it differs, and
+// records the result in domain's status. current is the reservation as the
+// ngrok API last returned it (from a Get, or from the List when adopting).
+func (r *DomainReconciler) pushSpec(ctx context.Context, domain domainpkg.Resource, current *ngrok.ReservedDomain) error {
 	// Only update the domain if updatable fields have changed
 	specResolvesTo := buildResolvesToRequest(domain.ResolvesTo())
 	specMetadata := domain.MetadataAPIString()
 	specDescription := domain.Description()
-	if specDescription == resp.Description &&
-		specMetadata == resp.Metadata &&
-		reflect.DeepEqual(specResolvesTo, resp.ResolvesTo) {
+	if specDescription == current.Description &&
+		specMetadata == current.Metadata &&
+		reflect.DeepEqual(specResolvesTo, current.ResolvesTo) {
 		// No changes needed, still update status to ensure conditions are current
-		return r.updateStatus(ctx, domain, resp, nil)
+		return r.updateStatus(ctx, domain, current, nil)
 	}
 
 	req := &ngrok.ReservedDomainUpdate{
@@ -636,7 +655,7 @@ func (r *DomainReconciler) pushSpec(ctx context.Context, domain domainpkg.Resour
 		// Record the reservation as it is, not an empty one: on adoption this is
 		// the first status this Domain gets, and readers need its CNAME target
 		// and certificate state, not just an ID.
-		return r.updateStatus(ctx, domain, resp, err)
+		return r.updateStatus(ctx, domain, current, err)
 	}
 	return r.updateStatus(ctx, domain, updated, nil)
 }
