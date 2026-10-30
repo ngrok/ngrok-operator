@@ -30,7 +30,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 )
 
@@ -55,6 +54,8 @@ func EnsureV1(ctx context.Context, c client.Client, live client.Reader, key clie
 		live = c
 	}
 
+	// The cached read is fine here: if the cache missed a v1 Domain that
+	// exists, the Create below fails with AlreadyExists and we re-read it.
 	existing := &ngrokv1.Domain{}
 	err := c.Get(ctx, key, existing)
 	if err == nil {
@@ -64,24 +65,18 @@ func EnsureV1(ctx context.Context, c client.Client, live client.Reader, key clie
 		return nil, false, err
 	}
 
-	desired := &ngrokv1.Domain{}
-	desired.Name = key.Name
-	desired.Namespace = key.Namespace
-
-	// LEGACY-domain-kind: BEGIN
-	legacy := &ingressv1alpha1.Domain{}
-	err = live.Get(ctx, key, legacy)
-	switch {
-	case err == nil:
-		if desired, err = V1FromLegacy(legacy); err != nil {
-			return nil, false, err
-		}
-	case client.IgnoreNotFound(err) != nil:
+	// Build the object to create: a copy of the legacy Domain at key if there
+	// is one, otherwise a fresh object filled in by defaults.
+	desired, err := copyOfLegacy(ctx, live, key) // LEGACY-domain-kind: at cleanup replace with `var desired *ngrokv1.Domain`.
+	if err != nil {
 		return nil, false, err
-	default:
+	}
+	if desired == nil {
+		desired = &ngrokv1.Domain{}
+		desired.Name = key.Name
+		desired.Namespace = key.Namespace
 		defaults(desired)
 	}
-	// LEGACY-domain-kind: END
 
 	if err := c.Create(ctx, desired); err != nil {
 		if !apierrors.IsAlreadyExists(err) {

@@ -96,8 +96,10 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 			// LEGACY-domain-kind: BEGIN
 			// A legacy Domain at this name must be copied to v1 as-is rather
 			// than replaced by defaults: the two share one reservation and the
-			// v1 object becomes the one that pushes its spec to it. Once the v1
-			// object exists the CreateOrPatch below only patches it.
+			// v1 object becomes the one that pushes its spec to it. CreateOrPatch
+			// can't do that (it knows nothing about the legacy kind), so EnsureV1
+			// creates the object first, with the same defaults CreateOrPatch would
+			// set; CreateOrPatch then only patches it.
 			_, _, err := domainpkg.EnsureV1(ctx, c, d.apiReader, client.ObjectKeyFromObject(domain), func(n *ngrokv1.Domain) {
 				n.Spec.Domain = desiredDomain.Spec.Domain
 				if d.defaultDomainReclaimPolicy != nil {

@@ -197,11 +197,18 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 }
 
 // getOrCreateDomain ensures the ngrok.com/v1 Domain for domain exists and
-// reports the state of the Domain the endpoint is served by.
+// reports the state of the Domain the endpoint is served by. It works in two
+// steps, because during the migration those can be different objects:
+//
+//  1. Make sure a v1 Domain exists at the endpoint's namespace and the
+//     hostname-derived name, copying a legacy Domain there if one exists.
+//  2. Report on whichever Domain at that name readers should trust right now
+//     (Pair.Authoritative): the legacy one until the v1 copy has taken over.
 func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, domain string) (*DomainResult, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain)
 	domainKey := client.ObjectKey{Name: ngrokv1.HyphenatedDomainNameFromURL(domain), Namespace: endpoint.GetNamespace()}
 
+	// Step 1. defaults only runs when there is no legacy Domain to copy.
 	v1, _, err := EnsureV1(ctx, m.Client, m.apiReader, domainKey, func(d *ngrokv1.Domain) {
 		d.Spec.Domain = domain
 		if m.controllerLabels != nil {
@@ -214,8 +221,9 @@ func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.
 	switch {
 	// LEGACY-domain-kind: BEGIN
 	case errors.Is(err, ErrMigrationBlocked):
-		// Keep serving the endpoint from the legacy Domain; someone has to
-		// re-create it as ngrok.com/v1 by hand.
+		// Not an error for the endpoint: v1 is nil, so step 2 below reports on
+		// the legacy Domain, which keeps serving the hostname until someone
+		// re-creates it as ngrok.com/v1 by hand.
 		log.Info("Not migrating legacy Domain to ngrok.com/v1", "reason", err.Error())
 		m.Recorder.Eventf(endpoint, nil, corev1.EventTypeWarning, EventDomainMigrationBlocked, "Reconcile", err.Error())
 	// LEGACY-domain-kind: END
@@ -224,13 +232,14 @@ func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.
 		m.setDomainCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
 		return nil, err
 	default:
-		// Also covers a v1 just copied from a legacy Domain, which carries the
-		// legacy object's labels rather than the defaults.
+		// Also needed for a v1 Domain just copied from a legacy one: the copy
+		// doesn't take the legacy object's labels, so it has none of ours yet.
 		if err := m.ensureControllerLabels(ctx, log, v1); err != nil {
 			return nil, err
 		}
 	}
 
+	// Step 2.
 	pair, err := GetPair(ctx, m.Client, domainKey)
 	if err != nil {
 		m.setDomainCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
@@ -281,6 +290,8 @@ func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, d
 // checkExistingDomain reports the state of the Domain the endpoint is served by
 func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain, domainRes Resource) (*DomainResult, error) {
 	domainObj := domainRes.Object()
+	// domainRef has no kind, only a name and namespace. Both Domain kinds for a
+	// hostname share those, so the ref stays valid whichever one is reported.
 	domainRef := &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 		Name:      domainObj.GetName(),
 		Namespace: new(domainObj.GetNamespace()),
@@ -335,6 +346,8 @@ func (m *Manager) deleteStaleBindingDomain(ctx context.Context, endpoint ngrokv1
 		return nil
 	}
 
+	// The ref can point at either kind (it has no kind of its own), so delete
+	// both. Deleting both twins together releases the reservation once.
 	domains := []client.Object{
 		&ngrokv1.Domain{},
 		&ingressv1alpha1.Domain{}, // LEGACY-domain-kind: delete at cleanup.

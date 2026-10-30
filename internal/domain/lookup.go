@@ -41,9 +41,9 @@ import (
 //
 // During the migration window a hostname can be served by a legacy Domain, a
 // v1 Domain, or both. Readers must not pick a kind directly: a v1 Domain the
-// operator has only just created has no reservation yet, and preferring it
-// over a ready legacy twin would blank load balancer statuses and flap
-// endpoint readiness. Use Authoritative (one key) or ByHostname (lists).
+// operator has only just created isn't Ready yet, and preferring it over a
+// ready legacy twin would blank load balancer statuses and flap endpoint
+// readiness. Use Authoritative (one key) or ByHostname (lists).
 type Pair struct {
 	V1 *ngrokv1.Domain
 	// LEGACY-domain-kind: delete at cleanup.
@@ -96,11 +96,8 @@ func (p Pair) Matched() bool {
 //  2. otherwise the legacy Domain, if there is one;
 //  3. otherwise the v1 Domain.
 func (p Pair) Authoritative() (Resource, error) {
-	if p.V1 != nil {
-		v1 := FromV1(p.V1)
-		if p.Legacy == nil || v1TakesOver(p.V1, v1, p.Legacy) {
-			return v1, nil
-		}
+	if p.V1 != nil && (p.Legacy == nil || v1TakesOver(p.V1, p.Legacy)) {
+		return FromV1(p.V1), nil
 	}
 	// LEGACY-domain-kind: BEGIN
 	if p.Legacy != nil {
@@ -130,10 +127,14 @@ func ByHostname(v1 []ngrokv1.Domain, legacy []ingressv1alpha1.Domain) (map[strin
 	// LEGACY-domain-kind: END
 
 	for i := range v1 {
-		r := FromV1(&v1[i])
-		cur, found := out[v1[i].Spec.Domain]
-		if !found || !cur.IsLegacy() || v1TakesOver(&v1[i], r, cur.Object().(*ingressv1alpha1.Domain)) {
-			out[v1[i].Spec.Domain] = r
+		host := v1[i].Spec.Domain
+		cur, found := out[host]
+		// The v1 Domain wins when nothing else claims the hostname, when the
+		// current entry is another v1 Domain (last one wins, as before), or when
+		// the current entry is a legacy Domain it has taken over from. The type
+		// assertion is safe: IsLegacy is true only for the legacy adapter.
+		if !found || !cur.IsLegacy() || v1TakesOver(&v1[i], cur.Object().(*ingressv1alpha1.Domain)) {
+			out[host] = FromV1(&v1[i])
 		}
 	}
 	return out, nil
@@ -148,11 +149,11 @@ func ByHostname(v1 []ngrokv1.Domain, legacy []ingressv1alpha1.Domain) (map[strin
 // frozen, so from then on the v1 Domain is the truth, ready or not.
 //
 // LEGACY-domain-kind: delete at cleanup.
-func v1TakesOver(obj *ngrokv1.Domain, v1 Resource, legacy *ingressv1alpha1.Domain) bool {
-	if !IsAlive(obj) {
+func v1TakesOver(v1 *ngrokv1.Domain, legacy *ingressv1alpha1.Domain) bool {
+	if !IsAlive(v1) {
 		return false
 	}
-	if IsReady(v1) {
+	if IsReady(FromV1(v1)) {
 		return true
 	}
 	ready := meta.FindStatusCondition(legacy.Status.Conditions, ConditionReady)
