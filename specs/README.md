@@ -32,6 +32,7 @@ This directory contains the v1 specifications for the ngrok-operator. These spec
 - [annotations.md](annotations.md) — Central reference for all `ngrok.com/` annotations
 - [upstream-protocols.md](upstream-protocols.md) — How the transport and application protocol to backend Services is selected (`app-protocols` annotation, `appProtocol` field values)
 - [design-decisions.md](design-decisions.md) — Settled architectural trade-offs and their rationale
+- [crd-group-migration.md](crd-group-migration.md) — Internal plan for moving CRDs to `ngrok.com/v1`: release plan, twin rules, finalizer sweep
 
 ### [rbac/](rbac/) — RBAC Configuration
 
