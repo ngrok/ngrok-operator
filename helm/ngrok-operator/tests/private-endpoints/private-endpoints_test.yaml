@@ -1,0 +1,232 @@
+suite: test private endpoints
+templates:
+- private-endpoints/deployment.yaml
+- private-endpoints/rbac.yaml
+- api-manager/private-endpoints-role.yaml
+- api-manager/deployment.yaml
+# included by api-manager/deployment.yaml checksums; helm-unittest only loads listed templates
+- api-manager/role.yaml
+- api-manager/leader-election-role.yaml
+- credentials-secret.yaml
+set:
+  ngrok.credentials.accessToken: tok
+tests:
+- it: renders nothing when disabled
+  templates:
+  - private-endpoints/deployment.yaml
+  - private-endpoints/rbac.yaml
+  - api-manager/private-endpoints-role.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: forwarder deployment uses the private endpoints token and cluster DNS
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+  template: private-endpoints/deployment.yaml
+  asserts:
+  - equal:
+      path: metadata.name
+      value: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
+  - notExists:
+      path: spec.template.spec.dnsPolicy
+  - equal:
+      path: spec.template.metadata.labels["app.kubernetes.io/component"]
+      value: private-endpoint-forwarder
+  - contains:
+      path: spec.template.spec.containers[0].args
+      content: private-endpoint-forwarder-manager
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_ACCESS_TOKEN
+        valueFrom:
+          secretKeyRef:
+            key: PRIVATE_ENDPOINTS_ACCESS_TOKEN
+            name: RELEASE-NAME-ngrok-operator-credentials
+  - matchSnapshot: {}
+- it: api-manager gets the feature settings as env
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+  template: api-manager/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
+        value: "true"
+- it: forwarder gets the private dial server as env
+  set:
+    ngrok.credentials.accessToken: abc123
+    ngrok.features.privateEndpoints.enabled: true
+    ngrok.features.privateEndpoints.privateDialServer: quic.eu.example.com:443
+  template: private-endpoints/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__PRIVATE_DIAL_SERVER
+        value: quic.eu.example.com:443
+- it: renders nothing in one-click demo mode
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+    ngrok.features.oneClickDemoMode.enabled: true
+  template: private-endpoints/deployment.yaml
+  asserts:
+  - hasDocuments:
+      count: 0
+- it: takes components.common and its own overrides
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+    components.common.nodeSelector:
+      pool: shared
+    components.privateEndpointForwarder.replicaCount: 2
+    components.privateEndpointForwarder.log.level: debug
+  template: private-endpoints/deployment.yaml
+  asserts:
+  - equal:
+      path: spec.replicas
+      value: 2
+  - equal:
+      path: spec.template.spec.nodeSelector
+      value:
+        pool: shared
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_OPERATOR__LOG__LEVEL
+        value: debug
+- it: credentials secret prefers the private endpoints token over the shared one
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+    ngrok.credentials.accessToken: shared-tok
+    ngrok.credentials.privateEndpointForwarder.accessToken: pe-tok
+  template: credentials-secret.yaml
+  asserts:
+  - equal:
+      path: data.PRIVATE_ENDPOINTS_ACCESS_TOKEN
+      value: pe-tok
+      decodeBase64: true
+- it: credentials secret falls back to the shared token
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+    ngrok.credentials.accessToken: shared-tok
+  template: credentials-secret.yaml
+  asserts:
+  - equal:
+      path: data.PRIVATE_ENDPOINTS_ACCESS_TOKEN
+      value: shared-tok
+      decodeBase64: true
+- it: fails when only the agent and api-manager tokens are set
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+    ngrok.credentials.accessToken: ""
+    ngrok.credentials.agent.accessToken: agent-only
+    ngrok.credentials.apiManager.accessToken: api-only
+  template: private-endpoints/deployment.yaml
+  asserts:
+  - failedTemplate:
+      errorMessage: &missingTokenErr "ngrok.features.privateEndpoints.enabled needs an ngrok access token for the forwarder. Set ngrok.credentials.accessToken or ngrok.credentials.privateEndpointForwarder.accessToken, or set ngrok.credentials.secret.name to an existing secret with a PRIVATE_ENDPOINTS_ACCESS_TOKEN key."
+- it: fails when no credentials are set at all
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+    ngrok.credentials.accessToken: ""
+  template: private-endpoints/deployment.yaml
+  asserts:
+  - failedTemplate:
+      errorMessage: *missingTokenErr
+- it: renders with only per-component tokens when the private endpoints token is set
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+    ngrok.credentials.accessToken: ""
+    ngrok.credentials.agent.accessToken: agent-only
+    ngrok.credentials.apiManager.accessToken: api-only
+    ngrok.credentials.privateEndpointForwarder.accessToken: pe-only
+  template: private-endpoints/deployment.yaml
+  asserts:
+  - hasDocuments:
+      count: 1
+- it: trusts a custom secret it cannot inspect, reading PRIVATE_ENDPOINTS_ACCESS_TOKEN from it
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+    ngrok.credentials.accessToken: ""
+    ngrok.credentials.secret.name: my-creds
+  template: private-endpoints/deployment.yaml
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_ACCESS_TOKEN
+        valueFrom:
+          secretKeyRef:
+            key: PRIVATE_ENDPOINTS_ACCESS_TOKEN
+            name: my-creds
+- it: api-manager Role and RoleBinding live in the release namespace and bind the api-manager
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+  template: api-manager/private-endpoints-role.yaml
+  asserts:
+  - isKind:
+      of: Role
+    documentIndex: 0
+  - equal:
+      path: metadata.namespace
+      value: NAMESPACE
+    documentIndex: 0
+  - isKind:
+      of: RoleBinding
+    documentIndex: 1
+  - equal:
+      path: subjects
+      value:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator
+        namespace: NAMESPACE
+    documentIndex: 1
+# Documents in rbac.yaml: 0 forwarder SA, 1 forwarder Role, 2 its RoleBinding.
+- it: forwarder Role can't write privateendpoints
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+  template: private-endpoints/rbac.yaml
+  documentIndex: 1
+  asserts:
+  - isKind:
+      of: Role
+  - notContains:
+      path: rules[0].verbs
+      content: create
+  - notContains:
+      path: rules[0].verbs
+      content: update
+  - notContains:
+      path: rules[0].verbs
+      content: patch
+  - notContains:
+      path: rules[0].verbs
+      content: delete
+- it: forwarder RoleBinding binds the forwarder service account
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+  template: private-endpoints/rbac.yaml
+  documentIndex: 2
+  asserts:
+  - isKind:
+      of: RoleBinding
+  - equal:
+      path: subjects
+      value:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
+        namespace: NAMESPACE
+- it: needs no cluster-scoped RBAC
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+  templates:
+  - private-endpoints/rbac.yaml
+  - api-manager/private-endpoints-role.yaml
+  asserts:
+  - notEqual:
+      path: kind
+      value: ClusterRole
+  - notEqual:
+      path: kind
+      value: ClusterRoleBinding

@@ -42,6 +42,7 @@ components:
   apiManager:        # api-manager pod settings; `log:` for its log overrides
   agent:             # agent pod settings; `log:` for its log overrides
   bindingsForwarder: # bindings-forwarder pod settings; `log:` for its log overrides
+  privateEndpointForwarder: # private-endpoint-forwarder pod settings; `log:` for its log overrides
   cleanupHook:       # Pod settings of the pre-delete hook (see ngrok.features.cleanup)
 ```
 
@@ -62,7 +63,7 @@ Logging: `ngrok.log` merged with `components.<component>.log`, per key. An empty
 
 ## `components.common:`
 
-Pod settings applied to the api-manager, agent and bindings-forwarder. Any of these can also be set as `components.apiManager.<key>`, `components.agent.<key>` or `components.bindingsForwarder.<key>` to override it for that component alone.
+Pod settings applied to the api-manager, agent, bindings-forwarder and private-endpoint-forwarder. Any of these can also be set as `components.apiManager.<key>`, `components.agent.<key>`, `components.bindingsForwarder.<key>` or `components.privateEndpointForwarder.<key>` to override it for that component alone.
 
 | Parameter                                         | Description                                      | Default        |
 |---------------------------------------------------|--------------------------------------------------|----------------|
@@ -148,6 +149,7 @@ Values were moved without compatibility shims. A values file that still sets a k
 | `ngrok.credentials.accessToken`  | ngrok access token                             | `""`    |
 | `ngrok.credentials.agent.accessToken` | Access token for the agent only; falls back to `ngrok.credentials.accessToken` | `""` |
 | `ngrok.credentials.apiManager.accessToken` | Access token for the api-manager only; falls back to `ngrok.credentials.accessToken` | `""` |
+| `ngrok.credentials.privateEndpointForwarder.accessToken` | Access token for the private-endpoint-forwarder only; falls back to `ngrok.credentials.accessToken` | `""` |
 
 See [authentication.md](../authentication.md) for details on credential management.
 

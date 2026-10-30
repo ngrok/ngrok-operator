@@ -42,6 +42,8 @@ Operator-managed resources (CloudEndpoint, AgentEndpoint, Domain, IPPolicy, Boun
 | `Delete` | Issues delete on the CR. The controller handles ngrok API cleanup before removing the finalizer. |
 | `Retain` | Only removes finalizers. ngrok API resources are preserved.     |
 
+PrivateEndpoint CRs and their per-hostname Services carry no finalizer and have no ngrok-side state, so the drain does not touch them under either policy. See [private-endpoints.md](private-endpoints.md#uninstall).
+
 Deletion polling waits up to 60 seconds at 500ms intervals for each resource to be fully deleted.
 
 ## Drain Outcomes

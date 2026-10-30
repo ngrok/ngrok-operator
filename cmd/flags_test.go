@@ -17,7 +17,7 @@ import (
 // when called.
 func newRoot() *cobra.Command {
 	root := &cobra.Command{Use: "ngrok-operator"}
-	root.AddCommand(apiCmd(), agentCmd(), bindingsForwarderCmd())
+	root.AddCommand(apiCmd(), agentCmd(), bindingsForwarderCmd(), privateEndpointForwarderCmd())
 	return root
 }
 

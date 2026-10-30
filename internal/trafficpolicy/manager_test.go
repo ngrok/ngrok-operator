@@ -78,7 +78,7 @@ func newAgentEndpoint(namespace string, cfg *ngrokv1alpha1.TrafficPolicyCfg) *ng
 	}
 }
 
-// LEGACY-trafficpolicy-name: Delete this function once
+// LEGACY-trafficpolicy-kind: Delete this function once v1 is the only supported version
 func newLegacyPolicy(name, namespace, body string) *ngrokv1alpha1.NgrokTrafficPolicy {
 	return &ngrokv1alpha1.NgrokTrafficPolicy{
 		Name:      name,
@@ -398,7 +398,7 @@ func drainEvents(rec *events.FakeRecorder) []string {
 	}
 }
 
-// LEGACY-trafficpolicy-name: Delete this function once v1 is the only supported version
+// LEGACY-trafficpolicy-kind: Delete this function once v1 is the only supported version
 func TestResolve_TargetRef_PrefersCanonicalV1(t *testing.T) {
 	// Both kinds exist at the same name — canonical wins silently and no
 	// DeprecatedAPIGroup event is emitted.
@@ -421,7 +421,7 @@ func TestResolve_TargetRef_PrefersCanonicalV1(t *testing.T) {
 	}
 }
 
-// LEGACY-trafficpolicy-name: Delete this function once v1 is the only supported version
+// LEGACY-trafficpolicy-kind: Delete this function once v1 is the only supported version
 func TestResolve_TargetRef_FallsBackToLegacyAndWarns(t *testing.T) {
 	// Only the deprecated ngrok.k8s.ngrok.com/v1alpha1 NgrokTrafficPolicy is
 	// installed — resolver falls back to it and emits DeprecatedAPIGroup.
@@ -444,7 +444,7 @@ func TestResolve_TargetRef_FallsBackToLegacyAndWarns(t *testing.T) {
 	assert.True(t, found, "expected DeprecatedAPIGroup event on legacy fallback; got %v", evs)
 }
 
-// LEGACY-trafficpolicy-name: Delete this function once v1 is the only supported version
+// LEGACY-trafficpolicy-kind: Delete this function once v1 is the only supported version
 func TestResolve_TargetRef_NeitherKindPresent(t *testing.T) {
 	// Neither kind holds an object under the given name — resolver returns
 	// ErrTrafficPolicyNotFound and emits TrafficPolicyNotFound (not

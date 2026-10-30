@@ -44,6 +44,17 @@ When `ngrok.features.bindings.enabled` is `true`, the bindings forwarder deploym
 
 See [features/bindings.md](../features/bindings.md) for behavior details.
 
+## Private Endpoints
+
+| Parameter                                  | Description                                                        | Default |
+|--------------------------------------------|--------------------------------------------------------------------|---------|
+| `ngrok.features.privateEndpoints.enabled`  | Make the account's `*.ngrok.direct` private endpoints reachable from pods by URL | `false` |
+| `ngrok.features.privateEndpoints.privateDialServer` | Private dial server (host:port) the forwarder connects through, e.g. a regional one. QUIC only | `quic.connect-endpoint.ngrok.com:443` |
+
+When `ngrok.features.privateEndpoints.enabled` is `true`, the private endpoint forwarder deployment is created (controlled by `components.privateEndpointForwarder`) and the operator starts mirroring private endpoints into PrivateEndpoint resources. The forwarder needs an access token (see [private-endpoint-forwarder.md](private-endpoint-forwarder.md#credentials)), and cluster DNS must be configured separately.
+
+See [features/private-endpoints.md](../features/private-endpoints.md) for behavior details.
+
 ## Domains
 
 | Parameter                                  | Description                                                           | Default    |
@@ -54,7 +65,7 @@ See [features/bindings.md](../features/bindings.md) for behavior details.
 
 | Parameter                            | Description                                                      | Default |
 |--------------------------------------|------------------------------------------------------------------|---------|
-| `ngrok.features.oneClickDemoMode.enabled`  | Start without credentials and become Ready without reconciling. Also skips rendering the agent and bindings-forwarder | `false` |
+| `ngrok.features.oneClickDemoMode.enabled`  | Start without credentials and become Ready without reconciling. Also skips rendering the agent, bindings-forwarder and private-endpoint-forwarder | `false` |
 
 ## Cleanup
 

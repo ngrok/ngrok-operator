@@ -105,19 +105,13 @@ spec:
                 properties:
                   inline:
                     description: |-
-                      Inline definition of a TrafficPolicy to attach to the CloudEndpoint.
+                      Inline definition of a TrafficPolicy to attach to the Endpoint.
                       The raw JSON-encoded policy that was applied to the ngrok API.
-                    type: object
-                    x-kubernetes-preserve-unknown-fields: true
-                  policy:
-                    description: |-
-                      Deprecated: use inline instead. This field remains readable during
-                      the migration window.
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
                   targetRef:
                     description: |-
-                      Reference to a TrafficPolicy resource to attach to the CloudEndpoint. The
+                      Reference to a TrafficPolicy resource to attach to the Endpoint. The
                       referenced NgrokTrafficPolicy must live in the same namespace as the
                       endpoint.
                     properties:
@@ -129,14 +123,8 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: spec.trafficPolicy.inline and spec.trafficPolicy.targetRef
-                    cannot both be set
-                  rule: '!(has(self.inline) && has(self.targetRef))'
-              trafficPolicyName:
-                description: |-
-                  Deprecated: use spec.trafficPolicy.targetRef.name instead.
-                  This field remains readable during the migration window.
-                type: string
+                - message: exactly one of inline or targetRef must be set on trafficPolicy
+                  rule: '[has(self.inline), has(self.targetRef)].exists_one(x, x)'
               url:
                 description: |-
                   The unique URL for this cloud endpoint. This URL is the public address. The following formats are accepted

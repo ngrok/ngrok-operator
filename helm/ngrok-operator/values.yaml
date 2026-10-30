@@ -63,6 +63,7 @@ installCRDs: true
 ## @param ngrok.credentials.accessToken Your ngrok access token. Used by every component that needs one, unless overridden below.
 ## @param ngrok.credentials.agent.accessToken Optional access token for the agent-manager only. Falls back to ngrok.credentials.accessToken.
 ## @param ngrok.credentials.apiManager.accessToken Optional access token for the api-manager only. Falls back to ngrok.credentials.accessToken.
+## @param ngrok.credentials.privateEndpointForwarder.accessToken Optional access token for the private-endpoint-forwarder only. Falls back to ngrok.credentials.accessToken. With ngrok.features.privateEndpoints.enabled and no ngrok.credentials.secret.name, one of the two must be set or rendering fails. A custom secret is not checked at render time; it must hold a PRIVATE_ENDPOINTS_ACCESS_TOKEN key (without it the forwarder container never starts).
 ## @param ngrok.description Description of this installation in the ngrok dashboard. Default: `The official ngrok Kubernetes Operator.`
 ## @param ngrok.region ngrok region to use. Default: the account's default region
 ## @param ngrok.serverAddr Address of the ngrok server to use for tunnels. Default: the ngrok default
@@ -86,6 +87,8 @@ installCRDs: true
 ## @param ngrok.features.bindings.serviceAnnotations Annotations applied to projected services
 ## @param ngrok.features.bindings.serviceLabels Labels applied to projected services
 ## @param ngrok.features.bindings.ingressEndpoint Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`
+## @param ngrok.features.privateEndpoints.enabled (POC) Make ngrok private endpoints (*.ngrok.direct only; *.internal is not supported) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, UDP/443 egress, and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret
+## @param ngrok.features.privateEndpoints.privateDialServer Private dial server (host:port) the private-endpoint-forwarder connects through. QUIC only, so UDP/443 egress to it is required. Default: `quic.connect-endpoint.ngrok.com:443`
 ## @param ngrok.features.domains.defaultReclaimPolicy Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`
 ## @param ngrok.features.cleanup.enabled Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed
 ## @param ngrok.features.cleanup.timeout Seconds the hook waits for the drain to finish
@@ -103,6 +106,8 @@ ngrok:
     agent:
       accessToken: ""
     apiManager:
+      accessToken: ""
+    privateEndpointForwarder:
       accessToken: ""
   description: ""
   region: ""
@@ -133,6 +138,9 @@ ngrok:
       serviceAnnotations: {}
       serviceLabels: {}
       ingressEndpoint: ""
+    privateEndpoints:
+      enabled: false
+      privateDialServer: ""
     domains:
       defaultReclaimPolicy: ""
     cleanup:
@@ -147,7 +155,8 @@ ngrok:
 ##
 ## Kubernetes settings for each pod the chart runs.
 ##
-## `components.common` applies to the api-manager, agent and bindings-forwarder.
+## `components.common` applies to the api-manager, agent, bindings-forwarder and
+## private-endpoint-forwarder.
 ## Each of them can override any common key, listed commented out under the
 ## component:
 ##   - a key the component leaves unset inherits the common value;
@@ -260,6 +269,33 @@ ngrok:
 ## @extra components.bindingsForwarder.terminationGracePeriodSeconds Overrides `components.common.terminationGracePeriodSeconds` for the bindings-forwarder
 ## @extra components.bindingsForwarder.updateStrategy Overrides `components.common.updateStrategy` for the bindings-forwarder
 ##
+## @section Components: Private Endpoint Forwarder
+##
+## Rendered only when `ngrok.features.privateEndpoints.enabled` is true.
+##
+## @param components.privateEndpointForwarder.replicaCount The number of private-endpoint-forwarder replicas to run
+## @param components.privateEndpointForwarder.serviceAccount.create Whether to create a ServiceAccount
+## @extra components.privateEndpointForwarder.serviceAccount.name ServiceAccount name. Generated if empty
+## @extra components.privateEndpointForwarder.serviceAccount.annotations ServiceAccount annotations
+## @extra components.privateEndpointForwarder.resources Resource requests and limits
+## @extra components.privateEndpointForwarder.log Overrides of `ngrok.log` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.podAnnotations Overrides `components.common.podAnnotations` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.podLabels Overrides `components.common.podLabels` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.nodeSelector Overrides `components.common.nodeSelector` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.tolerations Overrides `components.common.tolerations` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.affinity Overrides `components.common.affinity` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.podAffinityPreset Overrides `components.common.podAffinityPreset` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.podAntiAffinityPreset Overrides `components.common.podAntiAffinityPreset` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.nodeAffinityPreset Overrides `components.common.nodeAffinityPreset` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.topologySpreadConstraints Overrides `components.common.topologySpreadConstraints` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.priorityClassName Overrides `components.common.priorityClassName` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.extraEnv Overrides `components.common.extraEnv` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.lifecycle Overrides `components.common.lifecycle` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.extraVolumes Overrides `components.common.extraVolumes` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.extraVolumeMounts Overrides `components.common.extraVolumeMounts` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.terminationGracePeriodSeconds Overrides `components.common.terminationGracePeriodSeconds` for the private-endpoint-forwarder
+## @extra components.privateEndpointForwarder.updateStrategy Overrides `components.common.updateStrategy` for the private-endpoint-forwarder
+##
 ## @section Components: Cleanup Hook
 ##
 ## The pod of the pre-delete hook `ngrok.features.cleanup` runs. It does not
@@ -354,6 +390,34 @@ components:
     # updateStrategy:
     #   type: RollingUpdate
   bindingsForwarder:
+    replicaCount: 1
+    serviceAccount:
+      create: true
+      # name: ""
+      # annotations: {}
+    # resources:
+    #   limits: {}
+    #   requests: {}
+    # log: {}             # overrides of ngrok.log
+    ## Overrides of components.common:
+    # podAnnotations: {}
+    # podLabels: {}
+    # nodeSelector: {}
+    # tolerations: []
+    # affinity: {}
+    # podAffinityPreset: ""
+    # podAntiAffinityPreset: ""
+    # nodeAffinityPreset: {}
+    # topologySpreadConstraints: []
+    # priorityClassName: ""
+    # extraEnv: {}
+    # lifecycle: {}
+    # extraVolumes: []
+    # extraVolumeMounts: []
+    # terminationGracePeriodSeconds: 30
+    # updateStrategy:
+    #   type: RollingUpdate
+  privateEndpointForwarder:
     replicaCount: 1
     serviceAccount:
       create: true

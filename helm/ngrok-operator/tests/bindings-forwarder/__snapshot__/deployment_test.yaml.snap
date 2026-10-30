@@ -75,6 +75,8 @@ Should match snapshot:
                   value: "true"
                 - name: NGROK_OPERATOR__FEATURES__ONE_CLICK_DEMO_MODE__ENABLED
                   value: "false"
+                - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
+                  value: "false"
               image: docker.io/ngrok/ngrok-operator:0.22.0
               imagePullPolicy: IfNotPresent
               livenessProbe:

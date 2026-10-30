@@ -62,6 +62,24 @@ deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup 
 		--set ngrok.features.cleanup.drainPolicy="Delete" \
 		$(HELM_DESCRIPTION_FLAG)
 
+.PHONY: deploy_with_private_endpoints
+deploy_with_private_endpoints: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy with private endpoints enabled to the K8s cluster specified in ~/.kube/config.
+	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \
+		--namespace $(KUBE_NAMESPACE) \
+		--create-namespace \
+		--set image.repository=$(IMG) \
+		--set image.tag="latest" \
+		--set-string components.common.podAnnotations."redeployTimestamp"="$(DEPLOY_ROLLOUT_TIMESTAMP)" \
+		--set components.common.podAnnotations."k8s\.ngrok\.com/test"="\{\"env\": \"local\"\}" \
+		--set ngrok.credentials.accessToken=$(NGROK_ACCESS_TOKEN) \
+		--set ngrok.log.format=console \
+		--set ngrok.log.level=debug \
+		--set ngrok.log.stacktraceLevel=panic \
+		--set ngrok.metadata.env=local,ngrok.metadata.from=makefile \
+		--set ngrok.features.privateEndpoints.enabled=true \
+		--set ngrok.features.cleanup.drainPolicy="Delete" \
+		$(HELM_DESCRIPTION_FLAG)
+
 .PHONY: deploy_for_e2e
 deploy_for_e2e: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	helm upgrade $(HELM_RELEASE_NAME) $(HELM_CHART_DIR) --install \

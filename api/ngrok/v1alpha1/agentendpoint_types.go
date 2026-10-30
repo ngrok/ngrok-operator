@@ -217,40 +217,6 @@ const (
 	EndpointMutualTLSModeRequest EndpointMutualTLSMode = "request"
 )
 
-type TrafficPolicyCfgType string
-
-const (
-	TrafficPolicyCfgType_K8sRef TrafficPolicyCfgType = "targetRef"
-	TrafficPolicyCfgType_Inline TrafficPolicyCfgType = "inline"
-)
-
-// TrafficPolicyCfg configures a TrafficPolicy attached to an endpoint, either
-// inline or by reference to an NgrokTrafficPolicy resource in the same
-// namespace as the endpoint.
-//
-// +kubebuilder:validation:XValidation:rule="[has(self.inline), has(self.targetRef)].exists_one(x, x)", message="exactly one of inline or targetRef must be set on trafficPolicy"
-type TrafficPolicyCfg struct {
-	// Inline definition of a TrafficPolicy to attach to the Endpoint.
-	// The raw JSON-encoded policy that was applied to the ngrok API.
-	//
-	// +kubebuilder:validation:Schemaless
-	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:validation:Type=object
-	Inline json.RawMessage `json:"inline,omitempty"`
-
-	// Reference to a TrafficPolicy resource to attach to the Endpoint. The
-	// referenced NgrokTrafficPolicy must live in the same namespace as the
-	// endpoint.
-	Reference *K8sObjectRef `json:"targetRef,omitempty"`
-}
-
-func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {
-	if t.Reference != nil {
-		return TrafficPolicyCfgType_K8sRef
-	}
-	return TrafficPolicyCfgType_Inline
-}
-
 // AgentEndpointStatus defines the observed state of an AgentEndpoint
 type AgentEndpointStatus struct {
 	// ObservedGeneration is the most recent metadata.generation observed by the
