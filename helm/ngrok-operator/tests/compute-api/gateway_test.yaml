@@ -266,3 +266,63 @@ tests:
   asserts:
   - failedTemplate:
       errorMessage: compute.remoteAccess.replicaNamespace must differ from the Helm release namespace
+- it: Grants cluster-wide resource reads only when asked
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+    computeGateway:
+      clusterResourceAccess: true
+    credentials:
+      apiKey: test-api-key
+      authtoken: test-authtoken
+  asserts:
+  - hasDocuments:
+      count: 9
+  - isKind:
+      of: ClusterRole
+    documentIndex: 7
+  - equal:
+      path: rules
+      value:
+      - apiGroups: [""]
+        resources: ["nodes"]
+        verbs: ["get", "list"]
+      - apiGroups: ["metrics.k8s.io"]
+        resources: ["nodes"]
+        verbs: ["get", "list"]
+    documentIndex: 7
+  - isKind:
+      of: ClusterRoleBinding
+    documentIndex: 8
+  - equal:
+      path: roleRef.name
+      value: RELEASE-NAME-ngrok-operator-gateway-cluster-resources
+    documentIndex: 8
+  - equal:
+      path: subjects
+      value:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-gateway
+        namespace: NAMESPACE
+    documentIndex: 8
+- it: Rejects a cluster resource access value that is not a boolean
+  set:
+    compute:
+      remoteAccess:
+        enabled: true
+    computeGateway:
+      clusterResourceAccess: "false"
+    credentials:
+      apiKey: test-api-key
+      authtoken: test-authtoken
+  asserts:
+  - failedTemplate:
+      errorMessage: computeGateway.clusterResourceAccess must be a boolean
+- it: Grants nothing cluster-wide without remote access
+  set:
+    computeGateway:
+      clusterResourceAccess: true
+  asserts:
+  - hasDocuments:
+      count: 0

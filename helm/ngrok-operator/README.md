@@ -215,6 +215,7 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `computeGateway.nodeSelector`                     | Node labels for gateway pod assignment.                                                                                 | `{}`   |
 | `computeGateway.tolerations`                      | Tolerations for gateway pod assignment.                                                                                 | `[]`   |
 | `computeGateway.topologySpreadConstraints`        | Topology spread constraints for gateway pod assignment.                                                                 | `[]`   |
+| `computeGateway.clusterResourceAccess`            | Grant the gateway cluster-wide read access to nodes and node metrics, so Compute can show the cluster's CPU and memory. | `false` |
 | `computeGateway.resources.limits`                 | The resources limits for the container                                                                                  | `{}`   |
 | `computeGateway.resources.requests`               | The requested resources for the container                                                                               | `{}`   |
 
