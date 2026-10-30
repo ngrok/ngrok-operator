@@ -681,7 +681,8 @@ resource, see the KubernetesOperator section below.
     `internal/controller/ngrok/kubernetesoperator_legacy.go`). One reconciler
     watches both kinds under the same key. After the v1 object has its ID:
     - a live legacy object keeps its finalizer and gets `Ready=False`,
-      reason `SupersededByV1`, plus one `DeprecatedAPIGroup` warning event;
+      reason `SupersededByV1`. No `DeprecatedAPIGroup` warning: users never
+      write this object, so there is nothing for them to act on;
     - a deleted legacy object has its finalizer released with no ngrok call.
 
     It is never deleted, and keeps its finalizer, so `helm rollback` hands

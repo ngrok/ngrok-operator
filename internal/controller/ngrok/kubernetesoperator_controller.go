@@ -172,8 +172,12 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup. Runs after the
 	// v1 object has adopted its ID, and never while it is being deleted.
 	if ko.DeletionTimestamp.IsZero() {
-		if err := r.reconcileLegacy(ctx, ko); err != nil {
+		legacyRes, err := r.reconcileLegacy(ctx, ko)
+		if err != nil {
 			return ctrl.Result{}, err
+		}
+		if legacyRes.RequeueAfter > 0 {
+			return legacyRes, nil
 		}
 	}
 	// LEGACY-kubernetesoperator-kind: END

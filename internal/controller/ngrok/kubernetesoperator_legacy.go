@@ -3,11 +3,11 @@ package ngrok
 import (
 	"context"
 	"fmt"
+	"time"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/util"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,14 +25,14 @@ const (
 	// KubernetesOperator whose ngrok.com/v1 twin the operator now reconciles.
 	ReasonSupersededByV1 = "SupersededByV1"
 
-	// ReasonDeprecatedAPIGroup is the warning event reason emitted on a legacy
-	// KubernetesOperator when it is first marked superseded.
-	ReasonDeprecatedAPIGroup = "DeprecatedAPIGroup"
-
 	// ReasonLegacyTwinSkippedDrain is the event reason emitted when the v1
 	// KubernetesOperator is deleted while its legacy twin still exists, and the
 	// drain is skipped.
 	ReasonLegacyTwinSkippedDrain = "LegacyTwinSkippedDrain"
+
+	// legacyReleaseRetry is how often a deleted legacy object is rechecked
+	// while the v1 object has not yet recorded its ID.
+	legacyReleaseRetry = 2 * time.Second
 )
 
 // reconcileLegacy keeps the legacy ngrok.k8s.ngrok.com/v1alpha1 object at the
@@ -40,35 +40,42 @@ const (
 // API and never deletes the legacy object: a helm rollback hands the cluster
 // back to an older operator that relies on it, finalizer and ID intact.
 //   - A live legacy object is marked superseded (Ready=False, SupersededByV1).
+//     No warning event: the operator, not the user, owns this object, so there
+//     is nothing for anyone to act on.
 //   - A deleted legacy object has its finalizer released once the v1 object
-//     holds the ID, so "apply v1, then delete legacy" never hangs and never
-//     drains.
-func (r *KubernetesOperatorReconciler) reconcileLegacy(ctx context.Context, canonical *ngrokv1.KubernetesOperator) error {
+//     holds the ID (requeueing until it does), so "apply v1, then delete
+//     legacy" never hangs and never drains.
+func (r *KubernetesOperatorReconciler) reconcileLegacy(ctx context.Context, canonical *ngrokv1.KubernetesOperator) (ctrl.Result, error) {
 	legacy := &ngrokv1alpha1.KubernetesOperator{}
 	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(canonical), legacy); err != nil {
 		if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
-			return nil
+			return ctrl.Result{}, nil
 		}
-		return err
+		return ctrl.Result{}, err
 	}
 
 	if !legacy.DeletionTimestamp.IsZero() {
-		if canonical.Status.ID == "" || !util.HasFinalizer(legacy) {
-			return nil
+		if !util.HasFinalizer(legacy) {
+			return ctrl.Result{}, nil
+		}
+		// The cached v1 object can lag the status write that adopted the ID,
+		// and that write does not re-trigger this reconcile, so poll for it.
+		if canonical.Status.ID == "" {
+			return ctrl.Result{RequeueAfter: legacyReleaseRetry}, nil
 		}
 		original := legacy.DeepCopy()
 		util.RemoveFinalizer(legacy)
 		if err := r.Client.Patch(ctx, legacy, client.MergeFrom(original)); err != nil {
-			return client.IgnoreNotFound(err)
+			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 		ctrl.LoggerFrom(ctx).Info("released the finalizer of the deleted legacy KubernetesOperator; the v1 object holds the ID",
 			"legacy", client.ObjectKeyFromObject(legacy).String(), "id", canonical.Status.ID)
-		return nil
+		return ctrl.Result{}, nil
 	}
 
 	ready := meta.FindStatusCondition(legacy.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
 	if ready != nil && ready.Status == metav1.ConditionFalse && ready.Reason == ReasonSupersededByV1 {
-		return nil
+		return ctrl.Result{}, nil
 	}
 	supersededBy := "kubernetesoperators.ngrok.com/" + canonical.Name
 	meta.SetStatusCondition(&legacy.Status.Conditions, metav1.Condition{
@@ -78,12 +85,7 @@ func (r *KubernetesOperatorReconciler) reconcileLegacy(ctx context.Context, cano
 		Message:            "Superseded by " + supersededBy + "; this object is no longer reconciled",
 		ObservedGeneration: legacy.Generation,
 	})
-	if err := r.Client.Status().Update(ctx, legacy); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	r.Recorder.Eventf(legacy, canonical, v1.EventTypeWarning, ReasonDeprecatedAPIGroup, "Supersede",
-		"ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator is deprecated; the operator now manages %s. No action is needed", supersededBy)
-	return nil
+	return ctrl.Result{}, client.IgnoreNotFound(r.Client.Status().Update(ctx, legacy))
 }
 
 // legacyKubernetesOperatorToRequest maps events on the legacy kind onto the

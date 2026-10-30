@@ -1981,8 +1981,8 @@ spec:
       type: integer
     deprecated: true
     deprecationWarning: ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator is deprecated;
-      the operator now manages ngrok.com/v1 KubernetesOperator and migrates this object
-      automatically. No action is needed.
+      the operator now manages the ngrok.com/v1 KubernetesOperator and leaves this
+      object in place until a later release removes it. No action is needed.
     name: v1alpha1
     schema:
       openAPIV3Schema:

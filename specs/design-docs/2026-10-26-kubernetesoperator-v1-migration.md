@@ -123,13 +123,15 @@ halves of the pair (rule 2). It runs after the v1 object has adopted its ID
 (rule 3) and never while the v1 object is being deleted:
 
 - **Live legacy object:** keep its finalizer. Set `Ready=False`, reason
-  `SupersededByV1`, and emit one `DeprecatedAPIGroup` warning event naming the
-  v1 object, only when the condition changes (rule 4). No ngrok call.
+  `SupersededByV1`, naming the v1 object (rule 4). No ngrok call. Exception to
+  rule 4: no `DeprecatedAPIGroup` warning event. Users never write this
+  object, so a warning would ask them to act on something they can't.
 - **Deleted legacy object, v1 holds the ID:** release its finalizer (both
   prefixes) with no ngrok call (rule 9). "Delete the legacy object" never
   hangs and never drains.
-- **Deleted legacy object, v1 not yet registered:** leave it; the next
-  reconcile after registration releases it.
+- **Deleted legacy object, v1 not yet registered:** requeue until the v1 ID
+  is visible. The status write that adopts the ID does not re-trigger the
+  reconcile, so waiting for an event would leave it stuck.
 
 ### Drain guard (rule 5, fail closed)
 
@@ -284,7 +286,7 @@ name first) and the cleanup.
 - **Unit and envtest** (`internal/controller/ngrok` suite):
   - a legacy object with a finalizer exists → the v1 object adopts the same
     mock ngrok KO, the legacy object keeps its finalizer and gets
-    `SupersededByV1`, one `DeprecatedAPIGroup` event, no drain;
+    `SupersededByV1`, no events, no drain;
   - the legacy object is deleted → its finalizer is released, the ngrok KO
     is untouched, the v1 object does not drain;
   - a terminating legacy object is released once the v1 object holds the ID,

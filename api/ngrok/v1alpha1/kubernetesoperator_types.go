@@ -220,7 +220,7 @@ type DrainConfig struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:deprecatedversion:warning="ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator is deprecated; the operator now manages ngrok.com/v1 KubernetesOperator and migrates this object automatically. No action is needed."
+// +kubebuilder:deprecatedversion:warning="ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator is deprecated; the operator now manages the ngrok.com/v1 KubernetesOperator and leaves this object in place until a later release removes it. No action is needed."
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Kubernetes Operator ID"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`
 // +kubebuilder:printcolumn:name="Enabled Features",type="string",JSONPath=".status.enabledFeatures"

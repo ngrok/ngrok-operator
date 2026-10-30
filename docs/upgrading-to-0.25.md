@@ -329,8 +329,8 @@ apart from its status:
 
 - it keeps its finalizer and its ID, so rolling back to 0.24 picks it up as it
   was;
-- its `Ready` condition is `False` with reason `SupersededByV1`, and a
-  `DeprecatedAPIGroup` warning event names the `ngrok.com/v1` object;
+- its `Ready` condition is `False` with reason `SupersededByV1`, and the
+  condition message names the `ngrok.com/v1` object;
 - the operator no longer reconciles it or calls ngrok for it.
 
 Deleting it is safe: the operator releases its finalizer without draining or

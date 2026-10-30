@@ -136,7 +136,7 @@ func TestReconcileLegacy(t *testing.T) {
 		wantGone      bool
 		wantFinalizer bool
 		wantReason    string
-		wantEvents    int
+		wantRequeue   bool
 	}{
 		{
 			name:          "live legacy keeps its finalizer and is marked superseded",
@@ -144,7 +144,6 @@ func TestReconcileLegacy(t *testing.T) {
 			canonicalID:   "k8sop_123",
 			wantFinalizer: true,
 			wantReason:    ReasonSupersededByV1,
-			wantEvents:    1,
 		},
 		{
 			name: "already superseded legacy is left alone",
@@ -172,6 +171,7 @@ func TestReconcileLegacy(t *testing.T) {
 				Finalizers: []string{util.LegacyFinalizerName},
 			},
 			wantFinalizer: true,
+			wantRequeue:   true,
 		},
 		{name: "no legacy object", canonicalID: "k8sop_123"},
 		{name: "legacy kind not installed", canonicalID: "k8sop_123", getErr: &meta.NoKindMatchError{GroupKind: legacyGK}},
@@ -208,17 +208,16 @@ func TestReconcileLegacy(t *testing.T) {
 			// NgrokClientset is nil: any ngrok API call would panic.
 			reconciler := &KubernetesOperatorReconciler{Client: fakeClient, Recorder: recorder}
 
-			require.NoError(t, reconciler.reconcileLegacy(context.Background(), canonical))
-			assert.Len(t, recorder.Events, tt.wantEvents)
-			for range tt.wantEvents {
-				assert.Contains(t, <-recorder.Events, ReasonDeprecatedAPIGroup)
-			}
+			res, err := reconciler.reconcileLegacy(context.Background(), canonical)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantRequeue, res.RequeueAfter > 0)
+			assert.Empty(t, recorder.Events, "the legacy object is passive; no events")
 			if tt.legacy == nil {
 				return
 			}
 
 			got := &ngrokv1alpha1.KubernetesOperator{}
-			err := fakeClient.Get(context.Background(), client.ObjectKeyFromObject(tt.legacy), got)
+			err = fakeClient.Get(context.Background(), client.ObjectKeyFromObject(tt.legacy), got)
 			if tt.wantGone {
 				assert.True(t, apierrors.IsNotFound(err), "legacy object should be released and gone, got %v", err)
 				return
