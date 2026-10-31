@@ -251,7 +251,7 @@ func TestUpdateConditions_BothKinds(t *testing.T) {
 
 func TestSetSupersededCondition(t *testing.T) {
 	r := domainKinds(t, "a.example.com", "rd_1")["legacy"]
-	SetSupersededCondition(r, "ns", "a-example-com")
+	SetSupersededCondition(r, "ns", "a-example-com", true)
 
 	cond := meta.FindStatusCondition(r.Status().Conditions, ConditionReady)
 	require.NotNil(t, cond)

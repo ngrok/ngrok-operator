@@ -118,6 +118,12 @@ between kinds must be listed under [Exceptions](#exceptions).
   ngrok delete, releases the v1 finalizer, and emits `LegacyTwinSkippedDrain`.
 - **KubernetesOperator, rule 10.** Deleting the KubernetesOperator is what
   starts the drain, so the general drain ordering does not apply to it.
+- **Domain, rule 3.** A reservation belongs to one hostname, so v1 adopts the
+  legacy ID only when both name the same hostname. A v1 Domain for another
+  hostname creates or finds its own reservation instead.
+- **Domain, rule 5.** A twin also holds the reservation when it names the same
+  hostname but has no ID yet: it is about to find that same reservation by
+  hostname. This only skips more deletes than the rule requires.
 
 ### Per-kind application
 
@@ -126,7 +132,10 @@ between kinds must be listed under [Exceptions](#exceptions).
   Check rule 5 handles Forbidden as "twin present".
 - **Domain:** `ensureDomains` creates a v1 Domain only when no legacy Domain
   with that name exists, or when the existing legacy Domain is controlled by
-  the operator. A user-created legacy Domain may carry custom fields
+  the operator (it carries the operator's controller labels; the v1 Domain is
+  then a copy of its spec). Operators before 0.25 also stamped those labels on
+  a user's Domain that an endpoint used, so such a Domain is copied too, with
+  its spec intact. A user-created legacy Domain may carry custom fields
   (description, `resolvesTo`), so the user re-stamps it. If the user deletes
   the legacy Domain without creating a v1 one, or if R2 leaves it inert,
   `ensureDomains` then creates the default v1 Domain.

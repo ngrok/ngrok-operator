@@ -41,10 +41,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
@@ -315,7 +317,7 @@ func TestDomainPair_V1AdoptsAndSupersedesLegacy(t *testing.T) {
 	assert.True(t, meta.IsStatusConditionTrue(legacy.Status.Conditions, domainpkg.ConditionReady))
 	assert.Equal(t, "frozen.example.com", *legacy.Status.CNAMETarget, "other status fields stay frozen")
 	assert.Contains(t, legacy.Finalizers, util.FinalizerName, "the legacy finalizer stays until deletion")
-	assert.Contains(t, p.events(), EventDomainSupersededByV1)
+	assert.Contains(t, p.events(), "Warning "+trafficpolicypkg.EventDeprecatedAPIGroup)
 
 	// A second pass changes nothing on the superseded object.
 	before := legacy.ResourceVersion
@@ -443,6 +445,10 @@ func TestDomainPair_LiveRecheckBeforeRelease(t *testing.T) {
 
 // Twins that name different hostnames hold unrelated reservations: each is
 // reconciled on its own, and neither guards the other's reservation.
+// Twins that name different hostnames are still a pair (the twin key is
+// namespace/name, never the hostname): v1 is the only writer and the legacy
+// Domain goes passive. They don't share a reservation, though, so v1 doesn't
+// adopt the legacy ID, and deleting the legacy Domain releases its own.
 func TestDomainPair_MismatchedTwins(t *testing.T) {
 	p := newPairTest(t,
 		v1Fixture("b.ngrok.app", "", generation(2)),
@@ -451,10 +457,147 @@ func TestDomainPair_MismatchedTwins(t *testing.T) {
 
 	p.reconcile(t)
 
-	assert.Equal(t, 1, p.api.creates, "v1 reserves its own hostname")
+	assert.Equal(t, 1, p.api.creates, "v1 reserves its own hostname instead of adopting")
 	assert.Len(t, p.api.reservations(t), 2)
-	assert.Equal(t, domainpkg.ReasonDomainActive, readyReason(t, p.legacy(t).Status.Conditions), "legacy is not superseded")
+	assert.NotEqual(t, p.rd.ID, p.v1(t).Status.ID)
+	ready := meta.FindStatusCondition(p.legacy(t).Status.Conditions, domainpkg.ConditionReady)
+	require.NotNil(t, ready)
+	assert.Equal(t, domainpkg.ReasonSupersededByV1, ready.Reason, "only v1 writes")
+	assert.Contains(t, ready.Message, "different hostname")
 	assert.Contains(t, p.events(), EventDomainTwinMismatch)
+
+	// Deleting the legacy Domain releases its own reservation: the v1 twin
+	// doesn't hold it.
+	legacy := p.legacy(t)
+	require.NoError(t, p.c.Delete(t.Context(), legacy))
+	p.api.creates, p.api.updates, p.api.deletes = 0, 0, 0
+	p.reconcile(t)
+
+	assert.Equal(t, 1, p.api.deletes)
+	assert.Len(t, p.api.reservations(t), 1)
+	assert.Nil(t, p.legacy(t))
+}
+
+// v1 only: an ordinary Domain, reserved and finalized as before.
+func TestDomainPair_V1Only(t *testing.T) {
+	p := newPairTest(t, v1Fixture("b.ngrok.app", ""))
+
+	p.reconcile(t)
+
+	assert.Equal(t, 1, p.api.creates)
+	v1 := p.v1(t)
+	assert.NotEmpty(t, v1.Status.ID)
+	assert.Contains(t, v1.Finalizers, util.FinalizerName)
+	assert.Equal(t, domainpkg.ReasonDomainActive, readyReason(t, v1.Status.Conditions))
+}
+
+// Both kinds already hold the same ID: v1 writes, legacy is superseded, and
+// neither creates anything.
+func TestDomainPair_BothSameID(t *testing.T) {
+	p := newPairTest(t,
+		v1Fixture(pairHostname, "rd_existing"),
+		legacyFixture(pairHostname, "rd_existing"),
+	)
+
+	p.reconcile(t)
+
+	assert.Zero(t, p.api.creates)
+	assert.Equal(t, "from v1", p.api.reservations(t)[0].Description)
+	assert.Equal(t, domainpkg.ReasonSupersededByV1, readyReason(t, p.legacy(t).Status.Conditions))
+}
+
+// Same hostname but different IDs (the legacy ID is stale: a hostname has one
+// reservation). v1 keeps its own; the legacy Domain is passive, and deleting
+// it keeps the reservation because the v1 twin names the same hostname.
+func TestDomainPair_BothDifferentIDs(t *testing.T) {
+	p := newPairTest(t,
+		v1Fixture(pairHostname, "rd_existing"),
+		legacyFixture(pairHostname, "rd_stale", deleting()),
+	)
+
+	p.reconcile(t)
+
+	assert.Zero(t, p.api.deletes)
+	assert.Len(t, p.api.reservations(t), 1)
+	assert.Equal(t, p.rd.ID, p.v1(t).Status.ID)
+	assert.Nil(t, p.legacy(t))
+}
+
+// Rule 3: the v1 Domain adopts the legacy ID and persists it before the
+// legacy delete in the same pass runs, so that delete sees the reservation
+// held.
+func TestDomainPair_AdoptsBeforeLegacyDelete(t *testing.T) {
+	p := newPairTest(t,
+		v1Fixture(pairHostname, ""),
+		legacyFixture(pairHostname, "rd_existing", deleting()),
+	)
+	var adoptedBeforeRelease bool
+	p.r.APIReader = unusedReader{t}
+	p.r.Client = interceptStatus(t, p.c, func(obj client.Object) {
+		if d, ok := obj.(*ngrokv1.Domain); ok && d.Status.ID == p.rd.ID && p.legacy(t) != nil {
+			adoptedBeforeRelease = true
+		}
+	})
+
+	p.reconcile(t)
+
+	assert.True(t, adoptedBeforeRelease, "v1 status carried the adopted ID while legacy still existed")
+	assert.Zero(t, p.api.creates)
+	assert.Zero(t, p.api.deletes)
+	assert.Equal(t, p.rd.ID, p.v1(t).Status.ID)
+	assert.Nil(t, p.legacy(t))
+}
+
+// Rule 5: the live twin read fails closed.
+func TestDomainPair_LiveReadFailsClosed(t *testing.T) {
+	gvr := schema.GroupResource{Group: "ngrok.com", Resource: "domains"}
+	cases := []struct {
+		name        string
+		err         error
+		wantErr     bool
+		wantRelease bool
+	}{
+		{"forbidden counts as a twin", apierrors.NewForbidden(gvr, pairName, errors.New("rbac")), false, false},
+		{"not served counts as no twin", &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "ngrok.com", Kind: "Domain"}}, false, true},
+		{"not found counts as no twin", apierrors.NewNotFound(gvr, pairName), false, true},
+		{"other errors retry", errors.New("connection refused"), true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newPairTest(t, legacyFixture(pairHostname, "rd_existing", deleting()))
+			p.r.APIReader = fake.NewClientBuilder().WithScheme(pairScheme(t)).WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+					return tc.err
+				},
+			}).Build()
+
+			_, err := p.r.Reconcile(t.Context(), ctrl.Request{NamespacedName: pairKey})
+
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.NotNil(t, p.legacy(t), "the finalizer stays until the read succeeds")
+			} else {
+				require.NoError(t, err)
+				assert.Nil(t, p.legacy(t))
+			}
+			if tc.wantRelease {
+				assert.Empty(t, p.api.reservations(t))
+			} else {
+				assert.Len(t, p.api.reservations(t), 1)
+			}
+		})
+	}
+}
+
+// interceptStatus wraps c so that every status write calls observe first.
+func interceptStatus(t *testing.T, c client.Client, observe func(client.Object)) client.Client {
+	t.Helper()
+	return interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
+		SubResourceUpdate: func(ctx context.Context, cl client.Client, sub string, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+			observe(obj)
+			return cl.SubResource(sub).Update(ctx, obj, opts...)
+		},
+	})
 }
 
 func TestDomainPair_InternalHostnameIsReleasedWithoutAPICalls(t *testing.T) {
@@ -491,20 +634,6 @@ func TestDomainPair_DrainStillProcessesDeletes(t *testing.T) {
 	assert.Nil(t, p.legacy(t))
 	assert.Len(t, p.api.reservations(t), 1, "the v1 twin still holds the reservation")
 	assert.Zero(t, p.api.writes(), "no sync of the surviving twin while draining")
-}
-
-func TestEarliest(t *testing.T) {
-	none := ctrl.Result{}
-	soon := ctrl.Result{RequeueAfter: 1}
-	later := ctrl.Result{RequeueAfter: 2}
-	now := ctrl.Result{Requeue: true} //nolint:staticcheck
-
-	assert.Equal(t, soon, earliest(soon, later))
-	assert.Equal(t, soon, earliest(later, soon))
-	assert.Equal(t, soon, earliest(none, soon))
-	assert.Equal(t, soon, earliest(soon, none))
-	assert.Equal(t, now, earliest(later, now))
-	assert.Equal(t, none, earliest(none, none))
 }
 
 // If pushing the v1 spec fails while adopting the legacy reservation, the v1

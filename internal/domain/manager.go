@@ -16,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/go-logr/logr"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
@@ -209,7 +208,7 @@ func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.
 	domainKey := client.ObjectKey{Name: ngrokv1.HyphenatedDomainNameFromURL(domain), Namespace: endpoint.GetNamespace()}
 
 	// Step 1. defaults only runs when there is no legacy Domain to copy.
-	v1, _, err := EnsureV1(ctx, m.Client, m.apiReader, domainKey, func(d *ngrokv1.Domain) {
+	v1, _, err := EnsureV1(ctx, m.Client, m.apiReader, domainKey, m.ownsLegacyDomain, func(d *ngrokv1.Domain) {
 		d.Spec.Domain = domain
 		if m.controllerLabels != nil {
 			m.controllerLabels.EnsureLabels(d)
@@ -220,6 +219,10 @@ func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.
 	})
 	switch {
 	// LEGACY-domain-kind: BEGIN
+	case errors.Is(err, ErrLegacyDomainNotOwned):
+		// A user's legacy Domain: they re-stamp it. Like the blocked case
+		// below, v1 is nil and step 2 reports on the legacy Domain.
+		log.V(1).Info("Using the user's legacy Domain until it is re-created as ngrok.com/v1")
 	case errors.Is(err, ErrMigrationBlocked):
 		// Not an error for the endpoint: v1 is nil, so step 2 below reports on
 		// the legacy Domain, which keeps serving the hostname until someone
@@ -255,6 +258,19 @@ func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.
 		return nil, err
 	}
 	return m.checkExistingDomain(endpoint, res)
+}
+
+// ownsLegacyDomain reports whether a legacy Domain carries this operator's
+// controller labels, the only record that the operator created it. Without
+// configured labels nothing counts as owned.
+//
+// Caveat: operators before 0.25 also stamped these labels onto a user's
+// Domain when an endpoint used it, so such a Domain counts as owned and gets a
+// v1 copy. The copy keeps its spec as-is, so its reservation doesn't change.
+//
+// LEGACY-domain-kind: delete at cleanup.
+func (m *Manager) ownsLegacyDomain(obj client.Object) bool {
+	return m.controllerLabels != nil && m.controllerLabels.HasLabels(obj)
 }
 
 func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, domainObj *ngrokv1.Domain) error {
@@ -346,20 +362,14 @@ func (m *Manager) deleteStaleBindingDomain(ctx context.Context, endpoint ngrokv1
 		return nil
 	}
 
-	// The ref can point at either kind (it has no kind of its own), so delete
-	// both. Deleting both twins together releases the reservation once.
-	domains := []client.Object{
-		&ngrokv1.Domain{},
-		&ingressv1alpha1.Domain{}, // LEGACY-domain-kind: delete at cleanup.
-	}
-	for _, domain := range domains {
-		domain.SetNamespace(endpoint.GetNamespace())
-		domain.SetName(domainRef.Name)
+	// Only the v1 Domain: during the migration the operator never deletes a
+	// legacy object (specs/crd-group-migration.md, rule 7), because a rollback
+	// to 0.24 needs it. A legacy twin keeps the reservation until the user
+	// deletes it, or until 1.0 makes it inert.
+	domain := &ngrokv1.Domain{}
+	domain.SetNamespace(endpoint.GetNamespace())
+	domain.SetName(domainRef.Name)
 
-		log.Info("Deleting stale domain for binding-based endpoint", "domain", client.ObjectKeyFromObject(domain), "endpoint", client.ObjectKeyFromObject(endpoint))
-		if err := client.IgnoreNotFound(m.Client.Delete(ctx, domain)); err != nil {
-			return err
-		}
-	}
-	return nil
+	log.Info("Deleting stale domain for binding-based endpoint", "domain", client.ObjectKeyFromObject(domain), "endpoint", client.ObjectKeyFromObject(endpoint))
+	return client.IgnoreNotFound(m.Client.Delete(ctx, domain))
 }

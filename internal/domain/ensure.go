@@ -35,12 +35,23 @@ import (
 
 // EnsureV1 returns the v1 Domain at key, creating it if it doesn't exist.
 //
-// When a legacy Domain exists at key, the new v1 Domain is a copy of its spec
-// as-is, never defaults: the two share one reservation, and v1 becomes the
-// object that pushes its spec to it, so defaults would silently drop a
-// resolvesTo, reclaim policy or description someone set on the legacy object.
-// Otherwise defaults fills in the new object (name and namespace are already
-// set).
+// When a legacy Domain exists at key (see specs/crd-group-migration.md, "Per-kind
+// application"):
+//
+//   - If the operator controls it (owned reports true), the new v1 Domain is a
+//     copy of its spec as-is, never defaults: the two share one reservation,
+//     and v1 becomes the object that pushes its spec to it.
+//   - Otherwise it was created by a user, who re-stamps it themselves.
+//     EnsureV1 creates nothing and returns ErrLegacyDomainNotOwned; callers
+//     keep using the legacy Domain.
+//
+// With no legacy Domain, defaults fills in the new object (name and namespace
+// are already set). That also covers a user who deletes their legacy Domain
+// without creating a v1 one.
+//
+// owned decides whether the operator controls a legacy Domain; callers pass
+// their controller-label check. A nil owned treats every legacy Domain as
+// user-created.
 //
 // live, if non-nil, reads straight from the API server. It is used for the
 // two reads a stale cache would get wrong: whether a legacy Domain exists (a
@@ -49,7 +60,7 @@ import (
 // back to c.
 //
 // The returned bool reports whether this call created the object.
-func EnsureV1(ctx context.Context, c client.Client, live client.Reader, key client.ObjectKey, defaults func(*ngrokv1.Domain)) (*ngrokv1.Domain, bool, error) {
+func EnsureV1(ctx context.Context, c client.Client, live client.Reader, key client.ObjectKey, owned func(client.Object) bool, defaults func(*ngrokv1.Domain)) (*ngrokv1.Domain, bool, error) {
 	if live == nil {
 		live = c
 	}
@@ -67,7 +78,7 @@ func EnsureV1(ctx context.Context, c client.Client, live client.Reader, key clie
 
 	// Build the object to create: a copy of the legacy Domain at key if there
 	// is one, otherwise a fresh object filled in by defaults.
-	desired, err := copyOfLegacy(ctx, live, key) // LEGACY-domain-kind: at cleanup replace with `var desired *ngrokv1.Domain`.
+	desired, err := copyOfLegacy(ctx, live, key, owned) // LEGACY-domain-kind: at cleanup replace with `var desired *ngrokv1.Domain`.
 	if err != nil {
 		return nil, false, err
 	}

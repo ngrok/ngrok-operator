@@ -20,14 +20,22 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 )
 
+// operatorLabels are the controller labels newDomainsTestDriver stamps.
+var operatorLabels = map[string]string{
+	labels.ControllerNamespace: "ngrok-system",
+	labels.ControllerName:      "ngrok-operator",
+}
+
 // The driver creates the v1 Domain for every Ingress/Gateway hostname. When a
-// legacy Domain already exists at that name, the v1 object must be a copy of
-// it: it takes over the shared reservation and pushes its spec to it.
+// legacy Domain the operator created already exists at that name, the v1
+// object must be a copy of it: it takes over the shared reservation and pushes
+// its spec to it.
 func TestApplyDomains_CopiesLegacyDomainToV1(t *testing.T) {
 	scheme := domainsTestScheme(t)
 	legacy := &ingressv1alpha1.Domain{
 		Name:      "example-com",
 		Namespace: "default",
+		Labels:    operatorLabels,
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain:        "example.com",
 			Description:   "hand-written",
@@ -51,7 +59,29 @@ func TestApplyDomains_CopiesLegacyDomainToV1(t *testing.T) {
 	stillThere := &ingressv1alpha1.Domain{}
 	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(legacy), stillThere))
 	assert.Equal(t, legacy.Spec, stillThere.Spec)
-	assert.Empty(t, stillThere.Labels)
+	assert.Equal(t, operatorLabels, stillThere.Labels)
+}
+
+// A legacy Domain a user created is theirs to re-stamp: the driver creates no
+// v1 Domain for that hostname, and doesn't fail the sync over it.
+func TestApplyDomains_LeavesUserLegacyDomainAlone(t *testing.T) {
+	scheme := domainsTestScheme(t)
+	legacy := &ingressv1alpha1.Domain{
+		Name:      "example-com",
+		Namespace: "default",
+		Spec:      ingressv1alpha1.DomainSpec{Domain: "example.com", Description: "mine"},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(legacy).Build()
+
+	desired := map[string]ngrokv1.Domain{
+		"example.com":         desiredDomain("example-com", "example.com"),
+		"healthy.example.com": desiredDomain("healthy-example-com", "healthy.example.com"),
+	}
+	require.NoError(t, newDomainsTestDriver(scheme).applyDomains(context.Background(), c, desired))
+
+	err := c.Get(context.Background(), client.ObjectKeyFromObject(legacy), &ngrokv1.Domain{})
+	assert.True(t, apierrors.IsNotFound(err))
+	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "healthy-example-com"}, &ngrokv1.Domain{}))
 }
 
 // A legacy Domain whose metadata can't be represented in v1 is left to serve
@@ -61,6 +91,7 @@ func TestApplyDomains_MigrationBlockedIsNonFatal(t *testing.T) {
 	legacy := &ingressv1alpha1.Domain{
 		Name:      "example-com",
 		Namespace: "default",
+		Labels:    operatorLabels,
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain:   "example.com",
 			Metadata: commonv1alpha1.MetadataFromLegacyString("free text"),

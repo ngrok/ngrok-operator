@@ -190,9 +190,19 @@ func IsReady(domain Resource) bool {
 // twin now. Only the Ready condition changes; every other status field is left
 // as it was when the twin took over.
 //
+// sameHostname is false for a twin that names a different hostname: the twin
+// still decides what this object does (nothing), but this object's own
+// reservation is no longer managed by anyone.
+//
 // LEGACY-domain-kind: delete at cleanup.
-func SetSupersededCondition(legacy Resource, twinNamespace, twinName string) {
-	setDomainReadyCondition(legacy, true, ReasonSupersededByV1, fmt.Sprintf(
+func SetSupersededCondition(legacy Resource, twinNamespace, twinName string, sameHostname bool) {
+	msg := fmt.Sprintf(
 		"Superseded by domains.ngrok.com %s/%s, which now manages this domain's reservation. Changes to this object have no effect; delete it once you've migrated.",
-		twinNamespace, twinName))
+		twinNamespace, twinName)
+	if !sameHostname {
+		msg = fmt.Sprintf(
+			"Superseded by domains.ngrok.com %s/%s, which names a different hostname. This object's reservation is no longer managed; delete this object, or rename one of the two.",
+			twinNamespace, twinName)
+	}
+	setDomainReadyCondition(legacy, true, ReasonSupersededByV1, msg)
 }

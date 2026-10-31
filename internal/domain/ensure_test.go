@@ -46,6 +46,9 @@ import (
 
 var ensureKey = types.NamespacedName{Name: "a-example-com", Namespace: "default"}
 
+// ownAll treats every legacy Domain as created by the operator.
+func ownAll(client.Object) bool { return true }
+
 func ensureDefaults(d *ngrokv1.Domain) {
 	d.Spec.Domain = "a.example.com"
 	d.Spec.ReclaimPolicy = ngrokv1.DomainReclaimPolicyDelete
@@ -54,7 +57,7 @@ func ensureDefaults(d *ngrokv1.Domain) {
 func TestEnsureV1_CreatesFromDefaultsWithoutLegacy(t *testing.T) {
 	_, c := newTestManager(t)
 
-	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, ensureDefaults)
+	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, ownAll, ensureDefaults)
 	require.NoError(t, err)
 	assert.True(t, created)
 	assert.Equal(t, "a.example.com", got.Spec.Domain)
@@ -71,7 +74,7 @@ func TestEnsureV1_ReturnsExisting(t *testing.T) {
 	}
 	_, c := newTestManager(t, existing)
 
-	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, func(*ngrokv1.Domain) {
+	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, ownAll, func(*ngrokv1.Domain) {
 		t.Fatal("defaults must not run for an existing object")
 	})
 	require.NoError(t, err)
@@ -99,7 +102,7 @@ func TestEnsureV1_CopiesLegacySpec(t *testing.T) {
 	}
 	_, c := newTestManager(t, legacy)
 
-	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, func(*ngrokv1.Domain) {
+	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, ownAll, func(*ngrokv1.Domain) {
 		t.Fatal("defaults must not run when a legacy object exists")
 	})
 	require.NoError(t, err)
@@ -124,7 +127,7 @@ func TestEnsureV1_BlockedByUnmappableMetadata(t *testing.T) {
 			}
 			_, c := newTestManager(t, legacy)
 
-			_, _, err := EnsureV1(t.Context(), c, nil, ensureKey, ensureDefaults)
+			_, _, err := EnsureV1(t.Context(), c, nil, ensureKey, ownAll, ensureDefaults)
 			require.ErrorIs(t, err, ErrMigrationBlocked)
 
 			err = c.Get(t.Context(), ensureKey, &ngrokv1.Domain{})
@@ -140,7 +143,7 @@ func TestEnsureV1_EmptyLegacyMetadataIsNotBlocked(t *testing.T) {
 	}
 	_, c := newTestManager(t, legacy)
 
-	got, _, err := EnsureV1(t.Context(), c, nil, ensureKey, ensureDefaults)
+	got, _, err := EnsureV1(t.Context(), c, nil, ensureKey, ownAll, ensureDefaults)
 	require.NoError(t, err)
 	assert.Nil(t, got.Spec.Metadata)
 }
@@ -160,8 +163,31 @@ func TestEnsureV1_ConcurrentCreate(t *testing.T) {
 		},
 	}).Build()
 
-	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, ensureDefaults)
+	got, created, err := EnsureV1(t.Context(), c, nil, ensureKey, ownAll, ensureDefaults)
 	require.NoError(t, err)
 	assert.False(t, created)
 	assert.Equal(t, "winner", got.Spec.Description)
+}
+
+// A legacy Domain the operator didn't create is the user's to re-stamp: no v1
+// copy, and the caller keeps using the legacy Domain.
+func TestEnsureV1_LeavesUserLegacyDomainAlone(t *testing.T) {
+	legacy := &ingressv1alpha1.Domain{
+		ObjectMeta: metav1.ObjectMeta{Name: ensureKey.Name, Namespace: ensureKey.Namespace},
+		Spec:       ingressv1alpha1.DomainSpec{Domain: "a.example.com", ResolvesTo: []ingressv1alpha1.DomainResolvesToEntry{{Value: "eu"}}},
+	}
+	for name, owned := range map[string]func(client.Object) bool{
+		"not owned": func(client.Object) bool { return false },
+		"nil owned": nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, c := newTestManager(t, legacy.DeepCopy())
+
+			_, _, err := EnsureV1(t.Context(), c, nil, ensureKey, owned, func(*ngrokv1.Domain) {
+				t.Fatal("defaults must not run while a legacy Domain exists")
+			})
+			require.ErrorIs(t, err, ErrLegacyDomainNotOwned)
+			assert.True(t, apierrors.IsNotFound(c.Get(t.Context(), ensureKey, &ngrokv1.Domain{})))
+		})
+	}
 }

@@ -5,11 +5,11 @@
 # Migrates ingress.k8s.ngrok.com/v1alpha1 Domains that have no ngrok.com/v1
 # twin (a v1 Domain with the same name and namespace) to ngrok.com/v1.
 #
-# The operator already does this for every Domain it uses, so what's left is
-# usually Domains you created yourself and no Ingress, Gateway or endpoint
-# refers to. Each v1 Domain is a copy of the legacy one: same name, namespace,
-# labels and spec. The operator hands it the legacy Domain's reservation, so
-# the reserved domain, its ID and its CNAME target don't change.
+# The operator already does this for the Domains it created, so what's left is
+# the Domains you created yourself (see specs/crd-group-migration.md). Each v1
+# Domain is a copy of the legacy one: same name, namespace, labels and spec.
+# The operator hands it the legacy Domain's reservation ID, so the reserved
+# domain, its ID and its CNAME target don't change.
 #
 # Usage:
 #   scripts/migrate-domains-to-ngrok-v1.sh                 # dry run: print what would be created

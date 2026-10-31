@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -773,10 +774,19 @@ func TestEnsureDomainExists_WildcardEndpointURL(t *testing.T) {
 
 // LEGACY-domain-kind: BEGIN — the tests below cover the migration window.
 
+// operatorLabels are the controller labels newTestManager's operator stamps.
+var operatorLabels = map[string]string{
+	labels.ControllerNamespace: "test-namespace",
+	labels.ControllerName:      "test-controller",
+}
+
+// createReadyLegacyDomain builds a ready legacy Domain created by the operator
+// (it carries the operator's controller labels).
 func createReadyLegacyDomain(name, namespace, domainName string) *ingressv1alpha1.Domain {
 	return &ingressv1alpha1.Domain{
 		Name:      name,
 		Namespace: namespace,
+		Labels:    maps.Clone(operatorLabels),
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain:     domainName,
 			ResolvesTo: []ingressv1alpha1.DomainResolvesToEntry{{Value: "eu"}},
@@ -854,11 +864,9 @@ func TestManager_EnsureDomainExists_NotReadyV1(t *testing.T) {
 func TestManager_EnsureDomainExists_MigrationBlockedKeepsLegacy(t *testing.T) {
 	legacy := createReadyLegacyDomain("example-com", "default", "example.com")
 	legacy.Spec.Metadata = commonv1alpha1.MetadataFromLegacyString("free text")
-	scheme := setupScheme()
-	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(legacy).Build()
+	manager, c := newTestManager(t, legacy)
 	recorder := events.NewFakeRecorder(10)
-	manager, err := NewManager(c, recorder)
-	require.NoError(t, err)
+	manager.Recorder = recorder
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
 
 	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
@@ -872,7 +880,27 @@ func TestManager_EnsureDomainExists_MigrationBlockedKeepsLegacy(t *testing.T) {
 	assert.Contains(t, <-recorder.Events, EventDomainMigrationBlocked)
 }
 
-func TestManager_EnsureDomainExists_KubernetesBinding_DeletesStaleDomainsOfBothKinds(t *testing.T) {
+// A legacy Domain a user created is theirs to re-stamp (it may carry their own
+// description or resolvesTo): no v1 copy, and the endpoint is served from it.
+func TestManager_EnsureDomainExists_UserLegacyDomainIsNotCopied(t *testing.T) {
+	legacy := createReadyLegacyDomain("example-com", "default", "example.com")
+	legacy.Labels = nil
+	manager, c := newTestManager(t, legacy)
+	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
+
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+	assert.True(t, result.IsReady)
+	assert.True(t, result.Domain.IsLegacy())
+	assertDomainRef(t, endpoint, "example-com", "default")
+
+	err = c.Get(t.Context(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &ngrokv1.Domain{})
+	assert.True(t, errors.IsNotFound(err), "the user re-stamps their own Domain")
+}
+
+// The stale-domain cleanup deletes the v1 Domain only: during the migration
+// the operator never deletes a legacy object (a rollback to 0.24 needs it).
+func TestManager_EnsureDomainExists_KubernetesBinding_DeletesOnlyTheV1Domain(t *testing.T) {
 	manager, c := newTestManager(t,
 		createReadyDomain("example-com", "default", "example.com"),
 		createReadyLegacyDomain("example-com", "default", "example.com"),
@@ -891,7 +919,7 @@ func TestManager_EnsureDomainExists_KubernetesBinding_DeletesStaleDomainsOfBothK
 
 	key := types.NamespacedName{Name: "example-com", Namespace: "default"}
 	assert.True(t, errors.IsNotFound(c.Get(t.Context(), key, &ngrokv1.Domain{})))
-	assert.True(t, errors.IsNotFound(c.Get(t.Context(), key, &ingressv1alpha1.Domain{})))
+	assert.NoError(t, c.Get(t.Context(), key, &ingressv1alpha1.Domain{}), "the legacy Domain is left in place")
 }
 
 // LEGACY-domain-kind: END

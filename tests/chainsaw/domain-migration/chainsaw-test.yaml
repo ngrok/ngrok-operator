@@ -7,8 +7,8 @@ metadata:
 spec:
   description: |
     Verifies the move from ingress.k8s.ngrok.com/v1alpha1 Domain to
-    ngrok.com/v1 Domain: an endpoint using an existing legacy Domain gets a
-    v1 copy of it, the copy takes over the same reservation, the legacy
+    ngrok.com/v1 Domain: an endpoint using an existing operator-created
+    legacy Domain gets a v1 copy of it, the copy takes over the same reservation, the legacy
     Domain is marked superseded, and deleting the legacy Domain keeps the
     reservation.
   bindings:

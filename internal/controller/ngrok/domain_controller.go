@@ -33,6 +33,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -67,14 +68,11 @@ const wildcardCoverageRecheckInterval = time.Hour
 //
 // LEGACY-domain-kind: delete at cleanup.
 const (
-	// EventDomainSupersededByV1 is recorded on a legacy Domain when its
-	// ngrok.com/v1 twin takes over the reservation.
-	EventDomainSupersededByV1 = "SupersededByV1"
 	// EventDomainReservationKept is recorded when deleting a Domain leaves the
 	// reservation in place because its twin still uses it.
 	EventDomainReservationKept = "ReservationKept"
 	// EventDomainTwinMismatch is recorded on both Domains of a namespace/name
-	// pair that name different hostnames.
+	// pair that name different hostnames, and so don't share a reservation.
 	EventDomainTwinMismatch = "DomainTwinMismatch"
 )
 
@@ -208,28 +206,37 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	// LEGACY-domain-kind: BEGIN
-	// A v1 and a legacy Domain that share a name but not a hostname hold
-	// unrelated reservations. Reconcile each as if the other didn't exist.
-	if canonical != nil && legacy != nil && !pair.Matched() {
+	// A v1 and a legacy Domain with the same namespace/name are twins even when
+	// they name different hostnames (the twin key is never the hostname; see
+	// specs/crd-group-migration.md rule 1). They still get one writer, but they
+	// don't share a reservation, so the v1 Domain doesn't adopt the legacy
+	// one's and deletes don't guard each other's.
+	if canonical != nil && legacy != nil && !pair.Matched() { // LEGACY-domain-kind: delete this block at cleanup.
 		r.warnTwinMismatch(canonical, legacy)
-		res1, err1 := r.reconcilePair(ctx, canonical, nil)
-		res2, err2 := r.reconcilePair(ctx, nil, legacy)
-		if err := errors.Join(err1, err2); err != nil {
-			return ctrl.Result{}, err
-		}
-		return earliest(res1, res2), nil
 	}
-	// LEGACY-domain-kind: END
 
 	return r.reconcilePair(ctx, canonical, legacy)
 }
 
-// reconcilePair runs one pass over a v1 Domain and its matched legacy twin
-// (same name and hostname, so they share one reservation). Either may be nil.
-// The pass has three steps: finish any deletes, sync the one writer, and
-// supersede the legacy twin once the v1 Domain has taken over.
+// reconcilePair runs one pass over a v1 Domain and its legacy twin (same
+// namespace/name). Either may be nil. The steps follow the twin rules in
+// specs/crd-group-migration.md: adopt the legacy ID, finish any deletes, sync
+// the one writer, and supersede the legacy twin once the v1 Domain has taken
+// over.
 func (r *DomainReconciler) reconcilePair(ctx context.Context, canonical, legacy domainpkg.Resource) (ctrl.Result, error) {
+	// 0. LEGACY-domain-kind: BEGIN
+	// Rule 3: a v1 Domain with no ID takes its legacy twin's reservation ID and
+	//    persists it before anything else, so a legacy delete in this same pass
+	//    already sees the v1 Domain holding the reservation. Skipped while
+	//    draining, which does delete work only.
+	if !basecontroller.IsDraining(ctx, r.DrainState) && canAdopt(canonical, legacy) {
+		canonical.Status().ID = legacy.Status().ID
+		if err := r.writeStatus(ctx, canonical, nil); err != nil {
+			return r.errResult(err)
+		}
+	}
+	// LEGACY-domain-kind: END
+
 	// 1. Deletes. Each one checks whether its twin still uses the
 	//    reservation, so the order only decides which delete releases it.
 	if isDeleting(canonical) {
@@ -249,9 +256,9 @@ func (r *DomainReconciler) reconcilePair(ctx context.Context, canonical, legacy 
 		return ctrl.Result{}, nil
 	}
 
-	// 2. The writer: v1 while it's alive, otherwise legacy. A v1 Domain
+	// 2. The writer (rule 4): v1 while it's alive, otherwise legacy. A v1 Domain
 	//    deleted while a legacy twin exists hands the reservation back to the
-	//    twin in this same pass.
+	//    twin in this same pass (rule 6).
 	var writer domainpkg.Resource
 	canonicalWrites := false
 	switch {
@@ -330,8 +337,8 @@ func (r *DomainReconciler) sync(ctx context.Context, domain domainpkg.Resource) 
 }
 
 // finalizeDelete handles a Domain that is being deleted: it releases the
-// reservation unless the twin still uses it, then removes the finalizer.
-// twin is the matched twin, or nil.
+// reservation unless its twin still holds it (rules 5 and 9), then removes the
+// finalizer. twin is the other kind's Domain at the same namespace/name, or nil.
 func (r *DomainReconciler) finalizeDelete(ctx context.Context, domain, twin domainpkg.Resource) error {
 	obj := domain.Object()
 	if !util.HasFinalizer(obj) {
@@ -349,19 +356,16 @@ func (r *DomainReconciler) finalizeDelete(ctx context.Context, domain, twin doma
 		// A twin without a finalizer (a legacy Domain created after its v1 twin
 		// took over) can vanish without this controller seeing its delete, so
 		// it only counts if the API server still has it.
-		case twin != nil && !isDeleting(twin) && util.HasFinalizer(twin.Object()):
+		case twin != nil && holdsReservation(twin, domain) && util.HasFinalizer(twin.Object()):
 			keptFor = humanKind(twin)
 		default:
 			// The two kinds come from separate informers, so the cache can be
 			// behind: a v1 Domain applied just before this legacy one was
 			// deleted may not be visible yet. Re-read right before the one
 			// irreversible step.
-			liveTwin, err := r.liveTwin(ctx, domain)
-			if err != nil {
+			var err error
+			if keptFor, err = r.liveTwinHolding(ctx, domain); err != nil {
 				return err
-			}
-			if liveTwin != nil {
-				keptFor = humanKind(liveTwin)
 			}
 		}
 		// LEGACY-domain-kind: END
@@ -396,34 +400,80 @@ func releasesReservation(domain domainpkg.Resource) bool {
 	return s.ID != "" && s.CoveredByWildcardDomain == nil && domain.ReclaimPolicy() == ngrokv1.DomainReclaimPolicyDelete
 }
 
-// liveTwin returns the other kind's Domain at domain's namespace/name, read
-// from the API server, if it is alive and names the same hostname.
+// liveTwinHolding reads the other kind's Domain at domain's namespace/name
+// straight from the API server and returns a description of it if it holds
+// domain's reservation, or "" if nothing does. It fails closed, per rule 5:
+//
+//   - NotFound, or the other kind isn't served (NoMatch): no twin.
+//   - Forbidden: treated as a twin, so the reservation is kept. On a rollback
+//     RBAC reverts before the CRDs do, so this happens in practice.
+//   - Any other error: returned, so the delete is retried.
 //
 // LEGACY-domain-kind: delete at cleanup.
-func (r *DomainReconciler) liveTwin(ctx context.Context, domain domainpkg.Resource) (domainpkg.Resource, error) {
-	pair, err := domainpkg.GetPair(ctx, r.APIReader, client.ObjectKeyFromObject(domain.Object()))
-	if err != nil {
-		return nil, err
-	}
+func (r *DomainReconciler) liveTwinHolding(ctx context.Context, domain domainpkg.Resource) (string, error) {
+	key := client.ObjectKeyFromObject(domain.Object())
 
 	// The twin is the other kind: for a legacy Domain, the v1 one, and the
-	// other way around. Only an alive twin naming the same hostname counts.
-	var twin domainpkg.Resource
-	switch {
-	case domain.IsLegacy() && pair.V1 != nil && domainpkg.IsAlive(pair.V1):
-		twin = domainpkg.FromV1(pair.V1)
-	case !domain.IsLegacy() && pair.Legacy != nil && domainpkg.IsAlive(pair.Legacy):
-		if twin, err = domainpkg.FromLegacy(pair.Legacy); err != nil {
-			return nil, err
-		}
-	default:
-		return nil, nil
+	// other way around.
+	var obj client.Object = &ingressv1alpha1.Domain{}
+	resource := "domains.ingress.k8s.ngrok.com"
+	if domain.IsLegacy() {
+		obj = &ngrokv1.Domain{}
+		resource = "domains.ngrok.com"
 	}
 
-	if util.NormalizeHostname(twin.Hostname()) != util.NormalizeHostname(domain.Hostname()) {
-		return nil, nil
+	err := r.APIReader.Get(ctx, key, obj)
+	switch {
+	case apierrors.IsNotFound(err) || meta.IsNoMatchError(err):
+		return "", nil
+	case apierrors.IsForbidden(err):
+		return fmt.Sprintf("%s %s (not readable, so assumed to exist)", resource, key), nil
+	case err != nil:
+		return "", err
 	}
-	return twin, nil
+
+	var twin domainpkg.Resource = nil
+	switch d := obj.(type) {
+	case *ngrokv1.Domain:
+		twin = domainpkg.FromV1(d)
+	case *ingressv1alpha1.Domain:
+		if twin, err = domainpkg.FromLegacy(d); err != nil {
+			return "", err
+		}
+	}
+	if !holdsReservation(twin, domain) {
+		return "", nil
+	}
+	return humanKind(twin), nil
+}
+
+// holdsReservation reports whether twin, the other kind's Domain at the same
+// namespace/name, still uses domain's reservation: it is alive and either has
+// the same reservation ID or names the same hostname. The hostname check
+// covers a v1 Domain that hasn't adopted the ID yet: the reservation is keyed
+// by hostname, so it would adopt that same reservation.
+//
+// LEGACY-domain-kind: delete at cleanup.
+func holdsReservation(twin, domain domainpkg.Resource) bool {
+	if isDeleting(twin) {
+		return false
+	}
+	if id := domain.Status().ID; id != "" && twin.Status().ID == id {
+		return true
+	}
+	return util.NormalizeHostname(twin.Hostname()) == util.NormalizeHostname(domain.Hostname())
+}
+
+// canAdopt reports whether the v1 Domain should take its legacy twin's
+// reservation ID (rule 3): v1 is alive with no reservation of its own, and the
+// legacy Domain holds one for the same hostname. A legacy Domain covered by a
+// wildcard has no ID to adopt; the v1 Domain's create() finds the wildcard.
+//
+// LEGACY-domain-kind: delete at cleanup.
+func canAdopt(canonical, legacy domainpkg.Resource) bool {
+	return canonical != nil && legacy != nil && !isDeleting(canonical) &&
+		!domainpkg.IsBacked(canonical) && legacy.Status().ID != "" &&
+		util.NormalizeHostname(canonical.Hostname()) == util.NormalizeHostname(legacy.Hostname())
 }
 
 // supersede marks a legacy Domain as superseded by its v1 twin. It makes no
@@ -451,15 +501,17 @@ func (r *DomainReconciler) supersede(ctx context.Context, legacy, canonical doma
 
 	switch {
 	case !alreadySuperseded:
-		r.Recorder.Eventf(obj, twin, v1.EventTypeNormal, EventDomainSupersededByV1, "Reconcile",
-			fmt.Sprintf("domains.ngrok.com %s/%s now manages this domain's reservation", twin.GetNamespace(), twin.GetName()))
+		r.Recorder.Eventf(obj, twin, v1.EventTypeWarning, trafficpolicypkg.EventDeprecatedAPIGroup, "Reconcile",
+			fmt.Sprintf("ingress.k8s.ngrok.com/v1alpha1 Domain is deprecated and superseded by domains.ngrok.com %s/%s; delete this object once that one is Ready",
+				twin.GetNamespace(), twin.GetName()))
 	case edited:
 		r.Recorder.Eventf(obj, twin, v1.EventTypeWarning, trafficpolicypkg.EventDeprecatedAPIGroup, "Reconcile",
 			fmt.Sprintf("ingress.k8s.ngrok.com/v1alpha1 Domain is deprecated and superseded by domains.ngrok.com %s/%s; this change has no effect, edit that object instead",
 				twin.GetNamespace(), twin.GetName()))
 	}
 
-	domainpkg.SetSupersededCondition(legacy, twin.GetNamespace(), twin.GetName())
+	sameHostname := util.NormalizeHostname(legacy.Hostname()) == util.NormalizeHostname(canonical.Hostname())
+	domainpkg.SetSupersededCondition(legacy, twin.GetNamespace(), twin.GetName(), sameHostname)
 	return r.writeStatus(ctx, legacy, nil)
 }
 
@@ -818,24 +870,6 @@ func humanKind(domain domainpkg.Resource) string {
 	}
 	obj := domain.Object()
 	return fmt.Sprintf("%s %s/%s", resource, obj.GetNamespace(), obj.GetName())
-}
-
-// earliest returns the result that asks to be requeued soonest.
-//
-// LEGACY-domain-kind: delete at cleanup.
-func earliest(a, b ctrl.Result) ctrl.Result {
-	switch {
-	case a.Requeue: //nolint:staticcheck
-		return a
-	case b.Requeue: //nolint:staticcheck
-		return b
-	case a.RequeueAfter == 0:
-		return b
-	case b.RequeueAfter == 0 || a.RequeueAfter < b.RequeueAfter:
-		return a
-	default:
-		return b
-	}
 }
 
 func buildResolvesToStatus(resolvesTo []ngrok.ReservedDomainResolvesToEntry) []ngrokv1.DomainResolvesToEntry {

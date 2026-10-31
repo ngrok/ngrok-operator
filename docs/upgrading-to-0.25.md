@@ -582,6 +582,19 @@ which 0.25 never deletes; 0.24 creates one for any hostname first seen under
 `ngrok.com/v1` Domains back up. Nothing touches a reserved domain in ngrok
 along the way.
 
+While rolled back, an `ngrok.com/v1` Domain is not reconciled: deleting one
+waits on its finalizer until you upgrade again. If you uninstall a
+rolled-back release, `domains.ngrok.com` and its objects stay behind. Remove
+the finalizers from those objects, then delete the CRD:
+
+```bash
+kubectl get domains.ngrok.com -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' |
+  while read -r ns name; do
+    kubectl patch domains.ngrok.com "$name" -n "$ns" --type=merge -p '{"metadata":{"finalizers":null}}'
+  done
+kubectl delete crd domains.ngrok.com
+```
+
 The backed-up values include `credentials.apiKey` and `credentials.authtoken`,
 so keep those credentials valid until the rollback window has closed. Do not
 revoke the old API key and authtoken until you are committed to 0.25.
@@ -683,36 +696,57 @@ check.
 `ngrok.com/v1` `Domain`. The kind keeps its name, and the spec is unchanged
 except that `spec.metadata` must be a map of strings.
 
-**Most Domains migrate themselves.** The operator creates an `ngrok.com/v1`
-Domain for every hostname it serves: Ingress and Gateway hosts, and the
-hostnames of AgentEndpoints and CloudEndpoints. When an
-`ingress.k8s.ngrok.com/v1alpha1` Domain already exists for that hostname, the
-new object is a copy of it: same name, namespace and spec, including a
-`resolvesTo`, `reclaimPolicy` or `description` you set. Labels and annotations
-are not copied; the new object gets the operator's own labels. The reserved domain in
-ngrok, its ID and its CNAME target don't change.
+**The operator migrates the Domains it created.** It creates an
+`ngrok.com/v1` Domain for every hostname it serves: Ingress and Gateway hosts,
+and the hostnames of AgentEndpoints and CloudEndpoints.
 
-Once the `ngrok.com/v1` Domain holds the reservation:
+- With no legacy Domain for the hostname, the new Domain gets the usual
+  defaults.
+- When the legacy Domain for the hostname is one the operator created (it
+  carries the operator's controller labels), the new Domain is a copy of its
+  spec. Labels and annotations are not copied; the new object gets the
+  operator's own labels.
+- When the legacy Domain is one you created, the operator leaves it alone and
+  keeps serving the hostname from it. You re-stamp it (below).
 
-- It manages the reservation. Its spec is pushed to ngrok.
+The `ngrok.com/v1` Domain takes over the legacy Domain's reservation ID, so the
+reserved domain in ngrok, its ID and its CNAME target don't change. From then
+on:
+
+- The `ngrok.com/v1` Domain manages the reservation. Its spec is pushed to
+  ngrok.
 - The legacy Domain stays `Ready`, with reason `SupersededByV1`. Its other
-  status fields stop updating. Changes to it have no effect; the operator emits
-  a `DeprecatedAPIGroup` warning event if you edit it.
+  status fields stop updating. The operator emits a `DeprecatedAPIGroup`
+  warning event when it takes over, and again if you edit the legacy Domain;
+  edits have no effect.
 - Deleting the legacy Domain leaves the reservation in place. Deleting the
   `ngrok.com/v1` Domain instead hands the reservation back to the legacy one.
   The reservation follows `reclaimPolicy` only when neither object remains.
 
 The operator never deletes a legacy Domain itself, and legacy Domains keep
-their finalizer until they are deleted.
+their finalizer in 0.25. 1.0 removes it; see
+[Prepare for later cleanup releases](#prepare-for-later-cleanup-releases).
 
-**You migrate the Domains you created yourself** that no Ingress, Gateway or
-endpoint uses, because the operator has no reason to touch them. They keep
-working as before until you do. `kubectl apply` of a legacy Domain prints a
-deprecation warning.
+**You migrate the Domains you created yourself.** They keep working as before
+until you do. `kubectl apply` of a legacy Domain prints a deprecation warning.
+Change `apiVersion` to `ngrok.com/v1`, apply it, wait until it is `Ready` with
+the legacy Domain's `status.id`, then delete the legacy one:
+
+```bash
+kubectl get domains.ngrok.com my-domain -n my-namespace
+kubectl get domains.ingress.k8s.ngrok.com my-domain -n my-namespace
+kubectl delete domains.ingress.k8s.ngrok.com my-domain -n my-namespace
+```
+
+If you delete a legacy Domain without creating an `ngrok.com/v1` one, and an
+Ingress, Gateway or endpoint still uses its hostname, the operator creates a
+default `ngrok.com/v1` Domain for it, which takes over the same reservation.
+Re-stamp instead if you set a `description`, `resolvesTo` or `reclaimPolicy`
+you want to keep.
 
 [`scripts/migrate-domains-to-ngrok-v1.sh`](../scripts/migrate-domains-to-ngrok-v1.sh)
-finds every legacy Domain without an `ngrok.com/v1` twin and creates the copy,
-the same way the operator does. It needs `kubectl` and `jq`:
+does this in bulk for every legacy Domain without an `ngrok.com/v1` twin. It
+needs `kubectl` and `jq`:
 
 ```bash
 ./migrate-domains-to-ngrok-v1.sh                  # dry run: print the Domains it would create
@@ -721,15 +755,7 @@ the same way the operator does. It needs `kubectl` and `jq`:
                                                   # Ready and holds the same reservation
 ```
 
-`--namespace` limits it to one namespace. To migrate one Domain by hand,
-change `apiVersion` to `ngrok.com/v1`, apply it, wait until it is `Ready` with
-the legacy Domain's `status.id`, then delete the legacy one:
-
-```bash
-kubectl get domains.ngrok.com my-domain -n my-namespace
-kubectl get domains.ingress.k8s.ngrok.com my-domain -n my-namespace
-kubectl delete domains.ingress.k8s.ngrok.com my-domain -n my-namespace
-```
+`--namespace` limits it to one namespace.
 
 `ngrok.com/v1` `Domain` accepts `spec.metadata` only as a map of string values;
 the deprecated JSON-string form is rejected. The script and the operator
@@ -740,14 +766,11 @@ warning event on the endpoint, and the script reports it. Change its metadata
 to a map of strings to migrate it.
 
 If you manage Domains with GitOps, change `apiVersion` (and any string-form
-`metadata`) in the source manifest instead. If the operator already created
-the `ngrok.com/v1` copy, applying your manifest updates it. Let your tool
-create or update the new object and confirm it is `Ready` before it prunes the
-old one. Until you do, edits to the legacy manifest have no effect once the
-copy exists.
+`metadata`) in the source manifest instead. Let your tool create the new
+object and confirm it is `Ready` before it prunes the old one.
 
-Both CRDs use the plural `domains`, so `kubectl get domains` shows only one of
-the two kinds, without saying which. Use the fully qualified names
+Both CRDs use the plural `domains`, and while both exist `kubectl get domains`
+shows the legacy `ingress.k8s.ngrok.com` kind. Use the fully qualified names
 `domains.ngrok.com` and `domains.ingress.k8s.ngrok.com`.
 
 ## Prepare for later cleanup releases
@@ -758,7 +781,7 @@ migrations before their cleanup releases:
 | Migration | 0.25 behavior | Future requirement |
 | --- | --- | --- |
 | `NgrokTrafficPolicy` kind | Serves both CRDs; prefers `TrafficPolicy` | Migrate to `ngrok.com/v1` `TrafficPolicy` before the cleanup release removes the `ngroktrafficpolicies.ngrok.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
-| `ingress.k8s.ngrok.com/v1alpha1` `Domain` | Serves both CRDs; the operator creates and prefers `ngrok.com/v1` Domains | Give every legacy Domain an `ngrok.com/v1` twin, then delete the legacy Domains (`migrate-domains-to-ngrok-v1.sh --apply`, then `--delete-legacy`) before the cleanup release removes the `domains.ingress.k8s.ngrok.com` CRD. Legacy Domains keep their finalizer, so any left behind block that CRD's deletion |
+| `ingress.k8s.ngrok.com/v1alpha1` `Domain` | Serves both CRDs; the operator creates and prefers `ngrok.com/v1` Domains, and migrates the ones it created | Re-stamp the Domains you created (`migrate-domains-to-ngrok-v1.sh`) before 1.1. 1.0 stops reconciling legacy Domains and removes their finalizers; a legacy Domain with no `ngrok.com/v1` twin keeps its reservation in ngrok, unmanaged, until you re-stamp it. 1.1 removes the `domains.ingress.k8s.ngrok.com` CRD. Upgrade through both 0.25 and 1.0; see [CRD Group Migration](../specs/crd-group-migration.md#release-plan) |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
 | Operator-written labels, annotations, and finalizer | Writes new prefix only; still reads legacy | None. The next release stops reading the legacy prefix, so upgrade through 0.25 rather than skipping it |

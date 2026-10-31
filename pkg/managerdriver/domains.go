@@ -100,13 +100,18 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 			// can't do that (it knows nothing about the legacy kind), so EnsureV1
 			// creates the object first, with the same defaults CreateOrPatch would
 			// set; CreateOrPatch then only patches it.
-			_, _, err := domainpkg.EnsureV1(ctx, c, d.apiReader, client.ObjectKeyFromObject(domain), func(n *ngrokv1.Domain) {
+			_, _, err := domainpkg.EnsureV1(ctx, c, d.apiReader, client.ObjectKeyFromObject(domain), d.controllerLabels.HasLabels, func(n *ngrokv1.Domain) {
 				n.Spec.Domain = desiredDomain.Spec.Domain
 				if d.defaultDomainReclaimPolicy != nil {
 					n.Spec.ReclaimPolicy = *d.defaultDomainReclaimPolicy
 				}
 				d.controllerLabels.EnsureLabels(n)
 			})
+			if errors.Is(err, domainpkg.ErrLegacyDomainNotOwned) {
+				// A user's legacy Domain: they re-stamp it, and it keeps serving
+				// this hostname until then. Leave it alone.
+				return nil
+			}
 			if errors.Is(err, domainpkg.ErrMigrationBlocked) {
 				// The legacy Domain keeps serving this hostname until it is
 				// re-created as ngrok.com/v1 by hand.

@@ -106,14 +106,22 @@ func convertJSON(src, dst any) error {
 // the v1 map type can't hold.
 var ErrMigrationBlocked = errors.New("legacy Domain cannot be migrated to ngrok.com/v1 automatically")
 
+// ErrLegacyDomainNotOwned is returned by EnsureV1 when a legacy Domain at the
+// key was created by a user rather than the operator. The user re-stamps it as
+// ngrok.com/v1; until then the legacy Domain keeps serving.
+var ErrLegacyDomainNotOwned = errors.New("legacy Domain was not created by the operator; re-create it as ngrok.com/v1 to migrate it")
+
 // copyOfLegacy returns the v1 copy of the legacy Domain at key, or nil if there
 // is none. It reads through r, which should bypass the cache: missing a legacy
 // Domain here means EnsureV1 creates a defaults-only v1 Domain that would then
 // overwrite the legacy Domain's settings on the shared reservation.
-func copyOfLegacy(ctx context.Context, r client.Reader, key client.ObjectKey) (*ngrokv1.Domain, error) {
+func copyOfLegacy(ctx context.Context, r client.Reader, key client.ObjectKey, owned func(client.Object) bool) (*ngrokv1.Domain, error) {
 	legacy := &ingressv1alpha1.Domain{}
 	if err := r.Get(ctx, key, legacy); err != nil {
 		return nil, client.IgnoreNotFound(err)
+	}
+	if owned == nil || !owned(legacy) {
+		return nil, fmt.Errorf("%w: %s/%s", ErrLegacyDomainNotOwned, legacy.Namespace, legacy.Name)
 	}
 	return V1FromLegacy(legacy)
 }
