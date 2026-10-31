@@ -50,6 +50,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ippolicy"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
+	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
@@ -266,7 +267,7 @@ func TestIPPolicyPair_V1AdoptsLegacyID(t *testing.T) {
 	assert.Equal(t, ippolicy.ReasonIPPolicyActive, readyReason(t, v1))
 	assert.Equal(t, ippolicy.ReasonSupersededByV1, readyReason(t, legacy))
 	assert.Equal(t, 1, remoteCount(t, policies), "adoption must not create a second remote policy")
-	assert.True(t, emitted(env.recorder, EventIPPolicyAdopted))
+	assert.True(t, emitted(env.recorder, trafficpolicy.EventDeprecatedAPIGroup), "a legacy object going passive gets a DeprecatedAPIGroup event")
 
 	remotePolicy, err := policies.Get(t.Context(), id)
 	require.NoError(t, err)
@@ -320,6 +321,13 @@ func TestIPPolicyPair_DifferentIDsAreLeftAlone(t *testing.T) {
 	assert.True(t, remoteExists(t, policies, v1ID))
 	assert.True(t, remoteExists(t, policies, legacyID))
 	assert.True(t, emitted(env.recorder, EventIPPolicyIDConflict))
+
+	// Rule 4: v1 is the only writer, even when the legacy twin holds its own ID.
+	legacy := get(t, env.kube, &ingressv1alpha1.IPPolicy{})
+	assert.Equal(t, ippolicy.ReasonSupersededByV1, readyReason(t, legacy))
+	legacyRemote, err := policies.Get(t.Context(), legacyID)
+	require.NoError(t, err)
+	assert.Equal(t, "pair", legacyRemote.Description, "the legacy twin's remote must not be written while v1 is alive")
 }
 
 func TestIPPolicyPair_DeletingLegacyKeepsAdoptedRemote(t *testing.T) {
@@ -446,4 +454,80 @@ func TestIPPolicyPair_RemoteDeletedOutOfBandIsRecreatedOnce(t *testing.T) {
 	assert.NotEqual(t, id, v1.GetID())
 	assert.Equal(t, 1, remoteCount(t, policies))
 	assert.Equal(t, ippolicy.ReasonSupersededByV1, readyReason(t, get(t, env.kube, &ingressv1alpha1.IPPolicy{})))
+}
+
+// liveReaderReturning is an API reader whose Get of the twin's kind fails
+// with err, for exercising how liveTwinCheck interprets errors.
+func liveReaderReturning(t *testing.T, err error) client.Reader {
+	t.Helper()
+	return fake.NewClientBuilder().WithScheme(pairScheme(t)).WithInterceptorFuncs(interceptor.Funcs{
+		Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+			return err
+		},
+	}).Build()
+}
+
+func TestIPPolicyPair_LiveTwinHoldingIDKeepsRemote(t *testing.T) {
+	policies := nmockapi.NewIPPolicyClient()
+	id := remote(t, policies)
+	// The cache hasn't seen the v1 twin, which already holds the ID.
+	live := fake.NewClientBuilder().WithScheme(pairScheme(t)).WithObjects(v1Obj(withID(id))).Build()
+	env := newPairEnv(t, policies, []client.Object{legacyObj(withID(id), deleting())}, withAPIReader(live))
+
+	res, err := env.reconcile(t)
+	require.NoError(t, err)
+	assert.Zero(t, res.RequeueAfter)
+	assert.True(t, remoteExists(t, policies, id))
+	assert.Nil(t, get(t, env.kube, &ingressv1alpha1.IPPolicy{}), "rule 9: the legacy finalizer is released without an ngrok call")
+}
+
+func TestIPPolicyPair_ForbiddenTwinReadKeepsRemote(t *testing.T) {
+	policies := nmockapi.NewIPPolicyClient()
+	id := remote(t, policies)
+	forbidden := apierrors.NewForbidden(ngrokv1.GroupVersion.WithResource("ippolicies").GroupResource(), "pair", errors.New("rbac"))
+	env := newPairEnv(t, policies, []client.Object{legacyObj(withID(id), deleting())}, withAPIReader(liveReaderReturning(t, forbidden)))
+
+	_, err := env.reconcile(t)
+	require.NoError(t, err)
+	assert.True(t, remoteExists(t, policies, id), "Forbidden means the twin may exist: fail closed")
+	assert.Nil(t, get(t, env.kube, &ingressv1alpha1.IPPolicy{}))
+}
+
+func TestIPPolicyPair_UnservedTwinKindDeletesRemote(t *testing.T) {
+	policies := nmockapi.NewIPPolicyClient()
+	id := remote(t, policies)
+	noMatch := &meta.NoKindMatchError{GroupKind: ingressv1alpha1.GroupVersion.WithKind("IPPolicy").GroupKind()}
+	env := newPairEnv(t, policies, []client.Object{v1Obj(withID(id), deleting())}, withAPIReader(liveReaderReturning(t, noMatch)))
+
+	_, err := env.reconcile(t)
+	require.NoError(t, err)
+	assert.False(t, remoteExists(t, policies, id), "NoMatch means there is no twin")
+	assert.Nil(t, get(t, env.kube, &ngrokv1.IPPolicy{}))
+}
+
+func TestIPPolicyPair_TwinReadErrorRequeues(t *testing.T) {
+	policies := nmockapi.NewIPPolicyClient()
+	id := remote(t, policies)
+	env := newPairEnv(t, policies, []client.Object{legacyObj(withID(id), deleting())}, withAPIReader(liveReaderReturning(t, errors.New("connection refused"))))
+
+	_, err := env.reconcile(t)
+	require.Error(t, err)
+	assert.True(t, remoteExists(t, policies, id))
+	assert.NotNil(t, get(t, env.kube, &ingressv1alpha1.IPPolicy{}), "the finalizer stays until the twin can be read")
+}
+
+func TestIPPolicyPair_DeletingV1WithIDlessLegacyDoesNotWait(t *testing.T) {
+	policies := nmockapi.NewIPPolicyClient()
+	id := remote(t, policies)
+	// Fresh-twins case: v1 created the remote, the legacy twin never had an ID.
+	env := newPairEnv(t, policies, []client.Object{v1Obj(withID(id), deleting()), legacyObj(finalized())})
+
+	res, err := env.reconcile(t)
+	require.NoError(t, err)
+	assert.Zero(t, res.RequeueAfter, "a legacy twin can't adopt, so there is nothing to wait for")
+	assert.Nil(t, get(t, env.kube, &ngrokv1.IPPolicy{}))
+	assert.False(t, remoteExists(t, policies, id))
+	legacy := get(t, env.kube, &ingressv1alpha1.IPPolicy{})
+	assert.NotEmpty(t, legacy.GetID(), "rule 6: legacy is the writer again")
+	assert.Equal(t, ippolicy.ReasonIPPolicyActive, readyReason(t, legacy))
 }

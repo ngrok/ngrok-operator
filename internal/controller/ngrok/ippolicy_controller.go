@@ -33,6 +33,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
@@ -72,17 +74,19 @@ const (
 // controller-runtime never reconciles a pair concurrently, and every twin
 // decision is made in one sequential pass.
 //
-// Invariants:
+// This implements the twin rules in specs/crd-group-migration.md. In short:
 //  1. A remote IP policy is deleted only when no surviving object (one that
-//     exists and isn't being deleted) holds its ID.
-//  2. Exactly one object writes to a given remote ID: the v1 object if it is
-//     alive and holds the ID, otherwise the legacy one.
-//  3. An adopted ID is persisted on the v1 object before the legacy object's
-//     finalizer can be released.
+//     exists and isn't being deleted) holds its ID, and the check fails
+//     closed (see liveTwinCheck).
+//  2. While a v1 object is alive, it is the only writer. The legacy twin is
+//     passive and makes no ngrok API calls, even if it holds a different ID.
+//  3. An adopted ID is persisted on the v1 object before any other step, so
+//     before the legacy object's finalizer can be released.
 //
-// LEGACY-ippolicy-kind: at cleanup, drop the legacy watch, the legacy half of
-// ipPolicyPair, and the adopt/passive/shared-ID branches; what remains is a
-// single-object reconcile.
+// LEGACY-ippolicy-kind: in 1.0 (R2 in specs/crd-group-migration.md), drop the
+// legacy watch, the legacy half of ipPolicyPair, and the adopt/passive/
+// shared-ID branches; what remains is a single-object reconcile, plus R2's
+// one-way late adoption of a legacy ID.
 type IPPolicyReconciler struct {
 	client.Client
 
@@ -172,14 +176,14 @@ func (r *IPPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	if !draining {
+		if err := r.adopt(ctx, pair); err != nil {
+			return controller.CtrlResultForErr(err)
+		}
+
 		for _, p := range pair.surviving() {
 			if err := util.RegisterAndSyncFinalizer(ctx, r.Client, p); err != nil {
 				return ctrl.Result{}, err
 			}
-		}
-
-		if err := r.adopt(ctx, pair); err != nil {
-			return controller.CtrlResultForErr(err)
 		}
 	}
 
@@ -226,13 +230,20 @@ func (r *IPPolicyReconciler) processDeletes(ctx context.Context, pair *ipPolicyP
 		}
 
 		if id := p.GetID(); id != "" && !deletedIDs[id] && !pair.survivorHolds(id) {
-			blocked, err := r.liveTwinBlocksDelete(ctx, p, draining)
+			decision, err := r.liveTwinCheck(ctx, p, draining)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			if blocked {
-				log.Info("A twin the cache hasn't seen yet may still need this remote policy; requeueing before deleting it", "id", id)
+			switch decision {
+			case waitForTwin:
+				log.Info("A v1 twin the cache hasn't seen yet may still adopt this remote policy; requeueing before deleting it", "id", id)
 				return ctrl.Result{RequeueAfter: time.Second}, nil
+			case keepRemote:
+				log.Info("A live twin holds, or may hold, this remote policy; releasing the finalizer without deleting it", "id", id)
+				if err := util.RemoveAndSyncFinalizer(ctx, r.Client, p); err != nil {
+					return ctrl.Result{}, err
+				}
+				continue
 			}
 
 			r.Recorder.Eventf(p, nil, corev1.EventTypeNormal, "Deleting", "Delete", "Deleting remote IP policy %s", id)
@@ -251,26 +262,58 @@ func (r *IPPolicyReconciler) processDeletes(ctx context.Context, pair *ipPolicyP
 	return ctrl.Result{}, nil
 }
 
-// liveTwinBlocksDelete re-reads p's twin from the API server, bypassing the
-// cache. The two kinds come from separate informers, so a pass triggered by
-// the legacy delete can run before the v1 create reaches the cache. Deleting
-// the remote then would strand the v1 twin, so if the live twin holds the ID,
-// or (outside a drain) is alive and could still adopt it, the delete waits.
-func (r *IPPolicyReconciler) liveTwinBlocksDelete(ctx context.Context, p ippolicy.IPPolicyResource, draining bool) (bool, error) {
+// twinDecision is the outcome of re-reading a twin before a remote delete.
+type twinDecision int
+
+const (
+	// deleteRemote: no live twin holds the ID.
+	deleteRemote twinDecision = iota
+	// keepRemote: a live twin holds the ID, or might (the read was
+	// Forbidden). Release the finalizer without an ngrok call.
+	keepRemote
+	// waitForTwin: a live v1 twin has no ID yet and may still adopt this one.
+	waitForTwin
+)
+
+// liveTwinCheck re-reads p's twin from the API server, bypassing the cache,
+// right before the one irreversible step. The two kinds come from separate
+// informers, so the cache can be stale. The read is interpreted strictly
+// (fail closed):
+//   - NotFound, or the twin's kind isn't served (NoMatch): no twin.
+//   - Forbidden: treat the twin as present. On rollback, RBAC reverts before
+//     the CRDs do, so this happens in practice.
+//   - Any other error: returned, so the pass requeues.
+func (r *IPPolicyReconciler) liveTwinCheck(ctx context.Context, p ippolicy.IPPolicyResource, draining bool) (twinDecision, error) {
 	var twin ippolicy.IPPolicyResource
-	switch p.(type) {
-	case *ngrokv1.IPPolicy:
-		twin = &ingressv1alpha1.IPPolicy{}
-	default:
+	_, deletingLegacy := p.(*ingressv1alpha1.IPPolicy)
+	if deletingLegacy {
 		twin = &ngrokv1.IPPolicy{}
+	} else {
+		twin = &ingressv1alpha1.IPPolicy{}
 	}
-	if err := r.APIReader.Get(ctx, client.ObjectKeyFromObject(p), twin); err != nil {
-		return false, client.IgnoreNotFound(err)
+
+	err := r.APIReader.Get(ctx, client.ObjectKeyFromObject(p), twin)
+	switch {
+	case apierrors.IsNotFound(err), meta.IsNoMatchError(err):
+		return deleteRemote, nil
+	case apierrors.IsForbidden(err):
+		return keepRemote, nil
+	case err != nil:
+		return deleteRemote, fmt.Errorf("re-reading the twin of %s before deleting its remote IP policy: %w", p.GetName(), err)
 	}
+
 	if controller.IsDelete(twin) {
-		return false, nil
+		return deleteRemote, nil
 	}
-	return twin.GetID() == p.GetID() || (twin.GetID() == "" && !draining), nil
+	if twin.GetID() == p.GetID() {
+		return keepRemote, nil
+	}
+	// Only a v1 twin can adopt, so only a legacy delete waits for one. Never
+	// wait while draining: drain doesn't adopt.
+	if deletingLegacy && twin.GetID() == "" && !draining {
+		return waitForTwin, nil
+	}
+	return deleteRemote, nil
 }
 
 // syncSurvivors pushes the spec of each surviving writer to the ngrok API
@@ -302,19 +345,20 @@ func (r *IPPolicyReconciler) syncSurvivors(ctx context.Context, pair *ipPolicyPa
 		return ctrl.Result{}, nil
 	}
 
-	// LEGACY-ippolicy-kind: delete this switch at cleanup.
-	switch {
-	case v1 != nil && (legacy.GetID() == "" || legacy.GetID() == v1.GetID()):
+	// LEGACY-ippolicy-kind: delete this block at cleanup.
+	if v1 != nil {
+		if legacy.GetID() != "" && legacy.GetID() != v1.GetID() {
+			// Both twins hold different IDs, e.g. v1 got its own remote policy
+			// before adoption existed. Either ID may be referenced by traffic
+			// policies, so neither remote is deleted. v1 is still the only
+			// writer, so the legacy one is left unmanaged until a twin is deleted.
+			msg := fmt.Sprintf("ngrok.com/v1 IPPolicy %s and ingress.k8s.ngrok.com/v1alpha1 IPPolicy %s hold different remote IP policies (%s and %s). Only %s is managed; neither is deleted automatically. Delete the object whose IP policy you no longer need.",
+				v1.GetName(), legacy.GetName(), v1.GetID(), legacy.GetID(), v1.GetID())
+			r.Recorder.Eventf(v1, legacy, corev1.EventTypeWarning, EventIPPolicyIDConflict, "Reconcile", msg)
+			r.Recorder.Eventf(legacy, v1, corev1.EventTypeWarning, EventIPPolicyIDConflict, "Reconcile", msg)
+		}
 		r.setPassive(legacy, v1)
 		return controller.CtrlResultForErr(r.writeStatus(ctx, legacy, nil))
-	case v1 != nil:
-		// Both twins hold different IDs, e.g. v1 got its own remote policy
-		// before adoption existed. Either ID may be referenced by traffic
-		// policies, so neither is touched; both stay writers on their own ID.
-		msg := fmt.Sprintf("ngrok.com/v1 IPPolicy %s and ingress.k8s.ngrok.com/v1alpha1 IPPolicy %s manage different remote IP policies (%s and %s). Neither is changed automatically; delete the one you no longer need.",
-			v1.GetName(), legacy.GetName(), v1.GetID(), legacy.GetID())
-		r.Recorder.Eventf(v1, legacy, corev1.EventTypeWarning, EventIPPolicyIDConflict, "Reconcile", msg)
-		r.Recorder.Eventf(legacy, v1, corev1.EventTypeWarning, EventIPPolicyIDConflict, "Reconcile", msg)
 	}
 
 	return controller.CtrlResultForErr(r.writeStatus(ctx, legacy, r.syncer.Sync(ctx, legacy)))
@@ -326,11 +370,14 @@ func (r *IPPolicyReconciler) syncSurvivors(ctx context.Context, pair *ipPolicyPa
 //
 // LEGACY-ippolicy-kind: delete at cleanup.
 func (r *IPPolicyReconciler) setPassive(legacy *ingressv1alpha1.IPPolicy, v1 *ngrokv1.IPPolicy) {
+	ready := meta.FindStatusCondition(legacy.Status.Conditions, ippolicy.ConditionIPPolicyReady)
+	becomingPassive := ready == nil || ready.Reason != ippolicy.ReasonSupersededByV1
+
 	ippolicy.SetReadyCondition(legacy, true, ippolicy.ReasonSupersededByV1, fmt.Sprintf(
 		"Superseded by ippolicies.ngrok.com %s/%s, which now manages this IP policy. Changes to this object have no effect; delete it once you've migrated.",
 		v1.GetNamespace(), v1.GetName()))
 
-	if legacy.GetGeneration() != legacy.GetObservedGeneration() {
+	if becomingPassive || legacy.GetGeneration() != legacy.GetObservedGeneration() {
 		r.Recorder.Eventf(legacy, v1, corev1.EventTypeWarning, trafficpolicy.EventDeprecatedAPIGroup, "Reconcile",
 			"ingress.k8s.ngrok.com/v1alpha1 IPPolicy is deprecated and superseded by ippolicies.ngrok.com %s; edit that object instead",
 			v1.GetName())
