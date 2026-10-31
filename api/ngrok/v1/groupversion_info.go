@@ -57,6 +57,8 @@ func addKnownTypes(s *runtime.Scheme) error {
 		&TrafficPolicyList{},
 		&PrivateEndpoint{},
 		&PrivateEndpointList{},
+		&Domain{},
+		&DomainList{},
 	)
 	metav1.AddToGroupVersion(s, GroupVersion)
 	return nil

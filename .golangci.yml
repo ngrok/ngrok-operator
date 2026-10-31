@@ -71,6 +71,13 @@ linters:
       - linters:
           - staticcheck
         text: 'SA1019: .*\bNgrokTrafficPolicy is deprecated'
+      # LEGACY-domain-kind: delete this exclusion at cleanup. Same reasoning
+      # as the NgrokTrafficPolicy rule above: the operator serves the
+      # deprecated ingress.k8s.ngrok.com/v1alpha1 Domain for the migration
+      # window. Matches only the Domain type itself, not DomainList/DomainSpec.
+      - linters:
+          - staticcheck
+        text: 'SA1019: .*\bDomain is deprecated'
     paths:
       - third_party$
       - builtin$

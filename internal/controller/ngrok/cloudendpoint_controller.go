@@ -65,7 +65,7 @@ type CloudEndpointReconciler struct {
 	DrainState     controller.DrainState
 
 	ControllerLabels           labels.ControllerLabelValues
-	DefaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+	DefaultDomainReclaimPolicy *ngrokv1.DomainReclaimPolicy
 	DomainManager              *domainpkg.Manager
 	TrafficPolicyManager       *trafficpolicypkg.Manager
 }
@@ -85,6 +85,7 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 		opts := []domainpkg.ManagerOption{
 			domainpkg.WithControllerLabels(r.ControllerLabels),
+			domainpkg.WithAPIReader(mgr.GetAPIReader()),
 		}
 
 		if r.DefaultDomainReclaimPolicy != nil {
@@ -173,6 +174,11 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&ngrokv1.TrafficPolicy{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointForTrafficPolicy),
 		).
+		Watches(
+			&ngrokv1.Domain{},
+			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointsForDomain),
+		).
+		// LEGACY-domain-kind: delete this Watches call at cleanup.
 		Watches(
 			&ingressv1alpha1.Domain{},
 			r.controller.NewEnqueueRequestForMapFunc(r.findCloudEndpointsForDomain),
@@ -376,14 +382,13 @@ func (r *CloudEndpointReconciler) findCloudEndpointForTrafficPolicy(ctx context.
 }
 
 // findCloudEndpointsForDomain searches for any CloudEndpoint CRs that reference a particular Domain
-func (r *CloudEndpointReconciler) findCloudEndpointsForDomain(ctx context.Context, o client.Object) []ctrl.Request {
-	domain, ok := o.(*ingressv1alpha1.Domain)
-	if !ok {
+func (r *CloudEndpointReconciler) findCloudEndpointsForDomain(ctx context.Context, domain client.Object) []ctrl.Request {
+	if _, ok := domainpkg.HostnameOf(domain); !ok {
 		return nil
 	}
 
 	var endpoints ngrokv1alpha1.CloudEndpointList
-	if err := r.Client.List(ctx, &endpoints, client.InNamespace(domain.Namespace)); err != nil {
+	if err := r.Client.List(ctx, &endpoints, client.InNamespace(domain.GetNamespace())); err != nil {
 		return nil
 	}
 

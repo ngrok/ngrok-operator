@@ -1,0 +1,8 @@
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: dom-migrate
+spec:
+  url: (join('', ['https://dom-migrate', $ngrokDomainSuffix]))
+  upstream:
+    url: "http://nginx.default:80"

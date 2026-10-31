@@ -13,7 +13,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 )
@@ -23,7 +25,8 @@ import (
 func setupScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	_ = ngrokv1alpha1.AddToScheme(scheme)
-	_ = ingressv1alpha1.AddToScheme(scheme)
+	_ = ingressv1alpha1.AddToScheme(scheme) // LEGACY-domain-kind: delete at cleanup.
+	_ = ngrokv1.AddToScheme(scheme)
 	return scheme
 }
 
@@ -65,14 +68,14 @@ func createTestEndpoint(name, namespace, url string) *ngrokv1alpha1.AgentEndpoin
 	}
 }
 
-func createReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Domain {
-	return &ingressv1alpha1.Domain{
+func createReadyDomain(name, namespace, domainName string) *ngrokv1.Domain {
+	return &ngrokv1.Domain{
 		Name:      name,
 		Namespace: namespace,
-		Spec: ingressv1alpha1.DomainSpec{
+		Spec: ngrokv1.DomainSpec{
 			Domain: domainName,
 		},
-		Status: ingressv1alpha1.DomainStatus{
+		Status: ngrokv1.DomainStatus{
 			ID: "domain-123",
 			Conditions: []metav1.Condition{
 				{
@@ -89,17 +92,17 @@ func createReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Doma
 // createWildcardCoveredDomain builds a Domain whose ngrok reservation was
 // skipped because a wildcard parent already covers it: status.ID is empty on
 // purpose, and coveredByWildcardDomain names the covering wildcard.
-func createWildcardCoveredDomain(name, namespace, domainName, wildcard string) *ingressv1alpha1.Domain {
-	return &ingressv1alpha1.Domain{
+func createWildcardCoveredDomain(name, namespace, domainName, wildcard string) *ngrokv1.Domain {
+	return &ngrokv1.Domain{
 		Name:      name,
 		Namespace: namespace,
-		Spec: ingressv1alpha1.DomainSpec{
+		Spec: ngrokv1.DomainSpec{
 			Domain: domainName,
 		},
-		Status: ingressv1alpha1.DomainStatus{
+		Status: ngrokv1.DomainStatus{
 			ID:                      "",
 			Domain:                  domainName,
-			CoveredByWildcardDomain: &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard},
+			CoveredByWildcardDomain: &ngrokv1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard},
 			Conditions: []metav1.Condition{
 				{
 					Type:    "Ready",
@@ -112,14 +115,14 @@ func createWildcardCoveredDomain(name, namespace, domainName, wildcard string) *
 	}
 }
 
-func createNotReadyDomain(name, namespace, domainName string) *ingressv1alpha1.Domain {
-	return &ingressv1alpha1.Domain{
+func createNotReadyDomain(name, namespace, domainName string) *ngrokv1.Domain {
+	return &ngrokv1.Domain{
 		Name:      name,
 		Namespace: namespace,
-		Spec: ingressv1alpha1.DomainSpec{
+		Spec: ngrokv1.DomainSpec{
 			Domain: domainName,
 		},
-		Status: ingressv1alpha1.DomainStatus{
+		Status: ngrokv1.DomainStatus{
 			Conditions: []metav1.Condition{
 				{
 					Type:    "Ready",
@@ -164,14 +167,14 @@ func assertNoDomainRef(t *testing.T, ep ngrokv1alpha1.EndpointWithDomain) {
 
 func assertNoDomainCreated(t *testing.T, c client.Client) {
 	t.Helper()
-	var domains ingressv1alpha1.DomainList
+	var domains ngrokv1.DomainList
 	require.NoError(t, c.List(t.Context(), &domains))
 	assert.Empty(t, domains.Items)
 }
 
 func assertDomainLabels(t *testing.T, c client.Client, name, namespace string, expectedLabels map[string]string) {
 	t.Helper()
-	var domain ingressv1alpha1.Domain
+	var domain ngrokv1.Domain
 	require.NoError(t, c.Get(t.Context(), types.NamespacedName{Name: name, Namespace: namespace}, &domain))
 	assert.Equal(t, expectedLabels, domain.GetLabels())
 }
@@ -267,7 +270,7 @@ func TestManager_EnsureDomainExists_ExistingDomainReady(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, result.IsReady)
-	assert.Equal(t, existingDomain.Name, result.Domain.Name)
+	assert.Equal(t, existingDomain.Name, result.Domain.Object().GetName())
 	assertDomainRef(t, endpoint, "example-com", "default")
 	assertDomainCondition(t, endpoint, metav1.ConditionTrue, "")
 }
@@ -282,19 +285,19 @@ func TestManager_EnsureDomainExists_ExistingDomainNotReady(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.False(t, result.IsReady)
-	assert.Equal(t, existingDomain.Name, result.Domain.Name)
+	assert.Equal(t, existingDomain.Name, result.Domain.Object().GetName())
 	assertDomainRef(t, endpoint, "example-com", "default")
 	assertDomainCondition(t, endpoint, metav1.ConditionFalse, "")
 }
 
 func TestManager_EnsureDomainExists_ExistingDomainNoReadyCondition(t *testing.T) {
-	existingDomain := &ingressv1alpha1.Domain{
+	existingDomain := &ngrokv1.Domain{
 		Name:      "example-com",
 		Namespace: "default",
-		Spec: ingressv1alpha1.DomainSpec{
+		Spec: ngrokv1.DomainSpec{
 			Domain: "example.com",
 		},
-		Status: ingressv1alpha1.DomainStatus{
+		Status: ngrokv1.DomainStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -306,7 +309,7 @@ func TestManager_EnsureDomainExists_ExistingDomainNoReadyCondition(t *testing.T)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.False(t, result.IsReady)
-	assert.Equal(t, existingDomain.Name, result.Domain.Name)
+	assert.Equal(t, existingDomain.Name, result.Domain.Object().GetName())
 	assertDomainRef(t, endpoint, "example-com", "default")
 	assertDomainCondition(t, endpoint, metav1.ConditionFalse, "")
 }
@@ -320,12 +323,12 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.False(t, result.IsReady)
-	assert.Equal(t, "example-com", result.Domain.Name)
-	assert.Equal(t, "example.com", result.Domain.Spec.Domain)
+	assert.Equal(t, "example-com", result.Domain.Object().GetName())
+	assert.Equal(t, "example.com", result.Domain.Hostname())
 	assertDomainRef(t, endpoint, "example-com", "default")
 	assertDomainCondition(t, endpoint, metav1.ConditionFalse, "")
 
-	var createdDomain ingressv1alpha1.Domain
+	var createdDomain ngrokv1.Domain
 	require.NoError(t, c.Get(t.Context(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &createdDomain))
 	assert.Equal(t, "example.com", createdDomain.Spec.Domain)
 	assertDomainLabels(t, c, "example-com", "default", map[string]string{
@@ -335,7 +338,7 @@ func TestManager_EnsureDomainExists_CreateNewDomain(t *testing.T) {
 }
 
 func TestManager_EnsureDomainExists_CreateNewDomainWithReclaimPolicy(t *testing.T) {
-	reclaimPolicy := ingressv1alpha1.DomainReclaimPolicyRetain
+	reclaimPolicy := ngrokv1.DomainReclaimPolicyRetain
 	manager, c := newTestManagerWithOpts(t, []ManagerOption{WithDefaultDomainReclaimPolicy(reclaimPolicy)})
 	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
 
@@ -345,9 +348,9 @@ func TestManager_EnsureDomainExists_CreateNewDomainWithReclaimPolicy(t *testing.
 	require.NotNil(t, result)
 	assert.False(t, result.IsReady)
 
-	var createdDomain ingressv1alpha1.Domain
+	var createdDomain ngrokv1.Domain
 	require.NoError(t, c.Get(t.Context(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &createdDomain))
-	assert.Equal(t, ingressv1alpha1.DomainReclaimPolicyRetain, createdDomain.Spec.ReclaimPolicy)
+	assert.Equal(t, ngrokv1.DomainReclaimPolicyRetain, createdDomain.Spec.ReclaimPolicy)
 }
 
 func TestManager_setDomainCondition(t *testing.T) {
@@ -531,7 +534,7 @@ func TestManager_EnsureDomainExists_KubernetesBinding_DeletesStaleDomain(t *test
 	assert.True(t, result.IsReady)
 	assertNoDomainRef(t, endpoint)
 
-	var domain ingressv1alpha1.Domain
+	var domain ngrokv1.Domain
 	err = c.Get(t.Context(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &domain)
 	assert.True(t, errors.IsNotFound(err), "Domain should have been deleted")
 }
@@ -556,7 +559,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 	tests := []struct {
 		name     string
 		endpoint func() *ngrokv1alpha1.AgentEndpoint
-		domain   *ingressv1alpha1.Domain
+		domain   *ngrokv1.Domain
 		want     bool
 	}{
 		{
@@ -567,7 +570,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com", Namespace: &ns}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
+			domain: &ngrokv1.Domain{Name: "example-com", Namespace: "default"},
 			want:   true,
 		},
 		{
@@ -577,7 +580,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com", Namespace: nil}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
+			domain: &ngrokv1.Domain{Name: "example-com", Namespace: "default"},
 			want:   true,
 		},
 		{
@@ -588,7 +591,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com", Namespace: &emptyNs}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
+			domain: &ngrokv1.Domain{Name: "example-com", Namespace: "default"},
 			want:   true,
 		},
 		{
@@ -599,7 +602,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com", Namespace: &ns}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
+			domain: &ngrokv1.Domain{Name: "example-com", Namespace: "default"},
 			want:   false,
 		},
 		{
@@ -610,7 +613,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 				ep.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "different-domain", Namespace: &ns}
 				return ep
 			},
-			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
+			domain: &ngrokv1.Domain{Name: "example-com", Namespace: "default"},
 			want:   false,
 		},
 		{
@@ -618,7 +621,7 @@ func TestEndpointReferencesDomain(t *testing.T) {
 			endpoint: func() *ngrokv1alpha1.AgentEndpoint {
 				return createTestEndpoint("test-endpoint", "default", "https://example.com")
 			},
-			domain: &ingressv1alpha1.Domain{Name: "example-com", Namespace: "default"},
+			domain: &ngrokv1.Domain{Name: "example-com", Namespace: "default"},
 			want:   false,
 		},
 	}
@@ -745,7 +748,7 @@ func TestEnsureDomainExists_DoesNotCreateWildcardParent(t *testing.T) {
 	_, err := m.EnsureDomainExists(t.Context(), endpoint)
 	require.NoError(t, err)
 
-	domains := &ingressv1alpha1.DomainList{}
+	domains := &ngrokv1.DomainList{}
 	require.NoError(t, c.List(t.Context(), domains))
 	require.Len(t, domains.Items, 1)
 	assert.Equal(t, "a.example.com", domains.Items[0].Spec.Domain)
@@ -761,9 +764,134 @@ func TestEnsureDomainExists_WildcardEndpointURL(t *testing.T) {
 	_, err := m.EnsureDomainExists(t.Context(), endpoint)
 	require.NoError(t, err)
 
-	domains := &ingressv1alpha1.DomainList{}
+	domains := &ngrokv1.DomainList{}
 	require.NoError(t, c.List(t.Context(), domains))
 	require.Len(t, domains.Items, 1)
 	assert.Equal(t, "*.example.com", domains.Items[0].Spec.Domain)
 	assert.Equal(t, "wildcard-example-com", domains.Items[0].Name)
 }
+
+// LEGACY-domain-kind: BEGIN — the tests below cover the migration window.
+
+func createReadyLegacyDomain(name, namespace, domainName string) *ingressv1alpha1.Domain {
+	return &ingressv1alpha1.Domain{
+		Name:      name,
+		Namespace: namespace,
+		Spec: ingressv1alpha1.DomainSpec{
+			Domain:     domainName,
+			ResolvesTo: []ingressv1alpha1.DomainResolvesToEntry{{Value: "eu"}},
+		},
+		Status: ingressv1alpha1.DomainStatus{
+			ID: "domain-123",
+			Conditions: []metav1.Condition{
+				{Type: "Ready", Status: metav1.ConditionTrue, Reason: "DomainActive", Message: "Domain is active"},
+			},
+		},
+	}
+}
+
+// A legacy Domain at the endpoint's name gets a v1 copy, but until that copy
+// is Ready the endpoint keeps being served by the ready legacy object. Reporting the brand-new v1 instead would flap the endpoint to
+// DomainReady=False on upgrade.
+func TestManager_EnsureDomainExists_LegacyDomainGetsV1CopyAndStaysAuthoritative(t *testing.T) {
+	legacy := createReadyLegacyDomain("example-com", "default", "example.com")
+	manager, c := newTestManager(t, legacy)
+	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
+
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.True(t, result.IsReady)
+	assert.True(t, result.Domain.IsLegacy())
+	assertDomainRef(t, endpoint, "example-com", "default")
+	assertDomainCondition(t, endpoint, metav1.ConditionTrue, "Domain is active")
+
+	var created ngrokv1.Domain
+	require.NoError(t, c.Get(t.Context(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &created))
+	assert.Equal(t, []ngrokv1.DomainResolvesToEntry{{Value: "eu"}}, created.Spec.ResolvesTo, "the v1 copy carries the legacy spec")
+	assert.Equal(t, "test-controller", created.Labels[labels.ControllerName])
+}
+
+func TestManager_EnsureDomainExists_ReadyV1WinsOverLegacy(t *testing.T) {
+	legacy := createReadyLegacyDomain("example-com", "default", "example.com")
+	v1 := createReadyDomain("example-com", "default", "example.com")
+	v1.Status.Conditions[0].Message = "from v1"
+	manager, _ := newTestManager(t, legacy, v1)
+	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
+
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+	assert.False(t, result.Domain.IsLegacy())
+	assert.Equal(t, "from v1", result.ReadyMessage)
+}
+
+// A v1 Domain with a reservation ID that isn't Ready yet doesn't shadow a
+// working legacy twin, until the reconciler has superseded the legacy one.
+func TestManager_EnsureDomainExists_NotReadyV1(t *testing.T) {
+	v1 := createNotReadyDomain("example-com", "default", "example.com")
+	v1.Status.ID = "domain-123"
+
+	t.Run("legacy not superseded", func(t *testing.T) {
+		manager, _ := newTestManager(t, createReadyLegacyDomain("example-com", "default", "example.com"), v1.DeepCopy())
+		result, err := manager.EnsureDomainExists(t.Context(), createTestEndpoint("test-endpoint", "default", "https://example.com"))
+		require.NoError(t, err)
+		assert.True(t, result.Domain.IsLegacy())
+		assert.True(t, result.IsReady)
+	})
+
+	t.Run("legacy superseded", func(t *testing.T) {
+		legacy := createReadyLegacyDomain("example-com", "default", "example.com")
+		legacy.Status.Conditions[0].Reason = ReasonSupersededByV1
+		manager, _ := newTestManager(t, legacy, v1.DeepCopy())
+		result, err := manager.EnsureDomainExists(t.Context(), createTestEndpoint("test-endpoint", "default", "https://example.com"))
+		require.NoError(t, err)
+		assert.False(t, result.Domain.IsLegacy())
+		assert.False(t, result.IsReady, "the endpoint follows the v1 Domain once it has taken over")
+	})
+}
+
+func TestManager_EnsureDomainExists_MigrationBlockedKeepsLegacy(t *testing.T) {
+	legacy := createReadyLegacyDomain("example-com", "default", "example.com")
+	legacy.Spec.Metadata = commonv1alpha1.MetadataFromLegacyString("free text")
+	scheme := setupScheme()
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(legacy).Build()
+	recorder := events.NewFakeRecorder(10)
+	manager, err := NewManager(c, recorder)
+	require.NoError(t, err)
+	endpoint := createTestEndpoint("test-endpoint", "default", "https://example.com")
+
+	result, err := manager.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+	assert.True(t, result.IsReady)
+	assert.True(t, result.Domain.IsLegacy())
+
+	err = c.Get(t.Context(), types.NamespacedName{Name: "example-com", Namespace: "default"}, &ngrokv1.Domain{})
+	assert.True(t, errors.IsNotFound(err))
+	require.Len(t, recorder.Events, 1)
+	assert.Contains(t, <-recorder.Events, EventDomainMigrationBlocked)
+}
+
+func TestManager_EnsureDomainExists_KubernetesBinding_DeletesStaleDomainsOfBothKinds(t *testing.T) {
+	manager, c := newTestManager(t,
+		createReadyDomain("example-com", "default", "example.com"),
+		createReadyLegacyDomain("example-com", "default", "example.com"),
+	)
+	endpoint := &ngrokv1alpha1.AgentEndpoint{
+		Name: "test-endpoint", Namespace: "default",
+		Spec: ngrokv1alpha1.AgentEndpointSpec{URL: "http://example.com", Bindings: []string{"kubernetes"}},
+		Status: ngrokv1alpha1.AgentEndpointStatus{
+			DomainRef:  &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: "example-com"},
+			Conditions: []metav1.Condition{},
+		},
+	}
+
+	_, err := manager.EnsureDomainExists(t.Context(), endpoint)
+	require.NoError(t, err)
+
+	key := types.NamespacedName{Name: "example-com", Namespace: "default"}
+	assert.True(t, errors.IsNotFound(c.Get(t.Context(), key, &ngrokv1.Domain{})))
+	assert.True(t, errors.IsNotFound(c.Get(t.Context(), key, &ingressv1alpha1.Domain{})))
+}
+
+// LEGACY-domain-kind: END

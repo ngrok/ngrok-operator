@@ -9,7 +9,7 @@ import (
 	"k8s.io/utils/ptr"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 )
 
@@ -54,7 +54,7 @@ func TestIngressToDomains_SkipsInternalDomains(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "test-namespace", tt.hosts...)
-			result := ingressToDomains(ingress, "", nil)
+			result := ingressToDomains(ingress, nil)
 
 			assert.Len(t, result, len(tt.expectedDomains))
 			for _, expectedDomain := range tt.expectedDomains {
@@ -106,7 +106,7 @@ func TestGatewayToDomains_SkipsInternalDomains(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gateway := testutils.NewGatewayWithHostnames("test-gateway", "test-namespace", tt.hostnames...)
-			result := gatewayToDomains(gateway, "", nil)
+			result := gatewayToDomains(gateway, nil)
 
 			assert.Len(t, result, len(tt.expectedDomains))
 			for _, expectedDomain := range tt.expectedDomains {
@@ -119,14 +119,14 @@ func TestGatewayToDomains_SkipsInternalDomains(t *testing.T) {
 
 func TestIngressToDomains_SkipsExistingDomains(t *testing.T) {
 	ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "test-namespace", "example.com", "new.example.com")
-	existingDomains := map[string]ingressv1alpha1.Domain{
+	existingDomains := map[string]ngrokv1.Domain{
 		"example.com": {
 			ObjectMeta: metav1.ObjectMeta{Name: "example-com"},
-			Spec:       ingressv1alpha1.DomainSpec{Domain: "example.com"},
+			Spec:       ngrokv1.DomainSpec{Domain: "example.com"},
 		},
 	}
 
-	result := ingressToDomains(ingress, "", existingDomains)
+	result := ingressToDomains(ingress, existingDomains)
 
 	assert.Len(t, result, 1)
 	_, found := result["new.example.com"]
@@ -137,14 +137,14 @@ func TestIngressToDomains_SkipsExistingDomains(t *testing.T) {
 
 func TestGatewayToDomains_SkipsExistingDomains(t *testing.T) {
 	gateway := testutils.NewGatewayWithHostnames("test-gateway", "test-namespace", "example.com", "new.example.com")
-	existingDomains := map[string]ingressv1alpha1.Domain{
+	existingDomains := map[string]ngrokv1.Domain{
 		"example.com": {
 			ObjectMeta: metav1.ObjectMeta{Name: "example-com"},
-			Spec:       ingressv1alpha1.DomainSpec{Domain: "example.com"},
+			Spec:       ngrokv1.DomainSpec{Domain: "example.com"},
 		},
 	}
 
-	result := gatewayToDomains(gateway, "", existingDomains)
+	result := gatewayToDomains(gateway, existingDomains)
 
 	assert.Len(t, result, 1)
 	_, found := result["new.example.com"]
@@ -165,7 +165,7 @@ func TestIngressToDomains_SkipsEmptyHost(t *testing.T) {
 		},
 	}
 
-	result := ingressToDomains(ingress, "", nil)
+	result := ingressToDomains(ingress, nil)
 
 	assert.Len(t, result, 1)
 	_, found := result["example.com"]
@@ -184,7 +184,7 @@ func TestGatewayToDomains_SkipsNilHostname(t *testing.T) {
 		},
 	}
 
-	result := gatewayToDomains(gateway, "", nil)
+	result := gatewayToDomains(gateway, nil)
 
 	assert.Len(t, result, 1)
 	_, found := result["example.com"]
@@ -223,7 +223,7 @@ func TestIngressToDomains_WildcardHosts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ingress := testutils.NewTestIngressV1WithHosts("test-ingress", "test-namespace", tt.hosts...)
-			domains := ingressToDomains(ingress, "", nil)
+			domains := ingressToDomains(ingress, nil)
 
 			assert.Len(t, domains, len(tt.expectedDomains))
 			for host, objName := range tt.expectedDomains {
@@ -238,7 +238,7 @@ func TestIngressToDomains_WildcardHosts(t *testing.T) {
 
 func TestGatewayToDomains_WildcardHosts(t *testing.T) {
 	gateway := testutils.NewGatewayWithHostnames("test-gateway", "test-namespace", "*.example.com", "a.example.com")
-	domains := gatewayToDomains(gateway, "", nil)
+	domains := gatewayToDomains(gateway, nil)
 
 	assert.Len(t, domains, 2)
 

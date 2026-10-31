@@ -42,10 +42,11 @@ helm/ngrok-operator/         # Helm chart
 
 | API Group | Resources | Controller Location |
 |-----------|-----------|---------------------|
-| **ingress.k8s.ngrok.com/v1alpha1** | Domain, IPPolicy | [internal/controller/ingress/](internal/controller/ingress/) |
+| **ingress.k8s.ngrok.com/v1alpha1** | IPPolicy | [internal/controller/ingress/](internal/controller/ingress/) |
+| **ingress.k8s.ngrok.com/v1alpha1** | Domain (deprecated; reconciled with its `ngrok.com/v1` twin) | [internal/controller/ngrok/](internal/controller/ngrok/) |
 | **ingress.k8s.ngrok.com/v1alpha1** | Ingress (networking.k8s.io/v1) | [internal/controller/ingress/](internal/controller/ingress/) |
 | **ngrok.k8s.ngrok.com/v1alpha1** | NgrokTrafficPolicy (deprecated), KubernetesOperator | [internal/controller/ngrok/](internal/controller/ngrok/) |
-| **ngrok.com/v1** | TrafficPolicy | [internal/controller/ngrok/](internal/controller/ngrok/) |
+| **ngrok.com/v1** | TrafficPolicy, Domain | [internal/controller/ngrok/](internal/controller/ngrok/) |
 | **bindings.k8s.ngrok.com/v1alpha1** | BindingConfiguration, BoundEndpoint | [internal/controller/bindings/](internal/controller/bindings/) |
 | **gateway.networking.k8s.io/v1** | Gateway, GatewayClass, HTTPRoute, TLSRoute, TCPRoute | [internal/controller/gateway/](internal/controller/gateway/) |
 | **core/v1** | Service | [internal/controller/service/](internal/controller/service/) |

@@ -97,7 +97,15 @@ Steps:
 3. If both a canonical and a deprecated object exist under the same name, the
    canonical one wins silently — that is the expected transitional state
    between the `apply` and the `delete` above.
-4. Once all manifests are updated, the deprecated CRDs are removed in the
+4. `Domain` is the exception to steps 2 and 3: the operator writes Domains
+   itself, so it creates the `ngrok.com/v1` Domain for every hostname it
+   serves, copying the spec of any legacy Domain at that name, and the
+   canonical object wins only once it is Ready or has superseded the legacy one. Domains
+   only users create are re-stamped as above (or with
+   `scripts/migrate-domains-to-ngrok-v1.sh`). Both kinds share the plural
+   `domains`, so use `domains.ngrok.com` and `domains.ingress.k8s.ngrok.com`.
+   See [the Domain controller spec](controllers/domain.md#migration-twin-domains).
+5. Once all manifests are updated, the deprecated CRDs are removed in the
    cleanup release. Any objects still stored under a deprecated CRD at that
    point are removed by the API server along with it.
 

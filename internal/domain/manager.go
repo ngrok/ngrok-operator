@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
@@ -16,8 +17,8 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
-	"github.com/ngrok/ngrok-operator/internal/controller/ingress"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
@@ -32,13 +33,20 @@ const (
 	ReasonNgrokAPIError  = "NgrokAPIError"
 )
 
+// EventDomainMigrationBlocked is the Warning event reason recorded on an
+// endpoint whose legacy Domain can't be copied to ngrok.com/v1.
+//
+// LEGACY-domain-kind: delete at cleanup.
+const EventDomainMigrationBlocked = "DomainMigrationBlocked"
+
 var (
 	ErrDomainNotReady = errors.New("domain is not ready yet")
 )
 
 // DomainResult contains the result of domain operations
 type DomainResult struct {
-	Domain       *ingressv1alpha1.Domain
+	// Domain is the Domain the endpoint is served by (see Pair.Authoritative).
+	Domain       Resource
 	IsReady      bool
 	ReadyReason  string // Reason from domain's Ready condition
 	ReadyMessage string // Message from domain's Ready condition
@@ -56,9 +64,18 @@ func (r *DomainResult) RequeueError() error {
 type ManagerOption func(*Manager)
 
 // WithDefaultDomainReclaimPolicy sets the default domain reclaim policy for the Domain Manager
-func WithDefaultDomainReclaimPolicy(policy ingressv1alpha1.DomainReclaimPolicy) ManagerOption {
+func WithDefaultDomainReclaimPolicy(policy ngrokv1.DomainReclaimPolicy) ManagerOption {
 	return func(m *Manager) {
 		m.defaultDomainReclaimPolicy = &policy
+	}
+}
+
+// WithAPIReader sets a reader that bypasses the cache, used where a stale
+// cache would make EnsureV1 create a Domain from defaults instead of copying
+// a legacy Domain.
+func WithAPIReader(r client.Reader) ManagerOption {
+	return func(m *Manager) {
+		m.apiReader = r
 	}
 }
 
@@ -73,8 +90,9 @@ func WithControllerLabels(clv labels.ControllerLabelValues) ManagerOption {
 type Manager struct {
 	Client                     client.Client
 	Recorder                   events.EventRecorder
-	defaultDomainReclaimPolicy *ingressv1alpha1.DomainReclaimPolicy
+	defaultDomainReclaimPolicy *ngrokv1.DomainReclaimPolicy
 	controllerLabels           *labels.ControllerLabelValues
+	apiReader                  client.Reader
 }
 
 func NewManager(client client.Client, recorder events.EventRecorder, opts ...ManagerOption) (*Manager, error) {
@@ -178,31 +196,68 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 	return nil, nil
 }
 
-// getOrCreateDomain gets an existing domain or creates a new one
+// getOrCreateDomain ensures the ngrok.com/v1 Domain for domain exists and
+// reports the state of the Domain the endpoint is served by. It works in two
+// steps, because during the migration those can be different objects:
+//
+//  1. Make sure a v1 Domain exists at the endpoint's namespace and the
+//     hostname-derived name, copying a legacy Domain there if one exists.
+//  2. Report on whichever Domain at that name readers should trust right now
+//     (Pair.Authoritative): the legacy one until the v1 copy has taken over.
 func (m *Manager) getOrCreateDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, domain string) (*DomainResult, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("domain", domain)
-	hyphenatedDomain := ingressv1alpha1.HyphenatedDomainNameFromURL(domain)
-	domainKey := client.ObjectKey{Name: hyphenatedDomain, Namespace: endpoint.GetNamespace()}
+	domainKey := client.ObjectKey{Name: ngrokv1.HyphenatedDomainNameFromURL(domain), Namespace: endpoint.GetNamespace()}
 
-	domainObj := &ingressv1alpha1.Domain{}
-	err := m.Client.Get(ctx, domainKey, domainObj)
-	if err == nil {
-		if err := m.ensureControllerLabels(ctx, log, domainObj); err != nil {
+	// Step 1. defaults only runs when there is no legacy Domain to copy.
+	v1, _, err := EnsureV1(ctx, m.Client, m.apiReader, domainKey, func(d *ngrokv1.Domain) {
+		d.Spec.Domain = domain
+		if m.controllerLabels != nil {
+			m.controllerLabels.EnsureLabels(d)
+		}
+		if m.defaultDomainReclaimPolicy != nil {
+			d.Spec.ReclaimPolicy = *m.defaultDomainReclaimPolicy
+		}
+	})
+	switch {
+	// LEGACY-domain-kind: BEGIN
+	case errors.Is(err, ErrMigrationBlocked):
+		// Not an error for the endpoint: v1 is nil, so step 2 below reports on
+		// the legacy Domain, which keeps serving the hostname until someone
+		// re-creates it as ngrok.com/v1 by hand.
+		log.Info("Not migrating legacy Domain to ngrok.com/v1", "reason", err.Error())
+		m.Recorder.Eventf(endpoint, nil, corev1.EventTypeWarning, EventDomainMigrationBlocked, "Reconcile", err.Error())
+	// LEGACY-domain-kind: END
+	case err != nil:
+		log.Error(err, "failed to ensure Domain CRD exists")
+		m.setDomainCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
+		return nil, err
+	default:
+		// Also needed for a v1 Domain just copied from a legacy one: the copy
+		// doesn't take the legacy object's labels, so it has none of ours yet.
+		if err := m.ensureControllerLabels(ctx, log, v1); err != nil {
 			return nil, err
 		}
-		return m.checkExistingDomain(endpoint, domainObj)
 	}
 
-	if client.IgnoreNotFound(err) != nil {
-		log.Error(err, "failed to check Domain CRD existence")
+	// Step 2.
+	pair, err := GetPair(ctx, m.Client, domainKey)
+	if err != nil {
 		m.setDomainCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
 		return nil, err
 	}
-
-	return m.createNewDomain(ctx, endpoint, domain, hyphenatedDomain)
+	if v1 != nil {
+		// The cache may not have caught up with a Create made a moment ago.
+		pair.V1 = v1
+	}
+	res, err := pair.Authoritative()
+	if err != nil {
+		m.setDomainCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
+		return nil, err
+	}
+	return m.checkExistingDomain(endpoint, res)
 }
 
-func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, domainObj *ingressv1alpha1.Domain) error {
+func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, domainObj *ngrokv1.Domain) error {
 	if m.controllerLabels == nil {
 		return nil
 	}
@@ -232,16 +287,19 @@ func (m *Manager) ensureControllerLabels(ctx context.Context, log logr.Logger, d
 	})
 }
 
-// checkExistingDomain checks the status of an existing domain
-func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain, domainObj *ingressv1alpha1.Domain) (*DomainResult, error) {
+// checkExistingDomain reports the state of the Domain the endpoint is served by
+func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain, domainRes Resource) (*DomainResult, error) {
+	domainObj := domainRes.Object()
+	// domainRef has no kind, only a name and namespace. Both Domain kinds for a
+	// hostname share those, so the ref stays valid whichever one is reported.
 	domainRef := &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-		Name:      domainObj.Name,
-		Namespace: &domainObj.Namespace,
+		Name:      domainObj.GetName(),
+		Namespace: new(domainObj.GetNamespace()),
 	}
 	endpoint.SetDomainRef(domainRef)
 
 	// Get domain's Ready condition to propagate reason/message to endpoint
-	readyCondition := meta.FindStatusCondition(domainObj.Status.Conditions, ingress.ConditionDomainReady)
+	readyCondition := meta.FindStatusCondition(domainRes.Status().Conditions, ConditionReady)
 	readyReason := ReasonDomainCreating
 	readyMessage := "Domain is being created"
 	if readyCondition != nil {
@@ -249,52 +307,14 @@ func (m *Manager) checkExistingDomain(endpoint ngrokv1alpha1.EndpointWithDomain,
 		readyMessage = readyCondition.Message
 	}
 
-	isReady := ingress.IsDomainReady(domainObj)
+	isReady := IsReady(domainRes)
 	m.setDomainCondition(endpoint, isReady, readyReason, readyMessage)
 
 	return &DomainResult{
-		Domain:       domainObj,
+		Domain:       domainRes,
 		IsReady:      isReady,
 		ReadyReason:  readyReason,
 		ReadyMessage: readyMessage,
-	}, nil
-}
-
-// createNewDomain creates a new Domain CRD
-func (m *Manager) createNewDomain(ctx context.Context, endpoint ngrokv1alpha1.EndpointWithDomain, domain, hyphenatedDomain string) (*DomainResult, error) {
-	newDomain := &ingressv1alpha1.Domain{
-		Name:      hyphenatedDomain,
-		Namespace: endpoint.GetNamespace(),
-		Spec: ingressv1alpha1.DomainSpec{
-			Domain: domain,
-		},
-	}
-
-	if m.controllerLabels != nil {
-		m.controllerLabels.EnsureLabels(newDomain)
-	}
-
-	if m.defaultDomainReclaimPolicy != nil {
-		newDomain.Spec.ReclaimPolicy = *m.defaultDomainReclaimPolicy
-	}
-
-	if err := m.Client.Create(ctx, newDomain); err != nil {
-		m.setDomainCondition(endpoint, false, ReasonNgrokAPIError, err.Error())
-		return nil, err
-	}
-
-	domainRef := &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
-		Name:      newDomain.Name,
-		Namespace: &newDomain.Namespace,
-	}
-	endpoint.SetDomainRef(domainRef)
-	m.setDomainCondition(endpoint, false, ReasonDomainCreating, "Domain is being created")
-
-	return &DomainResult{
-		Domain:       newDomain,
-		IsReady:      false,
-		ReadyReason:  ReasonDomainCreating,
-		ReadyMessage: "Domain is being created",
 	}, nil
 }
 
@@ -326,10 +346,20 @@ func (m *Manager) deleteStaleBindingDomain(ctx context.Context, endpoint ngrokv1
 		return nil
 	}
 
-	domain := &ingressv1alpha1.Domain{}
-	domain.SetNamespace(endpoint.GetNamespace())
-	domain.SetName(domainRef.Name)
+	// The ref can point at either kind (it has no kind of its own), so delete
+	// both. Deleting both twins together releases the reservation once.
+	domains := []client.Object{
+		&ngrokv1.Domain{},
+		&ingressv1alpha1.Domain{}, // LEGACY-domain-kind: delete at cleanup.
+	}
+	for _, domain := range domains {
+		domain.SetNamespace(endpoint.GetNamespace())
+		domain.SetName(domainRef.Name)
 
-	log.Info("Deleting stale domain for binding-based endpoint", "domain", client.ObjectKeyFromObject(domain), "endpoint", client.ObjectKeyFromObject(endpoint))
-	return client.IgnoreNotFound(m.Client.Delete(ctx, domain))
+		log.Info("Deleting stale domain for binding-based endpoint", "domain", client.ObjectKeyFromObject(domain), "endpoint", client.ObjectKeyFromObject(endpoint))
+		if err := client.IgnoreNotFound(m.Client.Delete(ctx, domain)); err != nil {
+			return err
+		}
+	}
+	return nil
 }

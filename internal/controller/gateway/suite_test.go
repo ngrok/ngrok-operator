@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-operator/internal/controller/ingress"
+	ngrokcontroller "github.com/ngrok/ngrok-operator/internal/controller/ngrok"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
@@ -155,8 +155,9 @@ var _ = BeforeSuite(func() {
 	// Run Domain reconciler with a mock domain client so that when we create Domain CRs
 	// they are reconciled and we can test that addresses are
 	// assigned to the Gateway resources.
-	err = (&ingress.DomainReconciler{
+	err = (&ngrokcontroller.DomainReconciler{
 		Client:        k8sManager.GetClient(),
+		APIReader:     k8sManager.GetAPIReader(),
 		Log:           logf.Log.WithName("controllers").WithName("Domain"),
 		Recorder:      k8sManager.GetEventRecorder("domain-controller"),
 		Scheme:        k8sManager.GetScheme(),

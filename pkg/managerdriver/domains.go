@@ -2,9 +2,10 @@ package managerdriver
 
 import (
 	"context"
+	"errors"
 
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"golang.org/x/sync/errgroup"
 	netv1 "k8s.io/api/networking/v1"
@@ -15,8 +16,8 @@ import (
 )
 
 // ingressToDomains constructs domains for edges/endpoints from an input ingress
-func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (endpointDomains map[string]ingressv1alpha1.Domain) {
-	endpointDomains = make(map[string]ingressv1alpha1.Domain)
+func ingressToDomains(in *netv1.Ingress, existingDomains map[string]ngrokv1.Domain) (endpointDomains map[string]ngrokv1.Domain) {
+	endpointDomains = make(map[string]ngrokv1.Domain)
 
 	for _, rule := range in.Spec.Rules {
 		domainName := rule.Host
@@ -33,14 +34,11 @@ func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomai
 			continue
 		}
 
-		domain := ingressv1alpha1.Domain{
-			Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(domainName),
+		domain := ngrokv1.Domain{
+			Name:      ngrokv1.HyphenatedDomainNameFromURL(domainName),
 			Namespace: in.Namespace,
-			Spec: ingressv1alpha1.DomainSpec{
+			Spec: ngrokv1.DomainSpec{
 				Domain: domainName,
-				// LEGACY-metadata-format: operator-generated objects keep writing
-				// the string form during the migration window for rollback safety.
-				Metadata: commonv1alpha1.MetadataFromLegacyString(newDomainMetadata),
 			},
 		}
 		endpointDomains[domainName] = domain
@@ -49,8 +47,8 @@ func ingressToDomains(in *netv1.Ingress, newDomainMetadata string, existingDomai
 }
 
 // gatewayToDomains constructs domains for edges/endpoints from an input Gateway
-func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingDomains map[string]ingressv1alpha1.Domain) (endpointDomains map[string]ingressv1alpha1.Domain) {
-	endpointDomains = make(map[string]ingressv1alpha1.Domain)
+func gatewayToDomains(in *gatewayv1.Gateway, existingDomains map[string]ngrokv1.Domain) (endpointDomains map[string]ngrokv1.Domain) {
+	endpointDomains = make(map[string]ngrokv1.Domain)
 	for _, listener := range in.Spec.Listeners {
 		if listener.Hostname == nil {
 			continue
@@ -70,14 +68,11 @@ func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingD
 			continue
 		}
 
-		domain := ingressv1alpha1.Domain{
-			Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(domainName),
+		domain := ngrokv1.Domain{
+			Name:      ngrokv1.HyphenatedDomainNameFromURL(domainName),
 			Namespace: in.Namespace,
-			Spec: ingressv1alpha1.DomainSpec{
+			Spec: ngrokv1.DomainSpec{
 				Domain: domainName,
-				// LEGACY-metadata-format: operator-generated objects keep writing
-				// the string form during the migration window for rollback safety.
-				Metadata: commonv1alpha1.MetadataFromLegacyString(newDomainMetadata),
 			},
 		}
 
@@ -88,15 +83,45 @@ func gatewayToDomains(in *gatewayv1.Gateway, newDomainMetadata string, existingD
 }
 
 // applyDomains takes a set of the desired domains and current domains, creates any missing desired domains, and updated existing domains if needed
-func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomains map[string]ingressv1alpha1.Domain) error {
+func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomains map[string]ngrokv1.Domain) error {
 	var g errgroup.Group
 
 	for _, desiredDomain := range desiredDomains {
 		g.Go(func() error {
-			domain := &ingressv1alpha1.Domain{
+			domain := &ngrokv1.Domain{
 				Name:      desiredDomain.Name,
 				Namespace: desiredDomain.Namespace,
 			}
+
+			// LEGACY-domain-kind: BEGIN
+			// A legacy Domain at this name must be copied to v1 as-is rather
+			// than replaced by defaults: the two share one reservation and the
+			// v1 object becomes the one that pushes its spec to it. CreateOrPatch
+			// can't do that (it knows nothing about the legacy kind), so EnsureV1
+			// creates the object first, with the same defaults CreateOrPatch would
+			// set; CreateOrPatch then only patches it.
+			_, _, err := domainpkg.EnsureV1(ctx, c, d.apiReader, client.ObjectKeyFromObject(domain), func(n *ngrokv1.Domain) {
+				n.Spec.Domain = desiredDomain.Spec.Domain
+				if d.defaultDomainReclaimPolicy != nil {
+					n.Spec.ReclaimPolicy = *d.defaultDomainReclaimPolicy
+				}
+				d.controllerLabels.EnsureLabels(n)
+			})
+			if errors.Is(err, domainpkg.ErrMigrationBlocked) {
+				// The legacy Domain keeps serving this hostname until it is
+				// re-created as ngrok.com/v1 by hand.
+				d.log.Info("Not migrating legacy Domain to ngrok.com/v1", "reason", err.Error())
+				return nil
+			}
+			if err != nil {
+				d.log.Error(err, "error creating domain", "domain", domain.Name, "namespace", domain.Namespace)
+				// Same reasoning as the IsInvalid case below.
+				if apierrors.IsInvalid(err) {
+					return nil
+				}
+				return err
+			}
+			// LEGACY-domain-kind: END
 
 			res, err := controllerutil.CreateOrPatch(ctx, c, domain, func() error {
 				domain.Spec.Domain = desiredDomain.Spec.Domain
@@ -150,24 +175,24 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 type domainSet struct {
 	// The following two domain maps track domains for ingress/gateway resources that have opted to
 	// use endpoints
-	endpointIngressDomains map[string]ingressv1alpha1.Domain
-	endpointGatewayDomains map[string]ingressv1alpha1.Domain
+	endpointIngressDomains map[string]ngrokv1.Domain
+	endpointGatewayDomains map[string]ngrokv1.Domain
 
 	// totalDomains tracks all domains regardless of source
-	totalDomains map[string]ingressv1alpha1.Domain
+	totalDomains map[string]ngrokv1.Domain
 }
 
 func (d *Driver) calculateDomainSet() *domainSet {
 	ret := &domainSet{
-		endpointIngressDomains: make(map[string]ingressv1alpha1.Domain),
-		endpointGatewayDomains: make(map[string]ingressv1alpha1.Domain),
-		totalDomains:           make(map[string]ingressv1alpha1.Domain),
+		endpointIngressDomains: make(map[string]ngrokv1.Domain),
+		endpointGatewayDomains: make(map[string]ngrokv1.Domain),
+		totalDomains:           make(map[string]ngrokv1.Domain),
 	}
 
 	// Calculate domains from ingress resources
 	ingresses := d.store.ListNgrokIngressesV1()
 	for _, ingress := range ingresses {
-		endpointDomains := ingressToDomains(ingress, d.ingressNgrokMetadata, nil)
+		endpointDomains := ingressToDomains(ingress, nil)
 		for key, val := range endpointDomains {
 			ret.totalDomains[key] = val
 			ret.endpointIngressDomains[key] = val
@@ -177,7 +202,7 @@ func (d *Driver) calculateDomainSet() *domainSet {
 	// Calculate domains from gateway resources
 	gateways := d.store.ListNgrokGateways()
 	for _, gateway := range gateways {
-		endpointDomains := gatewayToDomains(gateway, d.gatewayNgrokMetadata, ret.totalDomains)
+		endpointDomains := gatewayToDomains(gateway, ret.totalDomains)
 		for key, val := range endpointDomains {
 			ret.totalDomains[key] = val
 			ret.endpointGatewayDomains[key] = val

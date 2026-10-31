@@ -34,6 +34,7 @@ import (
 	"github.com/go-logr/logr"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/stretchr/testify/assert"
@@ -54,6 +55,7 @@ func setupTestScheme(t *testing.T) *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
 	require.NoError(t, netv1.AddToScheme(scheme))

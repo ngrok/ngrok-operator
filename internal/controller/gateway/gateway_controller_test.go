@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ngrok/ngrok-api-go/v9"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
 	. "github.com/onsi/ginkgo/v2"
@@ -116,9 +116,9 @@ var _ = Describe("Gateway controller", Ordered, func() {
 				It("Should not reserve the domain, and still assign the gateway address", func(ctx SpecContext) {
 					By("Checking the Domain CR is marked as covered rather than reserved")
 					Eventually(func(g Gomega) {
-						found := &ingressv1alpha1.Domain{}
+						found := &ngrokv1.Domain{}
 						g.Expect(k8sClient.Get(ctx, client.ObjectKey{
-							Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(domain),
+							Name:      ngrokv1.HyphenatedDomainNameFromURL(domain),
 							Namespace: gw.Namespace,
 						}, found)).To(Succeed())
 
