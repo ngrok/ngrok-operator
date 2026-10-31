@@ -52,6 +52,8 @@ A deprecated and a canonical `IPPolicy` with the same namespace and name are twi
 
 - **Adoption:** a canonical object without an ID takes over its twin's ID instead of creating a new ngrok IP policy, so references to the `ipp_...` ID keep working. The ID is written to the canonical object's status before the deprecated object's finalizer can be released.
 - **One writer:** when both hold the same ID, or the deprecated object has none, only the canonical object's spec is pushed. The deprecated object makes no ngrok API calls.
-- **Deletes:** the ngrok IP policy is deleted only when no remaining object (one that exists and isn't being deleted) holds its ID. Deleting the canonical object hands the IP policy back to its twin in the same pass.
-- **Different IDs:** twins that hold different IDs are both left as they are, and an `IPPolicyIDConflict` warning event is emitted on each.
+- **Deletes:** the ngrok IP policy is deleted only when no remaining object (one that exists and isn't being deleted) holds its ID. Just before deleting, the twin is re-read without the cache, failing closed: NotFound or an unserved kind means no twin; Forbidden means the twin is treated as present and the delete is skipped; any other error requeues. Deleting the deprecated object while its twin holds the ID releases its finalizer without an ngrok call. Deleting the canonical object hands the IP policy back to its twin in the same pass.
+- **Different IDs:** the canonical object is still the only writer. The deprecated object is passive, its IP policy is left as it is, neither IP policy is deleted, and an `IPPolicyIDConflict` warning event is emitted on each.
+
+These are the twin rules in [crd-group-migration.md](../crd-group-migration.md#twin-rules-r1).
 - **Drain:** only deletes run; there is no adoption, so drain never waits on it.

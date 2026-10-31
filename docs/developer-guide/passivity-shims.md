@@ -652,9 +652,10 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
 
 ### `ingress.k8s.ngrok.com/v1alpha1 IPPolicy` → `ngrok.com/v1 IPPolicy`
 
-- **Pattern:** Two-release, dual CRD, following the
-  [TrafficPolicy kind + group rename](#per-shim-catalog-trafficpolicy-crd-kind--group-rename),
-  with one structural difference (below). Tag: `LEGACY-ippolicy-kind`.
+- **Pattern:** Three-release, dual CRD, per
+  [specs/crd-group-migration.md](../../specs/crd-group-migration.md), which
+  defines the release plan (R1 0.25, R2 1.0, R3 1.1) and the twin rules this
+  shim implements. Tag: `LEGACY-ippolicy-kind`.
 - **Why it isn't a copy of the TrafficPolicy shim:** a TrafficPolicy CR has
   no ngrok-side object, so its two kinds never interact. An IPPolicy CR owns
   a remote ngrok IP policy, and users reference that policy's `ipp_...` ID in
@@ -680,15 +681,18 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
     `IPPolicyReconciler` with `For(&ngrokv1.IPPolicy{})` and a tagged
     `Watches(&ingressv1alpha1.IPPolicy{}, &handler.EnqueueRequestForObject{})`.
     Both kinds enqueue the same namespace/name key, so a pair is never
-    reconciled concurrently. Each pass loads both objects and applies three
-    invariants: a remote policy is deleted only when no surviving object
-    holds its ID; exactly one object writes to an ID (v1 when it is alive
-    and holds it); an adopted ID is persisted on v1 before the legacy
-    finalizer can be released. A superseded legacy object stays
-    `Ready=True` with reason `SupersededByV1` and makes no ngrok API calls.
-    Before the one irreversible step (the remote delete) the twin is
-    re-read with the manager's API reader, since the two kinds come from
-    separate informers. Controller name stays `ippolicy`.
+    reconciled concurrently. Each pass loads both objects and applies the
+    spec's twin rules: v1 adopts the legacy ID first and persists it; while
+    v1 is alive it is the only writer, and the legacy object is passive
+    (`Ready=True`, reason `SupersededByV1`, no ngrok API calls) even when it
+    holds a different ID; a remote policy is deleted only when no surviving
+    object holds its ID. Before that irreversible delete the twin is re-read
+    with the manager's uncached API reader and the result fails closed
+    (NotFound/NoMatch: no twin; Forbidden: twin present, skip the delete;
+    other errors: requeue). Legacy finalizers stay in R1, and R1 never
+    deletes legacy objects. Controller name stays `ippolicy`.
+  - The `ippolicies.ngrok.com` CRD carries `helm.sh/resource-policy: keep`,
+    so a rollback to 0.24 leaves v1 objects and their IDs in place.
   - `internal/drain`: drains the legacy kind before v1.
   - RBAC: `ngrok.com` `ippolicies` rules in
     `helm/ngrok-operator/templates/api-manager/role.yaml` and in the
@@ -696,13 +700,25 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
     `ingress.k8s.ngrok.com` rules. The role names are unchanged.
   - The unused `DefaultIPPolicyResolver`/`StaticIPPolicyResolver` were
     deleted rather than taught about the new group.
-- **R-cleanup:** `git grep 'LEGACY-ippolicy-kind'` and sweep:
+- **R2 (1.0):** the legacy kind is unsupported. Per
+  [specs/crd-group-migration.md](../../specs/crd-group-migration.md#r2-10):
+  - Delete the pair reconciler's legacy half (the list below, from
+    `ippolicy_controller.go` down to `internal/drain`), leaving a
+    single-kind controller.
+  - Add one-way late adoption: a v1 IPPolicy with no ID reads the
+    same-named legacy object as `unstructured` and adopts `status.id`, so a
+    late re-stamp keeps its `ipp_...` ID.
+  - The shared legacy finalizer sweeper strips ngrok finalizers from legacy
+    IPPolicies, and the legacy Go types can then be deleted. The legacy CRD
+    stays installed; removal is opt-in. Drop the keep annotation.
+- **R3 (1.1):** the legacy CRD, its RBAC and late adoption are deleted.
+- **Sweep:** `git grep 'LEGACY-ippolicy-kind'`:
   - Delete `api/ingress/v1alpha1/ippolicy_types.go` and its scheme entries
     (regenerate deepcopy). That stops the legacy CRD manifest being emitted.
   - `ippolicy_controller.go`: delete the legacy `Watches`, the `legacy` half
     of `ipPolicyPair`, `adopt`, `setPassive`, the stale-ID clear in
     `syncSurvivors`, and the legacy cases in `writeStatus` and
-    `liveTwinBlocksDelete`. What remains is a single-object reconcile; move
+    `liveTwinCheck`. What remains is a single-object reconcile; move
     it back onto `BaseController` if that reads better.
   - `internal/ippolicy`: drop the legacy compile-time assertion,
     `ReasonSupersededByV1`, and the legacy test fixtures. `Rule.Metadata`

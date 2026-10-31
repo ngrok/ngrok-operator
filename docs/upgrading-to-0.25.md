@@ -705,9 +705,9 @@ policy's `ipp_...` ID keep working. From then on:
 
 `kubectl apply` of a legacy `IPPolicy` prints a deprecation warning.
 
-Both CRDs use the plural `ippolicies`, so `kubectl get ippolicies` shows only
-one of the two kinds, without saying which. Use the fully qualified names
-below.
+Both CRDs use the plural `ippolicies`. While both exist,
+`kubectl get ippolicies` lists the **legacy** `ingress.k8s.ngrok.com` objects,
+not the new ones. Use the fully qualified names below.
 
 For each policy, create the `ngrok.com/v1` object, confirm it is ready and has
 the same ID, then delete the legacy one:
@@ -747,11 +747,19 @@ If you manage policies with GitOps, change `apiVersion` (and any string-form
 `metadata`) in the source manifest instead. Let your tool create the new object
 and confirm it has the legacy object's ID before it prunes the old one.
 
-If an `ngrok.com/v1` `IPPolicy` already existed with its own ID when the legacy
-one was still present, for example because it was created before upgrading to
-0.25, the two objects manage different ngrok IP policies. The operator leaves
-both alone and emits an `IPPolicyIDConflict` warning event on each. Point any
-traffic policies at the ID you want to keep, then delete the other object.
+If an `ngrok.com/v1` `IPPolicy` already had its own ID while the legacy one
+still existed, for example because both were applied before the legacy one
+got an ID, the two objects hold different ngrok IP policies. The operator
+manages only the `ngrok.com/v1` one. The legacy object's IP policy keeps its
+last rules but is no longer updated, and neither IP policy is deleted. The
+operator emits an `IPPolicyIDConflict` warning event on both objects. Point
+any traffic policies at the ID you want to keep, then delete the other object.
+
+If you roll back to 0.24, it serves the legacy objects again with their IDs
+unchanged. 0.24 ignores `ngrok.com/v1` `IPPolicy` objects: their IP policies
+keep running but are no longer updated, and deleting one hangs on its
+finalizer until you upgrade again. The `ippolicies.ngrok.com` CRD is kept on
+rollback, so these objects are still there when you do.
 
 Find legacy objects and their state:
 
@@ -770,7 +778,7 @@ migrations before their cleanup releases:
 | Migration | 0.25 behavior | Future requirement |
 | --- | --- | --- |
 | `NgrokTrafficPolicy` kind | Serves both CRDs; prefers `TrafficPolicy` | Migrate to `ngrok.com/v1` `TrafficPolicy` before the cleanup release removes the `ngroktrafficpolicies.ngrok.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
-| `IPPolicy` in `ingress.k8s.ngrok.com` | Serves both CRDs; an `ngrok.com/v1` `IPPolicy` takes over the legacy object's ngrok IP policy | Migrate to `ngrok.com/v1` `IPPolicy` before the cleanup release removes the `ippolicies.ingress.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
+| `IPPolicy` in `ingress.k8s.ngrok.com` | Serves both CRDs; an `ngrok.com/v1` `IPPolicy` takes over the legacy object's ngrok IP policy | Migrate to `ngrok.com/v1` `IPPolicy` before upgrading to 1.0, which stops reconciling the legacy kind. 1.1 removes the `ippolicies.ingress.k8s.ngrok.com` CRD; a policy re-stamped after that gets a new ID |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
 | Operator-written labels, annotations, and finalizer | Writes new prefix only; still reads legacy | None. The next release stops reading the legacy prefix, so upgrade through 0.25 rather than skipping it |
