@@ -1,13 +1,16 @@
 # Migrating to v1
 
+The internal implementation plan (release sequence, twin rules) is in
+[crd-group-migration.md](crd-group-migration.md).
+
 ## API Group Changes
 
 Previous releases of the ngrok-operator used three separate API groups at `v1alpha1`:
 
 | Old API Group                    | Resources                                                   |
 |----------------------------------|-------------------------------------------------------------|
-| `ngrok.k8s.ngrok.com/v1alpha1`   | KubernetesOperator, NgrokTrafficPolicy                      |
-| `ingress.k8s.ngrok.com/v1alpha1` | Domain, IPPolicy, CloudEndpoint, AgentEndpoint              |
+| `ngrok.k8s.ngrok.com/v1alpha1`   | KubernetesOperator, NgrokTrafficPolicy, CloudEndpoint, AgentEndpoint |
+| `ingress.k8s.ngrok.com/v1alpha1` | Domain, IPPolicy                                            |
 | `bindings.k8s.ngrok.com/v1alpha1`| BoundEndpoint, BindingConfiguration                         |
 
 All resources are consolidated into a single group in v1:
