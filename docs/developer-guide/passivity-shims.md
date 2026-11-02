@@ -724,7 +724,7 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
     `ReasonSupersededByV1`, and the legacy test fixtures. `Rule.Metadata`
     can become `map[string]string`.
   - `internal/drain`: drop the legacy handler entry and the twin test.
-  - Helm: drop the tagged rule blocks, the legacy crd-access tests, then
+  - Helm: drop the tagged rule blocks, then
     `make helm-update-snapshots` and regenerate `manifest-bundle.yaml`.
   - `.golangci.yml`: delete the `SA1019 ... IPPolicy is deprecated`
     exclusion. `PROJECT`: delete the `group: ingress`, `kind: IPPolicy`
