@@ -394,6 +394,41 @@ var _ = Describe("IPPolicy migration", func() {
 		Eventually(ruleActions(id), timeout, interval).Should(ConsistOf("allow"))
 		Expect(idOf(ctx, legacy)(Default)).To(Equal(id))
 		Expect(remotePoliciesWithDescription(ctx, "mig-handback")).To(HaveLen(1))
+
+		By("writing later edits to the legacy object")
+		Eventually(func(g Gomega) {
+			current := &ingressv1alpha1.IPPolicy{}
+			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), current)).To(Succeed())
+			current.Spec.Rules = []ingressv1alpha1.IPPolicyRule{{CIDR: "10.0.0.0/8", Action: "deny"}}
+			g.Expect(k8sClient.Update(ctx, current)).To(Succeed())
+		}, timeout, interval).Should(Succeed())
+		Eventually(ruleActions(id), timeout, interval).Should(ConsistOf("deny"))
+		Expect(readyReason(ctx, legacy)(Default)).To(Equal(ippolicy.ReasonIPPolicyActive))
+	})
+
+	It("hands the remote policy back when the v1 object vanishes without a delete pass", func(ctx SpecContext) {
+		legacy := newLegacy("mig-vanish", "mig-vanish")
+		Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+		Eventually(idOf(ctx, legacy), timeout, interval).ShouldNot(BeEmpty())
+		id := idOf(ctx, legacy)(Default)
+
+		v1 := newV1("mig-vanish", "mig-vanish")
+		Expect(k8sClient.Create(ctx, v1)).To(Succeed())
+		Eventually(idOf(ctx, v1), timeout, interval).Should(Equal(id))
+		Eventually(readyReason(ctx, legacy), timeout, interval).Should(Equal(ippolicy.ReasonSupersededByV1))
+
+		By("stripping the v1 finalizer by hand, then deleting it")
+		Eventually(func(g Gomega) {
+			current := &ngrokv1.IPPolicy{}
+			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(v1), current)).To(Succeed())
+			current.SetFinalizers(nil)
+			g.Expect(k8sClient.Update(ctx, current)).To(Succeed())
+		}, timeout, interval).Should(Succeed())
+		Expect(k8sClient.Delete(ctx, v1)).To(Succeed())
+		Eventually(gone(ctx, v1), timeout, interval).Should(BeTrue())
+
+		Eventually(readyReason(ctx, legacy), timeout, interval).Should(Equal(ippolicy.ReasonIPPolicyActive))
+		Eventually(ruleActions(id), timeout, interval).Should(ConsistOf("allow"))
 	})
 
 	It("keeps the remote policy when v1 is applied and legacy deleted back to back", func(ctx SpecContext) {

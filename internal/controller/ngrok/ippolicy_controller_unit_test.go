@@ -531,3 +531,66 @@ func TestIPPolicyPair_DeletingV1WithIDlessLegacyDoesNotWait(t *testing.T) {
 	assert.NotEmpty(t, legacy.GetID(), "rule 6: legacy is the writer again")
 	assert.Equal(t, ippolicy.ReasonIPPolicyActive, readyReason(t, legacy))
 }
+
+// assertLegacyIsWriterAgain checks that a legacy object that was passive is
+// no longer marked superseded, and that a later edit to it reaches ngrok.
+func assertLegacyIsWriterAgain(t *testing.T, env *pairEnv, policies *nmockapi.IPPolicyClient, id string) {
+	t.Helper()
+	legacy := get(t, env.kube, &ingressv1alpha1.IPPolicy{})
+	require.NotNil(t, legacy)
+	assert.Equal(t, ippolicy.ReasonIPPolicyActive, readyReason(t, legacy), "the legacy object must not still claim it is superseded")
+	assert.Equal(t, id, legacy.GetID())
+
+	legacy.Spec.Description = "edited after v1 was deleted"
+	legacy.Generation++
+	require.NoError(t, env.kube.Update(t.Context(), legacy))
+	_, err := env.reconcile(t)
+	require.NoError(t, err)
+
+	remotePolicy, err := policies.Get(t.Context(), id)
+	require.NoError(t, err)
+	assert.Equal(t, "edited after v1 was deleted", remotePolicy.Description, "edits to the legacy object must be written again")
+}
+
+// A legacy object goes passive in one pass, then its v1 twin is deleted in a
+// later one: the legacy object must become the writer again.
+func TestIPPolicyPair_DeletingV1RestoresSupersededLegacy(t *testing.T) {
+	policies := nmockapi.NewIPPolicyClient()
+	id := remote(t, policies)
+	env := newPairEnv(t, policies, []client.Object{v1Obj(), legacyObj(withID(id), finalized())})
+
+	_, err := env.reconcile(t)
+	require.NoError(t, err)
+	require.Equal(t, ippolicy.ReasonSupersededByV1, readyReason(t, get(t, env.kube, &ingressv1alpha1.IPPolicy{})))
+
+	require.NoError(t, env.kube.Delete(t.Context(), get(t, env.kube, &ngrokv1.IPPolicy{})))
+	_, err = env.reconcile(t)
+	require.NoError(t, err)
+	assert.Nil(t, get(t, env.kube, &ngrokv1.IPPolicy{}))
+	assert.True(t, remoteExists(t, policies, id))
+
+	assertLegacyIsWriterAgain(t, env, policies, id)
+}
+
+// Same, but the v1 object disappears without a pass ever seeing it being
+// deleted (its finalizer was stripped by hand, or by a drain with Retain).
+func TestIPPolicyPair_V1VanishingRestoresSupersededLegacy(t *testing.T) {
+	policies := nmockapi.NewIPPolicyClient()
+	id := remote(t, policies)
+	env := newPairEnv(t, policies, []client.Object{v1Obj(), legacyObj(withID(id), finalized())})
+
+	_, err := env.reconcile(t)
+	require.NoError(t, err)
+	require.Equal(t, ippolicy.ReasonSupersededByV1, readyReason(t, get(t, env.kube, &ingressv1alpha1.IPPolicy{})))
+
+	v1 := get(t, env.kube, &ngrokv1.IPPolicy{})
+	v1.SetFinalizers(nil)
+	require.NoError(t, env.kube.Update(t.Context(), v1))
+	require.NoError(t, env.kube.Delete(t.Context(), v1))
+	require.Nil(t, get(t, env.kube, &ngrokv1.IPPolicy{}))
+
+	_, err = env.reconcile(t)
+	require.NoError(t, err)
+
+	assertLegacyIsWriterAgain(t, env, policies, id)
+}
