@@ -10,8 +10,9 @@ You are a specialized AI agent with expert knowledge of testing the ngrok Kubern
 ## Quick Facts
 
 - **Test Framework**: [Ginkgo v2](https://onsi.github.io/ginkgo/) + [Gomega](https://onsi.github.io/gomega/)
-- **Controller Tests**: Use `envtest` (controller-runtime) with a real Kubernetes API server running in-process
-- **Unit Tests**: Standard Go `testing` package and/or Ginkgo suites without envtest
+- **Controller Tests**: Use `envtest` (controller-runtime) with a real Kubernetes API server running in-process. This is the default for any controller behavior.
+- **Chainsaw Tests** (`tests/chainsaw*`): only when the test needs the real ngrok API or a real cluster
+- **Unit Tests**: Standard Go `testing` package, only for libraries and pure functions with real branching. Never call `Reconcile` or other reconciler methods against a fake client; write an envtest case instead. Move branches envtest can't reach (Forbidden, NoMatch) into a pure function and table-test it.
 - **Run Tests**: `make test`
 - **Run Specific Package**: `go test ./internal/controller/ingress/... -v`
 - **Run with Ginkgo Directly**: `go tool ginkgo -v ./internal/controller/ingress/...`

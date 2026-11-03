@@ -266,10 +266,11 @@ guide documents them.
 
 ## Verification per kind PR
 
-- Envtest or unit coverage for each twin state: legacy only, v1 only, both
+- Envtest coverage for each twin state: legacy only, v1 only, both
   with the same ID, both with different IDs, and deletes of each half.
 - Rule 5 coverage: a twin read that returns Forbidden skips the delete; any
-  other error requeues.
+  other error requeues. Envtest cannot produce these errors, so table-test
+  the pure function that classifies them.
 - Live upgrade in kind: 0.24 → R1 with real ngrok resources. Confirm remote
   IDs are unchanged, requests continuously succeed through migration (apply
   v1, delete legacy), and no duplicate endpoint appears in the ngrok API.
