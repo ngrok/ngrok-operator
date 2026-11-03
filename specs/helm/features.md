@@ -49,7 +49,9 @@ See [features/bindings.md](../features/bindings.md) for behavior details.
 | Parameter                                  | Description                                                        | Default |
 |--------------------------------------------|--------------------------------------------------------------------|---------|
 | `ngrok.features.privateEndpoints.enabled`  | Make the account's `*.ngrok.direct` private endpoints reachable from pods by URL | `false` |
-| `ngrok.features.privateEndpoints.privateDialServer` | Private dial server (host:port) the forwarder connects through, e.g. a regional one. QUIC only | `quic.connect-endpoint.ngrok.com:443` |
+| `ngrok.features.privateEndpoints.privateDialProtocol` | `auto` races QUIC against HTTP/2 and keeps the first to connect; `quic` or `h2` uses only that one | `auto` |
+| `ngrok.features.privateEndpoints.privateDialQuicServer` | Private dial server (host:port) for HTTP/3 (QUIC), e.g. a regional one | `quic.connect-endpoint.ngrok.com:443` |
+| `ngrok.features.privateEndpoints.privateDialH2Server` | Private dial server (host:port) for HTTP/2, e.g. a regional one | `h2.connect-endpoint.ngrok.com:443` |
 
 When `ngrok.features.privateEndpoints.enabled` is `true`, the private endpoint forwarder deployment is created (controlled by `components.privateEndpointForwarder`) and the operator starts mirroring private endpoints into PrivateEndpoint resources. The forwarder needs an access token (see [private-endpoint-forwarder.md](private-endpoint-forwarder.md#credentials)), and cluster DNS must be configured separately.
 

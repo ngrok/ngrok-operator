@@ -275,12 +275,22 @@
                             "properties": {
                                 "enabled": {
                                     "type": "boolean",
-                                    "description": "(POC) Make ngrok private endpoints (*.ngrok.direct only; *.internal is not supported) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, UDP/443 egress, and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret",
+                                    "description": "(POC) Make ngrok private endpoints (*.ngrok.direct only; *.internal is not supported) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, TCP/443 egress (UDP/443 too for QUIC), and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret",
                                     "default": false
                                 },
-                                "privateDialServer": {
+                                "privateDialQuicServer": {
                                     "type": "string",
-                                    "description": "Private dial server (host:port) the private-endpoint-forwarder connects through. QUIC only, so UDP/443 egress to it is required. Default: `quic.connect-endpoint.ngrok.com:443`",
+                                    "description": "Private dial server (host:port) the private-endpoint-forwarder connects to over HTTP/3 (QUIC, UDP/443). Default: `quic.connect-endpoint.ngrok.com:443`",
+                                    "default": ""
+                                },
+                                "privateDialH2Server": {
+                                    "type": "string",
+                                    "description": "Private dial server (host:port) the private-endpoint-forwarder connects to over HTTP/2 (TLS, TCP/443). Default: `h2.connect-endpoint.ngrok.com:443`",
+                                    "default": ""
+                                },
+                                "privateDialProtocol": {
+                                    "type": "string",
+                                    "description": "Private dial transport: `auto` races QUIC against HTTP/2 and keeps the first to connect, `quic` or `h2` uses only that one. Default: `auto`",
                                     "default": ""
                                 }
                             }
