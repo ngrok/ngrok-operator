@@ -466,6 +466,7 @@ compute: {}
 ## @param computeGateway.nodeSelector Node labels for gateway pod assignment.
 ## @param computeGateway.tolerations Tolerations for gateway pod assignment.
 ## @param computeGateway.topologySpreadConstraints Topology spread constraints for gateway pod assignment.
+## @param computeGateway.clusterResourceAccess Grant the gateway cluster-wide read access to nodes and node metrics, so Compute can show the cluster's CPU and memory.
 computeGateway:
   podAnnotations: {}
   priorityClassName: ""
@@ -477,6 +478,8 @@ computeGateway:
   nodeSelector: {}
   tolerations: []
   topologySpreadConstraints: []
+
+  clusterResourceAccess: false
 
   ## Gateway container resource requests and limits
   ## ref: https://kubernetes.io/docs/user-guide/compute-resources/

@@ -229,4 +229,45 @@ subjects:
 - kind: ServiceAccount
   name: {{ template "ngrok-operator.agent.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
+{{- $clusterResourceAccess := $gateway.clusterResourceAccess | default false }}
+{{- if not (kindIs "bool" $clusterResourceAccess) }}
+{{- fail "computeGateway.clusterResourceAccess must be a boolean" }}
+{{- end }}
+{{- if $clusterResourceAccess }}
+{{- /*
+Lets Compute read the cluster's node capacity and node usage, so it can show
+how loaded the cluster is. Reads only.
+*/}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}-cluster-resources
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["nodes"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}-cluster-resources
+  labels:
+    {{- include "ngrok-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}-cluster-resources
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}
