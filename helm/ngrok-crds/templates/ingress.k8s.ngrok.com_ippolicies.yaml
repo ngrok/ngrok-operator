@@ -37,6 +37,11 @@ spec:
       name: Message
       priority: 1
       type: string
+    deprecated: true
+    deprecationWarning: ingress.k8s.ngrok.com/v1alpha1 IPPolicy is deprecated; use
+      ngrok.com/v1 IPPolicy instead. Re-stamp the manifest's apiVersion and apply
+      it, wait for the new object to be Ready, then delete this one. The IP policy
+      keeps its ID.
     name: v1alpha1
     schema:
       openAPIV3Schema:

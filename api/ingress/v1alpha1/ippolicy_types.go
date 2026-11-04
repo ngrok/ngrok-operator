@@ -94,6 +94,7 @@ type IPPolicyStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="ingress.k8s.ngrok.com/v1alpha1 IPPolicy is deprecated; use ngrok.com/v1 IPPolicy instead. Re-stamp the manifest's apiVersion and apply it, wait for the new object to be Ready, then delete this one. The IP policy keeps its ID."
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="IPPolicy ID"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`,description="IPPolicy Ready"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,description="Age"
@@ -135,11 +136,11 @@ func (p *IPPolicy) GetDescription() string {
 	return p.Spec.Description
 }
 
-// GetMetadata returns the spec metadata parsed into a map[string]string,
-// handling both the canonical object form and the deprecated legacy string
-// form.
-func (p *IPPolicy) GetMetadata() map[string]string {
-	return common.MetadataToMap(p.Spec.Metadata)
+// GetMetadataAPIString returns the spec metadata encoded as the string the
+// ngrok API stores. Legacy free-text and non-string values pass through
+// verbatim, exactly as the operator has always sent them.
+func (p *IPPolicy) GetMetadataAPIString() string {
+	return common.MetadataAPIString(p.Spec.Metadata)
 }
 
 // GetRulesJSON returns the spec rules re-encoded as JSON so kind-agnostic
@@ -168,6 +169,12 @@ func (p *IPPolicy) GetConditions() *[]metav1.Condition {
 // GetObservedGeneration returns the generation the controller last reconciled.
 func (p *IPPolicy) GetObservedGeneration() int64 {
 	return p.Status.ObservedGeneration
+}
+
+// ResetStatus clears the status so the next reconcile recreates the remote
+// policy from scratch.
+func (p *IPPolicy) ResetStatus() {
+	p.Status = IPPolicyStatus{}
 }
 
 // +kubebuilder:object:root=true

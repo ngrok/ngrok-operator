@@ -84,6 +84,23 @@ tests:
         - patch
         - update
         - watch
+# The snapshot pins the exact rules; this checks the property that matters,
+# so adding a rule or a group doesn't break it.
+- it: ippolicy viewer can't write ippolicies in either API group
+  template: rbac/crd-access/ippolicy-viewer.yaml
+  asserts:
+  - notContains:
+      path: rules[*].verbs
+      content: create
+  - notContains:
+      path: rules[*].verbs
+      content: update
+  - notContains:
+      path: rules[*].verbs
+      content: patch
+  - notContains:
+      path: rules[*].verbs
+      content: delete
 # LEGACY-trafficpolicy-kind: drop this test at cleanup along with the template
 # it covers.
 - it: should keep the deprecated ngrok.k8s.ngrok.com trafficpolicy editor
