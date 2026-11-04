@@ -112,6 +112,8 @@ between kinds must be listed under [Exceptions](#exceptions).
 
 ### Exceptions
 
+- **KubernetesOperator, rule 4.** No `DeprecatedAPIGroup` warning event on
+  the legacy object. Users never write it, so there is nothing to act on.
 - **KubernetesOperator, rule 6.** The operator creates its KubernetesOperator
   only at startup, so nothing recreates or hands control back mid-run.
   Deleting the v1 object while a legacy twin exists skips the drain and the
@@ -143,8 +145,11 @@ between kinds must be listed under [Exceptions](#exceptions).
   through. The v1 spec must reach the driver as the type the driver takes.
 - **KubernetesOperator:** Branch
   `alex/k8sop-318-move-kubernetesoperator-from-v1alpha-to-v1-and-migrate-api`.
-  The ID is kept by `findExisting` matching. The uninstall hook deletes both
-  kinds by fully qualified name. Per rule 8 the branch keeps the legacy
+  The v1 object adopts the legacy twin's `status.id` (rule 3) and falls back
+  to `findExisting` matching only when the twin has none. The uninstall hook
+  deletes both kinds by fully qualified name, and fails before the v1 delete
+  if the legacy object is still there, since that delete would skip the
+  drain. Per rule 8 the branch keeps the legacy
   finalizer and drops the `ngrok.com/superseded-by` annotation. See
   [Exceptions](#exceptions) for rules 6 and 10.
 
@@ -258,9 +263,11 @@ guide documents them.
     stuck legacy object. Then do the same for every v1 object and delete the
     leftover v1 CRDs, which uninstall leaves behind because of the keep
     annotation.
-- **`ngrok-crds` installed as its own Helm release.** Uninstalling that
-  release in R1 leaves the `ngrok.com` CRDs behind, because of the keep
-  annotation. Delete them by hand.
+- **Uninstall in R1.** `helm uninstall` leaves the kept `ngrok.com` CRDs
+  behind, whether they come from the operator chart or a separate
+  `ngrok-crds` release. After a drain they are empty, and a reinstall into
+  the same release name and namespace adopts them. Delete them by hand to
+  remove them.
 - **R2 → R1:** Legacy CRDs are still installed. R1 resumes dual-read, and v1
   objects win.
 

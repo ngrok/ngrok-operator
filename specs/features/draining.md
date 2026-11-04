@@ -66,8 +66,11 @@ Deletion polling waits up to 60 seconds at 500ms intervals for each resource to 
 The Helm chart includes a pre-delete hook that automates the drain process during `helm uninstall`:
 
 1. A Kubernetes Job runs with `helm.sh/hook: pre-delete` annotation.
-2. The job executes `kubectl delete kubernetesoperator <release-name> -n <namespace>`.
-3. It waits for the KubernetesOperator CR to be fully deleted (with timeout).
+2. The job removes the legacy `kubernetesoperators.ngrok.k8s.ngrok.com` object
+   and fails if it is still present, since deleting the v1 object while it
+   exists skips the drain.
+3. It runs `kubectl delete kubernetesoperators.ngrok.com <release-name> -n <namespace>`
+   and waits for the KubernetesOperator CR to be fully deleted (with timeout).
 4. The job self-deletes on success.
 
 | Helm Value                | Description                    | Default            |
