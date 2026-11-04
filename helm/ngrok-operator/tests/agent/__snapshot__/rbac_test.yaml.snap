@@ -7,6 +7,14 @@ should match snapshot in default mode:
       namespace: NAMESPACE
     rules:
       - apiGroups:
+          - ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - kubernetesoperators
@@ -131,6 +139,14 @@ should match snapshot in namespaced mode:
       name: RELEASE-NAME-ngrok-operator-agent-operator-state-role
       namespace: NAMESPACE
     rules:
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - get
+          - list
+          - watch
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
