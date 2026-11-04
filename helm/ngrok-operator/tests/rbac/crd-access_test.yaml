@@ -83,6 +83,40 @@ tests:
   - notContains:
       path: rules[*].verbs
       content: delete
+- it: should grant both agentendpoint groups in the agentendpoint editor
+  template: rbac/crd-access/agentendpoint-editor.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ngrok.com
+        resources:
+        - agentendpoints
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
+  # LEGACY-agentendpoint-kind: drop this assert at cleanup.
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ngrok.k8s.ngrok.com
+        resources:
+        - agentendpoints
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
 - it: should use ngrok.com for the canonical trafficpolicy editor
   template: rbac/crd-access/trafficpolicy-editor.yaml
   asserts:

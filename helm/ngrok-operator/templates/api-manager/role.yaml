@@ -273,6 +273,7 @@ rules:
 # `watchNamespace`), so they live in bindings-cluster-role.yaml rather than this
 # watchNamespace-following Role.
 # --- ngrok.k8s.ngrok.com ---
+# LEGACY-agentendpoint-kind: BEGIN — drop these three rule blocks at cleanup.
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -300,6 +301,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-agentendpoint-kind: END
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -437,6 +439,35 @@ rules:
   - ngrok.com
   resources:
   - ippolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+# Canonical ngrok.com/v1 AgentEndpoint rules. The managerdriver and the Service
+# controller create and delete the operator's AgentEndpoints.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - agentendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - agentendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - agentendpoints/status
   verbs:
   - get
   - patch
