@@ -236,8 +236,8 @@ jobs:
       if: always()
       run: |
         echo "Deleting kubernetesoperators..."
-        kubectl -n namespace-a delete kubernetesoperator ngrok-operator-a || true
-        kubectl -n namespace-b delete kubernetesoperator ngrok-operator-b || true
+        kubectl -n namespace-a delete kubernetesoperators.ngrok.com ngrok-operator-a || true
+        kubectl -n namespace-b delete kubernetesoperators.ngrok.com ngrok-operator-b || true
         echo "Uninstalling the operators..."
         helm uninstall ngrok-operator-a -n namespace-a || true
         helm uninstall ngrok-operator-b -n namespace-b || true

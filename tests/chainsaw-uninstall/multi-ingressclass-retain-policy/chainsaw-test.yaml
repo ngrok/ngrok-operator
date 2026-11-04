@@ -96,7 +96,7 @@ spec:
         - assert:
             timeout: 2m
             resource:
-              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              apiVersion: ngrok.com/v1
               kind: KubernetesOperator
               metadata:
                 namespace: namespace-a
@@ -106,7 +106,7 @@ spec:
         - assert:
             timeout: 2m
             resource:
-              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              apiVersion: ngrok.com/v1
               kind: KubernetesOperator
               metadata:
                 namespace: namespace-b
@@ -119,8 +119,8 @@ spec:
         - script:
             timeout: 30s
             content: |
-              KO_ID_A=$(kubectl get kubernetesoperator ngrok-operator-a -n namespace-a -o jsonpath='{.status.id}')
-              KO_ID_B=$(kubectl get kubernetesoperator ngrok-operator-b -n namespace-b -o jsonpath='{.status.id}')
+              KO_ID_A=$(kubectl get kubernetesoperators.ngrok.com ngrok-operator-a -n namespace-a -o jsonpath='{.status.id}')
+              KO_ID_B=$(kubectl get kubernetesoperators.ngrok.com ngrok-operator-b -n namespace-b -o jsonpath='{.status.id}')
               echo "KubernetesOperator A ID: $KO_ID_A"
               echo "KubernetesOperator B ID: $KO_ID_B"
               echo "$KO_ID_A" > /tmp/ko-id-ingclass-a.txt

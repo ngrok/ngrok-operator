@@ -37,8 +37,7 @@ echo "=== Removing finalizers from ngrok CRs and deleting CRDs ==="
 for crd in $(kubectl get crds -o name 2>/dev/null | grep ngrok); do
   crd_name=$(echo "$crd" | sed 's|customresourcedefinition.apiextensions.k8s.io/||')
   # Use plural.group: the legacy and ngrok.com CRDs of a moved kind share a
-  # plural (ippolicies, kubernetesoperators), so the bare plural would only
-  # reach one of them.
+  # plural, so the bare plural would only reach one of them.
   resource_name="$crd_name"
   
   # Remove finalizers from all CRs of this CRD type first
