@@ -1,0 +1,23 @@
+# LEGACY-kubernetesoperator-kind: drop this suite in R2, with the legacy block
+# of the cleanup hook.
+suite: test cleanup hook during the KubernetesOperator migration
+templates:
+- cleanup-hook/job.yaml
+set:
+  ngrok.features.cleanup.enabled: true
+tests:
+- it: removes the legacy KubernetesOperator before the one whose deletion drains
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: (?s)kubectl delete kubernetesoperators\.ngrok\.k8s\.ngrok\.com .*kubectl delete kubernetesoperators\.ngrok\.com
+- it: stops before the drain while the legacy KubernetesOperator remains
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: (?s)kubectl get kubernetesoperators\.ngrok\.k8s\.ngrok\.com .*exit 1.*kubectl delete kubernetesoperators\.ngrok\.com
+- it: leaves the kept ngrok.com CRDs for the user to remove
+  asserts:
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: kubectl delete crd

@@ -68,6 +68,10 @@ type TrafficPolicyStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:categories=ngrok
+// LEGACY-trafficpolicy-kind: drop this marker at cleanup. While both
+// TrafficPolicy CRDs ship, helm rollback must not delete this one and every
+// re-stamped TrafficPolicy with it. The uninstall hook deletes the CRD instead.
+// +kubebuilder:metadata:annotations="helm.sh/resource-policy=keep"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].reason",priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
