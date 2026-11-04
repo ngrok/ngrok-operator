@@ -96,10 +96,11 @@ between kinds must be listed under [Exceptions](#exceptions).
    - Any other error: requeue.
 6. **Deleting v1 hands control back to legacy.** Legacy becomes the writer
    again on the next pass.
-7. **R1 never deletes legacy objects**, including operator-created ones. After
-   `helm rollback` to 0.24, the old operator needs the legacy object with its
-   ID intact. Without it, 0.24 creates a second endpoint: a duplicate in the
-   pool and on the bill.
+7. **R1 never deletes a legacy object because a v1 twin exists**, including
+   operator-created ones. After `helm rollback` to 0.24, the old operator needs
+   the legacy object with its ID intact. Without it, 0.24 creates a second
+   endpoint: a duplicate in the pool and on the bill. A generator deletes a
+   legacy object together with its v1 twin once its source wants neither.
 8. **Legacy finalizers stay in R1.** R2 strips them all. This keeps R1 simpler:
    no re-stamp logic when v1 is deleted.
 9. **Deleting a twinned legacy object releases its finalizer without an ngrok
@@ -143,7 +144,14 @@ between kinds must be listed under [Exceptions](#exceptions).
   `ensureDomains` then creates the default v1 Domain.
 - **CloudEndpoint / AgentEndpoint, operator-generated:** The generator writes
   v1 objects with the same name. Rules 3-4 hand ownership over. The legacy
-  object stays (rule 7) until R2 makes it inert. Users do nothing.
+  object stays (rule 7) until R2 makes it inert, unless its source no longer
+  wants it: then the generator deletes both halves, legacy first. Otherwise
+  rule 6 would hand the tunnel back to the stale legacy object once the v1
+  twin is deleted. A Service's legacy AgentEndpoint that isn't its v1
+  object's twin, which a rollback creates, is deleted too. Users do nothing.
+  Service-owned endpoints are named by `GenerateName`, so the Service
+  controller gives the first v1 object the name of the Service's legacy object;
+  without that no twin forms.
 - **AgentEndpoint handoff:** The agent driver keys tunnels by `namespace/name`
   (`statusID`, `internal/controller/agent/agent_endpoint_controller.go`).
   `CreateAgentEndpoint` is a no-op when the stored config equals the new one
@@ -152,6 +160,9 @@ between kinds must be listed under [Exceptions](#exceptions).
   then close). Rule 4 must hold, or two objects with different specs flap the
   same slot. Rule 5 must hold, or deleting legacy closes the tunnel v1 serves
   through. The v1 spec must reach the driver as the type the driver takes.
+  Implemented by `internal/controller/agent/agent_endpoint_controller.go`; the
+  driver takes `agent.EndpointSpec`, which both kinds convert to, so equal
+  specs compare equal and the take-over doesn't rebind.
 - **KubernetesOperator:** Branch
   `alex/k8sop-318-move-kubernetesoperator-from-v1alpha-to-v1-and-migrate-api`.
   The v1 object adopts the legacy twin's `status.id` (rule 3) and falls back
@@ -191,6 +202,9 @@ between kinds must be listed under [Exceptions](#exceptions).
   it, at which point late adoption takes it back. The 1.0 upgrade guide says
   so, includes a command that lists legacy objects with no v1 twin, and says
   to migrate before 1.1: a re-stamp after 1.1 creates a new ID.
+  AgentEndpoint is the exception: its tunnel lives in the agent process, so
+  an unmigrated legacy AgentEndpoint goes offline when 1.0 starts. The guide
+  says that instead.
 - **Opt-in legacy CRD removal.** The `ngrok-crds` subchart gets a value,
   set from the operator chart as `ngrok-crds.legacy.install` (default
   `true`). Once 1.0 is running and no legacy object carries an ngrok
