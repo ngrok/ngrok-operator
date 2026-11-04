@@ -181,7 +181,10 @@ func (d *Drainer) waitForDeletion(ctx context.Context, obj client.Object, key ty
 	// Create a new instance of the same type to use for Get calls
 	gvk := obj.GetObjectKind().GroupVersionKind()
 
-	return wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 60*time.Second, true, func(ctx context.Context) (bool, error) {
+	// Objects are drained one at a time and a controller usually finishes a
+	// delete well within one interval, so the interval sets the drain rate.
+	// Keep it short: a twin pair of AgentEndpoints is two objects.
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 60*time.Second, true, func(ctx context.Context) (bool, error) {
 		// We need a fresh object for each Get call
 		fresh := obj.DeepCopyObject().(client.Object)
 		err := d.Client.Get(ctx, key, fresh)
