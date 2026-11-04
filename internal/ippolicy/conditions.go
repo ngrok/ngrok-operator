@@ -44,6 +44,11 @@ const (
 	ReasonIPPolicyRulesConfigurationError = "IPPolicyRulesConfigurationError"
 	ReasonIPPolicyInvalidCIDR             = "IPPolicyInvalidCIDR"
 	ReasonIPPolicyCreationFailed          = "IPPolicyCreationFailed"
+
+	// ReasonSupersededByV1 marks a legacy ingress.k8s.ngrok.com IPPolicy whose
+	// ngrok.com/v1 twin now manages the remote policy.
+	// LEGACY-ippolicy-kind: delete at cleanup.
+	ReasonSupersededByV1 = "SupersededByV1"
 )
 
 // SetReadyCondition sets the Ready condition based on the overall IP policy state
