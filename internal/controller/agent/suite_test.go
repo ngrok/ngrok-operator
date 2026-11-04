@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,6 +33,21 @@ var testEnv *envtest.Environment
 
 // Env test manager and mock driver for controller runtime tests
 var envMgr ctrl.Manager
+
+// envDeprecationWarnings counts the API server's deprecation warnings for the
+// legacy AgentEndpoint kind on envMgr's requests.
+var envDeprecationWarnings warningCounter
+
+type warningCounter struct {
+	n atomic.Int64
+}
+
+func (w *warningCounter) HandleWarningHeader(_ int, _ string, text string) {
+	if strings.Contains(text, "AgentEndpoint is deprecated") {
+		w.n.Add(1)
+	}
+}
+
 var envCtx context.Context
 var envCancel context.CancelFunc
 var envMockDriver *agent.MockAgentDriver
@@ -89,7 +106,9 @@ var _ = BeforeSuite(func() {
 	envMockDriver = agent.NewMockAgentDriver()
 
 	// Create dedicated manager for env tests
-	envMgr, err = ctrl.NewManager(cfg, ctrl.Options{
+	mgrCfg := rest.CopyConfig(cfg)
+	mgrCfg.WarningHandler = &envDeprecationWarnings
+	envMgr, err = ctrl.NewManager(mgrCfg, ctrl.Options{
 		Scheme:         scheme.Scheme,
 		LeaderElection: false,
 		Metrics: server.Options{

@@ -7,14 +7,13 @@ import (
 	"slices"
 	"sync"
 
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"golang.ngrok.com/ngrok/v2"
 )
 
 // endpointConfig is the desired state a forwarder was created from. It is
 // kept so an unchanged reconcile can skip rebinding the tunnel.
 type endpointConfig struct {
-	spec          ngrokv1alpha1.AgentEndpointSpec
+	spec          EndpointSpec
 	trafficPolicy string
 	clientCerts   []tls.Certificate
 	agentTLS      *AgentTLSTermination
