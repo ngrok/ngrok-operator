@@ -4,7 +4,7 @@ Should match all-options snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 36313f902a1cf2a185b6bb358cf3e3d2a4070fa3461f76d230329e9650146598
+        checksum/controller-role: 9c1a1aa3240efb84fd1badf8f2ba5f9116c5eafd923d7e1a6f627a18400f7f1d
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -26,7 +26,7 @@ Should match all-options snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 36313f902a1cf2a185b6bb358cf3e3d2a4070fa3461f76d230329e9650146598
+            checksum/controller-role: 9c1a1aa3240efb84fd1badf8f2ba5f9116c5eafd923d7e1a6f627a18400f7f1d
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -543,6 +543,33 @@ Should match all-options snapshot:
           - patch
           - update
       - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
           - ""
         resources:
           - namespaces
@@ -591,7 +618,7 @@ Should match default snapshot:
     kind: Deployment
     metadata:
       annotations:
-        checksum/controller-role: 36313f902a1cf2a185b6bb358cf3e3d2a4070fa3461f76d230329e9650146598
+        checksum/controller-role: 9c1a1aa3240efb84fd1badf8f2ba5f9116c5eafd923d7e1a6f627a18400f7f1d
         checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
       labels:
         app.kubernetes.io/component: controller
@@ -613,7 +640,7 @@ Should match default snapshot:
       template:
         metadata:
           annotations:
-            checksum/controller-role: 36313f902a1cf2a185b6bb358cf3e3d2a4070fa3461f76d230329e9650146598
+            checksum/controller-role: 9c1a1aa3240efb84fd1badf8f2ba5f9116c5eafd923d7e1a6f627a18400f7f1d
             checksum/rbac: 133c53d32600d926996f00745a08c48b776ffd5eb0a899e65f9bc0326702d9c0
             checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
             prometheus.io/path: /metrics
@@ -1112,6 +1139,33 @@ Should match default snapshot:
           - ngrok.com
         resources:
           - ippolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/status
         verbs:
           - get
           - patch
