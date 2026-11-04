@@ -30,8 +30,34 @@ spec:
             - -c
             - |
               set -e
-              echo "Deleting KubernetesOperator '{{ .Release.Name }}' to trigger drain..."
-              kubectl delete kubernetesoperator "{{ .Release.Name }}" -n {{ .Release.Namespace }} --wait=true --timeout={{ .Values.ngrok.features.cleanup.timeout }}s || true
+              RELEASE="{{ .Release.Name }}"
+              NAMESPACE="{{ .Release.Namespace }}"
+              # Both KubernetesOperator kinds use the plural
+              # "kubernetesoperators", so every name below is fully qualified.
+
+              # LEGACY-kubernetesoperator-kind: BEGIN — drop in R2.
+              # 1. Remove the legacy KubernetesOperator. While it exists, the
+              #    operator treats deleting the v1 object as a rollback and
+              #    skips the drain. Clear its finalizer first in case the
+              #    operator is not running.
+              echo "Removing the legacy KubernetesOperator..."
+              kubectl patch kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                --type=merge -p '{"metadata":{"finalizers":null}}' || true
+              kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                --ignore-not-found --wait=true --timeout=60s || true
+              # Deleting the KubernetesOperator below would skip the drain if
+              # the legacy one were still here, so fail and let the Job retry.
+              if LEGACY=$(kubectl get kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                --ignore-not-found -o name) && [ -n "$LEGACY" ]; then
+                echo "The legacy KubernetesOperator is still present; not deleting the KubernetesOperator"
+                exit 1
+              fi
+              # LEGACY-kubernetesoperator-kind: END
+
+              # 2. Delete the KubernetesOperator. Its finalizer runs the drain.
+              echo "Deleting KubernetesOperator '$RELEASE' to trigger drain..."
+              kubectl delete kubernetesoperators.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                --wait=true --timeout={{ .Values.ngrok.features.cleanup.timeout }}s || true
           resources:
             {{- toYaml .Values.components.cleanupHook.resources | nindent 12 }}
 {{- end }}

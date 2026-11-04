@@ -1,16 +1,22 @@
 #!/bin/bash
-# Asserts that uninstall removed every ngrok CRD except the ngrok.com CRDs that
-# carry helm.sh/resource-policy=keep, and that no KubernetesOperator is left in
-# the kept KubernetesOperator CRD.
+# Asserts that uninstall removed every ngrok CRD except those that carry
+# helm.sh/resource-policy=keep, and that no KubernetesOperator is left in the
+# kept KubernetesOperator CRD.
 #
-# LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind / LEGACY-ippolicy-kind:
-# R2 removes the keep annotation; then assert that every ngrok CRD is gone again.
+# The kept set is read from the CRDs themselves, so migrating a kind, or R2
+# removing the annotation, needs no change here.
 
 set -o pipefail
 
-KEPT='^customresourcedefinition.apiextensions.k8s.io/(ippolicies|kubernetesoperators|trafficpolicies)\.ngrok\.com$'
+if ! crds=$(kubectl get crds -o json); then
+  echo "✗ could not list CRDs"
+  exit 1
+fi
 
-leftover=$(kubectl get crds -o name | grep ngrok | grep -v -E "$KEPT" || true)
+leftover=$(echo "$crds" | jq -r '.items[]
+  | select(.metadata.name | test("ngrok"))
+  | select(.metadata.annotations["helm.sh/resource-policy"] != "keep")
+  | .metadata.name')
 if [ -n "$leftover" ]; then
   echo "✗ ngrok CRDs still exist:"
   echo "$leftover"
@@ -24,4 +30,4 @@ if [ -n "$kos" ]; then
   exit 1
 fi
 
-echo "✓ ngrok CRDs removed, except the kept ngrok.com CRDs"
+echo "✓ ngrok CRDs removed, except the kept ones"

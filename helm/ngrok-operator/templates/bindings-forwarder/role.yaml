@@ -39,6 +39,16 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
+# LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup; the legacy KubernetesOperator is read as a
+# fallback until the ngrok.com/v1 object registers.
+- apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - kubernetesoperators
@@ -46,6 +56,7 @@ rules:
   - get
   - list
   - watch
+# LEGACY-kubernetesoperator-kind: END
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

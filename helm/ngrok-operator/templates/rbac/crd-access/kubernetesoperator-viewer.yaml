@@ -12,6 +12,21 @@ metadata:
   {{- end }}
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - kubernetesoperators/status
+  verbs:
+  - get
+# LEGACY-kubernetesoperator-kind: BEGIN — drop the legacy-group rules at cleanup.
+- apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - kubernetesoperators
@@ -25,4 +40,5 @@ rules:
   - kubernetesoperators/status
   verbs:
   - get
+# LEGACY-kubernetesoperator-kind: END
 {{- end }}

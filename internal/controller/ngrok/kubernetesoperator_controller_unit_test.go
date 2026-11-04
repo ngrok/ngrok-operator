@@ -8,6 +8,8 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
+	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
@@ -27,24 +29,24 @@ import (
 func TestCalculateFeaturesEnabled(t *testing.T) {
 	tc := []struct {
 		name     string
-		in       *ngrokv1alpha1.KubernetesOperator
+		in       *ngrokv1.KubernetesOperator
 		expected []string
 	}{
 		{
 			name: "no features enabled",
-			in: &ngrokv1alpha1.KubernetesOperator{
-				Spec: ngrokv1alpha1.KubernetesOperatorSpec{},
+			in: &ngrokv1.KubernetesOperator{
+				Spec: ngrokv1.KubernetesOperatorSpec{},
 			},
 			expected: nil,
 		},
 		{
 			name: "all features enabled",
-			in: &ngrokv1alpha1.KubernetesOperator{
-				Spec: ngrokv1alpha1.KubernetesOperatorSpec{
+			in: &ngrokv1.KubernetesOperator{
+				Spec: ngrokv1.KubernetesOperatorSpec{
 					EnabledFeatures: []string{
-						ngrokv1alpha1.KubernetesOperatorFeatureBindings,
-						ngrokv1alpha1.KubernetesOperatorFeatureIngress,
-						ngrokv1alpha1.KubernetesOperatorFeatureGateway,
+						ngrokv1.KubernetesOperatorFeatureBindings,
+						ngrokv1.KubernetesOperatorFeatureIngress,
+						ngrokv1.KubernetesOperatorFeatureGateway,
 					},
 				},
 			},
@@ -82,58 +84,58 @@ func TestUpdateStatus_Conditions(t *testing.T) {
 			name:            "registered",
 			ngrokKo:         registeredKO,
 			wantRegistered:  metav1.ConditionTrue,
-			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonRegistered,
+			wantRegReason:   ngrokv1.KubernetesOperatorReasonRegistered,
 			wantReady:       metav1.ConditionTrue,
-			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonRegistered,
+			wantReadyReason: ngrokv1.KubernetesOperatorReasonRegistered,
 		},
 		{
 			name:            "pending",
 			wantRegistered:  metav1.ConditionFalse,
-			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonPending,
+			wantRegReason:   ngrokv1.KubernetesOperatorReasonPending,
 			wantReady:       metav1.ConditionFalse,
-			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonPending,
+			wantReadyReason: ngrokv1.KubernetesOperatorReasonPending,
 		},
 		{
 			name:            "ngrok api error uses stable failure reason",
 			err:             &ngrok.Error{ErrorCode: "ERR_NGROK_123", Msg: "something broke"},
 			wantRegistered:  metav1.ConditionFalse,
-			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+			wantRegReason:   ngrokv1.KubernetesOperatorReasonRegistrationFailed,
 			wantReady:       metav1.ConditionFalse,
-			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+			wantReadyReason: ngrokv1.KubernetesOperatorReasonRegistrationFailed,
 		},
 		{
 			name:            "ngrok api error with empty message preserves fallback",
 			err:             &ngrok.Error{ErrorCode: "ERR_NGROK_123"},
 			wantRegistered:  metav1.ConditionFalse,
-			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+			wantRegReason:   ngrokv1.KubernetesOperatorReasonRegistrationFailed,
 			wantReady:       metav1.ConditionFalse,
-			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+			wantReadyReason: ngrokv1.KubernetesOperatorReasonRegistrationFailed,
 			wantMessage:     "HTTP 0",
 		},
 		{
 			name:            "generic error",
 			err:             errors.New("boom"),
 			wantRegistered:  metav1.ConditionFalse,
-			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+			wantRegReason:   ngrokv1.KubernetesOperatorReasonRegistrationFailed,
 			wantReady:       metav1.ConditionFalse,
-			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+			wantReadyReason: ngrokv1.KubernetesOperatorReasonRegistrationFailed,
 		},
 		{
 			name:            "invalid configuration before registration",
 			err:             errBindingsConfiguration,
 			wantRegistered:  metav1.ConditionFalse,
-			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonRegistrationFailed,
+			wantRegReason:   ngrokv1.KubernetesOperatorReasonRegistrationFailed,
 			wantReady:       metav1.ConditionFalse,
-			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonConfigurationFailed,
+			wantReadyReason: ngrokv1.KubernetesOperatorReasonConfigurationFailed,
 		},
 		{
 			name:            "registered but later step failed",
 			ngrokKo:         registeredKO,
 			err:             errors.New("failed to update TLS secret"),
 			wantRegistered:  metav1.ConditionTrue,
-			wantRegReason:   ngrokv1alpha1.KubernetesOperatorReasonRegistered,
+			wantRegReason:   ngrokv1.KubernetesOperatorReasonRegistered,
 			wantReady:       metav1.ConditionFalse,
-			wantReadyReason: ngrokv1alpha1.KubernetesOperatorReasonConfigurationFailed,
+			wantReadyReason: ngrokv1.KubernetesOperatorReasonConfigurationFailed,
 		},
 	}
 
@@ -141,8 +143,9 @@ func TestUpdateStatus_Conditions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			scheme := runtime.NewScheme()
 			require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+			require.NoError(t, ngrokv1.AddToScheme(scheme))
 
-			ko := &ngrokv1alpha1.KubernetesOperator{
+			ko := &ngrokv1.KubernetesOperator{
 				Name:       "ko",
 				Namespace:  "test-ns",
 				Generation: 2,
@@ -156,7 +159,7 @@ func TestUpdateStatus_Conditions(t *testing.T) {
 
 			reconciler := &KubernetesOperatorReconciler{
 				Client: fakeClient,
-				controller: &controller.BaseController[*ngrokv1alpha1.KubernetesOperator]{
+				controller: &controller.BaseController[*ngrokv1.KubernetesOperator]{
 					Kube:     fakeClient,
 					Log:      logr.Discard(),
 					Recorder: events.NewFakeRecorder(10),
@@ -166,17 +169,17 @@ func TestUpdateStatus_Conditions(t *testing.T) {
 			err := reconciler.updateStatus(context.Background(), ko, tt.ngrokKo, tt.err)
 			assert.Equal(t, tt.err, err, "updateStatus passes the original error through")
 
-			persisted := &ngrokv1alpha1.KubernetesOperator{}
+			persisted := &ngrokv1.KubernetesOperator{}
 			require.NoError(t, fakeClient.Get(context.Background(), client.ObjectKeyFromObject(ko), persisted))
 			ko = persisted
 
-			registered := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionRegistered)
+			registered := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionRegistered)
 			require.NotNil(t, registered)
 			assert.Equal(t, tt.wantRegistered, registered.Status)
 			assert.Equal(t, tt.wantRegReason, registered.Reason)
 			assert.Equal(t, int64(2), registered.ObservedGeneration)
 
-			ready := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+			ready := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)
 			require.NotNil(t, ready)
 			assert.Equal(t, tt.wantReady, ready.Status)
 			assert.Equal(t, tt.wantReadyReason, ready.Reason)
@@ -190,7 +193,7 @@ func TestUpdateStatus_Conditions(t *testing.T) {
 
 			if tt.ngrokKo != nil {
 				assert.Equal(t, tt.ngrokKo.ID, ko.Status.ID)
-				assert.Equal(t, tt.ngrokKo.EnabledFeatures, []string(ko.Status.EnabledFeatures))
+				assert.Equal(t, tt.ngrokKo.EnabledFeatures, ko.Status.EnabledFeatures)
 			}
 		})
 	}
@@ -199,15 +202,16 @@ func TestUpdateStatus_Conditions(t *testing.T) {
 func TestUpdate_ExistingOperatorConfigurationFailureRemainsRegistered(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:       "ko",
 		Namespace:  "test-ns",
 		Generation: 2,
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
+		Spec: ngrokv1.KubernetesOperatorSpec{
+			EnabledFeatures: []string{ngrokv1.KubernetesOperatorFeatureBindings},
 		},
-		Status: ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_123"},
+		Status: ngrokv1.KubernetesOperatorStatus{ID: "k8sop_123"},
 	}
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -216,7 +220,7 @@ func TestUpdate_ExistingOperatorConfigurationFailureRemainsRegistered(t *testing
 		Build()
 	reconciler := &KubernetesOperatorReconciler{
 		Client: fakeClient,
-		controller: &controller.BaseController[*ngrokv1alpha1.KubernetesOperator]{
+		controller: &controller.BaseController[*ngrokv1.KubernetesOperator]{
 			Kube:     fakeClient,
 			Log:      logr.Discard(),
 			Recorder: events.NewFakeRecorder(10),
@@ -228,23 +232,23 @@ func TestUpdate_ExistingOperatorConfigurationFailureRemainsRegistered(t *testing
 	})
 	require.ErrorContains(t, err, "spec.binding is not configured")
 
-	persisted := &ngrokv1alpha1.KubernetesOperator{}
+	persisted := &ngrokv1.KubernetesOperator{}
 	require.NoError(t, fakeClient.Get(context.Background(), client.ObjectKeyFromObject(ko), persisted))
 	ko = persisted
 
 	assert.True(t, meta.IsStatusConditionTrue(
 		ko.Status.Conditions,
-		ngrokv1alpha1.KubernetesOperatorConditionRegistered,
+		ngrokv1.KubernetesOperatorConditionRegistered,
 	))
-	ready := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+	ready := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)
 	require.NotNil(t, ready)
 	assert.Equal(t, metav1.ConditionFalse, ready.Status)
-	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonConfigurationFailed, ready.Reason)
+	assert.Equal(t, ngrokv1.KubernetesOperatorReasonConfigurationFailed, ready.Reason)
 }
 
 func TestKubernetesOperatorReconcilePredicate(t *testing.T) {
 	now := metav1.Now()
-	base := &ngrokv1alpha1.KubernetesOperator{
+	base := &ngrokv1.KubernetesOperator{
 		Name:       "ko",
 		Namespace:  "test-ns",
 		Generation: 1,
@@ -252,14 +256,14 @@ func TestKubernetesOperatorReconcilePredicate(t *testing.T) {
 
 	tests := []struct {
 		name string
-		old  *ngrokv1alpha1.KubernetesOperator
-		new  *ngrokv1alpha1.KubernetesOperator
+		old  *ngrokv1.KubernetesOperator
+		new  *ngrokv1.KubernetesOperator
 		want bool
 	}{
 		{
 			name: "deletion starts",
 			old:  base.DeepCopy(),
-			new: func() *ngrokv1alpha1.KubernetesOperator {
+			new: func() *ngrokv1.KubernetesOperator {
 				obj := base.DeepCopy()
 				obj.DeletionTimestamp = &now
 				return obj
@@ -269,7 +273,7 @@ func TestKubernetesOperatorReconcilePredicate(t *testing.T) {
 		{
 			name: "status-only update",
 			old:  base.DeepCopy(),
-			new: func() *ngrokv1alpha1.KubernetesOperator {
+			new: func() *ngrokv1.KubernetesOperator {
 				obj := base.DeepCopy()
 				obj.Status.ID = "k8sop_123"
 				return obj
@@ -278,12 +282,12 @@ func TestKubernetesOperatorReconcilePredicate(t *testing.T) {
 		},
 		{
 			name: "status-only update while deleting",
-			old: func() *ngrokv1alpha1.KubernetesOperator {
+			old: func() *ngrokv1.KubernetesOperator {
 				obj := base.DeepCopy()
 				obj.DeletionTimestamp = &now
 				return obj
 			}(),
-			new: func() *ngrokv1alpha1.KubernetesOperator {
+			new: func() *ngrokv1.KubernetesOperator {
 				obj := base.DeepCopy()
 				obj.DeletionTimestamp = &now
 				obj.Status.ID = "k8sop_123"
@@ -294,7 +298,7 @@ func TestKubernetesOperatorReconcilePredicate(t *testing.T) {
 		{
 			name: "generation changes",
 			old:  base.DeepCopy(),
-			new: func() *ngrokv1alpha1.KubernetesOperator {
+			new: func() *ngrokv1.KubernetesOperator {
 				obj := base.DeepCopy()
 				obj.Generation++
 				return obj
@@ -304,7 +308,7 @@ func TestKubernetesOperatorReconcilePredicate(t *testing.T) {
 		{
 			name: "annotations change",
 			old:  base.DeepCopy(),
-			new: func() *ngrokv1alpha1.KubernetesOperator {
+			new: func() *ngrokv1.KubernetesOperator {
 				obj := base.DeepCopy()
 				obj.Annotations = map[string]string{"example": "changed"}
 				return obj
@@ -387,6 +391,7 @@ func TestInvalidateTLSSecretCSR(t *testing.T) {
 	scheme := runtime.NewScheme()
 	assert.NoError(t, v1.AddToScheme(scheme))
 	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	assert.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	secret := &v1.Secret{
 		Name:      "tls-secret",
@@ -403,11 +408,11 @@ func TestInvalidateTLSSecretCSR(t *testing.T) {
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build(),
 	}
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "ko",
 		Namespace: "test-ns",
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
+		Spec: ngrokv1.KubernetesOperatorSpec{
+			Binding: &ngrokv1.KubernetesOperatorBinding{
 				TlsSecretName: "tls-secret",
 			},
 		},
@@ -430,6 +435,7 @@ func TestReconcileBindingCertRenewalRequeueAfter(t *testing.T) {
 	scheme := runtime.NewScheme()
 	assert.NoError(t, v1.AddToScheme(scheme))
 	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	assert.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	secret := &v1.Secret{
 		Name:      "tls-secret",
@@ -459,16 +465,16 @@ func TestReconcileBindingCertRenewalRequeueAfter(t *testing.T) {
 		BindingCertRenewalWindow: renewalWindow,
 	}
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "ko",
 		Namespace: "test-ns",
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
-			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
+		Spec: ngrokv1.KubernetesOperatorSpec{
+			EnabledFeatures: []string{ngrokv1.KubernetesOperatorFeatureBindings},
+			Binding: &ngrokv1.KubernetesOperatorBinding{
 				TlsSecretName: "tls-secret",
 			},
 		},
-		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+		Status: ngrokv1.KubernetesOperatorStatus{
 			ID: ngrokKO.ID,
 		},
 	}
@@ -486,6 +492,7 @@ func TestReconcileBindingCertRenewalInvalidatesCSR(t *testing.T) {
 	scheme := runtime.NewScheme()
 	assert.NoError(t, v1.AddToScheme(scheme))
 	assert.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	assert.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	secret := &v1.Secret{
 		Name:      "tls-secret",
@@ -516,16 +523,16 @@ func TestReconcileBindingCertRenewalInvalidatesCSR(t *testing.T) {
 		BindingCertRenewalWindow: renewalWindow,
 	}
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "ko",
 		Namespace: "test-ns",
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			EnabledFeatures: []string{ngrokv1alpha1.KubernetesOperatorFeatureBindings},
-			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
+		Spec: ngrokv1.KubernetesOperatorSpec{
+			EnabledFeatures: []string{ngrokv1.KubernetesOperatorFeatureBindings},
+			Binding: &ngrokv1.KubernetesOperatorBinding{
 				TlsSecretName: "tls-secret",
 			},
 		},
-		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+		Status: ngrokv1.KubernetesOperatorStatus{
 			ID: ngrokKO.ID,
 		},
 	}
@@ -537,4 +544,11 @@ func TestReconcileBindingCertRenewalInvalidatesCSR(t *testing.T) {
 	updated := &v1.Secret{}
 	assert.NoError(t, fakeClient.Get(context.Background(), client.ObjectKey{Namespace: "test-ns", Name: "tls-secret"}, updated))
 	assert.NotContains(t, updated.Data, "tls.csr")
+}
+
+func TestMergeMetadataAddsNamespaceUID(t *testing.T) {
+	apiMetadata := commonv1alpha1.MetadataAPIString(commonv1alpha1.MetadataFromMap(map[string]string{"owned-by": "ngrok-operator"}))
+	merged, err := mergeMetadata(apiMetadata, "ns-uid")
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"owned-by":"ngrok-operator","namespace.uid":"ns-uid"}`, merged)
 }

@@ -31,7 +31,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-logr/logr"
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/events"
@@ -108,7 +108,7 @@ func (o *Orchestrator) State() State {
 // - Detecting when drain should start (KO deletion or status)
 // - Removing the KO finalizer after drain completes
 // - Deleting the KubernetesOperator from the ngrok API
-func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) (Outcome, error) {
+func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1.KubernetesOperator) (Outcome, error) {
 	log := o.log.WithValues("namespace", ko.Namespace, "name", ko.Name)
 
 	// Set in-memory flag for fast propagation to other controllers in this pod.
@@ -142,8 +142,8 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 	if err != nil {
 		o.setDrainProgress(ko, result)
 		message := fmt.Sprintf("Drain failed: %v", err)
-		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionDraining, true, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, message)
-		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionReady, false, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, message)
+		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1.KubernetesOperatorConditionDraining, true, ngrokv1.KubernetesOperatorReasonDrainFailed, message)
+		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1.KubernetesOperatorConditionReady, false, ngrokv1.KubernetesOperatorReasonDrainFailed, message)
 		if statusErr := o.updateStatus(ctx, ko); statusErr != nil {
 			log.Error(statusErr, "Failed to update drain status after error")
 		}
@@ -157,8 +157,8 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 	// Keep the finalizer and retry when any resources could not be drained.
 	if result.HasErrors() {
 		message := fmt.Sprintf("Drain encountered %d errors, will retry", len(result.Errors))
-		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionDraining, true, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, message)
-		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionReady, false, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, message)
+		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1.KubernetesOperatorConditionDraining, true, ngrokv1.KubernetesOperatorReasonDrainFailed, message)
+		conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1.KubernetesOperatorConditionReady, false, ngrokv1.KubernetesOperatorReasonDrainFailed, message)
 		for _, drainErr := range result.Errors {
 			log.Error(drainErr, "Drain error")
 		}
@@ -169,8 +169,8 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 	}
 
 	// Drain completed successfully (no errors means all resources processed)
-	conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionDraining, false, ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted, "Drain completed successfully")
-	conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1alpha1.KubernetesOperatorConditionReady, false, ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted, "Drain completed successfully")
+	conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1.KubernetesOperatorConditionDraining, false, ngrokv1.KubernetesOperatorReasonDrainCompleted, "Drain completed successfully")
+	conditions.Set(&ko.Status.Conditions, ko.Generation, ngrokv1.KubernetesOperatorConditionReady, false, ngrokv1.KubernetesOperatorReasonDrainCompleted, "Drain completed successfully")
 	if err := o.updateStatus(ctx, ko); err != nil {
 		return OutcomeFailed, fmt.Errorf("failed to update drain completed status: %w", err)
 	}
@@ -181,11 +181,11 @@ func (o *Orchestrator) HandleDrain(ctx context.Context, ko *ngrokv1alpha1.Kubern
 }
 
 // setDrainProgress records structured drain progress on the KubernetesOperator status
-func (o *Orchestrator) setDrainProgress(ko *ngrokv1alpha1.KubernetesOperator, result *DrainResult) {
+func (o *Orchestrator) setDrainProgress(ko *ngrokv1.KubernetesOperator, result *DrainResult) {
 	if result == nil {
 		return
 	}
-	ko.Status.Drain = &ngrokv1alpha1.KubernetesOperatorDrainStatus{
+	ko.Status.Drain = &ngrokv1.KubernetesOperatorDrainStatus{
 		DrainedResources: result.Completed,
 		FailedResources:  result.Failed,
 		TotalResources:   result.Total,
@@ -193,7 +193,7 @@ func (o *Orchestrator) setDrainProgress(ko *ngrokv1alpha1.KubernetesOperator, re
 	}
 }
 
-func (o *Orchestrator) updateStatus(ctx context.Context, ko *ngrokv1alpha1.KubernetesOperator) error {
+func (o *Orchestrator) updateStatus(ctx context.Context, ko *ngrokv1.KubernetesOperator) error {
 	ko.SetObservedGeneration(ko.Generation)
 	return o.client.Status().Update(ctx, ko)
 }

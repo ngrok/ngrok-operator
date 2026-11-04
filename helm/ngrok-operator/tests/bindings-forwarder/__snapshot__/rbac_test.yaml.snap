@@ -40,6 +40,14 @@ Should match snapshot:
           - update
           - watch
       - apiGroups:
+          - ngrok.com
+        resources:
+          - kubernetesoperators
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - kubernetesoperators
