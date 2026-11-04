@@ -28,10 +28,12 @@ import (
 	"testing"
 	"time"
 
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
@@ -50,11 +52,12 @@ func TestAlwaysDraining(t *testing.T) {
 func TestStateChecker_NoDraining(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
-		Spec:      ngrokv1alpha1.KubernetesOperatorSpec{},
+		Spec:      ngrokv1.KubernetesOperatorSpec{},
 	}
 
 	client := fake.NewClientBuilder().
@@ -70,16 +73,17 @@ func TestStateChecker_NoDraining(t *testing.T) {
 func TestStateChecker_DrainingConditionTrue(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
-		Spec:      ngrokv1alpha1.KubernetesOperatorSpec{},
-		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+		Spec:      ngrokv1.KubernetesOperatorSpec{},
+		Status: ngrokv1.KubernetesOperatorStatus{
 			Conditions: []metav1.Condition{{
-				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
+				Type:               ngrokv1.KubernetesOperatorConditionDraining,
 				Status:             metav1.ConditionTrue,
-				Reason:             ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress,
+				Reason:             ngrokv1.KubernetesOperatorReasonDrainInProgress,
 				LastTransitionTime: metav1.Now(),
 			}},
 		},
@@ -100,14 +104,15 @@ func TestStateChecker_DeletionTimestampWithoutStatus(t *testing.T) {
 	// The controller must set the Draining condition first.
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	now := metav1.NewTime(time.Now())
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:              "my-release",
 		Namespace:         "ngrok-operator",
 		DeletionTimestamp: &now,
 		Finalizers:        []string{"test-finalizer"},
-		Spec:              ngrokv1alpha1.KubernetesOperatorSpec{},
+		Spec:              ngrokv1.KubernetesOperatorSpec{},
 		// Status.Conditions has no Draining condition
 	}
 
@@ -124,6 +129,7 @@ func TestStateChecker_DeletionTimestampWithoutStatus(t *testing.T) {
 func TestStateChecker_SetDraining(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -141,16 +147,17 @@ func TestStateChecker_SetDraining(t *testing.T) {
 func TestStateChecker_CachesDrainingState(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
-		Spec:      ngrokv1alpha1.KubernetesOperatorSpec{},
-		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+		Spec:      ngrokv1.KubernetesOperatorSpec{},
+		Status: ngrokv1.KubernetesOperatorStatus{
 			Conditions: []metav1.Condition{{
-				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
+				Type:               ngrokv1.KubernetesOperatorConditionDraining,
 				Status:             metav1.ConditionTrue,
-				Reason:             ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress,
+				Reason:             ngrokv1.KubernetesOperatorReasonDrainInProgress,
 				LastTransitionTime: metav1.Now(),
 			}},
 		},
@@ -167,4 +174,67 @@ func TestStateChecker_CachesDrainingState(t *testing.T) {
 	// Once detected as draining, should stay cached
 	assert.True(t, checker.IsDraining(context.Background()))
 	assert.True(t, checker.IsDraining(context.Background()))
+}
+
+func TestStateChecker_LegacyFallback(t *testing.T) {
+	draining := []metav1.Condition{{
+		Type:               ngrokv1.KubernetesOperatorConditionDraining,
+		Status:             metav1.ConditionTrue,
+		Reason:             ngrokv1.KubernetesOperatorReasonDrainInProgress,
+		LastTransitionTime: metav1.Now(),
+	}}
+
+	tests := []struct {
+		name      string
+		objs      []client.Object
+		wantDrain bool
+	}{
+		{
+			name: "legacy draining while canonical is unregistered",
+			objs: []client.Object{
+				&ngrokv1.KubernetesOperator{Name: "my-release", Namespace: "ngrok-operator"},
+				&ngrokv1alpha1.KubernetesOperator{
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy", Conditions: draining},
+				},
+			},
+			wantDrain: true,
+		},
+		{
+			name: "canonical draining while unregistered wins over legacy",
+			objs: []client.Object{
+				&ngrokv1.KubernetesOperator{
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1.KubernetesOperatorStatus{Conditions: draining},
+				},
+				&ngrokv1alpha1.KubernetesOperator{
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy"},
+				},
+			},
+			wantDrain: true,
+		},
+		{
+			name: "legacy only, not draining",
+			objs: []client.Object{
+				&ngrokv1alpha1.KubernetesOperator{
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy"},
+				},
+			},
+			wantDrain: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+			require.NoError(t, ngrokv1.AddToScheme(scheme))
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tt.objs...).WithStatusSubresource(tt.objs...).Build()
+
+			checker := NewStateChecker(c, "ngrok-operator", "my-release")
+			assert.Equal(t, tt.wantDrain, checker.IsDraining(context.Background()))
+		})
+	}
 }

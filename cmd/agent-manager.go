@@ -158,11 +158,19 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 		// read it, and so RBAC for it can stay narrowly scoped to the release namespace.
 		Cache: cache.Options{
 			ByObject: map[client.Object]cache.ByObject{
+				&ngrokv1.KubernetesOperator{}: {
+					Namespaces: map[string]cache.Config{
+						opts.namespace: {},
+					},
+				},
+				// LEGACY-kubernetesoperator-kind: BEGIN — the legacy KO is read as a
+				// fallback until the v1 object registers; drop at cleanup.
 				&ngrokv1alpha1.KubernetesOperator{}: {
 					Namespaces: map[string]cache.Config{
 						opts.namespace: {},
 					},
 				},
+				// LEGACY-kubernetesoperator-kind: END
 			},
 		}}
 	if opts.watchNamespace != "" {
