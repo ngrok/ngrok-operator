@@ -38,6 +38,7 @@ import (
 	"time"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -78,7 +79,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 	var (
 		namespace     string
-		agentEndpoint *ngrokv1alpha1.AgentEndpoint
+		agentEndpoint *ngrokv1.AgentEndpoint
 	)
 
 	BeforeEach(func() {
@@ -108,12 +109,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 	Context("Basic endpoint operations", func() {
 		It("should successfully reconcile TCP endpoint", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "tcp-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://1.tcp.ngrok.io:12345",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -128,7 +129,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and set ready condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition set by running controller
@@ -153,12 +154,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should not create domain CR for custom TCP endpoint", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "tcp-custom-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://1.2.3.4:25565",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -173,7 +174,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and set ready condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
@@ -191,19 +192,19 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Verifying no domain ref is set")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				g.Expect(obj.Status.DomainRef).To(BeNil())
 			}, timeout, interval).Should(Succeed())
 		})
 
 		It("should not update LastTransitionTime on re-reconcile when ready state unchanged", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "stable-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://1.tcp.ngrok.io:12345",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -220,7 +221,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and become ready")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
@@ -236,7 +237,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Triggering a re-reconcile by updating an annotation")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				if obj.Annotations == nil {
@@ -250,7 +251,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			time.Sleep(1 * time.Second)
 
 			By("Verifying LastTransitionTime has NOT changed")
-			obj := &ngrokv1alpha1.AgentEndpoint{}
+			obj := &ngrokv1.AgentEndpoint{}
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 			cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
@@ -263,12 +264,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should handle internal endpoints without domain creation", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "internal-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "https://test.internal",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://internal-service:80",
 					},
 				},
@@ -283,7 +284,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile internal endpoint")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
@@ -294,12 +295,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should create domain CR for custom domains", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "custom-domain-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "https://custom.example.com",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -310,7 +311,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to create domain and set domain creation condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check domain creation condition
@@ -330,12 +331,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should handle endpoint creation failure", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "failing-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://2.tcp.ngrok.io:54321",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -348,7 +349,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and set error condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check error condition set by running controller
@@ -360,12 +361,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should handle endpoint deletion", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "delete-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://3.tcp.ngrok.io:11111",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -405,12 +406,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 	Context("Traffic policy handling", func() {
 		It("should handle inline traffic policy", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "inline-policy-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://4.tcp.ngrok.io:44444",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
@@ -428,7 +429,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and apply inline policy")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				g.Expect(obj.Status.AttachedTrafficPolicy).To(Equal("inline"))
@@ -461,12 +462,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "ref-policy-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://5.tcp.ngrok.io:55555",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
@@ -486,7 +487,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and resolve policy reference")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				g.Expect(obj.Status.AttachedTrafficPolicy).To(Equal("referenced-policy"))
@@ -509,12 +510,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should handle missing traffic policy reference", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "missing-policy-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://6.tcp.ngrok.io:66666",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
@@ -530,7 +531,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to detect missing policy and set error condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				policyCondition := testutils.FindCondition(obj.Status.Conditions, ConditionTrafficPolicy)
@@ -542,12 +543,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 		It("should reject both inline and reference policy at validation", func() {
 			// This should be caught by k8s validation, so we expect the Create to fail
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "invalid-policy-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://7.tcp.ngrok.io:77777",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
@@ -575,12 +576,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "test-endpoint-with-policy",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://10.tcp.ngrok.io:10101",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
@@ -601,7 +602,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and apply traffic policy")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition
@@ -636,12 +637,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "update-policy-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://11.tcp.ngrok.io:11111",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
@@ -699,12 +700,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 	Context("when AgentEndpoint creation fails", func() {
 		It("should set appropriate error conditions", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "failing-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://12.tcp.ngrok.io:12121",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -718,7 +719,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and set error conditions")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition is false
@@ -742,12 +743,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 	Context("when AgentEndpoint is deleted", func() {
 		It("should call delete on the mock driver", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "delete-test-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://13.tcp.ngrok.io:13131",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -788,12 +789,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 	Context("Client certificate handling", func() {
 		It("should handle missing client certificate secret", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "missing-cert-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://8.tcp.ngrok.io:88888",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRef{
@@ -807,7 +808,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and set config error condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
@@ -829,12 +830,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, secret)).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "invalid-cert-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://9.tcp.ngrok.io:99999",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRef{
@@ -848,7 +849,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and set config error condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
@@ -869,12 +870,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, secret)).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "no-crt-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://10.tcp.ngrok.io:10000",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRef{
@@ -888,7 +889,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and set config error condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				cond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
@@ -912,12 +913,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, serverSecret)).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name: "tls-term-ok", Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "tls://tls-term-ok.example.com",
-					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
-					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+					Upstream: ngrokv1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1.EndpointTLSTermination{
 						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-term-server"},
 					},
 				},
@@ -940,12 +941,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should set ConfigError when the server cert Secret is missing", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name: "tls-term-missing", Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "tls://tls-term-missing.example.com",
-					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
-					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+					Upstream: ngrokv1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1.EndpointTLSTermination{
 						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "missing-server-cert"},
 					},
 				},
@@ -955,7 +956,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			// For tls:// URLs the rolled-up Ready condition reports DomainCreating
 			// until the domain is ready; the cert error surfaces on EndpointCreated.
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				cond := testutils.FindCondition(obj.Status.Conditions, ConditionEndpointCreated)
@@ -975,12 +976,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				},
 			})).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name: "tls-term-bad-aep", Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "tls://tls-term-bad.example.com",
-					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
-					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+					Upstream: ngrokv1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1.EndpointTLSTermination{
 						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-term-bad"},
 					},
 				},
@@ -988,7 +989,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
 
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				cond := testutils.FindCondition(obj.Status.Conditions, ConditionEndpointCreated)
@@ -1010,14 +1011,14 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				Data: map[string][]byte{"other": []byte("nope")},
 			})).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name: "tls-term-mtls-bad", Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "tls://tls-term-mtls-bad.example.com",
-					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
-					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+					Upstream: ngrokv1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1.EndpointTLSTermination{
 						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-term-mtls-server"},
-						MutualTLS: &ngrokv1alpha1.EndpointMutualTLS{
+						MutualTLS: &ngrokv1.EndpointMutualTLS{
 							ClientCAsRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-term-mtls-no-ca"},
 						},
 					},
@@ -1026,7 +1027,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
 
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				cond := testutils.FindCondition(obj.Status.Conditions, ConditionEndpointCreated)
@@ -1049,16 +1050,16 @@ var _ = Describe("AgentEndpoint Controller", func() {
 				Data: map[string][]byte{"ca.crt": certPEM},
 			})).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name: "tls-mode-request", Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "tls://tls-mode-request.example.com",
-					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
-					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+					Upstream: ngrokv1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1.EndpointTLSTermination{
 						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-mode-server"},
-						MutualTLS: &ngrokv1alpha1.EndpointMutualTLS{
+						MutualTLS: &ngrokv1.EndpointMutualTLS{
 							ClientCAsRef: ngrokv1alpha1.K8sObjectRef{Name: "tls-mode-ca"},
-							Mode:         ngrokv1alpha1.EndpointMutualTLSModeRequest,
+							Mode:         ngrokv1.EndpointMutualTLSModeRequest,
 						},
 					},
 				},
@@ -1081,12 +1082,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should reject https:// urls when tlsTermination is set", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name: "tls-term-bad-url", Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "https://tls-term-bad-url.example.com",
-					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "http://test-service:80"},
-					TLSTermination: &ngrokv1alpha1.EndpointTLSTermination{
+					Upstream: ngrokv1.EndpointUpstream{URL: "http://test-service:80"},
+					TLSTermination: &ngrokv1.EndpointTLSTermination{
 						ServerCertificateRef: ngrokv1alpha1.K8sObjectRef{Name: "irrelevant"},
 					},
 				},
@@ -1104,12 +1105,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		)
 
 		It("should reconcile TCP endpoint automatically using Eventually", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "tcp-runtime-auto",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://99.tcp.ngrok.io:99999",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -1125,7 +1126,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to automatically reconcile")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition set by running controller
@@ -1150,12 +1151,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should handle endpoint creation failure with runtime controller", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "fail-runtime-auto",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://98.tcp.ngrok.io:98989",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -1169,7 +1170,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to automatically reconcile and set error condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition set by running controller
@@ -1181,12 +1182,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should not infinitely requeue when the ngrok API rejects the traffic policy", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "policy-rejected-runtime",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://99.tcp.ngrok.io:99999",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
@@ -1210,7 +1211,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for the controller to surface the policy error on both conditions")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// The Ready condition surfaces the TrafficPolicyApplied
@@ -1242,12 +1243,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 		})
 
 		It("should handle endpoint deletion with runtime controller", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "delete-runtime-auto",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://97.tcp.ngrok.io:97979",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -1298,12 +1299,12 @@ var _ = Describe("AgentEndpoint Controller", func() {
 			}
 			Expect(k8sClient.Create(ctx, trafficPolicy)).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "policy-runtime-auto",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://96.tcp.ngrok.io:96969",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
@@ -1324,7 +1325,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Waiting for controller to reconcile and apply traffic policy")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Check ready condition
@@ -1404,12 +1405,12 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 		It("should reconcile when client certificate secret is created after AgentEndpoint", func(ctx SpecContext) {
 			// Create AgentEndpoint first, without the certificate secret existing yet
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "cert-watch-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://cert-watch.tcp.ngrok.io:12345",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 					ClientCertificateRefs: []ngrokv1alpha1.K8sObjectRef{
@@ -1423,7 +1424,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Waiting for controller to reconcile and set config error condition")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Should have config error because certificate doesn't exist yet
@@ -1453,7 +1454,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Waiting for controller to automatically reconcile AgentEndpoint when secret is created")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Should now be ready because certificate exists
@@ -1480,13 +1481,13 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 	Context("Domain handling", func() {
 		It("should skip domain creation for Kubernetes-bound endpoint", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "k8s-bound-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "http://aws.demo",
 					Bindings: []string{"kubernetes"},
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://hello-aws.demo:80",
 					},
 				},
@@ -1502,7 +1503,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Verifying endpoint becomes ready without domain creation")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Endpoint should be created
@@ -1584,12 +1585,12 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			})
 
 			By("Creating an AgentEndpoint for the covered hostname")
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "wildcard-covered-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "https://" + hostname,
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://upstream.demo:80",
 					},
 				},
@@ -1598,7 +1599,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Verifying the endpoint reports the domain ready and becomes ready itself")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
@@ -1629,17 +1630,17 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				}
 				Expect(k8sClient.Create(ctx, staleDomain)).To(Succeed())
 
-				agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+				agentEndpoint = &ngrokv1.AgentEndpoint{
 					Name:      "k8s-binding-with-stale-ref",
 					Namespace: namespace,
-					Spec: ngrokv1alpha1.AgentEndpointSpec{
+					Spec: ngrokv1.AgentEndpointSpec{
 						URL:      "http://test.default",
 						Bindings: []string{"kubernetes"},
-						Upstream: ngrokv1alpha1.EndpointUpstream{
+						Upstream: ngrokv1.EndpointUpstream{
 							URL: "http://test-service:80",
 						},
 					},
-					Status: ngrokv1alpha1.AgentEndpointStatus{
+					Status: ngrokv1.AgentEndpointStatus{
 						DomainRef: &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 							Name:      staleDomain.GetName(),
 							Namespace: new(staleDomain.GetNamespace()),
@@ -1656,7 +1657,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			It("should clear the stale domainRef", func(ctx SpecContext) {
 				Eventually(func(g Gomega) {
-					obj := &ngrokv1alpha1.AgentEndpoint{}
+					obj := &ngrokv1.AgentEndpoint{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 					g.Expect(obj.Status.DomainRef).To(BeNil())
@@ -1669,12 +1670,12 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		})
 
 		It("should create endpoint even when domain is not ready", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "test-endpoint",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "http://example.com",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -1699,7 +1700,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Waiting for endpoint to be created but not ready (domain not ready)")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// Endpoint should be created
@@ -1739,7 +1740,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Verifying endpoint becomes ready after domain is ready")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// DomainReady should be True
@@ -1765,12 +1766,12 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		})
 
 		It("should reconcile endpoint when domain status becomes ready", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "test-domain-reconcile",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "https://test-reconcile.example.com",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -1795,7 +1796,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Verifying endpoint is not ready (domain not ready)")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				domainCond := testutils.FindCondition(obj.Status.Conditions, domainpkg.ConditionDomainReady)
@@ -1824,7 +1825,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Verifying endpoint becomes ready after domain status update")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				// DomainReady should be True
@@ -1840,13 +1841,13 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		})
 
 		It("should clear stale domainRef when endpoint has kubernetes binding", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "endpoint-with-stale-ref",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "http://stale.example.com",
 					Bindings: []string{"kubernetes"},
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -1861,7 +1862,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Waiting for endpoint to be created and ready (no domain needed for k8s binding)")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				g.Expect(obj.Status.DomainRef).To(BeNil())
 
@@ -1872,7 +1873,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Simulating a stale domainRef by updating status")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				obj.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 					Name:      "stale-example-com",
@@ -1884,7 +1885,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			By("Verifying stale domainRef is cleared on next reconcile")
 			// Touch the endpoint to trigger reconcile
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				if obj.Annotations == nil {
 					obj.Annotations = map[string]string{}
@@ -1894,7 +1895,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			}, timeout, interval).Should(Succeed())
 
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				g.Expect(obj.Status.DomainRef).To(BeNil())
 			}, timeout, interval).Should(Succeed())
@@ -1911,13 +1912,13 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			}
 			Expect(k8sClient.Create(ctx, staleDomain)).To(Succeed())
 
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "endpoint-triggers-domain-delete",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "https://stale-to-delete.example.com",
 					Bindings: []string{"kubernetes"},
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -1932,7 +1933,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Waiting for endpoint to become ready initially")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 
 				readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
@@ -1942,7 +1943,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Simulating stale domainRef by setting it (as if domain was created before binding was added)")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				obj.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{
 					Name:      staleDomain.Name,
@@ -1953,7 +1954,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Triggering reconcile by updating annotation")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				if obj.Annotations == nil {
 					obj.Annotations = map[string]string{}
@@ -1977,21 +1978,21 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Verifying domainRef is cleared after reconciliation")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				g.Expect(obj.Status.DomainRef).To(BeNil())
 			}, timeout, interval).Should(Succeed())
 		})
 
 		It("should handle multiple Kubernetes-bound endpoints with same domain", func(ctx SpecContext) {
-			endpoints := []*ngrokv1alpha1.AgentEndpoint{
+			endpoints := []*ngrokv1.AgentEndpoint{
 				{
 					Name:      "k8s-endpoint-1",
 					Namespace: namespace,
-					Spec: ngrokv1alpha1.AgentEndpointSpec{
+					Spec: ngrokv1.AgentEndpointSpec{
 						URL:      "http://aws.demo",
 						Bindings: []string{"kubernetes"},
-						Upstream: ngrokv1alpha1.EndpointUpstream{
+						Upstream: ngrokv1.EndpointUpstream{
 							URL: "http://service-1:80",
 						},
 					},
@@ -1999,10 +2000,10 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				{
 					Name:      "k8s-endpoint-2",
 					Namespace: namespace,
-					Spec: ngrokv1alpha1.AgentEndpointSpec{
+					Spec: ngrokv1.AgentEndpointSpec{
 						URL:      "http://aws.demo",
 						Bindings: []string{"kubernetes"},
-						Upstream: ngrokv1alpha1.EndpointUpstream{
+						Upstream: ngrokv1.EndpointUpstream{
 							URL: "http://service-2:80",
 						},
 					},
@@ -2021,7 +2022,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			By("Verifying all endpoints become ready without domain conflicts")
 			for _, ep := range endpoints {
 				Eventually(func(g Gomega) {
-					obj := &ngrokv1alpha1.AgentEndpoint{}
+					obj := &ngrokv1.AgentEndpoint{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ep), obj)).To(Succeed())
 
 					readyCond := testutils.FindCondition(obj.Status.Conditions, ConditionReady)
@@ -2053,13 +2054,13 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 	Context("Bindings validation", func() {
 		It("should reject endpoint with multiple bindings", func() {
 			// This should be caught by k8s validation (MaxItems=1), so we expect the Create to fail
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "invalid-multiple-bindings",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "http://test.demo",
 					Bindings: []string{"public", "internal"}, // Multiple bindings should be rejected
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -2074,13 +2075,13 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		})
 
 		It("should accept endpoint with single binding", func(ctx SpecContext) {
-			agentEndpoint = &ngrokv1alpha1.AgentEndpoint{
+			agentEndpoint = &ngrokv1.AgentEndpoint{
 				Name:      "valid-single-binding",
 				Namespace: namespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL:      "http://test.demo",
 					Bindings: []string{"internal"}, // Single binding is valid
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -2097,7 +2098,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Verifying endpoint is created successfully")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(agentEndpoint), obj)).To(Succeed())
 				g.Expect(obj.Spec.Bindings).To(Equal([]string{"internal"}))
 			}, timeout, interval).Should(Succeed())

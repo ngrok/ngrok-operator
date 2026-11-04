@@ -1,7 +1,6 @@
 package agent
 
 import (
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller/conditions"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
@@ -32,22 +31,22 @@ const (
 )
 
 // setReadyCondition sets the Ready condition based on the overall endpoint state
-func setReadyCondition(endpoint *ngrokv1alpha1.AgentEndpoint, ready bool, reason, message string) {
-	conditions.Set(&endpoint.Status.Conditions, endpoint.Generation, ConditionReady, ready, reason, message)
+func setReadyCondition(endpoint agentEndpoint, ready bool, reason, message string) {
+	conditions.Set(endpoint.GetConditions(), endpoint.GetGeneration(), ConditionReady, ready, reason, message)
 }
 
 // setEndpointCreatedCondition sets the EndpointCreated condition
-func setEndpointCreatedCondition(endpoint *ngrokv1alpha1.AgentEndpoint, created bool, reason, message string) {
-	conditions.Set(&endpoint.Status.Conditions, endpoint.Generation, ConditionEndpointCreated, created, reason, message)
+func setEndpointCreatedCondition(endpoint agentEndpoint, created bool, reason, message string) {
+	conditions.Set(endpoint.GetConditions(), endpoint.GetGeneration(), ConditionEndpointCreated, created, reason, message)
 }
 
 // calculateAgentEndpointReadyCondition calculates the overall Ready condition based on other conditions and domain status
-func calculateAgentEndpointReadyCondition(aep *ngrokv1alpha1.AgentEndpoint, domainResult *domainpkg.DomainResult) {
+func calculateAgentEndpointReadyCondition(aep agentEndpoint, domainResult *domainpkg.DomainResult) {
 	// Check all required conditions
-	endpointCreatedCondition := meta.FindStatusCondition(aep.Status.Conditions, ConditionEndpointCreated)
+	endpointCreatedCondition := meta.FindStatusCondition(*aep.GetConditions(), ConditionEndpointCreated)
 	endpointCreated := endpointCreatedCondition != nil && endpointCreatedCondition.Status == metav1.ConditionTrue
 
-	trafficPolicyCondition := meta.FindStatusCondition(aep.Status.Conditions, ConditionTrafficPolicy)
+	trafficPolicyCondition := meta.FindStatusCondition(*aep.GetConditions(), ConditionTrafficPolicy)
 	trafficPolicyReady := true
 	// If traffic policy condition exists and is False, it's not ready
 	if trafficPolicyCondition != nil && trafficPolicyCondition.Status == metav1.ConditionFalse {
