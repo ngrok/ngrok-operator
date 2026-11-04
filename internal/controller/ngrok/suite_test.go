@@ -150,6 +150,7 @@ var _ = BeforeSuite(func() {
 	// Setup KubernetesOperator reconciler
 	koReconciler := &KubernetesOperatorReconciler{
 		Client:         k8sManager.GetClient(),
+		APIReader:      k8sManager.GetAPIReader(),
 		Scheme:         k8sManager.GetScheme(),
 		Log:            logf.Log.WithName("kubernetesoperator-controller"),
 		Recorder:       k8sManager.GetEventRecorder("kubernetesoperator-controller"),

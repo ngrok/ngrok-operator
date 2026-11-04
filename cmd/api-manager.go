@@ -410,6 +410,7 @@ func runNormalMode(ctx context.Context, opts apiManagerOpts, k8sClient client.Cl
 	// Always register the ngrok KubernetesOperator controller. It is independent of the feature set.
 	if err := (&ngrokcontroller.KubernetesOperatorReconciler{
 		Client:            mgr.GetClient(),
+		APIReader:         mgr.GetAPIReader(),
 		Log:               ctrl.Log.WithName("controllers").WithName("KubernetesOperator"),
 		Scheme:            mgr.GetScheme(),
 		Recorder:          mgr.GetEventRecorder("kubernetes-operator-controller"),
@@ -831,6 +832,7 @@ func enableBindingsFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.M
 func enablePrivateEndpointsFeatureSet(opts apiManagerOpts, mgr ctrl.Manager, ngrokClientset ngrokapi.Clientset) error {
 	if err := (&privateendpointscontroller.PrivateEndpointReconciler{
 		Client:            mgr.GetClient(),
+		APIReader:         mgr.GetAPIReader(),
 		Log:               ctrl.Log.WithName("controllers").WithName("PrivateEndpoint"),
 		Namespace:         opts.namespace,
 		ForwarderSelector: map[string]string{"app.kubernetes.io/component": pe.ForwarderComponent},

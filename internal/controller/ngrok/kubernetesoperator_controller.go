@@ -47,12 +47,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/drain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
@@ -78,6 +80,10 @@ type KubernetesOperatorReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
 	controller *controller.BaseController[*ngrokv1.KubernetesOperator]
+
+	// APIReader reads uncached, so decisions that gate a drain never act on a
+	// stale cache.
+	APIReader client.Reader
 
 	Log            logr.Logger
 	Recorder       events.EventRecorder
@@ -131,6 +137,13 @@ func (r *KubernetesOperatorReconciler) SetupWithManager(mgr ctrl.Manager) error 
 			ownKOPredicate,
 			kubernetesOperatorReconcilePredicate(),
 		)).
+		// LEGACY-kubernetesoperator-kind: drop this Watches at cleanup. Legacy
+		// events, its deletion included, enqueue the same namespace/name key
+		// as the v1 object, so one reconcile handles both halves of the pair.
+		Watches(&ngrokv1alpha1.KubernetesOperator{},
+			handler.EnqueueRequestsFromMapFunc(legacyKubernetesOperatorToRequest),
+			builder.WithPredicates(ownKOPredicate),
+		).
 		Complete(r)
 }
 
@@ -157,6 +170,19 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return res, client.IgnoreNotFound(err)
 	}
 
+	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup. Runs after the
+	// v1 object has adopted its ID, and never while it is being deleted.
+	if ko.DeletionTimestamp.IsZero() {
+		legacyRes, err := r.reconcileLegacy(ctx, ko)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if legacyRes.RequeueAfter > 0 {
+			return legacyRes, nil
+		}
+	}
+	// LEGACY-kubernetesoperator-kind: END
+
 	renewalRes, err := r.reconcileBindingCertRenewal(ctx, ko, time.Now())
 	if err != nil {
 		return ctrl.Result{}, err
@@ -171,9 +197,18 @@ func (r *KubernetesOperatorReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 func (r *KubernetesOperatorReconciler) create(ctx context.Context, ko *ngrokv1.KubernetesOperator) (err error) {
 	var k8sOp *ngrok.KubernetesOperator
-	k8sOp, err = r.findExisting(ctx, ko)
+	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup, leaving only
+	// findExisting.
+	k8sOp, err = r.legacyTwinRegistration(ctx, ko)
 	if err != nil {
 		return r.updateStatus(ctx, ko, nil, err)
+	}
+	// LEGACY-kubernetesoperator-kind: END
+	if k8sOp == nil {
+		k8sOp, err = r.findExisting(ctx, ko)
+		if err != nil {
+			return r.updateStatus(ctx, ko, nil, err)
+		}
 	}
 
 	// Already exists, so update the status to match the existing KubernetesOperator
@@ -246,6 +281,19 @@ func (r *KubernetesOperatorReconciler) update(ctx context.Context, ko *ngrokv1.K
 
 func (r *KubernetesOperatorReconciler) delete(ctx context.Context, ko *ngrokv1.KubernetesOperator) error {
 	log := ctrl.LoggerFrom(ctx)
+
+	// LEGACY-kubernetesoperator-kind: BEGIN — drop at cleanup.
+	skipDrain, err := r.shouldSkipDrain(ctx, ko)
+	if err != nil {
+		return err
+	}
+	if skipDrain {
+		log.Info("legacy KubernetesOperator still present, skipping drain and ngrok API deletion")
+		r.Recorder.Eventf(ko, nil, v1.EventTypeWarning, ReasonLegacyTwinSkippedDrain, "Delete",
+			"The legacy ngrok.k8s.ngrok.com/v1alpha1 KubernetesOperator still exists; skipped the drain and left the ngrok KubernetesOperator and managed resources in place")
+		return nil
+	}
+	// LEGACY-kubernetesoperator-kind: END
 
 	// Step 1: Initiate drain if it is neither in progress nor already complete.
 	if !meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining) &&
