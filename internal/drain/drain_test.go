@@ -26,6 +26,7 @@ package drain
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -38,11 +39,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/util"
 )
@@ -135,6 +138,7 @@ func TestDrainer_DrainUserResource(t *testing.T) {
 func TestDrainer_DrainOperatorResource(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	// Note: no finalizer here - the fake client will immediately delete the resource
@@ -171,6 +175,7 @@ func TestDrainer_DrainOperatorResource(t *testing.T) {
 func TestDrainer_DrainOperatorResource_RetainMode(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	domain := &ingressv1alpha1.Domain{
@@ -207,6 +212,7 @@ func TestDrainer_DrainAll_EmptyCluster(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, netv1.AddToScheme(scheme))
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	c := fake.NewClientBuilder().
@@ -229,6 +235,7 @@ func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
 	require.NoError(t, netv1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
 	require.NoError(t, gatewayv1.Install(scheme))
@@ -299,6 +306,7 @@ func TestDrainer_SkipsResourcesWithoutFinalizer(t *testing.T) {
 	require.NoError(t, netv1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
 	require.NoError(t, gatewayv1.Install(scheme))
@@ -355,6 +363,7 @@ func (c *errorClient) Delete(ctx context.Context, obj client.Object, opts ...cli
 func TestDrainer_drainList_ListError(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -429,6 +438,7 @@ func TestDrainer_drainList_NoMatchError_SkipsOptionalCRD(t *testing.T) {
 func TestDrainer_DrainOperatorResource_AlreadyDeleted(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	fakeClient := fake.NewClientBuilder().
@@ -457,6 +467,7 @@ func TestDrainer_DrainOperatorResource_AlreadyDeleted(t *testing.T) {
 func TestDrainer_DrainOperatorResource_DeleteError(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	domain := &ingressv1alpha1.Domain{
@@ -510,6 +521,7 @@ func (c *updateErrorClientForDrain) Patch(ctx context.Context, obj client.Object
 func TestDrainer_DrainOperatorResource_RetainUpdateError(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 
 	domain := &ingressv1alpha1.Domain{
@@ -538,4 +550,62 @@ func TestDrainer_DrainOperatorResource_RetainUpdateError(t *testing.T) {
 	err := drainer.drainOperatorResource(context.Background(), domain)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to remove finalizer")
+}
+
+// LEGACY-ippolicy-kind: delete this test at cleanup.
+//
+// A legacy IPPolicy and its ngrok.com/v1 twin can share one remote policy.
+// Drain handles the legacy one first, so the v1 delete is the one that
+// removes the shared remote.
+func TestDrainer_IPPolicyTwins(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
+	require.NoError(t, gatewayv1.Install(scheme))
+	require.NoError(t, gatewayv1alpha2.Install(scheme))
+
+	legacy := &ingressv1alpha1.IPPolicy{
+		Name: "twin", Namespace: "default", Finalizers: []string{util.FinalizerName},
+		Status: ingressv1alpha1.IPPolicyStatus{ID: "ipp_shared"},
+	}
+	v1 := &ngrokv1.IPPolicy{
+		Name: "twin", Namespace: "default", Finalizers: []string{util.FinalizerName},
+		Status: ngrokv1.IPPolicyStatus{ID: "ipp_shared"},
+	}
+
+	var order []string
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(legacy, v1).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				order = append(order, fmt.Sprintf("%T", obj))
+				return c.Patch(ctx, obj, patch, opts...)
+			},
+		}).
+		Build()
+
+	drainer := &Drainer{
+		Client: fakeClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyRetain,
+	}
+
+	result, err := drainer.DrainAll(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.Total)
+	assert.Equal(t, 2, result.Completed)
+	assert.False(t, result.HasErrors())
+	assert.Equal(t, []string{"*v1alpha1.IPPolicy", "*v1.IPPolicy"}, order, "legacy twin is drained before v1")
+
+	var fetchedLegacy ingressv1alpha1.IPPolicy
+	require.NoError(t, fakeClient.Get(context.Background(), client.ObjectKey{Name: "twin", Namespace: "default"}, &fetchedLegacy))
+	assert.False(t, util.HasFinalizer(&fetchedLegacy))
+	var fetchedV1 ngrokv1.IPPolicy
+	require.NoError(t, fakeClient.Get(context.Background(), client.ObjectKey{Name: "twin", Namespace: "default"}, &fetchedV1))
+	assert.False(t, util.HasFinalizer(&fetchedV1))
 }
