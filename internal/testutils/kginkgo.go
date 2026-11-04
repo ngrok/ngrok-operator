@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	"github.com/ngrok/ngrok-operator/internal/ippolicy"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -358,7 +358,7 @@ func (k *KGinkgo) EventuallyWithCloudEndpoints(ctx context.Context, namespace st
 	}).WithTimeout(eo.timeout).WithPolling(eo.interval).Should(Succeed())
 }
 
-// EventuallyIPPolicyHasCondition asserts that the given IPPolicy eventually has the specified condition type with the expected status.
+// EventuallyIPPolicyHasCondition asserts that the given IPPolicy (of either kind) eventually has the specified condition type with the expected status.
 // It will continually update the IPPolicy from the client to check for the condition.
 // The function uses Gomega's Eventually internally, so it should only be used in Ginkgo tests.
 //
@@ -366,14 +366,14 @@ func (k *KGinkgo) EventuallyWithCloudEndpoints(ctx context.Context, namespace st
 //
 //		kginkgo := testutils.NewKGinkgo(k8sClient)
 //	    kginkgo.EventuallyIPPolicyHasCondition(ctx, myIPPolicy, "Created", metav1.ConditionTrue)
-func (k *KGinkgo) EventuallyIPPolicyHasCondition(ctx context.Context, ipPolicy *ingressv1alpha1.IPPolicy, conditionType string, status metav1.ConditionStatus) {
+func (k *KGinkgo) EventuallyIPPolicyHasCondition(ctx context.Context, ipPolicy ippolicy.IPPolicyResource, conditionType string, status metav1.ConditionStatus) {
 	GinkgoHelper()
 
-	k.EventuallyWithObject(ctx, ipPolicy.DeepCopy(), func(g Gomega, obj client.Object) {
-		p, ok := obj.(*ingressv1alpha1.IPPolicy)
+	k.EventuallyWithObject(ctx, ipPolicy.DeepCopyObject().(client.Object), func(g Gomega, obj client.Object) {
+		p, ok := obj.(ippolicy.IPPolicyResource)
 		g.Expect(ok).To(BeTrue(), "expected object to be an IPPolicy")
 
-		cond := meta.FindStatusCondition(p.Status.Conditions, conditionType)
+		cond := meta.FindStatusCondition(*p.GetConditions(), conditionType)
 		g.Expect(cond).NotTo(BeNil())
 		g.Expect(cond.Status).To(Equal(status))
 	})
