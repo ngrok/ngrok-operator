@@ -97,7 +97,7 @@ input:
 expected:
   cloudEndpoints: []
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -109,7 +109,7 @@ expected:
       url: "tcp://5.tcp.ngrok.io:24429"
       upstream:
         url: "tcp://test-service-tcp.default:7000"
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:

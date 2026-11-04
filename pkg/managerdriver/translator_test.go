@@ -67,7 +67,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 					Protocol: ir.IRProtocol_HTTPS,
 				},
 			},
-			metadata:         "metadata-test",
+			metadata:         `{"owner":"metadata-test"}`,
 			expectedName:     "6ca13-test-service-default-cluster.local-8080",
 			expectedURL:      "https://6ca13-test-service-default-cluster-local-8080.internal",
 			expectedUpstream: "http://test-service.default-cluster.local:8080",
@@ -91,7 +91,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 				},
 			},
 			clusterDomain:    "custom.domain",
-			metadata:         "prod-metadata",
+			metadata:         `{"owner":"prod-metadata"}`,
 			expectedName:     "5a464-another-service-custom-namespace-custom.domain-9090",
 			expectedURL:      "https://5a464-another-service-custom-namespace-custom-domain-9090.internal",
 			expectedUpstream: "http://another-service.custom-namespace-custom.domain:9090",
@@ -121,7 +121,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 				},
 			},
 			clusterDomain:    "custom.domain",
-			metadata:         "prod-metadata",
+			metadata:         `{"owner":"prod-metadata"}`,
 			expectedName:     "5a464-another-service-custom-namespace-mtls-d025c-cust-5fd9effa",
 			expectedURL:      "https://5a464-another-service-custom-namespace-mtls-d025c-custom-domain-443.internal",
 			expectedUpstream: "https://another-service.custom-namespace-custom.domain:443",
@@ -136,7 +136,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			assert.Equal(t, tc.irService.Namespace, result.Namespace, "unexpected namespace for test case: %s", tc.name)
 			assert.Equal(t, tc.irVirtualHost.LabelsToAdd, result.Labels, "unexpected labels for test case: %s", tc.name)
 			assert.Equal(t, tc.irVirtualHost.AnnotationsToAdd, result.Annotations, "unexpected annotations for test case: %s", tc.name)
-			assert.Equal(t, tc.metadata, common.MetadataAPIString(result.Spec.Metadata), "unexpected metadata for test case: %s", tc.name)
+			assert.Equal(t, tc.metadata, common.MetadataAPIString(common.MetadataFromMap(result.Spec.Metadata)), "unexpected metadata for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedURL, result.Spec.URL, "unexpected URL for test case: %s", tc.name)
 			assert.Equal(t, tc.expectedUpstream, result.Spec.Upstream.URL, "unexpected upstream URL for test case: %s", tc.name)
 			assert.ElementsMatch(t, []string{}, result.Spec.Bindings, "unexpected bindings for test case: %s", tc.name)
@@ -235,7 +235,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 	testCases := []struct {
 		name               string
 		irVHost            *ir.IRVirtualHost
-		childEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint
+		childEndpointCache map[ir.IRServiceKey]*ngrokv1.AgentEndpoint
 		expectedPolicy     *trafficpolicy.TrafficPolicy
 		expectedCacheKeys  []ir.IRServiceKey
 	}{
@@ -244,7 +244,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 			irVHost: &ir.IRVirtualHost{
 				DefaultDestination: nil,
 			},
-			childEndpointCache: map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint{},
+			childEndpointCache: map[ir.IRServiceKey]*ngrokv1.AgentEndpoint{},
 			expectedPolicy:     trafficpolicy.NewTrafficPolicy(),
 			expectedCacheKeys:  []ir.IRServiceKey{},
 		},
@@ -274,7 +274,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 					},
 				},
 			},
-			childEndpointCache: map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint{},
+			childEndpointCache: map[ir.IRServiceKey]*ngrokv1.AgentEndpoint{},
 			expectedPolicy: &trafficpolicy.TrafficPolicy{
 				OnHTTPRequest: []trafficpolicy.Rule{
 					{
@@ -319,7 +319,7 @@ func TestBuildDefaultDestinationPolicy(t *testing.T) {
 				LabelsToAdd:      map[string]string{"label": "value"},
 				AnnotationsToAdd: map[string]string{"anno": "val"},
 			},
-			childEndpointCache: map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint{},
+			childEndpointCache: map[ir.IRServiceKey]*ngrokv1.AgentEndpoint{},
 			expectedPolicy: &trafficpolicy.TrafficPolicy{
 				OnHTTPRequest: []trafficpolicy.Rule{
 					{
@@ -487,7 +487,7 @@ type TranslatorTestCase struct {
 
 	Expected struct {
 		CloudEndpoints []*ngrokv1alpha1.CloudEndpoint
-		AgentEndpoints []*ngrokv1alpha1.AgentEndpoint
+		AgentEndpoints []*ngrokv1.AgentEndpoint
 	}
 }
 
@@ -624,7 +624,7 @@ func TestTranslate(t *testing.T) {
 					assert.Nil(t, actualAE.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedAE.Spec.Description, actualAE.Spec.Description)
-				assert.Equal(t, common.MetadataAPIString(expectedAE.Spec.Metadata), common.MetadataAPIString(actualAE.Spec.Metadata))
+				assert.Equal(t, expectedAE.Spec.Metadata, actualAE.Spec.Metadata)
 				assert.Equal(t, expectedAE.Spec.Bindings, actualAE.Spec.Bindings)
 				assert.Equal(t, expectedAE.Spec.Upstream.Protocol, actualAE.Spec.Upstream.Protocol)
 				assert.Equal(t, expectedAE.Spec.Upstream.URL, actualAE.Spec.Upstream.URL)
@@ -734,7 +734,7 @@ func TestTranslate(t *testing.T) {
 					assert.Nil(t, actualAE.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedAE.Spec.Description, actualAE.Spec.Description)
-				assert.Equal(t, common.MetadataAPIString(expectedAE.Spec.Metadata), common.MetadataAPIString(actualAE.Spec.Metadata))
+				assert.Equal(t, expectedAE.Spec.Metadata, actualAE.Spec.Metadata)
 				assert.Equal(t, expectedAE.Spec.Bindings, actualAE.Spec.Bindings)
 				assert.Equal(t, expectedAE.Spec.Upstream.Protocol, actualAE.Spec.Upstream.Protocol)
 				assert.Equal(t, expectedAE.Spec.Upstream.URL, actualAE.Spec.Upstream.URL)
@@ -913,7 +913,7 @@ func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) Tran
 	for _, rawObj := range rawTC.Expected.AgentEndpoints {
 		obj, err := decodeViaScheme(sch, rawObj)
 		require.NoError(t, err)
-		ae, ok := obj.(*ngrokv1alpha1.AgentEndpoint)
+		ae, ok := obj.(*ngrokv1.AgentEndpoint)
 		require.True(t, ok, "expected an AgentEndpoint, got %T", obj)
 		tc.Expected.AgentEndpoints = append(tc.Expected.AgentEndpoints, ae)
 	}
