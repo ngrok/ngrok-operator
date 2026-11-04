@@ -331,13 +331,13 @@ func NewCloudEndpoint(opts ...CloudEndpointOpt) *ngrokv1alpha1.CloudEndpoint {
 	return clep
 }
 
-type AgentEndpointOpt func(*ngrokv1alpha1.AgentEndpoint)
+type AgentEndpointOpt func(*ngrokv1.AgentEndpoint)
 
-func NewAgentEndpoint(opts ...AgentEndpointOpt) *ngrokv1alpha1.AgentEndpoint {
-	aep := &ngrokv1alpha1.AgentEndpoint{
+func NewAgentEndpoint(opts ...AgentEndpointOpt) *ngrokv1.AgentEndpoint {
+	aep := &ngrokv1.AgentEndpoint{
 		Name:      RandomName("agent-endpoint"),
 		Namespace: RandomName("namespace"),
-		Spec: ngrokv1alpha1.AgentEndpointSpec{
+		Spec: ngrokv1.AgentEndpointSpec{
 			URL: RandomURL(),
 		},
 	}
