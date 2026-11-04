@@ -113,7 +113,7 @@ expected:
   # traffic policy conflict
   cloudEndpoints: []
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -179,7 +179,7 @@ expected:
                 content: "No route was found for this ngrok Endpoint"
                 headers:
                   content-type: text/plain
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:

@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-logr/logr"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
 	"github.com/ngrok/ngrok-operator/internal/annotations/parser"
@@ -41,7 +42,7 @@ type translator struct {
 
 // TranslationResult is the final set of translation output resources
 type TranslationResult struct {
-	AgentEndpoints map[types.NamespacedName]*ngrokv1alpha1.AgentEndpoint
+	AgentEndpoints map[types.NamespacedName]*ngrokv1.AgentEndpoint
 	CloudEndpoints map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint
 }
 
@@ -167,9 +168,9 @@ func validateMappingStrategies(irVHosts []*ir.IRVirtualHost) {
 }
 
 // IRToEndpoints converts a set of IRVirtualHosts into CloudEndpoints and AgentEndpoints
-func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint, agentEndpoints map[types.NamespacedName]*ngrokv1alpha1.AgentEndpoint) {
+func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint, agentEndpoints map[types.NamespacedName]*ngrokv1.AgentEndpoint) {
 	// Setup a cache for the agent endpoints as any given backend may be used across several ingresses, etc.
-	agentEndpointCache := make(map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint)
+	agentEndpointCache := make(map[ir.IRServiceKey]*ngrokv1.AgentEndpoint)
 	cloudEndpoints = make(map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint)
 
 	validateMappingStrategies(irVHosts)
@@ -291,7 +292,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 	}
 
 	// Return all of the generated CloudEndpoints and AgentEndpoints as maps keyed by namespaced name for easier lookup
-	agentEndpoints = make(map[types.NamespacedName]*ngrokv1alpha1.AgentEndpoint)
+	agentEndpoints = make(map[types.NamespacedName]*ngrokv1.AgentEndpoint)
 	for _, agentEndpoint := range agentEndpointCache {
 		agentEndpoints[types.NamespacedName{
 			Name:      agentEndpoint.Name,
@@ -302,7 +303,7 @@ func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints
 	return cloudEndpoints, agentEndpoints
 }
 
-func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, agentEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint) *trafficpolicy.TrafficPolicy {
+func (t *translator) buildRoutingPolicy(irVHost *ir.IRVirtualHost, agentEndpointCache map[ir.IRServiceKey]*ngrokv1.AgentEndpoint) *trafficpolicy.TrafficPolicy {
 	routingTrafficPolicy := trafficpolicy.NewTrafficPolicy()
 	// If we're collapsing this into an AgentEndpoint, set a variable so we know if routes match the local service or not since there could be other routes
 	if irVHost.CollapseIntoServiceKey != nil {
@@ -694,7 +695,7 @@ func buildRouteLocallyVarRule(name string, value bool) trafficpolicy.Rule {
 	}
 }
 
-func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, agentEndpointCache map[ir.IRServiceKey]*ngrokv1alpha1.AgentEndpoint) (*trafficpolicy.TrafficPolicy, error) {
+func (t *translator) buildDefaultDestinationPolicy(irVHost *ir.IRVirtualHost, agentEndpointCache map[ir.IRServiceKey]*ngrokv1.AgentEndpoint) (*trafficpolicy.TrafficPolicy, error) {
 	defaultDestination := irVHost.DefaultDestination
 	defaultDestTrafficPolicy := trafficpolicy.NewTrafficPolicy()
 	if defaultDestination == nil {
@@ -822,7 +823,7 @@ func buildAgentEndpoint(
 	clusterDomain string,
 	metadata string,
 	description string,
-) (*ngrokv1alpha1.AgentEndpoint, error) {
+) (*ngrokv1.AgentEndpoint, error) {
 	bindings := []string{}
 	var url string
 	if irVHost.CollapseIntoServiceKey != nil && irService.Key() == *irVHost.CollapseIntoServiceKey {
@@ -847,18 +848,16 @@ func buildAgentEndpoint(
 		irVHost.LabelsToAdd = nil
 	}
 
-	ret := &ngrokv1alpha1.AgentEndpoint{
+	ret := &ngrokv1.AgentEndpoint{
 		Name:        internalAgentEndpointName(irService.UID, irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.ClientCertRefs),
 		Namespace:   irService.Namespace,
 		Labels:      irVHost.LabelsToAdd,
 		Annotations: irVHost.AnnotationsToAdd,
-		Spec: ngrokv1alpha1.AgentEndpointSpec{
-			URL: url,
-			// LEGACY-metadata-format: operator-generated objects keep writing the
-			// string form during the migration window for rollback safety.
-			Metadata:    commonv1alpha1.MetadataFromLegacyString(metadata),
+		Spec: ngrokv1.AgentEndpointSpec{
+			URL:         url,
+			Metadata:    commonv1alpha1.MetadataToMap(json.RawMessage(metadata)),
 			Description: description,
-			Upstream: ngrokv1alpha1.EndpointUpstream{
+			Upstream: ngrokv1.EndpointUpstream{
 				URL:      agentEndpointUpstreamURL(irService.Name, irService.Namespace, clusterDomain, irService.Port, irService.Scheme),
 				Protocol: irService.Protocol,
 			},
@@ -870,7 +869,7 @@ func buildAgentEndpoint(
 	}
 
 	for _, certRef := range irService.ClientCertRefs {
-		ret.Spec.ClientCertificateRefs = append(ret.Spec.ClientCertificateRefs, ngrokv1alpha1.K8sObjectRef{
+		ret.Spec.ClientCertificateRefs = append(ret.Spec.ClientCertificateRefs, ngrokv1.K8sObjectRef{
 			Name: certRef.Name,
 		})
 	}

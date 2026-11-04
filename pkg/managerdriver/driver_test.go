@@ -184,8 +184,8 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(domains.Items).To(HaveLen(0))
 
-				agentendpoints := &ngrokv1alpha1.AgentEndpointList{}
-				err = c.List(GinkgoT().Context(), &ngrokv1alpha1.AgentEndpointList{})
+				agentendpoints := &ngrokv1.AgentEndpointList{}
+				err = c.List(GinkgoT().Context(), &ngrokv1.AgentEndpointList{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(agentendpoints.Items).To(HaveLen(0))
 
@@ -232,12 +232,98 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(foundDomain.Spec.Domain).To(Equal(i1.Spec.Rules[0].Host))
 
-				agentEndpoints := &ngrokv1alpha1.AgentEndpointList{}
+				agentEndpoints := &ngrokv1.AgentEndpointList{}
 				err = c.List(GinkgoT().Context(), agentEndpoints, client.InNamespace("test-namespace"))
 				Expect(err).ToNot(HaveOccurred())
 				Expect(len(agentEndpoints.Items)).To(Equal(1))
 				agentEndpoint := agentEndpoints.Items[0]
 				Expect(agentEndpoint.Spec.URL).To(Equal("https://" + i1.Spec.Rules[0].Host))
+			})
+		})
+
+		// LEGACY-agentendpoint-kind: delete this context at cleanup.
+		Context("When legacy AgentEndpoints from an earlier release exist", func() {
+			It("Keeps the desired ones as twins and deletes the rest", func(ctx SpecContext) {
+				i1 := testutils.NewTestIngressV1("test-ingress", "test-namespace")
+				ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
+				s := testutils.NewTestServiceV1("example", "test-namespace")
+				obs := []runtime.Object{ic1, i1, s}
+				c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
+				for _, obj := range obs {
+					Expect(driver.store.Update(obj)).To(Succeed())
+				}
+				Expect(driver.Seed(ctx, c)).To(Succeed())
+
+				By("learning the name of the desired AgentEndpoint")
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+				current := &ngrokv1.AgentEndpointList{}
+				Expect(c.List(ctx, current, client.InNamespace("test-namespace"))).To(Succeed())
+				Expect(current.Items).To(HaveLen(1))
+				desiredName := current.Items[0].Name
+
+				legacyAEP := func(name string, operatorLabels bool) *ngrokv1alpha1.AgentEndpoint {
+					// The list dedupes by UID, which the fake client doesn't set.
+					aep := &ngrokv1alpha1.AgentEndpoint{Name: name, Namespace: "test-namespace", UID: types.UID(name)}
+					if operatorLabels {
+						aep.Labels = driver.controllerLabels.Labels()
+					}
+					return aep
+				}
+				twin := legacyAEP(desiredName, true)
+				stale := legacyAEP("stale", true)
+				user := legacyAEP("user", false)
+				for _, aep := range []*ngrokv1alpha1.AgentEndpoint{twin, stale, user} {
+					Expect(c.Create(ctx, aep)).To(Succeed())
+				}
+
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+
+				Expect(c.Get(ctx, client.ObjectKeyFromObject(twin), &ngrokv1alpha1.AgentEndpoint{})).To(Succeed())
+				Expect(c.Get(ctx, client.ObjectKeyFromObject(user), &ngrokv1alpha1.AgentEndpoint{})).To(Succeed())
+				err := c.Get(ctx, client.ObjectKeyFromObject(stale), &ngrokv1alpha1.AgentEndpoint{})
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(), "the stale legacy AgentEndpoint should be deleted, got %v", err)
+
+				By("deleting the twin once the Ingress is gone")
+				Expect(c.Delete(ctx, i1)).To(Succeed())
+				Expect(driver.store.Delete(i1)).To(Succeed())
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+				err = c.Get(ctx, client.ObjectKeyFromObject(twin), &ngrokv1alpha1.AgentEndpoint{})
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(), "the legacy twin should be deleted with its v1 AgentEndpoint, got %v", err)
+				Expect(c.List(ctx, current, client.InNamespace("test-namespace"))).To(Succeed())
+				Expect(current.Items).To(BeEmpty())
+			})
+		})
+
+		Context("When an AgentEndpoint the operator doesn't manage has the generated name", func() {
+			It("Leaves it alone and finishes the sync", func(ctx SpecContext) {
+				i1 := testutils.NewTestIngressV1("test-ingress", "test-namespace")
+				ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
+				s := testutils.NewTestServiceV1("example", "test-namespace")
+				obs := []runtime.Object{ic1, i1, s}
+				for _, obj := range obs {
+					Expect(driver.store.Update(obj)).To(Succeed())
+				}
+
+				By("learning the name of the generated AgentEndpoint")
+				probe := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
+				Expect(driver.Seed(ctx, probe)).To(Succeed())
+				Expect(driver.Sync(ctx, probe)).To(Succeed())
+				generated := &ngrokv1.AgentEndpointList{}
+				Expect(probe.List(ctx, generated, client.InNamespace("test-namespace"))).To(Succeed())
+				Expect(generated.Items).To(HaveLen(1))
+
+				user := &ngrokv1.AgentEndpoint{
+					Name:      generated.Items[0].Name,
+					Namespace: "test-namespace",
+					Spec:      ngrokv1.AgentEndpointSpec{URL: "https://user.example.com"},
+				}
+				c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(append(obs, user)...).Build()
+				Expect(driver.Seed(ctx, c)).To(Succeed())
+
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+				got := &ngrokv1.AgentEndpoint{}
+				Expect(c.Get(ctx, client.ObjectKeyFromObject(user), got)).To(Succeed())
+				Expect(got.Spec.URL).To(Equal("https://user.example.com"))
 			})
 		})
 
@@ -248,7 +334,7 @@ var _ = Describe("Driver", func() {
 				ingress                 *netv1.Ingress
 				c                       client.WithWatch
 				namespace               = "app-proto-namespace"
-				agentEndpoints          *ngrokv1alpha1.AgentEndpointList
+				agentEndpoints          *ngrokv1.AgentEndpointList
 				cloudEndpoints          *ngrokv1alpha1.CloudEndpointList
 				ic                      = testutils.NewTestIngressClass("app-proto-ingress-class", true, true)
 				setIngressTargetService = func(i *netv1.Ingress, s *v1.Service) {
@@ -332,7 +418,7 @@ var _ = Describe("Driver", func() {
 				Expect(driver.Sync(GinkgoT().Context(), c)).To(BeNil())
 
 				// Find the agent endpoints in this namespace
-				agentEndpoints = &ngrokv1alpha1.AgentEndpointList{}
+				agentEndpoints = &ngrokv1.AgentEndpointList{}
 				err := c.List(GinkgoT().Context(), agentEndpoints, client.InNamespace(namespace))
 				Expect(err).ToNot(HaveOccurred())
 
@@ -470,7 +556,7 @@ var _ = Describe("Driver", func() {
 				httpService         *v1.Service
 				ingress             *netv1.Ingress
 				trafficPolicy       *ngrokv1alpha1.NgrokTrafficPolicy
-				foundAgentEndpoints *ngrokv1alpha1.AgentEndpointList
+				foundAgentEndpoints *ngrokv1.AgentEndpointList
 				foundCloudEndpoints *ngrokv1alpha1.CloudEndpointList
 				ic                  = testutils.NewTestIngressClass("edge-tp-ingress-class", true, true)
 			)
@@ -551,7 +637,7 @@ var _ = Describe("Driver", func() {
 				Expect(driver.Sync(GinkgoT().Context(), c)).To(Succeed())
 
 				// Find the AgentEndpoints in this namespace
-				foundAgentEndpoints = &ngrokv1alpha1.AgentEndpointList{}
+				foundAgentEndpoints = &ngrokv1.AgentEndpointList{}
 				Expect(c.List(GinkgoT().Context(), foundAgentEndpoints, client.InNamespace(namespace))).To(Succeed())
 
 				// Find the CloudEndpoints in this namespace
