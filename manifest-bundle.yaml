@@ -705,6 +705,11 @@ spec:
       name: Message
       priority: 1
       type: string
+    deprecated: true
+    deprecationWarning: ingress.k8s.ngrok.com/v1alpha1 IPPolicy is deprecated; use
+      ngrok.com/v1 IPPolicy instead. Re-stamp the manifest's apiVersion and apply
+      it, wait for the new object to be Ready, then delete this one. The IP policy
+      keeps its ID.
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -877,6 +882,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.23.0
+    helm.sh/resource-policy: keep
   name: ippolicies.ngrok.com
 spec:
   group: ngrok.com
@@ -952,7 +958,8 @@ spec:
               IPPolicySpec defines the desired state of IPPolicy.
 
               The spec is compatible with the deprecated
-              ingress.k8s.ngrok.com/v1alpha1 IPPolicySpec, with only a change to metadata type
+              ingress.k8s.ngrok.com/v1alpha1 IPPolicySpec, except that spec and rule
+              metadata are typed maps rather than schemaless values.
             properties:
               description:
                 default: Created by ngrok-operator
@@ -974,8 +981,7 @@ spec:
                 items:
                   description: |-
                     IPPolicyRule mirrors ingress.k8s.ngrok.com/v1alpha1 IPPolicyRule field for
-                    field so the two kinds stay byte-compatible; see the IPPolicy doc comment
-                    below for why that matters.
+                    field, except that Metadata is a typed map rather than a schemaless value.
                   properties:
                     action:
                       enum:
@@ -996,13 +1002,15 @@ spec:
                       maxLength: 255
                       type: string
                     metadata:
-                      default: '{"owned-by":"ngrok-operator"}'
+                      additionalProperties:
+                        type: string
+                      default:
+                        owned-by: ngrok-operator
                       description: |-
                         Metadata is arbitrary key/value data associated with the object in the
-                        ngrok API/Dashboard. A raw JSON string is also accepted for backward
-                        compatibility and is deprecated; use a map of string values instead.
+                        ngrok API/Dashboard.
                         The ngrokMetadata Helm value is not merged into this field.
-                      x-kubernetes-preserve-unknown-fields: true
+                      type: object
                   required:
                   - action
                   - cidr
@@ -2867,6 +2875,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-ippolicy-kind: BEGIN — drop these three rule blocks at cleanup.
 - apiGroups:
   - ingress.k8s.ngrok.com
   resources:
@@ -2893,6 +2902,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-ippolicy-kind: END
 # --- bindings.k8s.ngrok.com ---
 # BoundEndpoint rules require a ClusterRole (the binding poller reconciles
 # BoundEndpoints and creates Services in any namespace, independent of
@@ -3004,6 +3014,35 @@ rules:
   - ngrok.com
   resources:
   - trafficpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+# Canonical ngrok.com/v1 IPPolicy rules. Same verbs as the legacy
+# ingress.k8s.ngrok.com ippolicies blocks above: the api-manager owns these
+# objects' finalizers and status, and manages the remote policy they describe.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies/status
   verbs:
   - get
   - patch
@@ -3325,6 +3364,25 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies/status
+  verbs:
+  - get
+# LEGACY-ippolicy-kind: BEGIN — drop these two rule blocks at cleanup.
+- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - ippolicies
@@ -3342,6 +3400,7 @@ rules:
   - ippolicies/status
   verbs:
   - get
+# LEGACY-ippolicy-kind: END
 
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/ippolicy-viewer.yaml
@@ -3359,6 +3418,21 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - ippolicies/status
+  verbs:
+  - get
+# LEGACY-ippolicy-kind: BEGIN — drop these two rule blocks at cleanup.
+- apiGroups:
   - ingress.k8s.ngrok.com
   resources:
   - ippolicies
@@ -3372,6 +3446,7 @@ rules:
   - ippolicies/status
   verbs:
   - get
+# LEGACY-ippolicy-kind: END
 
 ---
 # Source: ngrok-operator/templates/rbac/crd-access/kubernetesoperator-editor.yaml
@@ -3970,7 +4045,7 @@ metadata:
   name: ngrok-operator-manager
   namespace: ngrok-operator
   annotations:
-    checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
+    checksum/controller-role: fa2390609ff24f52962b63519eb3a5ab491e29c85b32697b9ba161231f4016fb
     checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
 spec:
   replicas: 1
@@ -3985,7 +4060,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
         prometheus.io/scrape: 'true'
-        checksum/controller-role: 3507cc8908227427967b57e4c3e8f634980ee37fd69acacc2e6074fe5d3d116e
+        checksum/controller-role: fa2390609ff24f52962b63519eb3a5ab491e29c85b32697b9ba161231f4016fb
         checksum/rbac: 3c010fd2cf6a534cc29d1483b4abeb16710dfc185eded3d7ac57e5c3289e4ea2
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
