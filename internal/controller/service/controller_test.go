@@ -58,8 +58,8 @@ const (
 )
 
 // getCloudEndpoints fetches CloudEndpoints in the given namespace
-func getCloudEndpoints(k8sClient client.Client, namespace string) (*ngrokv1alpha1.CloudEndpointList, error) {
-	clepList := &ngrokv1alpha1.CloudEndpointList{}
+func getCloudEndpoints(k8sClient client.Client, namespace string) (*ngrokv1.CloudEndpointList, error) {
+	clepList := &ngrokv1.CloudEndpointList{}
 	listOpts := []client.ListOption{
 		client.InNamespace(namespace),
 	}
@@ -388,6 +388,214 @@ var _ = Describe("ServiceController", func() {
 		})
 	})
 
+	// LEGACY-cloudendpoint-kind: delete this context at cleanup.
+	When("an earlier release created a legacy CloudEndpoint for a verbose service", func() {
+		var (
+			legacy *ngrokv1alpha1.CloudEndpoint
+			// legacyDomain is the Domain the legacy CloudEndpoint reports in
+			// its status.
+			legacyDomain *ingressv1alpha1.Domain
+			// extraLegacy is a second legacy CloudEndpoint without an ID,
+			// created before the controller first handles the service.
+			extraLegacy *ngrokv1alpha1.CloudEndpoint
+			withExtra   bool
+		)
+
+		BeforeEach(func() {
+			withExtra = false
+			extraLegacy = nil
+			legacyDomain = &ingressv1alpha1.Domain{
+				Name:      "legacy-example-com",
+				Namespace: namespace,
+				Spec:      ingressv1alpha1.DomainSpec{Domain: "legacy.example.com"},
+			}
+			// Start ignored, so the legacy CloudEndpoint exists before the
+			// controller first handles the service.
+			modifiers.Add(SetServiceType(ClusterIP))
+			modifiers.Add(SetMappingStrategy(annotations.MappingStrategy_EndpointsVerbose))
+			modifiers.Add(AddAnnotation(Annotation_URL, "tls://legacy.example.com:443"))
+		})
+
+		JustBeforeEach(func() {
+			fetched := &corev1.Service{}
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+
+			legacy = &ngrokv1alpha1.CloudEndpoint{
+				Name:      svc.Name + "-abc12",
+				Namespace: namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					*metav1.NewControllerRef(fetched, corev1.SchemeGroupVersion.WithKind("Service")),
+				},
+				Labels: labels.ControllerLabels(controllerLabelNamespace, controllerLabelName),
+				Spec: ngrokv1alpha1.CloudEndpointSpec{
+					URL: "tls://legacy.example.com:443",
+				},
+			}
+			Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+
+			Expect(k8sClient.Create(ctx, legacyDomain)).To(Succeed())
+			legacyDomain.Status.CNAMETarget = new("legacy.cname.ngrok.app")
+			Expect(k8sClient.Status().Update(ctx, legacyDomain)).To(Succeed())
+
+			legacy.Status.ID = "ep_legacy"
+			legacy.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: legacyDomain.Name}
+			Expect(k8sClient.Status().Update(ctx, legacy)).To(Succeed())
+
+			if withExtra {
+				extraLegacy = &ngrokv1alpha1.CloudEndpoint{
+					Name:            svc.Name + "-aaaaa",
+					Namespace:       namespace,
+					OwnerReferences: legacy.OwnerReferences,
+					Labels:          legacy.Labels,
+					Spec:            legacy.Spec,
+				}
+				Expect(k8sClient.Create(ctx, extraLegacy)).To(Succeed())
+			}
+
+			By("making the service an ngrok LoadBalancer")
+			Eventually(func() error {
+				fetched := &corev1.Service{}
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+					return err
+				}
+				fetched.Spec.Type = LoadBalancer
+				fetched.Spec.LoadBalancerClass = new(NgrokLoadBalancerClass)
+				return k8sClient.Update(ctx, fetched)
+			}, timeout, interval).Should(Succeed())
+		})
+
+		touchService := func() {
+			Eventually(func() error {
+				fetched := &corev1.Service{}
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+					return err
+				}
+				if fetched.Annotations == nil {
+					fetched.Annotations = map[string]string{}
+				}
+				fetched.Annotations["touched"] = "true"
+				return k8sClient.Update(ctx, fetched)
+			}, timeout, interval).Should(Succeed())
+		}
+
+		legacyGone := func(obj *ngrokv1alpha1.CloudEndpoint) func() bool {
+			return func() bool {
+				return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), &ngrokv1alpha1.CloudEndpoint{}))
+			}
+		}
+
+		It("creates the v1 CloudEndpoint as the legacy one's twin and keeps the legacy one", func() {
+			kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
+				g.Expect(cleps).To(HaveLen(1))
+				g.Expect(cleps[0].Name).To(Equal(legacy.Name))
+				g.Expect(cleps[0].Spec.URL).To(Equal(legacy.Spec.URL))
+			})
+			kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
+				g.Expect(aeps).To(HaveLen(1))
+			})
+			Consistently(func() error {
+				return k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), &ngrokv1alpha1.CloudEndpoint{})
+			}, "2s", interval).Should(Succeed())
+		})
+
+		It("never blanks the load balancer hostname while the v1 CloudEndpoint takes over", func() {
+			Eventually(func(g Gomega) {
+				fetched := &corev1.Service{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+				g.Expect(fetched.Status.LoadBalancer.Ingress).To(HaveLen(1))
+				g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(Equal("legacy.cname.ngrok.app"))
+			}, timeout, interval).Should(Succeed())
+
+			kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
+				g.Expect(cleps).To(HaveLen(1))
+			})
+			touchService()
+
+			Consistently(func(g Gomega) {
+				fetched := &corev1.Service{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+				g.Expect(fetched.Status.LoadBalancer.Ingress).To(HaveLen(1))
+				g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(Equal("legacy.cname.ngrok.app"))
+			}, "2s", interval).Should(Succeed())
+		})
+
+		// A rolled-back release ignores the v1 CloudEndpoint and creates
+		// another legacy one under a new name, which has no twin.
+		It("deletes a legacy CloudEndpoint that isn't the v1 one's twin", func() {
+			kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
+				g.Expect(cleps).To(HaveLen(1))
+			})
+
+			extra := legacy.DeepCopy()
+			extra.ObjectMeta = metav1.ObjectMeta{
+				Name:            svc.Name + "-rolled-back",
+				Namespace:       namespace,
+				OwnerReferences: legacy.OwnerReferences,
+				Labels:          legacy.Labels,
+			}
+			extra.Status = ngrokv1alpha1.CloudEndpointStatus{}
+			Expect(k8sClient.Create(ctx, extra)).To(Succeed())
+
+			By("touching the service so it is reconciled")
+			touchService()
+
+			Eventually(legacyGone(extra), timeout, interval).Should(BeTrue())
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), &ngrokv1alpha1.CloudEndpoint{})).To(Succeed())
+			kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
+				g.Expect(cleps).To(HaveLen(1))
+				g.Expect(cleps[0].Name).To(Equal(legacy.Name))
+			})
+		})
+
+		// The legacy object with an ID holds the live endpoint, so it is the
+		// twin even though the other one sorts first.
+		When("there are two legacy CloudEndpoints and only one has an endpoint ID", func() {
+			BeforeEach(func() {
+				withExtra = true
+			})
+
+			It("takes over the one with the ID and deletes the other", func() {
+				Eventually(legacyGone(extraLegacy), timeout, interval).Should(BeTrue())
+				kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
+					g.Expect(cleps).To(HaveLen(1))
+					g.Expect(cleps[0].Name).To(Equal(legacy.Name))
+				})
+				Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), &ngrokv1alpha1.CloudEndpoint{})).To(Succeed())
+			})
+		})
+
+		It("deletes both CloudEndpoints when the service is deleted", func() {
+			kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
+				g.Expect(cleps).To(HaveLen(1))
+			})
+
+			Expect(k8sClient.Delete(ctx, svc)).To(Succeed())
+
+			kginkgo.EventuallyExpectNoEndpoints(ctx, namespace)
+			Eventually(legacyGone(legacy), timeout, interval).Should(BeTrue())
+		})
+
+		It("deletes both CloudEndpoints when the service moves to the collapsed strategy", func() {
+			kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
+				g.Expect(cleps).To(HaveLen(1))
+			})
+
+			Eventually(func() error {
+				fetched := &corev1.Service{}
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+					return err
+				}
+				fetched.Annotations[annotations.MappingStrategyAnnotation] = string(annotations.MappingStrategy_EndpointsDefault)
+				return k8sClient.Update(ctx, fetched)
+			}, timeout, interval).Should(Succeed())
+
+			kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
+				g.Expect(cleps).To(BeEmpty())
+			})
+			Eventually(legacyGone(legacy), timeout, interval).Should(BeTrue())
+		})
+	})
+
 	When("service type is LoadBalancer", func() {
 		BeforeEach(func() {
 			modifiers.Add(SetServiceType(LoadBalancer))
@@ -514,7 +722,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("still creates endpoints from them", func() {
-					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 
@@ -535,7 +743,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("Should create a cloud endpoint", func() {
-					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 
@@ -603,7 +811,7 @@ var _ = Describe("ServiceController", func() {
 						kginkgo.ExpectFinalizerToBeAdded(ctx, svc, FinalizerName)
 
 						// Wait for resources to be created
-						kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+						kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 							By("checking a cloud endpoint exists")
 							g.Expect(cleps).To(HaveLen(1))
 						})
@@ -630,7 +838,7 @@ var _ = Describe("ServiceController", func() {
 
 			When("endpoints default (no annotation)", func() {
 				It("Should not create a cloud endpoint", func() {
-					kginkgo.ConsistentlyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+					kginkgo.ConsistentlyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 						By("checking no cloud endpoints exist")
 						g.Expect(cleps).To(BeEmpty())
 					})
@@ -736,7 +944,7 @@ var _ = Describe("ServiceController", func() {
 
 				It("should clean up owned resources and remove finalizer", func() {
 					// Wait for resources to be created
-					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 					})
@@ -796,7 +1004,7 @@ var _ = Describe("ServiceController", func() {
 
 				It("should clean up owned resources when service is deleted", func() {
 					// Wait for resources to be created
-					kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
+					kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 						By("checking an agent endpoint exists")
@@ -831,7 +1039,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should not create a cloud endpoint in default mapping", func() {
-					kginkgo.ConsistentlyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+					kginkgo.ConsistentlyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 						By("checking no cloud endpoints exist")
 						g.Expect(cleps).To(BeEmpty())
 					})
@@ -946,7 +1154,7 @@ var _ = Describe("ServiceController", func() {
 					})
 
 					It("should create both cloud and agent endpoints", func() {
-						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
+						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 							By("checking a cloud endpoint exists")
 							g.Expect(cleps).To(HaveLen(1))
 
@@ -975,7 +1183,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should create cloud and agent endpoints", func() {
-					kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
+					kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 
@@ -1141,7 +1349,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should create a cloud endpoint with the traffic policy", func() {
-					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 
@@ -1155,7 +1363,7 @@ var _ = Describe("ServiceController", func() {
 				When("the traffic policy is updated", func() {
 					It("should trigger service reconciliation", func() {
 						// Wait for initial reconciliation
-						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
+						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 							By("checking a cloud endpoint exists")
 							g.Expect(cleps).To(HaveLen(1))
 
@@ -1174,7 +1382,7 @@ var _ = Describe("ServiceController", func() {
 						fetched.Spec.Policy = json.RawMessage(`{"on_tcp_connect": [{"actions": [{"type": "restrict-ips", "config": {"allow": ["1.2.3.4/32"]}}]}]}`)
 						Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
 
-						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
+						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 							By("checking a cloud endpoint exists")
 							g.Expect(cleps).To(HaveLen(1))
 
@@ -1197,7 +1405,7 @@ var _ = Describe("ServiceController", func() {
 
 				It("should delete extra resources keeping only one", func(ctx SpecContext) {
 					// Wait for first resource to be created
-					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 					})
@@ -1206,7 +1414,7 @@ var _ = Describe("ServiceController", func() {
 					fetched := &corev1.Service{}
 					Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
 
-					extraClep := &ngrokv1alpha1.CloudEndpoint{
+					extraClep := &ngrokv1.CloudEndpoint{
 						Name:      fmt.Sprintf("%s-extra", svc.Name),
 						Namespace: namespace,
 						OwnerReferences: []metav1.OwnerReference{
@@ -1218,14 +1426,14 @@ var _ = Describe("ServiceController", func() {
 								Controller: new(true),
 							},
 						},
-						Spec: ngrokv1alpha1.CloudEndpointSpec{
+						Spec: ngrokv1.CloudEndpointSpec{
 							URL: "tcp://1.tcp.ngrok.io:12345",
 						},
 					}
 					Expect(k8sClient.Create(ctx, extraClep)).To(Succeed())
 
 					// Verify only one cloud endpoint remains
-					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+					kginkgo.EventuallyWithCloudEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 						By("checking only one cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 					})

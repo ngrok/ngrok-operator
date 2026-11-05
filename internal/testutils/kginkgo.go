@@ -6,7 +6,6 @@ import (
 	"time"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/ippolicy"
 	. "github.com/onsi/ginkgo/v2"
@@ -64,13 +63,13 @@ func WithInterval(interval time.Duration) KGinkgoOpt {
 //
 // Example usage:
 //
-//	    check := func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+//	    check := func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 //	        g.Expect(len(cleps)).To(Equal(2))
 //		}
 //
 //		kginkgo := testutils.NewKGinkgo(k8sClient)
 //	    kginkgo.ConsistentlyWithCloudEndpoints(ctx, "test-namespace", check)
-func (k *KGinkgo) ConsistentlyWithCloudEndpoints(ctx context.Context, namespace string, inner func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint), opts ...KGinkgoOpt) {
+func (k *KGinkgo) ConsistentlyWithCloudEndpoints(ctx context.Context, namespace string, inner func(g Gomega, cleps []ngrokv1.CloudEndpoint), opts ...KGinkgoOpt) {
 	GinkgoHelper()
 	eo := makeKGinkgoOptions(opts...)
 
@@ -323,11 +322,11 @@ func (k *KGinkgo) EventuallyWithObject(ctx context.Context, obj client.Object, i
 // EventuallyWithCloudEndpoint continually fetches the specified CloudEndpoint and invokes the inner function with the fetched object.
 // The function uses Gomega's Eventually internally, so it should only be used in Ginkgo tests.
 // You can pass optional KGinkgoOpt parameters to customize the timeout and polling interval.
-func (k *KGinkgo) EventuallyWithCloudEndpoint(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, inner func(g Gomega, fetched *ngrokv1alpha1.CloudEndpoint), opts ...KGinkgoOpt) {
+func (k *KGinkgo) EventuallyWithCloudEndpoint(ctx context.Context, clep *ngrokv1.CloudEndpoint, inner func(g Gomega, fetched *ngrokv1.CloudEndpoint), opts ...KGinkgoOpt) {
 	GinkgoHelper()
 
 	k.EventuallyWithObject(ctx, clep.DeepCopy(), func(g Gomega, obj client.Object) {
-		fetched, ok := obj.(*ngrokv1alpha1.CloudEndpoint)
+		fetched, ok := obj.(*ngrokv1.CloudEndpoint)
 		g.Expect(ok).To(BeTrue(), "expected object to be an CloudEndpoint")
 
 		inner(g, fetched)
@@ -340,13 +339,13 @@ func (k *KGinkgo) EventuallyWithCloudEndpoint(ctx context.Context, clep *ngrokv1
 //
 // Example usage:
 //
-//	    check := func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint) {
+//	    check := func(g Gomega, cleps []ngrokv1.CloudEndpoint) {
 //	        g.Expect(len(cleps)).To(Equal(2))
 //		}
 //
 //		kginkgo := testutils.NewKGinkgo(k8sClient)
 //	    kginkgo.EventuallyWithCloudEndpoints(ctx, "test-namespace", check)
-func (k *KGinkgo) EventuallyWithCloudEndpoints(ctx context.Context, namespace string, inner func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint), opts ...KGinkgoOpt) {
+func (k *KGinkgo) EventuallyWithCloudEndpoints(ctx context.Context, namespace string, inner func(g Gomega, cleps []ngrokv1.CloudEndpoint), opts ...KGinkgoOpt) {
 	GinkgoHelper()
 	eo := makeKGinkgoOptions(opts...)
 
@@ -412,14 +411,14 @@ func (k *KGinkgo) EventuallyWithAgentEndpoints(ctx context.Context, namespace st
 //
 // Example usage:
 //
-//	    check := func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
+//	    check := func(g Gomega, cleps []ngrokv1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 //	        g.Expect(len(cleps)).To(Equal(2))
 //	        g.Expect(len(aeps)).To(Equal(3))
 //		}
 //
 //		kginkgo := testutils.NewKGinkgo(k8sClient)
 //	    kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, "test-namespace", check)
-func (k *KGinkgo) EventuallyWithCloudAndAgentEndpoints(ctx context.Context, namespace string, inner func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint), opts ...KGinkgoOpt) {
+func (k *KGinkgo) EventuallyWithCloudAndAgentEndpoints(ctx context.Context, namespace string, inner func(g Gomega, cleps []ngrokv1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint), opts ...KGinkgoOpt) {
 	GinkgoHelper()
 	eo := makeKGinkgoOptions(opts...)
 
@@ -448,7 +447,7 @@ func (k *KGinkgo) EventuallyExpectNoEndpoints(ctx context.Context, namespace str
 	GinkgoHelper()
 
 	By("verifying no cloud or agent endpoints remain")
-	k.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
+	k.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 		By("verifying no cloud endpoints remain")
 		g.Expect(cleps).To(BeEmpty())
 
@@ -504,10 +503,10 @@ func (k *KGinkgo) getGVKForObject(obj client.Object) schema.GroupVersionKind {
 	return gvks[0]
 }
 
-func (k *KGinkgo) getCloudEndpoints(ctx context.Context, namespace string) ([]ngrokv1alpha1.CloudEndpoint, error) {
+func (k *KGinkgo) getCloudEndpoints(ctx context.Context, namespace string) ([]ngrokv1.CloudEndpoint, error) {
 	GinkgoHelper()
 
-	clepList := &ngrokv1alpha1.CloudEndpointList{}
+	clepList := &ngrokv1.CloudEndpointList{}
 	listOpts := []client.ListOption{
 		client.InNamespace(namespace),
 	}
