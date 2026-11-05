@@ -48,8 +48,10 @@ func init() {
 type privateEndpointForwarderManagerOpts struct {
 	flags.ManagerOptions
 
-	log               *flags.LogOptions
-	privateDialServer string
+	log                   *flags.LogOptions
+	privateDialQUICServer string
+	privateDialH2Server   string
+	privateDialProtocol   string
 }
 
 func privateEndpointForwarderCmd() *cobra.Command {
@@ -61,7 +63,9 @@ func privateEndpointForwarderCmd() *cobra.Command {
 		},
 	}
 	flags.Manager(c.Flags(), &opts.ManagerOptions, "private-endpoint-forwarder-manager")
-	flags.PrivateEndpointsDialServer(c.Flags(), &opts.privateDialServer)
+	flags.PrivateEndpointsQUICServer(c.Flags(), &opts.privateDialQUICServer)
+	flags.PrivateEndpointsH2Server(c.Flags(), &opts.privateDialH2Server)
+	flags.PrivateEndpointsDialProtocol(c.Flags(), &opts.privateDialProtocol)
 	opts.log = flags.Log(c.Flags())
 	return c
 }
@@ -85,6 +89,10 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderManagerOpts) error
 	if !ok || token == "" {
 		return errors.New("NGROK_ACCESS_TOKEN environment variable should be set, but was not")
 	}
+	protocol, err := parsePrivateDialProtocol(opts.privateDialProtocol)
+	if err != nil {
+		return err
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -98,10 +106,10 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderManagerOpts) error
 	}
 
 	dialer := privatedial.New(privatedial.Config{
-		QUICServerAddr: opts.privateDialServer,
-		// privatedial's HTTP/2 transport panics on Go 1.27, so force QUIC.
-		ForceProtocol: privatedial.ProtocolQUIC,
-		AuthToken:     token,
+		QUICServerAddr: opts.privateDialQUICServer,
+		H2ServerAddr:   opts.privateDialH2Server,
+		ForceProtocol:  protocol,
+		AuthToken:      token,
 	})
 	table := forwarder.NewTable()
 	forwarderReconciler := &privateendpointscontroller.ForwarderReconciler{
@@ -135,8 +143,21 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderManagerOpts) error
 		return fmt.Errorf("error setting up health check: %w", err)
 	}
 
-	log.Info("serving", "privateDialServer", opts.privateDialServer)
+	log.Info("serving", "privateDialProtocol", opts.privateDialProtocol, "privateDialQUICServer", opts.privateDialQUICServer, "privateDialH2Server", opts.privateDialH2Server)
 	return mgr.Start(ctrl.SetupSignalHandler())
+}
+
+func parsePrivateDialProtocol(s string) (privatedial.Protocol, error) {
+	switch s {
+	case "auto":
+		return privatedial.ProtocolAuto, nil
+	case "quic":
+		return privatedial.ProtocolQUIC, nil
+	case "h2":
+		return privatedial.ProtocolH2, nil
+	default:
+		return 0, fmt.Errorf("invalid private dial protocol %q: must be auto, quic or h2", s)
+	}
 }
 
 // forwarderReadyz is ready once the routing table has synced and every
@@ -155,6 +176,7 @@ type sessionDialer interface {
 	Connect(ctx context.Context) error
 	Done() <-chan struct{}
 	Err() error
+	Protocol() privatedial.Protocol
 }
 
 // dialSession connects the dialer at startup and ends the process once the
@@ -198,7 +220,7 @@ func (s *dialSession) Start(ctx context.Context) error {
 		backoff = min(2*backoff, s.maxBackoff)
 	}
 	s.connected.Store(true)
-	s.log.Info("connected to private dial server")
+	s.log.Info("connected to private dial server", "protocol", s.dialer.Protocol().String())
 
 	select {
 	case <-ctx.Done():

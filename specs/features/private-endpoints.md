@@ -13,7 +13,9 @@ Private endpoints is opt-in (`ngrok.features.privateEndpoints.enabled: false` by
 | Helm Value                                                | Description                                                      | Default |
 |-----------------------------------------------------------|------------------------------------------------------------------|---------|
 | `ngrok.features.privateEndpoints.enabled`                 | Enable the private endpoints feature                             | `false` |
-| `ngrok.features.privateEndpoints.privateDialServer`       | Private dial server (host:port) the forwarder connects through. QUIC only | `quic.connect-endpoint.ngrok.com:443` |
+| `ngrok.features.privateEndpoints.privateDialProtocol`     | `auto` races QUIC against HTTP/2 and keeps the first to connect; `quic` or `h2` uses only that one | `auto` |
+| `ngrok.features.privateEndpoints.privateDialQuicServer`   | Private dial server (host:port) for HTTP/3 (QUIC, UDP/443) | `quic.connect-endpoint.ngrok.com:443` |
+| `ngrok.features.privateEndpoints.privateDialH2Server`     | Private dial server (host:port) for HTTP/2 (TLS, TCP/443) | `h2.connect-endpoint.ngrok.com:443` |
 | `ngrok.credentials.privateEndpointForwarder.accessToken`  | Access token for the forwarder; falls back to `ngrok.credentials.accessToken` | `""` |
 
 There are no selectors: every eligible private endpoint in the account is mirrored. The poll interval (10s) and the forwarder port range (20000–20999) are fixed.
@@ -102,7 +104,7 @@ Leftover Services select no pods, so their names still resolve through the CoreD
 | Account-wide exposure | Every mirrored private endpoint is reachable from every pod in the cluster. There are no selectors, and DNS configuration is not authorization. |
 | No pod identity | The dial carries no identity of the calling pod, so Traffic Policy on the endpoint cannot match the caller. |
 | Single-label hostnames | Only `<label>.ngrok.direct` is supported, where `<label>` is a DNS-1035 label of at most 50 characters. Other hostnames are mirrored but not wired (`UnsupportedHostname`). |
-| UDP/443 egress | The forwarder dials over QUIC only, so the cluster needs outbound UDP/443. |
+| TCP/443 egress | The forwarder needs outbound TCP/443 for HTTP/2. QUIC is used only when UDP/443 is open and the node allows large UDP buffers (7 MiB; otherwise privatedial skips QUIC), so most clusters run on HTTP/2. |
 | Capacity | Forwarder ports come from 20000–20999, so a cluster serves at most 1000 endpoint-ports. Forwarder replicas add throughput, not capacity. |
 | `Ready` means configured | `Ready=True` means the Service and forwarder port are in place, not that a forwarder has bound the port, that DNS is configured, or that the endpoint is reachable. |
 | IPv4 | Forwarder listeners bind `0.0.0.0`, and each hostname's Service is single-stack, so a PrivateEndpoint's `status.clusterIP` holds one IPv4 address. |
