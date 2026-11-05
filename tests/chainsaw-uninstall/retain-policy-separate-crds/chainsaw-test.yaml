@@ -116,7 +116,7 @@ spec:
         - assert:
             timeout: 2m
             resource:
-              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              apiVersion: ngrok.com/v1
               kind: CloudEndpoint
               metadata:
                 name: uninstall-test-cloud-ep
@@ -187,7 +187,7 @@ spec:
             content: |
               # With endpoints-verbose mapping strategy, Ingress/Gateway create CloudEndpoints
               # Check CloudEndpoint URLs (more reliable than names which may have hashes)
-              CLOUD_EP_URLS=$(kubectl get cloudendpoint -n uninstall-test -o jsonpath='{.items[*].spec.url}')
+              CLOUD_EP_URLS=$(kubectl get cloudendpoints.ngrok.com -n uninstall-test -o jsonpath='{.items[*].spec.url}')
               echo "Found CloudEndpoint URLs: $CLOUD_EP_URLS"
               
               # Verify Ingress CloudEndpoint exists
@@ -255,12 +255,12 @@ spec:
             timeout: 30s
             content: |
               # CR should still exist (CRDs not deleted) but finalizer should be removed
-              if ! kubectl get cloudendpoint uninstall-test-cloud-ep -n uninstall-test &>/dev/null; then
+              if ! kubectl get cloudendpoints.ngrok.com uninstall-test-cloud-ep -n uninstall-test &>/dev/null; then
                 echo "✗ CloudEndpoint CR was deleted unexpectedly"
                 exit 1
               fi
 
-              FINALIZERS=$(kubectl get cloudendpoint uninstall-test-cloud-ep -n uninstall-test -o jsonpath='{.metadata.finalizers}')
+              FINALIZERS=$(kubectl get cloudendpoints.ngrok.com uninstall-test-cloud-ep -n uninstall-test -o jsonpath='{.metadata.finalizers}')
               if [ -z "$FINALIZERS" ] || [ "$FINALIZERS" = "[]" ] || [ "$FINALIZERS" = "null" ]; then
                 echo "✓ CloudEndpoint exists without finalizer"
               else
@@ -409,13 +409,14 @@ spec:
             content: |
               ../_fixtures/assert-crds-removed.sh
 
-              # CRs should be gone with the CRDs (command should fail since CRD doesn't exist)
-              if ! kubectl get cloudendpoint -n uninstall-test 2>&1 | grep -qE "(NotFound|doesn't have a resource type)"; then
-                echo "✗ CloudEndpoint resources may still exist"
-                kubectl get cloudendpoint -n uninstall-test 2>&1 || true
+              # The legacy CRD is gone with its CRs. The ngrok.com CRD is kept, so its
+              # CRs stay too.
+              if ! kubectl get cloudendpoints.ngrok.k8s.ngrok.com -n uninstall-test 2>&1 | grep -qE "(NotFound|doesn't have a resource type)"; then
+                echo "✗ legacy CloudEndpoint resources may still exist"
+                kubectl get cloudendpoints.ngrok.k8s.ngrok.com -n uninstall-test 2>&1 || true
                 exit 1
               fi
-              echo "✓ CloudEndpoint CRD and CRs cleaned up"
+              echo "✓ legacy CloudEndpoint CRD and CRs cleaned up"
 
     # ============================================================
     # PHASE 7: Cleanup
