@@ -72,11 +72,12 @@ func allStringValues(m map[string]json.RawMessage) bool {
 
 // MetadataToMap parses a raw CRD metadata value into a map[string]string:
 //
-//   - object form -> the decoded key/value pairs
+//   - object form -> the decoded key/value pairs whose values are strings;
+//     any other value (number, bool, null, array, object) is dropped
 //   - legacy string form -> the string, itself parsed as an object (the
 //     deprecated wire form was JSON-encoded twice: a JSON string containing a
 //     JSON object)
-//   - unset/null / anything that doesn't decode into a flat string map -> nil
+//   - unset/null / anything that doesn't decode into a JSON object -> nil
 //
 // LEGACY-metadata-format (read-side cleanup): drop the string-unwrapping
 // branch once the string form is removed; the value will always be object
@@ -98,9 +99,16 @@ func MetadataToMap(raw json.RawMessage) map[string]string {
 		}
 	}
 
-	var m map[string]string
-	if err := json.Unmarshal(t, &m); err != nil {
+	var vals map[string]json.RawMessage
+	if err := json.Unmarshal(t, &vals); err != nil || vals == nil {
 		return nil
+	}
+	m := make(map[string]string, len(vals))
+	for k, v := range vals {
+		var s string
+		if tv := bytes.TrimSpace(v); len(tv) > 0 && tv[0] == '"' && json.Unmarshal(tv, &s) == nil {
+			m[k] = s
+		}
 	}
 	return m
 }

@@ -163,7 +163,7 @@ func (c CacheStores) Get(obj runtime.Object) (item any, exists bool, err error) 
 		return c.TrafficPolicyV1.Get(obj)
 	case *ngrokv1.AgentEndpoint:
 		return c.AgentEndpointV1.Get(obj)
-	case *ngrokv1alpha1.CloudEndpoint:
+	case *ngrokv1.CloudEndpoint:
 		return c.CloudEndpointV1.Get(obj)
 	default:
 		return nil, false, fmt.Errorf("unsupported object type: %T", obj)
@@ -220,7 +220,7 @@ func (c CacheStores) Add(obj runtime.Object) error {
 		return c.TrafficPolicyV1.Add(obj)
 	case *ngrokv1.AgentEndpoint:
 		return c.AgentEndpointV1.Add(obj)
-	case *ngrokv1alpha1.CloudEndpoint:
+	case *ngrokv1.CloudEndpoint:
 		return c.CloudEndpointV1.Add(obj)
 
 	default:
@@ -278,7 +278,7 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.TrafficPolicyV1.Delete(obj)
 	case *ngrokv1.AgentEndpoint:
 		return c.AgentEndpointV1.Delete(obj)
-	case *ngrokv1alpha1.CloudEndpoint:
+	case *ngrokv1.CloudEndpoint:
 		return c.CloudEndpointV1.Delete(obj)
 
 	default:

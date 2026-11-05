@@ -84,7 +84,7 @@ input:
   trafficPolicies:
 expected:
   cloudEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
       labels:
@@ -94,7 +94,7 @@ expected:
       namespace: default
     spec:
       url: "https://shared-host.ngrok.io"
-      metadata: '{"owner":"team-a"}'
+      metadata: {"owner":"team-a"}
       description: "Team A description"
       trafficPolicy:
         inline:

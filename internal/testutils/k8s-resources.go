@@ -309,7 +309,7 @@ func NewTestNgrokTrafficPolicy(name string, namespace string, policyStr string) 
 	}
 }
 
-type CloudEndpointOpt func(*ngrokv1alpha1.CloudEndpoint)
+type CloudEndpointOpt func(*ngrokv1.CloudEndpoint)
 
 // NewCloudEndpoint creates a new CloudEndpoint with the given name and namespace.
 // The URL is set to a random name for testing purposes.
@@ -317,11 +317,11 @@ type CloudEndpointOpt func(*ngrokv1alpha1.CloudEndpoint)
 // Example usage:
 //
 //	NewCloudEndpoint
-func NewCloudEndpoint(opts ...CloudEndpointOpt) *ngrokv1alpha1.CloudEndpoint {
-	clep := &ngrokv1alpha1.CloudEndpoint{
+func NewCloudEndpoint(opts ...CloudEndpointOpt) *ngrokv1.CloudEndpoint {
+	clep := &ngrokv1.CloudEndpoint{
 		Name:      RandomName("cloud-endpoint"),
 		Namespace: RandomName("namespace"),
-		Spec: ngrokv1alpha1.CloudEndpointSpec{
+		Spec: ngrokv1.CloudEndpointSpec{
 			URL: RandomName("url"),
 		},
 	}
