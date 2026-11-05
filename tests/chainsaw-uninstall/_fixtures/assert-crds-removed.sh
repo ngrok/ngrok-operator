@@ -3,14 +3,21 @@
 # carry helm.sh/resource-policy=keep, and that no KubernetesOperator is left in
 # the kept KubernetesOperator CRD.
 #
-# LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind / LEGACY-ippolicy-kind:
+# LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind / LEGACY-ippolicy-kind /
+# LEGACY-agentendpoint-kind:
 # R2 removes the keep annotation; then assert that every ngrok CRD is gone again.
 
 set -o pipefail
 
-KEPT='^customresourcedefinition.apiextensions.k8s.io/(ippolicies|kubernetesoperators|trafficpolicies)\.ngrok\.com$'
+KEPT='^customresourcedefinition.apiextensions.k8s.io/(agentendpoints|ippolicies|kubernetesoperators|trafficpolicies)\.ngrok\.com$'
 
-leftover=$(kubectl get crds -o name | grep ngrok | grep -v -E "$KEPT" || true)
+# CRD deletion is asynchronous, so give the rest a moment to go.
+remaining() { kubectl get crds -o name | grep ngrok | grep -v -E "$KEPT" || true; }
+for _ in $(seq 20); do
+  leftover=$(remaining)
+  [ -z "$leftover" ] && break
+  sleep 1
+done
 if [ -n "$leftover" ]; then
   echo "✗ ngrok CRDs still exist:"
   echo "$leftover"

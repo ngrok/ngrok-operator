@@ -25,114 +25,23 @@ SOFTWARE.
 package v1alpha1
 
 import (
-	"encoding/json"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 )
 
-// K8sObjectRef defines a reference to a Kubernetes Object
-type K8sObjectRef struct {
-	// The name of the Kubernetes resource being referenced
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-}
-
-type K8sObjectRefOptionalNamespace struct {
-	// The name of the Kubernetes resource being referenced
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-
-	// The namespace of the Kubernetes resource being referenced
-	Namespace *string `json:"namespace,omitempty"`
-}
-
-type TrafficPolicyCfgType string
+// The shared endpoint types moved to ngrok.com/v1. These aliases keep the
+// v1alpha1 names, so both groups use one Go type and one schema.
+//
+// LEGACY-agentendpoint-kind: delete with the last v1alpha1 endpoint kind.
+type (
+	K8sObjectRef                  = ngrokv1.K8sObjectRef
+	K8sObjectRefOptionalNamespace = ngrokv1.K8sObjectRefOptionalNamespace
+	TrafficPolicyCfgType          = ngrokv1.TrafficPolicyCfgType
+	TrafficPolicyCfg              = ngrokv1.TrafficPolicyCfg
+	EndpointWithDomain            = ngrokv1.EndpointWithDomain
+	EndpointWithTrafficPolicy     = ngrokv1.EndpointWithTrafficPolicy
+)
 
 const (
-	TrafficPolicyCfgType_K8sRef TrafficPolicyCfgType = "targetRef"
-	TrafficPolicyCfgType_Inline TrafficPolicyCfgType = "inline"
+	TrafficPolicyCfgType_K8sRef = ngrokv1.TrafficPolicyCfgType_K8sRef
+	TrafficPolicyCfgType_Inline = ngrokv1.TrafficPolicyCfgType_Inline
 )
-
-// TrafficPolicyCfg configures a TrafficPolicy attached to an endpoint, either
-// inline or by reference to an NgrokTrafficPolicy resource in the same
-// namespace as the endpoint.
-//
-// +kubebuilder:validation:XValidation:rule="[has(self.inline), has(self.targetRef)].exists_one(x, x)", message="exactly one of inline or targetRef must be set on trafficPolicy"
-type TrafficPolicyCfg struct {
-	// Inline definition of a TrafficPolicy to attach to the Endpoint.
-	// The raw JSON-encoded policy that was applied to the ngrok API.
-	//
-	// +kubebuilder:validation:Schemaless
-	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:validation:Type=object
-	Inline json.RawMessage `json:"inline,omitempty"`
-
-	// Reference to a TrafficPolicy resource to attach to the Endpoint. The
-	// referenced NgrokTrafficPolicy must live in the same namespace as the
-	// endpoint.
-	Reference *K8sObjectRef `json:"targetRef,omitempty"`
-}
-
-func (t *TrafficPolicyCfg) Type() TrafficPolicyCfgType {
-	if t.Reference != nil {
-		return TrafficPolicyCfgType_K8sRef
-	}
-	return TrafficPolicyCfgType_Inline
-}
-
-// +kubebuilder:object:generate=false
-// EndpointWithDomain represents an endpoint resource that has domain conditions and references
-type EndpointWithDomain interface {
-	client.Object
-	GetURL() string
-	GetBindings() []string
-	GetConditions() *[]metav1.Condition
-	GetGeneration() int64
-	GetDomainRef() *K8sObjectRefOptionalNamespace
-	SetDomainRef(*K8sObjectRefOptionalNamespace)
-}
-
-// +kubebuilder:object:generate=false
-// EndpointWithTrafficPolicy represents an endpoint resource whose spec carries
-// a TrafficPolicyCfg. The trafficpolicy.Manager uses this interface to resolve
-// the policy and update the TrafficPolicyApplied condition consistently across
-// endpoint kinds. Endpoint kinds that want a status field summarizing the
-// resolved attachment write it themselves from Result.Source.
-type EndpointWithTrafficPolicy interface {
-	client.Object
-	GetConditions() *[]metav1.Condition
-	GetGeneration() int64
-	GetTrafficPolicyCfg() *TrafficPolicyCfg
-}
-
-// ToClientObjectKey converts the K8sObjectRefOptionalNamespace to a client.ObjectKey,
-// using the provided defaultNamespace when Namespace is unset (nil or empty).
-// This matches the wildcard semantics in Matches, where both nil and empty
-// string mean "unspecified".
-func (ref *K8sObjectRefOptionalNamespace) ToClientObjectKey(defaultNamespace string) client.ObjectKey {
-	namespace := defaultNamespace
-	if ref.Namespace != nil && *ref.Namespace != "" {
-		namespace = *ref.Namespace
-	}
-	return client.ObjectKey{
-		Name:      ref.Name,
-		Namespace: namespace,
-	}
-}
-
-// Matches returns true if this reference points to the given Kubernetes object.
-// A nil or empty namespace in the reference means it matches any namespace.
-func (ref *K8sObjectRefOptionalNamespace) Matches(obj client.Object) bool {
-	if ref == nil {
-		return false
-	}
-
-	if ref.Name != obj.GetName() {
-		return false
-	}
-
-	ns := ptr.Deref(ref.Namespace, "")
-	return ns == "" || ns == obj.GetNamespace()
-}

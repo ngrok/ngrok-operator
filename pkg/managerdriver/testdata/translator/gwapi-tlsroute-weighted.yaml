@@ -71,7 +71,7 @@ input:
 expected:
   cloudEndpoints: []
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -117,7 +117,7 @@ expected:
                 config:
                   vars:
                   - request_matched_local_svc: true
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:

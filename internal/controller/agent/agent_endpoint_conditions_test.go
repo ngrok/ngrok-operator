@@ -7,24 +7,24 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 )
 
 // Helper function to create a test AgentEndpoint
-func createTestAgentEndpoint(name, namespace string) *ngrokv1alpha1.AgentEndpoint {
-	return &ngrokv1alpha1.AgentEndpoint{
+func createTestAgentEndpoint(name, namespace string) *ngrokv1.AgentEndpoint {
+	return &ngrokv1.AgentEndpoint{
 		Name:       name,
 		Namespace:  namespace,
 		Generation: 1,
-		Status: ngrokv1alpha1.AgentEndpointStatus{
+		Status: ngrokv1.AgentEndpointStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
 }
 
 // Helper function to create a test AgentEndpoint with conditions
-func createTestAgentEndpointWithConditions(name, namespace string, conditions []metav1.Condition) *ngrokv1alpha1.AgentEndpoint {
+func createTestAgentEndpointWithConditions(name, namespace string, conditions []metav1.Condition) *ngrokv1.AgentEndpoint {
 	endpoint := createTestAgentEndpoint(name, namespace)
 	endpoint.Status.Conditions = conditions
 	return endpoint

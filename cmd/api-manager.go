@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -189,6 +190,9 @@ func startOperator(ctx context.Context, opts apiManagerOpts) error {
 
 	// create default kubernetes config and clientset
 	k8sConfig := ctrl.GetConfigOrDie()
+	// Log each API warning once. Every write to a deprecated kind, such as a
+	// legacy AgentEndpoint, returns the same deprecation warning.
+	k8sConfig.WarningHandlerWithContext = ctrllog.NewKubeAPIWarningLogger(ctrllog.KubeAPIWarningLoggerOptions{Deduplicate: true})
 	k8sClient, err := client.New(k8sConfig, client.Options{Scheme: scheme})
 	if err != nil {
 		return fmt.Errorf("unable to create k8s client: %w", err)
@@ -608,6 +612,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 		// we can remove this. It feels weird to have this here since the ServiceReconciler should only be performing translations
 		// and not dependent on the ngrok API.
 		TCPAddresses: ngrokClientset.TCPAddresses(),
+		DrainState:   drainState,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Service")
 		os.Exit(1)

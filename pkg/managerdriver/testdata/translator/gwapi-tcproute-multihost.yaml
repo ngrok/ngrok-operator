@@ -209,7 +209,7 @@ expected:
                   url: "tcp://e3b0c-test-service-2-default.internal:12000"
       url: tcp://test-hostname-2.ngrok.io:7000
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -221,7 +221,7 @@ expected:
       url: "tcp://e3b0c-test-service-1-default.internal:11000"
       upstream:
         url: "tcp://test-service-1.default:11000"
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:

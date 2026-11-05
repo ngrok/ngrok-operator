@@ -2,6 +2,8 @@
 
 ## Resource Identity
 
+The deprecated `ngrok.k8s.ngrok.com/v1alpha1` `AgentEndpoint` is still served during the migration window. Its schema is the same except `spec.metadata`, which also accepts a raw JSON string. See [crd-group-migration.md](../crd-group-migration.md).
+
 | Property    | Value                    |
 |-------------|--------------------------|
 | Group       | `ngrok.com`              |

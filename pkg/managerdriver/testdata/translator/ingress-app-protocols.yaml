@@ -154,7 +154,7 @@ expected:
                 headers:
                   content-type: text/plain
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -167,7 +167,7 @@ expected:
       upstream:
         url: "http://test-service-1.default:80"
         protocol: http1
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -179,7 +179,7 @@ expected:
       url: "https://e3b0c-test-service-1-default-8080.internal"
       upstream:
         url: "http://test-service-1.default:8080"
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -192,7 +192,7 @@ expected:
       upstream:
         url: "http://test-service-2.default:443"
         protocol: http2
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:

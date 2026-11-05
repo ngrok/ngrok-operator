@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.ngrok.com/ngrok/v2"
@@ -98,10 +98,10 @@ func newTestDriver(a *fakeAgent) *driver {
 
 // specWith returns an endpoint spec; a different description makes it a
 // different config, so the driver has to rebind.
-func specWith(description string) ngrokv1alpha1.AgentEndpointSpec {
-	return ngrokv1alpha1.AgentEndpointSpec{
+func specWith(description string) EndpointSpec {
+	return EndpointSpec{
 		URL:         "https://example.ngrok.app",
-		Upstream:    ngrokv1alpha1.EndpointUpstream{URL: "http://svc.default:80"},
+		Upstream:    ngrokv1.EndpointUpstream{URL: "http://svc.default:80"},
 		Description: description,
 	}
 }
@@ -209,7 +209,7 @@ func TestCreateAgentEndpointSkipsUnchangedRebind(t *testing.T) {
 	certB := tls.Certificate{Certificate: [][]byte{[]byte("cert-b")}}
 
 	type inputs struct {
-		spec     ngrokv1alpha1.AgentEndpointSpec
+		spec     EndpointSpec
 		policy   string
 		certs    []tls.Certificate
 		agentTLS *AgentTLSTermination

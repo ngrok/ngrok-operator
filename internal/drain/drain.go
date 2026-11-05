@@ -101,7 +101,11 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error) {
 		{"Gateway", &gatewayv1.GatewayList{}, true, d.drainUserResource},
 		// Operator resources: delete or retain based on policy
 		{"CloudEndpoint", &ngrokv1alpha1.CloudEndpointList{}, false, d.drainOperatorResource},
-		{"AgentEndpoint", &ngrokv1alpha1.AgentEndpointList{}, false, d.drainOperatorResource},
+		// LEGACY-agentendpoint-kind: delete the legacy AgentEndpoint entry at
+		// cleanup. It stays ahead of the v1 entry so that, for a twin pair
+		// sharing a tunnel, the v1 delete is the one that closes it.
+		{"AgentEndpoint (ngrok.k8s.ngrok.com/v1alpha1)", &ngrokv1alpha1.AgentEndpointList{}, false, d.drainOperatorResource},
+		{"AgentEndpoint", &ngrokv1.AgentEndpointList{}, false, d.drainOperatorResource},
 		{"Domain", &ingressv1alpha1.DomainList{}, false, d.drainOperatorResource},
 		// LEGACY-ippolicy-kind: delete the legacy IPPolicy entry at cleanup. It
 		// stays ahead of the v1 entry so that, for a twin pair sharing a remote
@@ -177,7 +181,10 @@ func (d *Drainer) waitForDeletion(ctx context.Context, obj client.Object, key ty
 	// Create a new instance of the same type to use for Get calls
 	gvk := obj.GetObjectKind().GroupVersionKind()
 
-	return wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 60*time.Second, true, func(ctx context.Context) (bool, error) {
+	// Objects are drained one at a time and a controller usually finishes a
+	// delete well within one interval, so the interval sets the drain rate.
+	// Keep it short: a twin pair of AgentEndpoints is two objects.
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 60*time.Second, true, func(ctx context.Context) (bool, error) {
 		// We need a fresh object for each Get call
 		fresh := obj.DeepCopyObject().(client.Object)
 		err := d.Client.Get(ctx, key, fresh)

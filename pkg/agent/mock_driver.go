@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http"
-
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 )
 
 // MockAgentDriver is a mock implementation of Driver for testing purposes
@@ -27,7 +25,7 @@ type MockAgentDriver struct {
 // CreateCall tracks parameters passed to CreateAgentEndpoint
 type CreateCall struct {
 	Name          string
-	Spec          ngrokv1alpha1.AgentEndpointSpec
+	Spec          EndpointSpec
 	TrafficPolicy string
 	ClientCerts   []tls.Certificate
 	AgentTLS      *AgentTLSTermination
@@ -70,7 +68,7 @@ func (m *MockAgentDriver) Reset() {
 }
 
 // CreateAgentEndpoint implements Driver interface
-func (m *MockAgentDriver) CreateAgentEndpoint(_ context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate, agentTLS *AgentTLSTermination) (*EndpointResult, error) {
+func (m *MockAgentDriver) CreateAgentEndpoint(_ context.Context, name string, spec EndpointSpec, trafficPolicy string, clientCerts []tls.Certificate, agentTLS *AgentTLSTermination) (*EndpointResult, error) {
 	// Track the call
 	m.CreateCalls = append(m.CreateCalls, CreateCall{
 		Name:          name,

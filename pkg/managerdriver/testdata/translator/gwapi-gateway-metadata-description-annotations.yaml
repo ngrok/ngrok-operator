@@ -97,7 +97,7 @@ expected:
                 headers:
                   content-type: text/plain
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -107,7 +107,7 @@ expected:
       namespace: default
     spec:
       url: "https://e3b0c-test-service-1-default-8080.internal"
-      metadata: '{"env":"staging","team":"platform"}'
+      metadata: {"env":"staging","team":"platform"}
       description: "Platform staging gateway"
       upstream:
         url: "http://test-service-1.default:8080"

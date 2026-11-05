@@ -339,19 +339,57 @@ reconciles each object.
 
 ### Upgrade the CRDs before the operator
 
-0.25 adds a new CRD, `trafficpolicies.ngrok.com` (see
-[Migrate `NgrokTrafficPolicy` to `TrafficPolicy`](#migrate-ngroktrafficpolicy-to-trafficpolicy)),
-and the operator watches it on startup. If you install the CRD chart
+0.25 adds new CRDs, `trafficpolicies.ngrok.com` (see
+[Migrate `NgrokTrafficPolicy` to `TrafficPolicy`](#migrate-ngroktrafficpolicy-to-trafficpolicy))
+and `agentendpoints.ngrok.com` (see
+[AgentEndpoints move to `ngrok.com/v1`](#agentendpoints-move-to-ngrokcomv1)),
+and the operator watches them on startup. If you install the CRD chart
 separately, upgrade `ngrok/ngrok-crds` to `0.5.x` before upgrading the operator
-chart, or the operator will not start.
+chart, or the operator will not start. If that happens, the new pods crash-loop
+with `no matches for kind ... in version ngrok.com/v1`, the old pods keep
+serving, and `helm upgrade --wait` fails. Upgrade the CRD chart: the new pods
+then start on their own, and the next `helm upgrade` clears the failed release.
 
 ### Custom RBAC
 
 The chart adds rules for `trafficpolicies` and `trafficpolicies/status` in the
 `ngrok.com` API group to the api-manager and agent roles, plus
-`trafficpolicy-editor` and `trafficpolicy-viewer` aggregated ClusterRoles. No
+`trafficpolicy-editor` and `trafficpolicy-viewer` aggregated ClusterRoles. It
+also adds rules for `agentendpoints`, `agentendpoints/status`, and
+`agentendpoints/finalizers` in the `ngrok.com` API group to the api-manager and
+agent roles, and to the existing `agentendpoint-editor` and
+`agentendpoint-viewer` ClusterRoles. No
 change is required when the chart manages RBAC. If you supply roles
 separately, add the equivalent rules before upgrading.
+
+### AgentEndpoints move to `ngrok.com/v1`
+
+AgentEndpoint moves from `ngrok.k8s.ngrok.com/v1alpha1` to `ngrok.com/v1`.
+Both kinds are served in 0.25. Endpoints keep serving through the upgrade:
+
+- The AgentEndpoints the operator creates for Ingresses, Gateway API routes,
+  and LoadBalancer Services are now `ngrok.com/v1` objects. Each takes the name
+  of the legacy AgentEndpoint it replaces and takes over its agent endpoint.
+  The legacy object is left in place, marked `Ready` with reason
+  `SupersededByV1`, so a rollback to 0.24 finds it intact. The operator
+  deletes it with its replacement once the Ingress, route, or Service no
+  longer needs it.
+- An `ngrok.com/v1` AgentEndpoint's metadata holds strings only, so the
+  `ngrok.com/metadata` annotation on an Ingress or route must be a JSON object
+  of strings. If any value isn't a string, such as `{"replicas": 3}`, the
+  generated AgentEndpoint gets none of that metadata.
+- AgentEndpoints you created keep working. Migrate them after the rollback
+  window; see
+  [Migrate `AgentEndpoint` to `ngrok.com/v1`](#migrate-agentendpoint-to-ngrokcomv1).
+
+Both CRDs use the plural `agentendpoints`. Once both exist,
+`kubectl get agentendpoints` lists the `ngrok.com` objects only. Use the full
+names, `agentendpoints.ngrok.com` and `agentendpoints.ngrok.k8s.ngrok.com`, in
+scripts and tooling.
+
+`agentendpoints.ngrok.com` carries `helm.sh/resource-policy: keep`, so a
+rollback can't delete it and every object stored under it. As a result,
+`helm uninstall` leaves it behind; delete it by hand after uninstalling.
 
 ### Endpoint events
 
@@ -559,10 +597,26 @@ Rolling back to 0.24 is safe for objects the 0.25 operator wrote: 0.24 reads
 both label, annotation, and finalizer prefixes and re-adds the legacy forms on
 its next reconcile.
 
+AgentEndpoints roll back too: 0.24 serves the legacy AgentEndpoints the
+operator left in place, and creates legacy ones for Ingresses, routes, and
+Services that have none. A `ngrok.com/v1` AgentEndpoint you created after the
+upgrade stops serving until you upgrade again. The `ngrok.com/v1` objects stay
+in the cluster during the rollback. When you upgrade again, the agent serves
+them as they were until the new operator takes over the leader lease and
+brings the generated ones up to date, which can take about 30 seconds. Until
+then an Ingress, route, or Service you changed or deleted during the rollback
+serves its old configuration, and a Service created after the first upgrade
+can show two endpoints on its URL in the ngrok dashboard.
+
+If you install the CRD chart separately, roll back the operator first, then the
+CRD chart.
+
 Do not start the "After the rollback window" migration below until rollback is
 ruled out. 0.24 does not know about `ngrok.com/v1` `TrafficPolicy`, and rolling
-back the CRD chart removes the `trafficpolicies.ngrok.com` CRD, which deletes
-every `TrafficPolicy` object stored under it.
+back the CRD chart removes the `ngrok.com` CRDs that 0.24 doesn't have, such as
+`trafficpolicies.ngrok.com`, which deletes every object stored under them.
+CRDs marked `helm.sh/resource-policy: keep`, such as
+`agentendpoints.ngrok.com`, are kept with their objects.
 
 The backed-up values include `credentials.apiKey` and `credentials.authtoken`,
 so keep those credentials valid until the rollback window has closed. Do not
@@ -770,6 +824,87 @@ kubectl get ippolicies.ingress.k8s.ngrok.com -A \
 
 A `REASON` of `SupersededByV1` means the legacy object is safe to delete.
 
+### Migrate `AgentEndpoint` to `ngrok.com/v1`
+
+`ngrok.k8s.ngrok.com/v1alpha1` `AgentEndpoint` is deprecated. Its replacement
+is `ngrok.com/v1` `AgentEndpoint`. The spec is unchanged except
+`spec.metadata`, which must be a map:
+
+```yaml
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: my-endpoint
+spec:
+  url: https://example.ngrok.app
+  upstream:
+    url: http://my-service.my-namespace:80
+  metadata: '{"team":"edge"}'
+```
+
+becomes:
+
+```yaml
+apiVersion: ngrok.com/v1
+kind: AgentEndpoint
+metadata:
+  name: my-endpoint
+spec:
+  url: https://example.ngrok.app
+  upstream:
+    url: http://my-service.my-namespace:80
+  metadata:
+    team: edge
+```
+
+Keep the name. An `ngrok.com/v1` AgentEndpoint takes over the agent endpoint of
+the legacy AgentEndpoint with the same namespace and name, and the legacy one
+stops driving it: it reports `Ready` with reason `SupersededByV1`, edits to it
+have no effect, and the operator emits a `DeprecatedAPIGroup` warning event on
+it. Deleting it then leaves the endpoint running. `kubectl apply` of a legacy
+AgentEndpoint prints a deprecation warning.
+
+For each AgentEndpoint you created, apply the `ngrok.com/v1` object, wait for
+it to be ready, then delete the legacy one:
+
+```bash
+# AgentEndpoints you created; the operator's own carry its controller labels.
+kubectl get agentendpoints.ngrok.k8s.ngrok.com -A \
+  -l '!ngrok.com/controller-name,!k8s.ngrok.com/controller-name'
+
+kubectl get agentendpoints.ngrok.k8s.ngrok.com my-endpoint -n my-namespace -o json |
+  jq '
+    .apiVersion = "ngrok.com/v1"
+    | if (.spec.metadata | type) == "string"
+      then .spec.metadata |= (try fromjson catch error("spec.metadata is not a JSON object; set it by hand"))
+      else . end
+    | del(.metadata.resourceVersion, .metadata.uid,
+          .metadata.creationTimestamp, .metadata.generation,
+          .metadata.managedFields, .metadata.finalizers, .status)
+  ' |
+  kubectl apply -f -
+
+kubectl wait agentendpoints.ngrok.com my-endpoint -n my-namespace \
+  --for=condition=Ready
+
+kubectl delete agentendpoints.ngrok.k8s.ngrok.com my-endpoint -n my-namespace
+```
+
+The `jq` filter turns string-form metadata into a map and stops if the string
+isn't a JSON object. Check the result if a value isn't a string:
+`spec.metadata` only holds string values.
+
+If you manage AgentEndpoints with GitOps, change `apiVersion` (and the
+metadata form) in the source manifest instead, and let your tool prune the old
+object after it has created the new one. If the old object is deleted first,
+the endpoint closes and reopens, which can drop requests for about a second.
+Argo CD prunes before it creates by default, so set the `PruneLast=true` sync
+option on the Application (or sync without pruning, then prune). Flux prunes
+after it applies.
+
+If you delete an `ngrok.com/v1` AgentEndpoint whose legacy twin still exists,
+the legacy one drives the endpoint again.
+
 ## Prepare for later cleanup releases
 
 0.25 still retains some compatibility code. Complete the user-managed
@@ -779,6 +914,7 @@ migrations before their cleanup releases:
 | --- | --- | --- |
 | `NgrokTrafficPolicy` kind | Serves both CRDs; prefers `TrafficPolicy` | Migrate to `ngrok.com/v1` `TrafficPolicy` before the cleanup release removes the `ngroktrafficpolicies.ngrok.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
 | `IPPolicy` in `ingress.k8s.ngrok.com` | Serves both CRDs; an `ngrok.com/v1` `IPPolicy` takes over the legacy object's ngrok IP policy | Migrate to `ngrok.com/v1` `IPPolicy` before upgrading to 1.0, which stops reconciling the legacy kind. 1.1 removes the `ippolicies.ingress.k8s.ngrok.com` CRD; a policy re-stamped after that gets a new ID |
+| `ngrok.k8s.ngrok.com/v1alpha1` `AgentEndpoint` kind | Serves both CRDs; the `ngrok.com/v1` twin drives the endpoint | Migrate your AgentEndpoints to `ngrok.com/v1` before 1.0. The agent runs the endpoint itself, so a legacy AgentEndpoint goes offline as soon as 1.0 is running |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
 | Operator-written labels, annotations, and finalizer | Writes new prefix only; still reads legacy | None. The next release stops reading the legacy prefix, so upgrade through 0.25 rather than skipping it |

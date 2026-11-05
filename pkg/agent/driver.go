@@ -12,8 +12,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/healthcheck"
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"github.com/ngrok/ngrok-operator/internal/version"
@@ -45,9 +44,22 @@ type AgentTLSTermination struct {
 	ClientAuth tls.ClientAuthType
 }
 
+// EndpointSpec is the part of an AgentEndpoint spec the driver binds. It is
+// independent of the API group, so an AgentEndpoint of either group with the
+// same spec maps to the same EndpointSpec, and the driver keeps its tunnel.
+type EndpointSpec struct {
+	URL         string
+	Upstream    ngrokv1.EndpointUpstream
+	Description string
+	// Metadata is the value sent to the ngrok API, as produced by
+	// common.MetadataAPIString.
+	Metadata string
+	Bindings []string
+}
+
 type Driver interface {
 	// CreateAgentEndpoint creates or updates an agent endpoint by name using the provided desired configuration state.
-	CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate, agentTLS *AgentTLSTermination) (*EndpointResult, error)
+	CreateAgentEndpoint(ctx context.Context, name string, spec EndpointSpec, trafficPolicy string, clientCerts []tls.Certificate, agentTLS *AgentTLSTermination) (*EndpointResult, error)
 
 	// DeleteAgentEndpoint deletes an agent endpoint by name.
 	DeleteAgentEndpoint(ctx context.Context, name string) error
@@ -247,7 +259,7 @@ func NewDriver(driverOpts ...DriverOption) (Driver, error) {
 }
 
 // CreateAgentEndpoint will create or update an agent endpoint by name using the provided desired configuration state
-func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngrokv1alpha1.AgentEndpointSpec, trafficPolicy string, clientCerts []tls.Certificate, agentTLS *AgentTLSTermination) (*EndpointResult, error) {
+func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec EndpointSpec, trafficPolicy string, clientCerts []tls.Certificate, agentTLS *AgentTLSTermination) (*EndpointResult, error) {
 	select {
 	case <-d.done:
 		return &EndpointResult{Ready: false}, errors.New("driver is shutting down")
@@ -262,7 +274,7 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 	)
 
 	cfg := endpointConfig{
-		spec:          *spec.DeepCopy(),
+		spec:          spec,
 		trafficPolicy: trafficPolicy,
 		clientCerts:   clientCerts,
 		agentTLS:      agentTLS,
@@ -292,7 +304,7 @@ func (d *driver) CreateAgentEndpoint(ctx context.Context, name string, spec ngro
 	endpointOpts := []ngrok.EndpointOption{
 		ngrok.WithURL(spec.URL),
 		ngrok.WithBindings(spec.Bindings...),
-		ngrok.WithMetadata(commonv1alpha1.MetadataAPIString(spec.Metadata)),
+		ngrok.WithMetadata(spec.Metadata),
 		ngrok.WithPoolingEnabled(true),
 		ngrok.WithDescription(spec.Description),
 	}
@@ -382,7 +394,7 @@ func (d *driver) DeleteAgentEndpoint(ctx context.Context, name string) error {
 	return nil
 }
 
-func buildUpstream(upstreamSpec ngrokv1alpha1.EndpointUpstream, clientCerts []tls.Certificate) *ngrok.Upstream {
+func buildUpstream(upstreamSpec ngrokv1.EndpointUpstream, clientCerts []tls.Certificate) *ngrok.Upstream {
 	upstreamTLSConfig := buildUpstreamTLSConfig(clientCerts)
 	upstreamOpts := []ngrok.UpstreamOption{
 		ngrok.WithUpstreamTLSClientConfig(upstreamTLSConfig),

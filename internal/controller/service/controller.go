@@ -30,6 +30,7 @@ import (
 	"maps"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
 	"time"
 
@@ -91,6 +92,9 @@ type ServiceReconciler struct {
 
 	SecretResolver resolvers.SecretResolver
 	TCPAddresses   ngrokapi.TCPAddressesClient
+
+	// DrainState is used to check if the operator is draining.
+	DrainState controller.DrainState
 }
 
 type ShouldHandleServicePredicate = TypedShouldHandleServicePredicate[client.Object]
@@ -139,7 +143,7 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	owns := []client.Object{
-		&ngrokv1alpha1.AgentEndpoint{},
+		&ngrokv1.AgentEndpoint{},
 		&ngrokv1alpha1.CloudEndpoint{},
 	}
 
@@ -175,21 +179,16 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				predicate.ResourceVersionChangedPredicate{},
 			),
 		))
-		err := mgr.GetFieldIndexer().IndexField(context.Background(), o, OwnerReferencePath, func(obj client.Object) []string {
-			owner := metav1.GetControllerOf(obj)
-			if owner == nil {
-				return nil
-			}
-
-			if owner.APIVersion != coreGVStr || owner.Kind != "Service" {
-				return nil
-			}
-
-			return []string{string(owner.UID)}
-		})
-		if err != nil {
+		if err := mgr.GetFieldIndexer().IndexField(context.Background(), o, OwnerReferencePath, serviceOwnerUID); err != nil {
 			return err
 		}
+	}
+
+	// LEGACY-agentendpoint-kind: delete at cleanup. Legacy AgentEndpoints
+	// aren't watched, only listed by owner when the v1 one is created or the
+	// Service stops wanting one.
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &ngrokv1alpha1.AgentEndpoint{}, OwnerReferencePath, serviceOwnerUID); err != nil {
+		return err
 	}
 
 	// Index the services by the traffic policy they reference
@@ -206,6 +205,20 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controller.Complete(r)
+}
+
+// serviceOwnerUID indexes an object by the UID of the Service that controls it.
+func serviceOwnerUID(obj client.Object) []string {
+	owner := metav1.GetControllerOf(obj)
+	if owner == nil {
+		return nil
+	}
+
+	if owner.APIVersion != coreGVStr || owner.Kind != "Service" {
+		return nil
+	}
+
+	return []string{string(owner.UID)}
 }
 
 // This reconcile function is called by the controller-runtime manager.
@@ -286,6 +299,13 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if len(svc.Spec.Ports) < 1 {
 		r.Recorder.Eventf(svc, nil, corev1.EventTypeWarning, "NoPorts", "Reconcile", "Unable to handle service with no ports")
+		return ctrl.Result{}, nil
+	}
+
+	// Skip non-delete reconciles during drain, so the finalizer the drain
+	// removed isn't added back and no new endpoints are created.
+	if controller.IsDraining(ctx, r.DrainState) {
+		log.V(1).Info("Draining, skipping non-delete reconcile")
 		return ctrl.Result{}, nil
 	}
 
@@ -555,20 +575,20 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 	switch mappingStrategy {
 	// For the default/collapse strategy, make a single AgentEndpoint
 	case ir.IRMappingStrategy_EndpointsCollapsed:
-		agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
+		agentEndpoint := &ngrokv1.AgentEndpoint{
 			GenerateName: svc.Name + "-",
 			Namespace:    svc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 			},
 			Labels: r.ControllerLabels.Labels(),
-			Spec: ngrokv1alpha1.AgentEndpointSpec{
+			Spec: ngrokv1.AgentEndpointSpec{
 				URL:      computedEndpointURL,
 				Bindings: useBindings,
-				Upstream: ngrokv1alpha1.EndpointUpstream{
+				Upstream: ngrokv1.EndpointUpstream{
 					URL: fmt.Sprintf("tcp://%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
 				},
-				TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
+				TrafficPolicy: &ngrokv1.TrafficPolicyCfg{
 					Inline: rawPolicy,
 				},
 			},
@@ -607,16 +627,16 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 		}
 		objects = append(objects, cloudEndpoint)
 
-		agentEndpoint := &ngrokv1alpha1.AgentEndpoint{
+		agentEndpoint := &ngrokv1.AgentEndpoint{
 			GenerateName: svc.Name + "-internal-",
 			Namespace:    svc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 			},
 			Labels: r.ControllerLabels.Labels(),
-			Spec: ngrokv1alpha1.AgentEndpointSpec{
+			Spec: ngrokv1.AgentEndpointSpec{
 				URL: internalURL,
-				Upstream: ngrokv1alpha1.EndpointUpstream{
+				Upstream: ngrokv1.EndpointUpstream{
 					URL: fmt.Sprintf("tcp://%s.%s.%s:%d", svc.Name, svc.Namespace, r.ClusterDomain, port),
 				},
 			},
@@ -816,7 +836,9 @@ func (r *baseSubresourceReconciler[T, PT]) Reconcile(ctx context.Context, c clie
 	}
 
 	log.Info(fmt.Sprintf("Creating %T", d))
-	return c.Create(ctx, d)
+	// Create writes the server's response into the object it's given, and the
+	// other subresource reconcilers read d concurrently.
+	return c.Create(ctx, d.DeepCopyObject().(PT))
 }
 
 func (r *baseSubresourceReconciler[T, PT]) UpdateServiceStatus(ctx context.Context, c client.Client, svc *corev1.Service, o client.Object) error {
@@ -852,26 +874,122 @@ func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
 }
 
 func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
-	return &baseSubresourceReconciler[ngrokv1alpha1.AgentEndpoint, *ngrokv1alpha1.AgentEndpoint]{
-		listOwned: func(ctx context.Context, c client.Client, opts ...client.ListOption) ([]ngrokv1alpha1.AgentEndpoint, error) {
-			endpoints := &ngrokv1alpha1.AgentEndpointList{}
+	return &serviceAgentEndpointReconciler{
+		listOwned: func(ctx context.Context, c client.Client, opts ...client.ListOption) ([]ngrokv1.AgentEndpoint, error) {
+			endpoints := &ngrokv1.AgentEndpointList{}
 			if err := c.List(ctx, endpoints, opts...); err != nil {
 				return nil, err
 			}
 			return endpoints.Items, nil
 		},
-		matches: func(desired, existing ngrokv1alpha1.AgentEndpoint) bool {
+		matches: func(desired, existing ngrokv1.AgentEndpoint) bool {
 			return reflect.DeepEqual(existing.Spec, desired.Spec) &&
 				maps.Equal(existing.Labels, desired.Labels)
 		},
-		mergeExisting: func(desired ngrokv1alpha1.AgentEndpoint, existing *ngrokv1alpha1.AgentEndpoint) {
+		mergeExisting: func(desired ngrokv1.AgentEndpoint, existing *ngrokv1.AgentEndpoint) {
 			existing.Spec = desired.Spec
 			existing.Labels = desired.Labels
 		},
-		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1alpha1.AgentEndpoint) error {
+		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1.AgentEndpoint) error {
 			return updateStatus(ctx, c, svc, endpoint)
 		},
 	}
+}
+
+// serviceAgentEndpointReconciler manages a Service's ngrok.com/v1
+// AgentEndpoint, and the legacy AgentEndpoint an earlier release created for
+// it.
+//
+// LEGACY-agentendpoint-kind: at cleanup, replace with the plain
+// baseSubresourceReconciler it embeds.
+type serviceAgentEndpointReconciler struct {
+	baseSubresourceReconciler[ngrokv1.AgentEndpoint, *ngrokv1.AgentEndpoint]
+
+	legacy []ngrokv1alpha1.AgentEndpoint
+}
+
+// GetOwnedResources returns the Service's v1 AgentEndpoints. The legacy ones
+// are kept aside: they aren't the status source and don't count towards what
+// the Service waits on.
+func (r *serviceAgentEndpointReconciler) GetOwnedResources(ctx context.Context, c client.Client, svc *corev1.Service) ([]client.Object, error) {
+	owned, err := r.baseSubresourceReconciler.GetOwnedResources(ctx, c, svc)
+	if err != nil {
+		return nil, err
+	}
+
+	legacy := &ngrokv1alpha1.AgentEndpointList{}
+	if err := c.List(ctx, legacy,
+		client.InNamespace(svc.Namespace),
+		client.MatchingFields{OwnerReferencePath: string(svc.UID)},
+	); err != nil {
+		return nil, err
+	}
+	r.legacy = legacy.Items
+	return owned, nil
+}
+
+// UpdateServiceStatus reports through the legacy twin of a v1 AgentEndpoint
+// that has no domainRef yet. The twin serves the same Domain, so a TLS
+// Service keeps its load balancer status while the v1 AgentEndpoint takes
+// over, instead of clearing it until the v1 one is reconciled.
+func (r *serviceAgentEndpointReconciler) UpdateServiceStatus(ctx context.Context, c client.Client, svc *corev1.Service, o client.Object) error {
+	aep, ok := o.(*ngrokv1.AgentEndpoint)
+	if !ok {
+		return nil
+	}
+	if aep.GetDomainRef() == nil {
+		for i := range r.legacy {
+			if twin := &r.legacy[i]; twin.Name == aep.Name && twin.GetDomainRef() != nil {
+				return updateStatus(ctx, c, svc, twin)
+			}
+		}
+	}
+	return updateStatus(ctx, c, svc, aep)
+}
+
+// Reconcile hands the Service's legacy AgentEndpoint over to a v1 one. The
+// first v1 AgentEndpoint takes the legacy one's name, so the two are twins
+// and the v1 one takes over its tunnel. The twin is left alone while the
+// Service still wants an AgentEndpoint, and deleted with the v1 one when it
+// doesn't. Any other legacy AgentEndpoint, such as one a rolled-back release
+// created next to an existing v1 one, has no twin and would serve a second
+// tunnel on the same URL, so it is deleted.
+func (r *serviceAgentEndpointReconciler) Reconcile(ctx context.Context, c client.Client, objects []client.Object) error {
+	var desired []*ngrokv1.AgentEndpoint
+	at := -1
+	for i, o := range objects {
+		if aep, ok := o.(*ngrokv1.AgentEndpoint); ok {
+			desired = append(desired, aep)
+			at = i
+		}
+	}
+
+	twin := ""
+	switch {
+	case len(desired) != 1:
+	case len(r.owned) == 1:
+		twin = r.owned[0].Name
+	case len(r.owned) == 0 && len(r.legacy) == 1:
+		twin = r.legacy[0].Name
+		// The other subresource reconcilers read objects concurrently, so
+		// rename a copy.
+		named := desired[0].DeepCopy()
+		named.Name = twin
+		named.GenerateName = ""
+		objects = slices.Clone(objects)
+		objects[at] = named
+	}
+
+	for i := range r.legacy {
+		if r.legacy[i].Name == twin {
+			continue
+		}
+		if err := c.Delete(ctx, &r.legacy[i]); client.IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+
+	return r.baseSubresourceReconciler.Reconcile(ctx, c, objects)
 }
 
 // getTrafficPolicyForService resolves the traffic policy named by the

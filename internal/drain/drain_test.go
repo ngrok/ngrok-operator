@@ -609,3 +609,52 @@ func TestDrainer_IPPolicyTwins(t *testing.T) {
 	require.NoError(t, fakeClient.Get(context.Background(), client.ObjectKey{Name: "twin", Namespace: "default"}, &fetchedV1))
 	assert.False(t, util.HasFinalizer(&fetchedV1))
 }
+
+// LEGACY-agentendpoint-kind: delete this test at cleanup.
+//
+// A legacy AgentEndpoint and its ngrok.com/v1 twin share one agent tunnel.
+// Drain handles the legacy one first, so the v1 delete is the one that closes
+// the tunnel.
+func TestDrainer_AgentEndpointTwins(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
+	require.NoError(t, gatewayv1.Install(scheme))
+	require.NoError(t, gatewayv1alpha2.Install(scheme))
+
+	legacy := &ngrokv1alpha1.AgentEndpoint{
+		Name: "twin", Namespace: "default", Finalizers: []string{util.FinalizerName},
+	}
+	canonical := &ngrokv1.AgentEndpoint{
+		Name: "twin", Namespace: "default", Finalizers: []string{util.FinalizerName},
+	}
+
+	var order []string
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(legacy, canonical).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				order = append(order, fmt.Sprintf("%T", obj))
+				return c.Patch(ctx, obj, patch, opts...)
+			},
+		}).
+		Build()
+
+	drainer := &Drainer{
+		Client: fakeClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyRetain,
+	}
+
+	result, err := drainer.DrainAll(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.Total)
+	assert.Equal(t, 2, result.Completed)
+	assert.False(t, result.HasErrors())
+	assert.Equal(t, []string{"*v1alpha1.AgentEndpoint", "*v1.AgentEndpoint"}, order, "legacy twin is drained before v1")
+}

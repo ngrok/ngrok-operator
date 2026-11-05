@@ -730,6 +730,86 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
     exclusion. `PROJECT`: delete the `group: ingress`, `kind: IPPolicy`
     entry.
 
+## Per-shim catalog: AgentEndpoint CRD group move
+
+### `ngrok.k8s.ngrok.com/v1alpha1 AgentEndpoint` → `ngrok.com/v1 AgentEndpoint`
+
+- **Pattern:** Three-release CRD group move. The general plan, the twin rules,
+  and the required stops are in
+  [specs/crd-group-migration.md](../../specs/crd-group-migration.md). Tag:
+  `LEGACY-agentendpoint-kind`.
+- **Why a pair reconciler:** an AgentEndpoint has no remote ID, but it does own
+  live state: the agent driver's tunnel, keyed by `namespace/name`. A legacy
+  object and its v1 twin address the same tunnel. Two independent controllers
+  would both drive it with different specs, and deleting the legacy object
+  would close the tunnel the v1 object serves through.
+- **R1 — migration release (0.25):**
+  - Two CRDs ship. The v1 spec matches the legacy one except `spec.metadata`,
+    which is a `map[string]string`. The sub-structs (`EndpointUpstream`,
+    `EndpointTLSTermination`, `EndpointMutualTLS`) and the status live in
+    `api/ngrok/v1` and are aliased from `api/ngrok/v1alpha1`, so both kinds use
+    one Go type and the legacy schema is unchanged. The shared reference and
+    traffic policy types (`K8sObjectRef`, `TrafficPolicyCfg`,
+    `EndpointWithDomain`, ...) moved the same way, so the domain and traffic
+    policy managers serve both kinds unchanged.
+  - The legacy kind carries a `deprecatedversion` warning and a Go
+    `Deprecated:` comment (`SA1019` excluded in `.golangci.yml`). The v1 CRD
+    carries `helm.sh/resource-policy: keep`.
+  - `pkg/agent`: `Driver.CreateAgentEndpoint` takes `agent.EndpointSpec`, a
+    group-independent view with metadata already in its API string form. A
+    legacy object and its v1 twin with the same spec produce equal
+    `EndpointSpec`s, so the take-over reuses the live tunnel without a
+    rebind.
+  - `internal/controller/agent/agent_endpoint_controller.go`: one reconciler
+    per pair, `For` the v1 kind and `Watches` the legacy kind with
+    `EnqueueRequestForObject`. While v1 is alive it is the only writer; the
+    legacy twin is `Ready=True` with reason `SupersededByV1`, and a
+    user-created one gets a `DeprecatedAPIGroup` warning event. Deleting
+    either twin keeps the tunnel while the other is alive; before closing it,
+    the twin is re-read through the `APIReader` and the read fails closed
+    (`keepTunnelForTwinRead`). Deleting v1 hands the tunnel back to legacy in
+    the same pass.
+  - Writers:
+    - `pkg/managerdriver` creates and updates v1 AgentEndpoints. Its legacy
+      AgentEndpoints are left alone while still desired, so a rollback finds
+      them intact, and deleted when no longer desired. Without that, the
+      legacy twin would take the tunnel back once the v1 one is deleted.
+    - The Service controller owns v1 AgentEndpoints. The first one it
+      creates for a Service takes the name of the Service's legacy
+      AgentEndpoint (their names come from `GenerateName`, so nothing else
+      would pair them). The legacy one is deleted when the Service no longer
+      wants an AgentEndpoint. Until the v1 one has a `domainRef`, the
+      Service's load balancer status is computed from its legacy twin, so a
+      TLS Service doesn't lose its hostname mid-upgrade.
+    - Any other legacy AgentEndpoint the Service owns is deleted: it has no
+      twin and would serve a second tunnel on the same URL. A rollback to 0.24
+      creates one for a Service whose v1 AgentEndpoint was made by 0.25.
+  - Drain lists the legacy kind before the v1 kind, so for a twin pair the v1
+    delete is the one that closes the tunnel.
+  - RBAC: `ngrok.com` `agentendpoints` rules in the api-manager and agent
+    roles and the `agentendpoint-{editor,viewer}` roles; the legacy rules are
+    tagged.
+- **R2 (1.0):** the pair reconciler goes back to a single-kind reconcile on
+  the v1 kind. Delete the legacy watch and indexes, `agentEndpointPair`'s
+  legacy half, `setPassive`, `liveTwinCheck`, the legacy re-read in
+  `closeOrphanedTunnel`, the legacy deletes in the managerdriver and the
+  Service controller, and the Service name reuse and status fallback. The
+  kind-agnostic finalizer sweeper from the spec strips the legacy finalizers.
+  There is no late adoption: an AgentEndpoint has no remote ID.
+  - Unlike the kinds with a remote resource, an unmigrated legacy
+    AgentEndpoint does not keep running: its tunnel lives in the agent, so it
+    goes offline when the 1.0 agent starts. The 1.0 guide must say so.
+  - Once the managerdriver's legacy deletes are gone, an Ingress- or
+    Gateway-generated legacy AgentEndpoint (no owner reference) outlives its
+    source and shows up in the "legacy with no v1 twin" listing as if the user
+    had to migrate it. The sweeper (or a one-shot) should delete legacy
+    AgentEndpoints that carry a controller-name label.
+- **R3 (1.1):** `git grep 'LEGACY-agentendpoint-kind'` and delete the rest:
+  `api/ngrok/v1alpha1/agentendpoint_types.go` and its CRD, the drain entry,
+  the legacy RBAC, the `.golangci.yml` exclusion and the tests tagged for
+  deletion. The shared-type aliases in `api/ngrok/v1alpha1/common_types.go`
+  go with the last `v1alpha1` endpoint kind.
+
 ## Per-shim catalog: user-facing key compatibility (read-side only)
 
 ### User-facing annotations (read-side compatibility)

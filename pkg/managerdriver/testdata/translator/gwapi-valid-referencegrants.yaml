@@ -136,7 +136,7 @@ expected:
                       content-type: text/plain
       url: https://test-hostname.ngrok.io
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -148,7 +148,7 @@ expected:
       url: "https://e3b0c-same-namespace-svc-default-8080.internal"
       upstream:
         url: "http://same-namespace-svc.default:8080"
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
