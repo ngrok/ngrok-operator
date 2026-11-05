@@ -96,9 +96,9 @@ tests/chainsaw-uninstall/
 ./_fixtures/ngrok-api-helper.sh endpoint list
 
 # Check what the operator created
-kubectl get cloudendpoint,agentendpoint -A
+kubectl get cloudendpoints.ngrok.com,agentendpoints.ngrok.com -A
 
 # Verify finalizers
-kubectl get ingress,cloudendpoint,agentendpoint -A \
+kubectl get ingress,cloudendpoints.ngrok.com,agentendpoints.ngrok.com -A \
   -o jsonpath='{range .items[*]}{.kind}/{.metadata.name}: {.metadata.finalizers}{"\n"}{end}'
 ```

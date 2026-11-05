@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+# LEGACY-cloudendpoint-kind: delete this test at cleanup.
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: cloudendpoint-migration
+spec:
+  description: |
+    Verifies the move from ngrok.k8s.ngrok.com/v1alpha1 CloudEndpoint to
+    ngrok.com/v1 CloudEndpoint: a v1 object with the same namespace and name
+    as a user-created legacy one takes over the same ngrok endpoint, the legacy
+    object is marked superseded, deleting the legacy object keeps the endpoint,
+    and deleting the v1 object removes it.
+
+    Needs NGROK_ACCESS_TOKEN in the environment to query the ngrok API.
+  bindings:
+    - name: ngrokDomainSuffix
+      value: (env('CHAINSAW_NGROK_DOMAIN_SUFFIX'))
+    - name: endpointPattern
+      value: (join('', ['^https://cep-migrate', replace_all($ngrokDomainSuffix, '.', '\.'), '(:443)?$']))
+  steps:
+  - name: create a legacy CloudEndpoint and wait for its endpoint
+    try:
+    - create:
+        file: ./legacy-cloudendpoint.yaml
+    - assert:
+        timeout: 2m
+        resource:
+          apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+          kind: CloudEndpoint
+          metadata:
+            name: cep-migrate
+          (status.id != null): true
+    - script:
+        timeout: 3m
+        env:
+        - name: PATTERN
+          value: ($endpointPattern)
+        content: ../../chainsaw-uninstall/_fixtures/ngrok-api-helper.sh endpoint exists "$PATTERN"
+
+  - name: the v1 object takes over the same endpoint
+    try:
+    - create:
+        file: ./v1-cloudendpoint.yaml
+    - assert:
+        timeout: 60s
+        resource:
+          apiVersion: ngrok.com/v1
+          kind: CloudEndpoint
+          metadata:
+            name: cep-migrate
+          (status.id != null): true
+    - assert:
+        timeout: 60s
+        resource:
+          apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+          kind: CloudEndpoint
+          metadata:
+            name: cep-migrate
+          status:
+            (conditions[?type == 'Ready']):
+            - status: 'True'
+              reason: SupersededByV1
+    - script:
+        timeout: 60s
+        content: |
+          for _ in $(seq 20); do
+            legacy=$(kubectl get cloudendpoints.ngrok.k8s.ngrok.com cep-migrate -n "$NAMESPACE" -o json | jq -r '.status.id // empty')
+            v1=$(kubectl get cloudendpoints.ngrok.com cep-migrate -n "$NAMESPACE" -o json | jq -r '.status.id // empty')
+            if [ -n "$v1" ] && [ "$legacy" = "$v1" ]; then
+              echo "PASS: both kinds hold endpoint $v1"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "ERROR: v1 status.id '$v1' does not match legacy status.id '$legacy'"
+          exit 1
+
+  - name: deleting the legacy CloudEndpoint keeps the endpoint
+    try:
+    - delete:
+        ref:
+          apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+          kind: CloudEndpoint
+          name: cep-migrate
+    - assert:
+        timeout: 30s
+        resource:
+          apiVersion: ngrok.com/v1
+          kind: CloudEndpoint
+          metadata:
+            name: cep-migrate
+          status:
+            (conditions[?type == 'Ready']):
+            - status: 'True'
+    - script:
+        timeout: 60s
+        env:
+        - name: PATTERN
+          value: ($endpointPattern)
+        content: |
+          # Give a wrongly-triggered deletion time to reach the API before checking.
+          sleep 10
+          ../../chainsaw-uninstall/_fixtures/ngrok-api-helper.sh endpoint exists "$PATTERN"
+          id=$(kubectl get cloudendpoints.ngrok.com cep-migrate -n "$NAMESPACE" -o json | jq -r '.status.id // empty')
+          if ! curl -sf -H "Authorization: Bearer ${NGROK_ACCESS_TOKEN}" -H "Ngrok-Version: 2" \
+            "${NGROK_API_URL:-https://api.ngrok.com}/endpoints/${id}" >/dev/null; then
+            echo "ERROR: endpoint '$id' is gone from the ngrok API"
+            exit 1
+          fi
+          echo "PASS: endpoint $id still present"
+
+  - name: deleting the v1 CloudEndpoint removes the endpoint
+    try:
+    - delete:
+        ref:
+          apiVersion: ngrok.com/v1
+          kind: CloudEndpoint
+          name: cep-migrate
+    - script:
+        timeout: 2m
+        env:
+        - name: PATTERN
+          value: ($endpointPattern)
+        content: ../../chainsaw-uninstall/_fixtures/ngrok-api-helper.sh endpoint absent "$PATTERN"

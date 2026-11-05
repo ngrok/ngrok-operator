@@ -55,6 +55,8 @@ runs:
     - name: Run e2e tests
       shell: bash
       if: ${{ inputs.run-e2e == 'true' }}
+      env:
+        NGROK_ACCESS_TOKEN: ${{ inputs.ngrok-access-token }}
       run: make e2e-tests
 
     # best effort to remove ngrok k8s resources from cluster
