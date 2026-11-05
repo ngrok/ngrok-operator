@@ -836,7 +836,9 @@ func (r *baseSubresourceReconciler[T, PT]) Reconcile(ctx context.Context, c clie
 	}
 
 	log.Info(fmt.Sprintf("Creating %T", d))
-	return c.Create(ctx, d)
+	// Create writes the server's response into the object it's given, and the
+	// other subresource reconcilers read d concurrently.
+	return c.Create(ctx, d.DeepCopyObject().(PT))
 }
 
 func (r *baseSubresourceReconciler[T, PT]) UpdateServiceStatus(ctx context.Context, c client.Client, svc *corev1.Service, o client.Object) error {
