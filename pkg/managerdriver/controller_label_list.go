@@ -69,7 +69,30 @@ func (d *Driver) listLegacyAgentEndpointsForController(ctx context.Context, c cl
 
 // listCloudEndpointsForController is the CloudEndpoint counterpart to
 // listAgentEndpointsForController.
-func (d *Driver) listCloudEndpointsForController(ctx context.Context, c client.Client) ([]ngrokv1alpha1.CloudEndpoint, error) {
+func (d *Driver) listCloudEndpointsForController(ctx context.Context, c client.Client) ([]ngrokv1.CloudEndpoint, error) {
+	seen := map[types.UID]struct{}{}
+	out := []ngrokv1.CloudEndpoint{}
+	for _, sel := range d.controllerLabels.Selectors() {
+		var l ngrokv1.CloudEndpointList
+		if err := c.List(ctx, &l, sel); err != nil {
+			return nil, err
+		}
+		for _, item := range l.Items {
+			if _, ok := seen[item.UID]; ok {
+				continue
+			}
+			seen[item.UID] = struct{}{}
+			out = append(out, item)
+		}
+	}
+	return out, nil
+}
+
+// listLegacyCloudEndpointsForController is listCloudEndpointsForController
+// for the deprecated ngrok.k8s.ngrok.com/v1alpha1 kind.
+//
+// LEGACY-cloudendpoint-kind: delete at cleanup.
+func (d *Driver) listLegacyCloudEndpointsForController(ctx context.Context, c client.Client) ([]ngrokv1alpha1.CloudEndpoint, error) {
 	seen := map[types.UID]struct{}{}
 	out := []ngrokv1alpha1.CloudEndpoint{}
 	for _, sel := range d.controllerLabels.Selectors() {

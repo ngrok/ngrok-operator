@@ -66,7 +66,7 @@ input:
       type: ClusterIP
 expected:
   cloudEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
       labels:
@@ -76,7 +76,7 @@ expected:
       namespace: default
     spec:
       url: "https://test-hostname.ngrok.io"
-      metadata: '{"env":"staging","team":"platform"}'
+      metadata: {"env":"staging","team":"platform"}
       description: "Platform staging gateway"
       trafficPolicy:
         inline:

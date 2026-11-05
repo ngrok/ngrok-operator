@@ -81,7 +81,7 @@ input:
                   min_version: "1.3"
 expected:
   cloudEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
       labels:
