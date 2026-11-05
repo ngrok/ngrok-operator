@@ -12,13 +12,15 @@ helm uninstall ngrok-operator -n ngrok-operator
 
 The pre-delete hook automatically triggers drain mode, waits for cleanup, then completes uninstall.
 
-`helm uninstall` leaves the `agentendpoints.ngrok.com` CRD in place: it carries
-`helm.sh/resource-policy: keep` so that a `helm rollback` to a release without
-it can't delete every `ngrok.com/v1` AgentEndpoint. Once the uninstall has
-drained, delete it yourself if you don't plan to reinstall:
+`helm uninstall` leaves the `agentendpoints.ngrok.com`,
+`cloudendpoints.ngrok.com`, and `ippolicies.ngrok.com` CRDs in place: they
+carry `helm.sh/resource-policy: keep` so that a `helm rollback` to a release
+without them can't delete every `ngrok.com/v1` AgentEndpoint, CloudEndpoint,
+and IPPolicy. Once the uninstall has drained, delete them yourself if you don't
+plan to reinstall:
 
 ```bash
-kubectl delete crd agentendpoints.ngrok.com
+kubectl delete crd agentendpoints.ngrok.com cloudendpoints.ngrok.com ippolicies.ngrok.com
 ```
 
 ### Manual / Non-Helm

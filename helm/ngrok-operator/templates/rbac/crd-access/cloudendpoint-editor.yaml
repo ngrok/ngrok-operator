@@ -12,6 +12,25 @@ metadata:
   {{- end }}
 rules:
 - apiGroups:
+  - ngrok.com
+  resources:
+  - cloudendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - cloudendpoints/status
+  verbs:
+  - get
+# LEGACY-cloudendpoint-kind: BEGIN — drop these two rule blocks at cleanup.
+- apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - cloudendpoints
@@ -29,4 +48,5 @@ rules:
   - cloudendpoints/status
   verbs:
   - get
+# LEGACY-cloudendpoint-kind: END
 {{- end }}

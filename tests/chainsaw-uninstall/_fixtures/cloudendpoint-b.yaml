@@ -1,4 +1,4 @@
-apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+apiVersion: ngrok.com/v1
 kind: CloudEndpoint
 metadata:
   name: uninstall-test-cloud-ep-b
@@ -6,7 +6,9 @@ metadata:
 spec:
   url: https://uninstall-test-cloud-ep-b.internal
   description: "Uninstall test CloudEndpoint B"
-  metadata: '{"test":"uninstall-e2e","operator":"b"}'
+  metadata:
+    test: uninstall-e2e
+    operator: b
   trafficPolicy:
     inline:
       on_http_request:

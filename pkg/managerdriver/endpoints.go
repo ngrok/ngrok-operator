@@ -51,13 +51,19 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 		d.log.Error(err, "error listing cloud endpoints")
 		return err
 	}
+	// LEGACY-cloudendpoint-kind: delete at cleanup.
+	legacyCloudEndpoints, err := d.listLegacyCloudEndpointsForController(ctx, c)
+	if err != nil {
+		d.log.Error(err, "error listing legacy cloud endpoints")
+		return err
+	}
 	// LEGACY-PREFIX-MIGRATION: END
 
 	if err := d.applyAgentEndpoints(ctx, c, translationResult.AgentEndpoints, currentAgentEndpoints, legacyAgentEndpoints); err != nil {
 		d.log.Error(err, "applying agent endpoints")
 		return err
 	}
-	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currentCloudEndpoints); err != nil {
+	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currentCloudEndpoints, legacyCloudEndpoints); err != nil {
 		d.log.Error(err, "applying cloud endpoints")
 		return err
 	}
@@ -175,7 +181,26 @@ func (d *Driver) shouldBeSkippedInApply(obj client.Object) bool {
 	return false
 }
 
-func (d *Driver) applyCloudEndpoints(ctx context.Context, c client.Client, desired map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint, current []ngrokv1alpha1.CloudEndpoint) error {
+// applyCloudEndpoints makes the operator's ngrok.com/v1 CloudEndpoints match
+// desired, and deletes the operator's legacy CloudEndpoints that are no longer
+// desired. See applyAgentEndpoints for why a still-desired legacy object is left
+// alone and an undesired one is deleted before its v1 twin.
+func (d *Driver) applyCloudEndpoints(ctx context.Context, c client.Client, desired map[types.NamespacedName]*ngrokv1.CloudEndpoint, current []ngrokv1.CloudEndpoint, legacy []ngrokv1alpha1.CloudEndpoint) error {
+	// LEGACY-cloudendpoint-kind: BEGIN
+	for _, legacyCLEP := range legacy {
+		if d.shouldBeSkippedInApply(&legacyCLEP) {
+			continue
+		}
+		if _, exists := desired[client.ObjectKeyFromObject(&legacyCLEP)]; exists {
+			continue
+		}
+		if err := c.Delete(ctx, &legacyCLEP); client.IgnoreNotFound(err) != nil {
+			d.log.Error(err, "error deleting legacy cloud endpoint", "legacy cloud endpoint", client.ObjectKeyFromObject(&legacyCLEP))
+			return err
+		}
+	}
+	// LEGACY-cloudendpoint-kind: END
+
 	// update or delete cloud endpoints we don't need anymore
 	for _, currCLEP := range current {
 
@@ -229,6 +254,13 @@ func (d *Driver) applyCloudEndpoints(ctx context.Context, c client.Client, desir
 	// the set of desired cloud endpoints now only contains new cloud endpoints, create them
 	for _, cloudEndpoint := range desired {
 		if err := c.Create(ctx, cloudEndpoint); err != nil {
+			// A CloudEndpoint the operator doesn't manage already has this
+			// name, so it was skipped above. Retrying can't succeed, and
+			// failing here would stop the rest of the sync.
+			if apierrors.IsAlreadyExists(err) {
+				d.log.Info("a CloudEndpoint the operator doesn't manage already uses this name; not creating it", "cloud endpoint", client.ObjectKeyFromObject(cloudEndpoint))
+				continue
+			}
 			d.log.Error(err, "error creating cloud endpoint", "cloud endpoint", cloudEndpoint)
 			return err
 		}

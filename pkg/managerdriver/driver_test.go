@@ -1,6 +1,7 @@
 package managerdriver
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -189,8 +191,8 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(agentendpoints.Items).To(HaveLen(0))
 
-				cloudendpoints := &ngrokv1alpha1.CloudEndpointList{}
-				err = c.List(GinkgoT().Context(), &ngrokv1alpha1.CloudEndpointList{})
+				cloudendpoints := &ngrokv1.CloudEndpointList{}
+				err = c.List(GinkgoT().Context(), &ngrokv1.CloudEndpointList{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cloudendpoints.Items).To(HaveLen(0))
 			})
@@ -294,6 +296,97 @@ var _ = Describe("Driver", func() {
 			})
 		})
 
+		// LEGACY-cloudendpoint-kind: delete this context at cleanup.
+		Context("When legacy CloudEndpoints from an earlier release exist", func() {
+			It("Keeps the desired ones as twins and deletes the rest, legacy first", func(ctx SpecContext) {
+				// "example" serves three hosts, so none can collapse into an
+				// AgentEndpoint and each host gets a CloudEndpoint.
+				i1 := testutils.NewTestIngressV1WithHosts("test-ingress", "test-namespace", "a.example.com", "b.example.com", "c.example.com")
+				ic1 := testutils.NewTestIngressClass("test-ingress-class", true, true)
+				s := testutils.NewTestServiceV1("example", "test-namespace")
+				obs := []runtime.Object{ic1, i1, s}
+
+				var deleted []string
+				c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).WithInterceptorFuncs(interceptor.Funcs{
+					Create: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+						// The list dedupes by UID, which the fake client doesn't set.
+						if obj.GetUID() == "" {
+							obj.SetUID(types.UID(obj.GetName()))
+						}
+						return cl.Create(ctx, obj, opts...)
+					},
+					Delete: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+						switch obj.(type) {
+						case *ngrokv1alpha1.CloudEndpoint:
+							deleted = append(deleted, "legacy/"+obj.GetName())
+						case *ngrokv1.CloudEndpoint:
+							deleted = append(deleted, "v1/"+obj.GetName())
+						}
+						return cl.Delete(ctx, obj, opts...)
+					},
+				}).Build()
+				for _, obj := range obs {
+					Expect(driver.store.Update(obj)).To(Succeed())
+				}
+				Expect(driver.Seed(ctx, c)).To(Succeed())
+
+				By("learning the names of the desired CloudEndpoints")
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+				current := &ngrokv1.CloudEndpointList{}
+				Expect(c.List(ctx, current, client.InNamespace("test-namespace"))).To(Succeed())
+				Expect(current.Items).To(HaveLen(3))
+				names := map[string]string{}
+				for _, item := range current.Items {
+					names[item.Spec.URL] = item.Name
+				}
+				keptName := names["https://a.example.com"]
+				goneName := names["https://c.example.com"]
+				Expect(keptName).ToNot(BeEmpty())
+				Expect(goneName).ToNot(BeEmpty())
+
+				legacyCEP := func(name string, operatorLabels bool) *ngrokv1alpha1.CloudEndpoint {
+					clep := &ngrokv1alpha1.CloudEndpoint{Name: name, Namespace: "test-namespace", UID: types.UID(name)}
+					if operatorLabels {
+						clep.Labels = driver.controllerLabels.Labels()
+					}
+					return clep
+				}
+				kept := legacyCEP(keptName, true)
+				gone := legacyCEP(goneName, true)
+				user := legacyCEP("user", false)
+				svcOwned := legacyCEP("svc-owned", true)
+				svcOwned.OwnerReferences = []metav1.OwnerReference{{APIVersion: "v1", Kind: "Service", Name: "lb", UID: "lb"}}
+				for _, clep := range []*ngrokv1alpha1.CloudEndpoint{kept, gone, user, svcOwned} {
+					Expect(c.Create(ctx, clep)).To(Succeed())
+				}
+
+				By("leaving the legacy twin of a still-desired name alone")
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+				Expect(deleted).To(BeEmpty())
+				Expect(c.List(ctx, current, client.InNamespace("test-namespace"))).To(Succeed())
+				Expect(current.Items).To(HaveLen(3))
+
+				By("deleting both kinds once the host is removed")
+				Expect(c.Get(ctx, client.ObjectKeyFromObject(i1), i1)).To(Succeed())
+				i1.Spec.Rules = i1.Spec.Rules[:2]
+				Expect(c.Update(ctx, i1)).To(Succeed())
+				Expect(driver.store.Update(i1)).To(Succeed())
+				Expect(driver.Sync(ctx, c)).To(Succeed())
+
+				Expect(deleted).To(Equal([]string{"legacy/" + goneName, "v1/" + goneName}))
+				err := c.Get(ctx, client.ObjectKeyFromObject(gone), &ngrokv1alpha1.CloudEndpoint{})
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(), "the legacy CloudEndpoint should be deleted, got %v", err)
+				err = c.Get(ctx, client.ObjectKeyFromObject(gone), &ngrokv1.CloudEndpoint{})
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(), "the v1 CloudEndpoint should be deleted, got %v", err)
+
+				By("never touching the twin of a desired name, user-made, or Service-owned objects")
+				Expect(c.Get(ctx, client.ObjectKeyFromObject(kept), &ngrokv1alpha1.CloudEndpoint{})).To(Succeed())
+				Expect(c.Get(ctx, client.ObjectKeyFromObject(kept), &ngrokv1.CloudEndpoint{})).To(Succeed())
+				Expect(c.Get(ctx, client.ObjectKeyFromObject(user), &ngrokv1alpha1.CloudEndpoint{})).To(Succeed())
+				Expect(c.Get(ctx, client.ObjectKeyFromObject(svcOwned), &ngrokv1alpha1.CloudEndpoint{})).To(Succeed())
+			})
+		})
+
 		Context("When an AgentEndpoint the operator doesn't manage has the generated name", func() {
 			It("Leaves it alone and finishes the sync", func(ctx SpecContext) {
 				i1 := testutils.NewTestIngressV1("test-ingress", "test-namespace")
@@ -335,7 +428,7 @@ var _ = Describe("Driver", func() {
 				c                       client.WithWatch
 				namespace               = "app-proto-namespace"
 				agentEndpoints          *ngrokv1.AgentEndpointList
-				cloudEndpoints          *ngrokv1alpha1.CloudEndpointList
+				cloudEndpoints          *ngrokv1.CloudEndpointList
 				ic                      = testutils.NewTestIngressClass("app-proto-ingress-class", true, true)
 				setIngressTargetService = func(i *netv1.Ingress, s *v1.Service) {
 					// Modify the ingress to include the service
@@ -423,7 +516,7 @@ var _ = Describe("Driver", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// Find the cloud endpoints in this namespace
-				cloudEndpoints = &ngrokv1alpha1.CloudEndpointList{}
+				cloudEndpoints = &ngrokv1.CloudEndpointList{}
 				err = c.List(GinkgoT().Context(), cloudEndpoints, client.InNamespace(namespace))
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -557,7 +650,7 @@ var _ = Describe("Driver", func() {
 				ingress             *netv1.Ingress
 				trafficPolicy       *ngrokv1alpha1.NgrokTrafficPolicy
 				foundAgentEndpoints *ngrokv1.AgentEndpointList
-				foundCloudEndpoints *ngrokv1alpha1.CloudEndpointList
+				foundCloudEndpoints *ngrokv1.CloudEndpointList
 				ic                  = testutils.NewTestIngressClass("edge-tp-ingress-class", true, true)
 			)
 
@@ -641,7 +734,7 @@ var _ = Describe("Driver", func() {
 				Expect(c.List(GinkgoT().Context(), foundAgentEndpoints, client.InNamespace(namespace))).To(Succeed())
 
 				// Find the CloudEndpoints in this namespace
-				foundCloudEndpoints = &ngrokv1alpha1.CloudEndpointList{}
+				foundCloudEndpoints = &ngrokv1.CloudEndpointList{}
 				Expect(c.List(GinkgoT().Context(), foundCloudEndpoints, client.InNamespace(namespace))).To(Succeed())
 			})
 

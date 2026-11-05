@@ -145,6 +145,40 @@ var _ = Describe("EndpointsClient", func() {
 				Expect(err).To(HaveOccurred())
 			})
 		})
+
+		When("an endpoint with the same URL exists and both enable pooling", func() {
+			BeforeEach(func(ctx SpecContext) {
+				endpointCreate = &ngrok.EndpointCreate{
+					URL:            "http://pooled.example.com",
+					PoolingEnabled: new(true),
+				}
+				_, err := endpointsClient.Create(ctx, endpointCreate)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should create a second endpoint on the URL", func() {
+				Expect(err).NotTo(HaveOccurred())
+				Expect(createdEndpoint.URL).To(Equal("http://pooled.example.com"))
+			})
+		})
+	})
+
+	Describe("Calls()", func() {
+		It("records Create, Update and Delete calls in order", func(ctx SpecContext) {
+			ep, err := endpointsClient.Create(ctx, &ngrok.EndpointCreate{URL: "http://calls.example.com"})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = endpointsClient.Update(ctx, &ngrok.EndpointUpdate{ID: ep.ID, Url: new("http://calls.example.com")})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(endpointsClient.Delete(ctx, ep.ID)).To(Succeed())
+			Expect(endpointsClient.Delete(ctx, ep.ID)).NotTo(Succeed())
+
+			Expect(endpointsClient.Calls()).To(Equal([]nmockapi.EndpointCall{
+				{Method: "Create", URL: "http://calls.example.com"},
+				{Method: "Update", ID: ep.ID, URL: "http://calls.example.com"},
+				{Method: "Delete", ID: ep.ID, URL: "http://calls.example.com"},
+				{Method: "Delete", ID: ep.ID},
+			}))
+		})
 	})
 
 	Describe("Delete()", func() {

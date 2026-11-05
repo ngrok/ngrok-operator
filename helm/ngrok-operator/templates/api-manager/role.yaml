@@ -300,6 +300,7 @@ rules:
   - patch
   - update
 # LEGACY-agentendpoint-kind: END
+# LEGACY-cloudendpoint-kind: BEGIN — drop these three rule blocks at cleanup.
 - apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
@@ -327,6 +328,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-cloudendpoint-kind: END
 # KubernetesOperator is intentionally NOT in this role. The KubernetesOperator
 # CR is the api-manager's own state singleton and always lives in the release
 # namespace, independent of `watchNamespace`. Its rules live in
@@ -436,6 +438,34 @@ rules:
   - ngrok.com
   resources:
   - agentendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+# Canonical ngrok.com/v1 CloudEndpoint rules.
+- apiGroups:
+  - ngrok.com
+  resources:
+  - cloudendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - cloudendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - cloudendpoints/status
   verbs:
   - get
   - patch

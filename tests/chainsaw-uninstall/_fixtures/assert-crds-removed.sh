@@ -4,12 +4,12 @@
 # the kept KubernetesOperator CRD.
 #
 # LEGACY-kubernetesoperator-kind / LEGACY-trafficpolicy-kind / LEGACY-ippolicy-kind /
-# LEGACY-agentendpoint-kind:
+# LEGACY-agentendpoint-kind / LEGACY-cloudendpoint-kind:
 # R2 removes the keep annotation; then assert that every ngrok CRD is gone again.
 
 set -o pipefail
 
-KEPT='^customresourcedefinition.apiextensions.k8s.io/(agentendpoints|ippolicies|kubernetesoperators|trafficpolicies)\.ngrok\.com$'
+KEPT='^customresourcedefinition.apiextensions.k8s.io/(agentendpoints|cloudendpoints|ippolicies|kubernetesoperators|trafficpolicies)\.ngrok\.com$'
 
 # CRD deletion is asynchronous, so give the rest a moment to go.
 remaining() { kubectl get crds -o name | grep ngrok | grep -v -E "$KEPT" || true; }

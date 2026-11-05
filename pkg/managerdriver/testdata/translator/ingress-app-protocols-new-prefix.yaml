@@ -104,7 +104,7 @@ expected:
   # The canonical ngrok.com/http2 appProtocol on test-service-3 should map to protocol: http2
   # on its AgentEndpoint upstream, same as the other appProtocol values.
   cloudEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
       labels:

@@ -116,7 +116,7 @@ spec:
         - assert:
             timeout: 2m
             resource:
-              apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+              apiVersion: ngrok.com/v1
               kind: CloudEndpoint
               metadata:
                 name: uninstall-test-cloud-ep
@@ -187,7 +187,7 @@ spec:
             content: |
               # With endpoints-verbose mapping strategy, Ingress/Gateway create CloudEndpoints
               # Check CloudEndpoint URLs (more reliable than names which may have hashes)
-              CLOUD_EP_URLS=$(kubectl get cloudendpoint -n uninstall-test -o jsonpath='{.items[*].spec.url}')
+              CLOUD_EP_URLS=$(kubectl get cloudendpoints.ngrok.com -n uninstall-test -o jsonpath='{.items[*].spec.url}')
               echo "Found CloudEndpoint URLs: $CLOUD_EP_URLS"
               
               # Verify Ingress CloudEndpoint exists
@@ -255,7 +255,7 @@ spec:
             timeout: 30s
             content: |
               # With Delete policy, CRs get deleted (triggering ngrok API cleanup via finalizers)
-              if kubectl get cloudendpoint uninstall-test-cloud-ep -n uninstall-test &>/dev/null; then
+              if kubectl get cloudendpoints.ngrok.com uninstall-test-cloud-ep -n uninstall-test &>/dev/null; then
                 echo "✗ CloudEndpoint CR still exists (should be deleted with Delete policy)"
                 exit 1
               fi

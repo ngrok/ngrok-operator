@@ -658,3 +658,64 @@ func TestDrainer_AgentEndpointTwins(t *testing.T) {
 	assert.False(t, result.HasErrors())
 	assert.Equal(t, []string{"*v1alpha1.AgentEndpoint", "*v1.AgentEndpoint"}, order, "legacy twin is drained before v1")
 }
+
+// LEGACY-cloudendpoint-kind: delete this test at cleanup.
+//
+// A legacy CloudEndpoint and its ngrok.com/v1 twin share one remote endpoint.
+// Drain handles the legacy one first, so the legacy delete releases its
+// finalizer without an ngrok call and the v1 delete is the one that removes
+// the remote endpoint. The fake client has no controllers, so this asserts the
+// order and that both finalizers are released; the remote-once behavior is
+// covered by the CloudEndpoint envtest "delete both" spec.
+func TestDrainer_CloudEndpointTwins(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, netv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
+	require.NoError(t, gatewayv1.Install(scheme))
+	require.NoError(t, gatewayv1alpha2.Install(scheme))
+
+	legacy := &ngrokv1alpha1.CloudEndpoint{
+		Name: "twin", Namespace: "default", Finalizers: []string{util.FinalizerName},
+		Status: ngrokv1alpha1.CloudEndpointStatus{ID: "ep_shared"},
+	}
+	v1 := &ngrokv1.CloudEndpoint{
+		Name: "twin", Namespace: "default", Finalizers: []string{util.FinalizerName},
+		Status: ngrokv1.CloudEndpointStatus{ID: "ep_shared"},
+	}
+
+	var order []string
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(legacy, v1).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				order = append(order, fmt.Sprintf("%T", obj))
+				return c.Patch(ctx, obj, patch, opts...)
+			},
+		}).
+		Build()
+
+	drainer := &Drainer{
+		Client: fakeClient,
+		Log:    logr.Discard(),
+		Policy: ngrokv1alpha1.DrainPolicyRetain,
+	}
+
+	result, err := drainer.DrainAll(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.Total)
+	assert.Equal(t, 2, result.Completed)
+	assert.False(t, result.HasErrors())
+	assert.Equal(t, []string{"*v1alpha1.CloudEndpoint", "*v1.CloudEndpoint"}, order, "legacy twin is drained before v1")
+
+	var fetchedLegacy ngrokv1alpha1.CloudEndpoint
+	require.NoError(t, fakeClient.Get(context.Background(), client.ObjectKey{Name: "twin", Namespace: "default"}, &fetchedLegacy))
+	assert.False(t, util.HasFinalizer(&fetchedLegacy))
+	var fetchedV1 ngrokv1.CloudEndpoint
+	require.NoError(t, fakeClient.Get(context.Background(), client.ObjectKey{Name: "twin", Namespace: "default"}, &fetchedV1))
+	assert.False(t, util.HasFinalizer(&fetchedV1))
+}

@@ -100,7 +100,12 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error) {
 		{"Service", &corev1.ServiceList{}, false, d.drainUserResource},
 		{"Gateway", &gatewayv1.GatewayList{}, true, d.drainUserResource},
 		// Operator resources: delete or retain based on policy
-		{"CloudEndpoint", &ngrokv1alpha1.CloudEndpointList{}, false, d.drainOperatorResource},
+		// LEGACY-cloudendpoint-kind: delete the legacy CloudEndpoint entry at
+		// cleanup. It stays ahead of the v1 entry so that, for a twin pair
+		// sharing a remote endpoint, the legacy delete releases its finalizer
+		// without an ngrok call and the v1 delete removes the endpoint once.
+		{"CloudEndpoint (ngrok.k8s.ngrok.com/v1alpha1)", &ngrokv1alpha1.CloudEndpointList{}, false, d.drainOperatorResource},
+		{"CloudEndpoint", &ngrokv1.CloudEndpointList{}, false, d.drainOperatorResource},
 		// LEGACY-agentendpoint-kind: delete the legacy AgentEndpoint entry at
 		// cleanup. It stays ahead of the v1 entry so that, for a twin pair
 		// sharing a tunnel, the v1 delete is the one that closes it.

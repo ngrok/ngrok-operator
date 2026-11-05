@@ -156,7 +156,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			irVHost: &ir.IRVirtualHost{
 				Bindings:  []string{"public"},
 				Namespace: "default",
-				Metadata:  "test-metadata",
+				Metadata:  `{"owner":"test-metadata"}`,
 				Listener: ir.IRListener{
 					Hostname: "cloud-host",
 					Port:     80,
@@ -170,7 +170,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			irVHost: &ir.IRVirtualHost{
 				Bindings:         []string{"public"},
 				Namespace:        "foo",
-				Metadata:         "test-metadata",
+				Metadata:         `{"owner":"test-metadata"}`,
 				LabelsToAdd:      map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd: map[string]string{"test-annotations": "test-annotation-val"},
 				Listener: ir.IRListener{
@@ -186,7 +186,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			irVHost: &ir.IRVirtualHost{
 				Bindings:               []string{"public"},
 				Namespace:              "foo",
-				Metadata:               "test-metadata",
+				Metadata:               `{"owner":"test-metadata"}`,
 				EndpointPoolingEnabled: new(true),
 				LabelsToAdd:            map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd:       map[string]string{"test-annotations": "test-annotation-val"},
@@ -204,7 +204,7 @@ func TestBuildCloudEndpoint(t *testing.T) {
 				Bindings:               []string{"public"},
 				NamePrefix:             new("prefix"),
 				Namespace:              "foo",
-				Metadata:               "test-metadata",
+				Metadata:               `{"owner":"test-metadata"}`,
 				EndpointPoolingEnabled: new(true),
 				LabelsToAdd:            map[string]string{"test-label": "test-label-val"},
 				AnnotationsToAdd:       map[string]string{"test-annotations": "test-annotation-val"},
@@ -226,7 +226,48 @@ func TestBuildCloudEndpoint(t *testing.T) {
 			assert.Equal(t, tc.irVHost.Namespace, result.Namespace, "unexpected namespace for test case")
 			assert.Equal(t, tc.irVHost.LabelsToAdd, result.Labels, "unexpected labels for test case")
 			assert.Equal(t, tc.irVHost.AnnotationsToAdd, result.Annotations, "unexpected annotations for test case")
-			assert.Equal(t, tc.irVHost.Metadata, common.MetadataAPIString(result.Spec.Metadata), "unexpected metadata for test case")
+			assert.Equal(t, tc.irVHost.Metadata, common.MetadataAPIString(common.MetadataFromMap(result.Spec.Metadata)), "unexpected metadata for test case")
+		})
+	}
+}
+
+func TestBuildCloudEndpointMetadata(t *testing.T) {
+	testCases := []struct {
+		testName string
+		metadata string
+		want     map[string]string
+	}{
+		{
+			testName: "string values",
+			metadata: `{"owned-by":"ngrok-operator","team":"edge"}`,
+			want:     map[string]string{"owned-by": "ngrok-operator", "team": "edge"},
+		},
+		{
+			testName: "non-string values are dropped, the rest kept",
+			metadata: `{"owned-by":"ngrok-operator","replicas":3,"canary":true,"tags":["a"],"extra":{"k":"v"}}`,
+			want:     map[string]string{"owned-by": "ngrok-operator"},
+		},
+		{
+			testName: "no metadata",
+			metadata: "",
+			want:     nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			result, err := buildCloudEndpoint(&ir.IRVirtualHost{
+				Bindings:  []string{"public"},
+				Namespace: "default",
+				Metadata:  tc.metadata,
+				Listener: ir.IRListener{
+					Hostname: "cloud-host",
+					Port:     443,
+					Protocol: ir.IRProtocol_HTTPS,
+				},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, result.Spec.Metadata)
 		})
 	}
 }
@@ -486,7 +527,7 @@ type TranslatorTestCase struct {
 	}
 
 	Expected struct {
-		CloudEndpoints []*ngrokv1alpha1.CloudEndpoint
+		CloudEndpoints []*ngrokv1.CloudEndpoint
 		AgentEndpoints []*ngrokv1.AgentEndpoint
 	}
 }
@@ -595,7 +636,7 @@ func TestTranslate(t *testing.T) {
 					assert.Nil(t, actualCLEP.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedCLEP.Spec.Description, actualCLEP.Spec.Description)
-				assert.Equal(t, common.MetadataAPIString(expectedCLEP.Spec.Metadata), common.MetadataAPIString(actualCLEP.Spec.Metadata))
+				assert.Equal(t, expectedCLEP.Spec.Metadata, actualCLEP.Spec.Metadata)
 				assert.Equal(t, expectedCLEP.Spec.Bindings, actualCLEP.Spec.Bindings)
 			}
 
@@ -705,7 +746,7 @@ func TestTranslate(t *testing.T) {
 					assert.Nil(t, actualCLEP.Spec.TrafficPolicy)
 				}
 				assert.Equal(t, expectedCLEP.Spec.Description, actualCLEP.Spec.Description)
-				assert.Equal(t, common.MetadataAPIString(expectedCLEP.Spec.Metadata), common.MetadataAPIString(actualCLEP.Spec.Metadata))
+				assert.Equal(t, expectedCLEP.Spec.Metadata, actualCLEP.Spec.Metadata)
 				assert.Equal(t, expectedCLEP.Spec.Bindings, actualCLEP.Spec.Bindings)
 			}
 
@@ -906,7 +947,7 @@ func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) Tran
 	for _, rawObj := range rawTC.Expected.CloudEndpoints {
 		obj, err := decodeViaScheme(sch, rawObj)
 		require.NoError(t, err)
-		ce, ok := obj.(*ngrokv1alpha1.CloudEndpoint)
+		ce, ok := obj.(*ngrokv1.CloudEndpoint)
 		require.True(t, ok, "expected a CloudEndpoint, got %T", obj)
 		tc.Expected.CloudEndpoints = append(tc.Expected.CloudEndpoints, ce)
 	}

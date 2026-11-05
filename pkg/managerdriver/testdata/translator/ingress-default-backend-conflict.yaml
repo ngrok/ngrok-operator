@@ -93,7 +93,7 @@ expected:
   # Generated cloud endpoint should have the routes and default backend from the first ingress, but
   # the second ingress will not be processed due to the conflicting default destination
   cloudEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
       labels:
