@@ -30,6 +30,7 @@ import (
 	"maps"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
 	"time"
 
@@ -953,9 +954,11 @@ func (r *serviceAgentEndpointReconciler) UpdateServiceStatus(ctx context.Context
 // tunnel on the same URL, so it is deleted.
 func (r *serviceAgentEndpointReconciler) Reconcile(ctx context.Context, c client.Client, objects []client.Object) error {
 	var desired []*ngrokv1.AgentEndpoint
-	for _, o := range objects {
+	at := -1
+	for i, o := range objects {
 		if aep, ok := o.(*ngrokv1.AgentEndpoint); ok {
 			desired = append(desired, aep)
+			at = i
 		}
 	}
 
@@ -966,8 +969,13 @@ func (r *serviceAgentEndpointReconciler) Reconcile(ctx context.Context, c client
 		twin = r.owned[0].Name
 	case len(r.owned) == 0 && len(r.legacy) == 1:
 		twin = r.legacy[0].Name
-		desired[0].Name = twin
-		desired[0].GenerateName = ""
+		// The other subresource reconcilers read objects concurrently, so
+		// rename a copy.
+		named := desired[0].DeepCopy()
+		named.Name = twin
+		named.GenerateName = ""
+		objects = slices.Clone(objects)
+		objects[at] = named
 	}
 
 	for i := range r.legacy {
