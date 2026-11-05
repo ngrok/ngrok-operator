@@ -27,8 +27,6 @@ package ngrok
 import (
 	"context"
 	"errors"
-	"fmt"
-	"slices"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -41,16 +39,15 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ngrok/ngrok-api-go/v9"
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/cloudendpoint"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ngrokapi"
 	trafficpolicypkg "github.com/ngrok/ngrok-operator/internal/trafficpolicy"
-	"github.com/ngrok/ngrok-operator/internal/util"
 )
 
 // CloudEndpointReconciler reconciles a CloudEndpoint object
@@ -58,6 +55,7 @@ type CloudEndpointReconciler struct {
 	client.Client
 	Scheme     *runtime.Scheme
 	controller *controller.BaseController[*ngrokv1alpha1.CloudEndpoint]
+	syncer     *cloudendpoint.Syncer
 
 	Log            logr.Logger
 	Recorder       events.EventRecorder
@@ -102,15 +100,23 @@ func (r *CloudEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		r.TrafficPolicyManager = trafficpolicypkg.NewManager(r.Client, r.Recorder)
 	}
 
+	// TODO(#923): Domains becomes the ngrok.com/v1 Domain manager once Domain moves.
+	r.syncer = &cloudendpoint.Syncer{
+		Endpoints:       r.NgrokClientset.Endpoints(),
+		Domains:         r.DomainManager,
+		TrafficPolicies: r.TrafficPolicyManager,
+		Recorder:        r.Recorder,
+	}
+
 	r.controller = &controller.BaseController[*ngrokv1alpha1.CloudEndpoint]{
 		Kube:       r.Client,
 		Log:        r.Log,
 		Recorder:   r.Recorder,
 		DrainState: r.DrainState,
 
-		StatusID: func(clep *ngrokv1alpha1.CloudEndpoint) string { return clep.Status.ID },
-		Create:   r.create,
-		Update:   r.update,
+		StatusID: func(clep *ngrokv1alpha1.CloudEndpoint) string { return clep.GetID() },
+		Create:   r.sync,
+		Update:   r.sync,
 		Delete:   r.delete,
 		ErrResult: func(_ controller.BaseControllerOp, cr *ngrokv1alpha1.CloudEndpoint, err error) (ctrl.Result, error) {
 			retryableErrors := []int{
@@ -201,147 +207,12 @@ func (r *CloudEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return r.controller.Reconcile(ctx, req, new(ngrokv1alpha1.CloudEndpoint))
 }
 
-// Create will make sure a domain is created before creating the Cloud Endpoint
-// It also looks up the Traffic Policy and creates the Cloud Endpoint using this Traffic Policy JSON
-func (r *CloudEndpointReconciler) create(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
-	// EnsureDomainExists handles its own domain-related status
-	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep)
-	if err != nil {
-		return r.updateStatus(ctx, clep, nil, domainResult, err)
-	}
-
-	tpResult, err := r.TrafficPolicyManager.Resolve(ctx, clep)
-	if err != nil {
-		return r.updateStatus(ctx, clep, nil, domainResult, err)
-	}
-
-	return r.createWithPolicy(ctx, clep, domainResult, tpResult.Policy)
+func (r *CloudEndpointReconciler) sync(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
+	return r.controller.ReconcileStatus(ctx, clep, r.syncer.Sync(ctx, clep))
 }
 
-// createWithPolicy issues the ngrok API Create call using an already-resolved
-// policy. Split out of create() so the update() → 404 → recreate fallback can
-// reuse the policy it already resolved instead of calling
-// TrafficPolicyManager.Resolve a second time on the same reconcile.
-func (r *CloudEndpointReconciler) createWithPolicy(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult, policy string) error {
-	metadata := commonv1alpha1.MetadataAPIString(clep.Spec.Metadata)
-	createParams := &ngrok.EndpointCreate{
-		Type:           "cloud",
-		URL:            clep.Spec.URL,
-		Description:    &clep.Spec.Description,
-		Metadata:       &metadata,
-		TrafficPolicy:  policy,
-		Bindings:       util.NilIfEmpty(clep.Spec.Bindings),
-		PoolingEnabled: clep.Spec.PoolingEnabled,
-	}
-
-	ngrokClep, err := r.NgrokClientset.Endpoints().Create(ctx, createParams)
-	if err != nil {
-		return r.recordWriteError(ctx, clep, domainResult, policy, err, fmt.Sprintf("Failed to create cloud endpoint: %v", err))
-	}
-
-	return r.recordWriteSuccess(ctx, clep, ngrokClep, domainResult, "CloudEndpoint created successfully")
-}
-
-// Update is called when we have a status ID and want to update the resource in the ngrok API
-// If it fails to find the resource by ID, create a new one instead
-func (r *CloudEndpointReconciler) update(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
-	domainResult, err := r.DomainManager.EnsureDomainExists(ctx, clep)
-	if err != nil {
-		return r.updateStatus(ctx, clep, nil, domainResult, err)
-	}
-
-	tpResult, err := r.TrafficPolicyManager.Resolve(ctx, clep)
-	if err != nil {
-		return r.updateStatus(ctx, clep, nil, domainResult, err)
-	}
-	policy := tpResult.Policy
-
-	// Fetch current endpoint state from the ngrok API so we can compare
-	// before issuing an update. This avoids redundant API writes on every
-	// requeue cycle (e.g. while waiting for a domain to become ready).
-	currentEndpoint, err := r.NgrokClientset.Endpoints().Get(ctx, clep.Status.ID)
-	if ngrok.IsNotFound(err) {
-		r.Recorder.Eventf(clep, nil, v1.EventTypeWarning, "EndpointNotFound", "Reconcile", fmt.Sprintf("Failed to find endpoint %s by ID. Creating a new one", clep.Status.ID))
-		clep.Status.ID = ""
-		clep.Status.AssignedURL = ""
-		if err := r.controller.ReconcileStatus(ctx, clep, nil); err != nil {
-			return err
-		}
-		return r.createWithPolicy(ctx, clep, domainResult, policy)
-	}
-	if err != nil {
-		return r.updateStatus(ctx, clep, nil, domainResult, err)
-	}
-
-	// Skip the API update if nothing has changed
-	if !endpointNeedsUpdate(currentEndpoint, clep.Spec, policy) {
-		return r.recordWriteSuccess(ctx, clep, currentEndpoint, domainResult, "CloudEndpoint updated successfully")
-	}
-
-	metadata := commonv1alpha1.MetadataAPIString(clep.Spec.Metadata)
-	updateParams := &ngrok.EndpointUpdate{
-		ID:             clep.Status.ID,
-		Url:            &clep.Spec.URL,
-		Description:    &clep.Spec.Description,
-		Metadata:       &metadata,
-		TrafficPolicy:  &policy,
-		Bindings:       util.NilIfEmpty(clep.Spec.Bindings),
-		PoolingEnabled: clep.Spec.PoolingEnabled,
-	}
-
-	ngrokClep, err := r.NgrokClientset.Endpoints().Update(ctx, updateParams)
-	if err != nil {
-		return r.recordWriteError(ctx, clep, domainResult, policy, err, fmt.Sprintf("Failed to update cloud endpoint: %v", err))
-	}
-
-	return r.recordWriteSuccess(ctx, clep, ngrokClep, domainResult, "CloudEndpoint updated successfully")
-}
-
-// recordWriteSuccess marks the resolved traffic policy as applied and the
-// endpoint as created, then writes status. Called after a downstream
-// create/update (or a skipped no-op update) succeeds.
-func (r *CloudEndpointReconciler) recordWriteSuccess(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, ngrokClep *ngrok.Endpoint, domainResult *domainpkg.DomainResult, message string) error {
-	r.TrafficPolicyManager.MarkApplied(clep)
-	setCloudEndpointCreatedCondition(clep, true, ReasonCloudEndpointCreated, message)
-	return r.updateStatus(ctx, clep, ngrokClep, domainResult, nil)
-}
-
-// recordWriteError marks the endpoint creation as failed and, when the ngrok
-// API rejected the request because of the policy itself, surfaces that on the
-// TrafficPolicyApplied condition. Called after a downstream create/update fails.
-func (r *CloudEndpointReconciler) recordWriteError(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, domainResult *domainpkg.DomainResult, policy string, err error, message string) error {
-	setCloudEndpointCreatedCondition(clep, false, ReasonCloudEndpointCreationFailed, message)
-	if policy != "" && ngrokapi.IsTrafficPolicyError(err.Error()) {
-		r.TrafficPolicyManager.SetError(clep, ngrokapi.SanitizeErrorMessage(err.Error()))
-	}
-	return r.updateStatus(ctx, clep, nil, domainResult, err)
-}
-
-// Simply attempt to delete it. The base controller handles not found errors
 func (r *CloudEndpointReconciler) delete(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint) error {
-	return r.NgrokClientset.Endpoints().Delete(ctx, clep.Status.ID)
-}
-
-func (r *CloudEndpointReconciler) updateStatus(ctx context.Context, clep *ngrokv1alpha1.CloudEndpoint, ngrokClep *ngrok.Endpoint, domainResult *domainpkg.DomainResult, statusErr error) error {
-	// Update status fields if we have an endpoint
-	if ngrokClep != nil {
-		clep.Status.ID = ngrokClep.ID
-		clep.Status.AssignedURL = ngrokClep.URL
-	}
-
-	// Calculate overall Ready condition based on other conditions and domain status
-	calculateCloudEndpointReadyCondition(clep, domainResult)
-
-	// Write status to k8s API
-	if err := r.controller.ReconcileStatus(ctx, clep, statusErr); err != nil {
-		return err
-	}
-
-	// Requeue if domain is not ready (fallback to watch for convergence)
-	if domainResult != nil {
-		return domainResult.RequeueError()
-	}
-	return nil
+	return r.syncer.Delete(ctx, clep)
 }
 
 // #region Helper Functions
@@ -396,29 +267,4 @@ func (r *CloudEndpointReconciler) findCloudEndpointsForDomain(ctx context.Contex
 		}
 	}
 	return requests
-}
-
-// endpointNeedsUpdate compares the current endpoint state from the ngrok API
-// against the desired state derived from the CloudEndpoint spec and the resolved
-// traffic policy. Returns true if an API update call is necessary.
-func endpointNeedsUpdate(current *ngrok.Endpoint, spec ngrokv1alpha1.CloudEndpointSpec, policy string) bool {
-	if current.URL != spec.URL {
-		return true
-	}
-	if current.Description != spec.Description {
-		return true
-	}
-	if current.Metadata != commonv1alpha1.MetadataAPIString(spec.Metadata) {
-		return true
-	}
-	if current.TrafficPolicy != policy {
-		return true
-	}
-	if !slices.Equal(current.Bindings, spec.Bindings) {
-		return true
-	}
-	if spec.PoolingEnabled != nil && current.PoolingEnabled != *spec.PoolingEnabled {
-		return true
-	}
-	return false
 }

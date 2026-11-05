@@ -33,6 +33,7 @@ import (
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/cloudendpoint"
 	"github.com/ngrok/ngrok-operator/internal/errors"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	. "github.com/onsi/ginkgo/v2"
@@ -103,7 +104,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(obj.Status.AssignedURL).To(Equal("https://test.internal"))
 
 				// Check ready condition
-				cond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				cond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionCloudEndpointReady)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
@@ -213,7 +214,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
 				g.Expect(obj.Status.ID).NotTo(BeEmpty())
 
-				tpCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionTrafficPolicy)
+				tpCond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionTrafficPolicy)
 				g.Expect(tpCond).NotTo(BeNil())
 				g.Expect(tpCond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
@@ -280,7 +281,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
 
 				// Check that error condition is set
-				cond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointCreated)
+				cond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionCloudEndpointCreated)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 			}, timeout, interval).Should(Succeed())
@@ -620,7 +621,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cloudEndpoint), obj)).To(Succeed())
 
 				// Check that error condition is set
-				cond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointCreated)
+				cond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionCloudEndpointCreated)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 			}, timeout, interval).Should(Succeed())
@@ -662,7 +663,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(domainCond.Message).To(ContainSubstring("Kubernetes binding"))
 
 				// Ready condition should be True (all conditions satisfied)
-				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionCloudEndpointReady)
 				g.Expect(readyCond).NotTo(BeNil())
 				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
@@ -710,7 +711,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 
 				g.Expect(obj.Status.DomainRef).To(BeNil())
 
-				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionCloudEndpointReady)
 				g.Expect(readyCond).NotTo(BeNil())
 				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
 			}, timeout, interval).Should(Succeed())
@@ -752,7 +753,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionFalse))
 
 				// Ready should be False
-				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionCloudEndpointReady)
 				g.Expect(readyCond).NotTo(BeNil())
 				g.Expect(readyCond.Status).To(Equal(metav1.ConditionFalse))
 			}, timeout, interval).Should(Succeed())
@@ -789,7 +790,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				g.Expect(domainCond.Status).To(Equal(metav1.ConditionTrue))
 
 				// Ready should be True
-				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionCloudEndpointReady)
 				g.Expect(readyCond).NotTo(BeNil())
 				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
 			}, 45*time.Second, interval).Should(Succeed())
@@ -867,7 +868,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 					obj := &ngrokv1alpha1.CloudEndpoint{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ep), obj)).To(Succeed())
 
-					readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+					readyCond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionCloudEndpointReady)
 					g.Expect(readyCond).NotTo(BeNil())
 					g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
 				}, timeout, interval).Should(Succeed())
@@ -965,7 +966,7 @@ var _ = Describe("CloudEndpoint Controller", func() {
 				// reservation exists without inspecting the Domain CR.
 				g.Expect(domainCond.Reason).To(Equal("CoveredByWildcardDomain"))
 
-				readyCond := findCloudEndpointCondition(obj.Status.Conditions, ConditionCloudEndpointReady)
+				readyCond := findCloudEndpointCondition(obj.Status.Conditions, cloudendpoint.ConditionCloudEndpointReady)
 				g.Expect(readyCond).NotTo(BeNil())
 				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
 
