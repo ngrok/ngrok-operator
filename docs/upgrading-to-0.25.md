@@ -345,8 +345,10 @@ reconciles each object.
 [`KubernetesOperator` moves to `ngrok.com/v1`](#kubernetesoperator-moves-to-ngrokcomv1)),
 `domains.ngrok.com` (see
 [`Domain` moves to `ngrok.com/v1`](#domain-moves-to-ngrokcomv1)),
-and `agentendpoints.ngrok.com` (see
+`agentendpoints.ngrok.com` (see
 [AgentEndpoints move to `ngrok.com/v1`](#agentendpoints-move-to-ngrokcomv1)),
+and `cloudendpoints.ngrok.com` (see
+[CloudEndpoints move to `ngrok.com/v1`](#cloudendpoints-move-to-ngrokcomv1)),
 and the operator watches them on startup. If you install the CRD chart
 separately, upgrade `ngrok/ngrok-crds` to `0.5.x` before upgrading the operator
 chart, or the operator will not start. If that happens, the new pods crash-loop
@@ -431,9 +433,9 @@ Both kinds are served in 0.25. Endpoints keep serving through the upgrade:
   deletes it with its replacement once the Ingress, route, or Service no
   longer needs it.
 - An `ngrok.com/v1` AgentEndpoint's metadata holds strings only, so the
-  `ngrok.com/metadata` annotation on an Ingress or route must be a JSON object
-  of strings. If any value isn't a string, such as `{"replicas": 3}`, the
-  generated AgentEndpoint gets none of that metadata.
+  `ngrok.com/metadata` annotation on an Ingress or route should be a JSON
+  object of strings. A value that isn't a string, such as `{"replicas": 3}`, is
+  left out of the generated AgentEndpoint's metadata; the other keys are kept.
 - AgentEndpoints you created keep working. Migrate them after the rollback
   window; see
   [Migrate `AgentEndpoint` to `ngrok.com/v1`](#migrate-agentendpoint-to-ngrokcomv1).
@@ -447,6 +449,38 @@ Like the other new CRDs, `agentendpoints.ngrok.com` carries
 `helm.sh/resource-policy: keep`, so a rollback can't delete it and every object
 stored under it. As a result, `helm uninstall` leaves it behind; delete it by
 hand after uninstalling.
+
+### CloudEndpoints move to `ngrok.com/v1`
+
+CloudEndpoint moves from `ngrok.k8s.ngrok.com/v1alpha1` to `ngrok.com/v1`.
+Both kinds are served in 0.25. Endpoints keep serving through the upgrade:
+
+- The CloudEndpoints the operator creates for Ingresses, Gateway API routes,
+  and LoadBalancer Services (in `endpoints-verbose` mode) are now
+  `ngrok.com/v1` objects. Each takes the name of the legacy CloudEndpoint it
+  replaces and takes over its ngrok endpoint, ID included, so nothing is
+  recreated. The legacy object is left in place, marked `Ready` with reason
+  `SupersededByV1`, so a rollback to 0.24 finds it intact. The operator
+  deletes it with its replacement once the Ingress, route, or Service no
+  longer needs it. A Service names its first `ngrok.com/v1` CloudEndpoint
+  after one of its legacy ones, preferring one that already has an ID.
+- An `ngrok.com/v1` CloudEndpoint's metadata holds strings only, so the
+  `ngrok.com/metadata` annotation on an Ingress, route, or Service must be a
+  JSON object of strings. If any value isn't a string, such as
+  `{"replicas": 3}`, the generated CloudEndpoint gets none of that metadata.
+- CloudEndpoints you created keep working. Migrate them after the rollback
+  window; see
+  [Migrate `CloudEndpoint` to `ngrok.com/v1`](#migrate-cloudendpoint-to-ngrokcomv1).
+
+Both CRDs use the plural `cloudendpoints` and the short name `clep`. Once both
+exist, `kubectl get cloudendpoints` lists the `ngrok.com` objects only. Use the
+full names, `cloudendpoints.ngrok.com` and
+`cloudendpoints.ngrok.k8s.ngrok.com`, in scripts and tooling.
+
+`cloudendpoints.ngrok.com` carries `helm.sh/resource-policy: keep`, so a
+rollback can't delete it and every object stored under it. As a result,
+`helm uninstall` leaves it behind; delete it by hand after uninstalling (see
+[Uninstalling](./uninstall.md)).
 
 ### Endpoint events
 
@@ -641,12 +675,12 @@ kubectl rollout restart --namespace "$NAMESPACE" \
 
 ## Rolling back
 
-To return to `0.24.x` within the rollback window, reinstall with the backups
-captured above:
+To return to the `0.24.x` release you upgraded from within the rollback
+window, reinstall it with the backups captured above:
 
 ```bash
 helm upgrade "$RELEASE" ngrok/ngrok-operator \
-  --namespace "$NAMESPACE" --version 0.24.0 \
+  --namespace "$NAMESPACE" --version 0.24.2 \
   --values ngrok-operator-0.24-values.yaml --wait
 ```
 
@@ -676,6 +710,25 @@ brings the generated ones up to date, which can take about 30 seconds. Until
 then an Ingress, route, or Service you changed or deleted during the rollback
 serves its old configuration, and a Service created after the first upgrade
 can show two endpoints on its URL in the ngrok dashboard.
+
+CloudEndpoints roll back too: 0.24 serves the legacy CloudEndpoints, which keep
+their ngrok IDs. A `ngrok.com/v1` CloudEndpoint you created after the upgrade
+is ignored by 0.24: its endpoint keeps running but is no longer updated, and
+deleting it hangs on its finalizer until you upgrade again. An Ingress, route,
+or Service you created after the upgrade has only a `ngrok.com/v1`
+CloudEndpoint, whose endpoint keeps serving unmanaged, so 0.24 generates a
+legacy one with no ID:
+
+- If the URL doesn't have pooling enabled (the default), ngrok rejects 0.24's
+  create with `ERR_NGROK_18017`. The legacy object reports
+  `CloudEndpointCreationFailed` and keeps retrying, and no second endpoint is
+  created. After you upgrade again, there is nothing to clean up.
+- If pooling is enabled, 0.24 creates a second endpoint on the same URL, which
+  is a duplicate in the pool and on the bill. After you upgrade again, a
+  Service's extra legacy CloudEndpoint is deleted for you. For an Ingress or
+  route, the operator reports a `CloudEndpointIDConflict` (see
+  [Migrate `CloudEndpoint`](#migrate-cloudendpoint-to-ngrokcomv1)); delete the
+  legacy object to remove the extra endpoint.
 
 If you install the CRD chart separately, roll back the operator first, then the
 CRD chart.
@@ -1109,6 +1162,132 @@ after it applies.
 If you delete an `ngrok.com/v1` AgentEndpoint whose legacy twin still exists,
 the legacy one drives the endpoint again.
 
+### Migrate `CloudEndpoint` to `ngrok.com/v1`
+
+`ngrok.k8s.ngrok.com/v1alpha1` `CloudEndpoint` is deprecated. Its replacement is
+`ngrok.com/v1` `CloudEndpoint`. The spec is unchanged except `spec.metadata`,
+which must be a map:
+
+```yaml
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: CloudEndpoint
+metadata:
+  name: my-endpoint
+spec:
+  url: https://example.ngrok.app
+  trafficPolicy:
+    inline:
+      on_http_request:
+        - actions:
+            - type: custom-response
+              config:
+                status_code: 200
+  metadata: '{"team":"edge"}'
+```
+
+becomes:
+
+```yaml
+apiVersion: ngrok.com/v1
+kind: CloudEndpoint
+metadata:
+  name: my-endpoint
+spec:
+  url: https://example.ngrok.app
+  trafficPolicy:
+    inline:
+      on_http_request:
+        - actions:
+            - type: custom-response
+              config:
+                status_code: 200
+  metadata:
+    team: edge
+```
+
+Both kinds are served in 0.25. **The endpoint keeps its ngrok ID.** When you
+create an `ngrok.com/v1` `CloudEndpoint` with the same name and namespace as an
+existing legacy one, the operator hands the existing ngrok endpoint to the new
+object instead of creating another. From then on:
+
+- The `ngrok.com/v1` object manages the endpoint. Its spec is pushed to ngrok.
+- The legacy object stays `Ready`, with reason `SupersededByV1`. Changes to it
+  have no effect; the operator emits a `DeprecatedAPIGroup` warning event if
+  you edit it.
+- Deleting the legacy object leaves the endpoint in place. Deleting the
+  `ngrok.com/v1` object instead hands the endpoint back to the legacy object.
+  The ngrok endpoint is deleted only when neither object remains.
+
+`kubectl apply` of a legacy `CloudEndpoint` prints a deprecation warning.
+
+Keep the name, not just the URL: the two objects are matched by namespace and
+name. If the two objects have different `spec.url` values, the endpoint moves
+to the `ngrok.com/v1` URL as soon as it takes over, and traffic on the old URL
+stops. Distinct names on one URL stay separate endpoints, as pooling allows.
+
+Both CRDs use the plural `cloudendpoints` and the short name `clep`. Use the
+fully qualified names below in scripts. For each CloudEndpoint you created,
+apply the `ngrok.com/v1` object, confirm it has the same ID, then delete the
+legacy one:
+
+```bash
+# CloudEndpoints you created; the operator's own carry its controller labels
+# or a Service owner.
+kubectl get cloudendpoints.ngrok.k8s.ngrok.com -A \
+  -l '!ngrok.com/controller-name,!k8s.ngrok.com/controller-name'
+
+kubectl get cloudendpoints.ngrok.k8s.ngrok.com my-endpoint -n my-namespace -o json |
+  jq '
+    .apiVersion = "ngrok.com/v1"
+    | if (.spec.metadata | type) == "string"
+      then .spec.metadata |= (try fromjson catch error("spec.metadata is not a JSON object; set it by hand"))
+      else . end
+    | if (.spec.metadata | type) == "object"
+      then .spec.metadata |= with_entries(select(.value | type == "string"))
+      else . end
+    | del(.metadata.resourceVersion, .metadata.uid,
+          .metadata.creationTimestamp, .metadata.generation,
+          .metadata.managedFields, .metadata.finalizers, .status)
+  ' |
+  kubectl apply -f -
+
+kubectl get cloudendpoints.ngrok.com my-endpoint -n my-namespace
+kubectl get cloudendpoints.ngrok.k8s.ngrok.com my-endpoint -n my-namespace
+
+kubectl delete cloudendpoints.ngrok.k8s.ngrok.com my-endpoint -n my-namespace
+```
+
+Both `get` commands should show the same ID before you delete the legacy
+object.
+
+`ngrok.com/v1` `CloudEndpoint` accepts `metadata` only as a map of string
+values. The `jq` filter converts string-form metadata that holds a JSON object,
+and **drops any value that isn't a string**, such as `{"replicas": 3}`, from the
+endpoint. Free-text metadata makes the filter stop; set it by hand.
+
+If you manage CloudEndpoints with GitOps, change `apiVersion` (and any
+string-form `metadata`) in the source manifest instead. Let your tool create the
+new object and confirm it has the legacy object's ID before it prunes the old
+one.
+
+CloudEndpoints the operator generates for Ingresses, Gateway API routes, and
+Services need no action.
+
+If the two objects hold different ngrok endpoints, for example because both
+were applied before the legacy one got an ID, the operator manages only the
+`ngrok.com/v1` one, deletes neither endpoint, and emits a
+`CloudEndpointIDConflict` warning event on both objects. Delete the object
+whose endpoint you don't need; deleting an object deletes its endpoint.
+
+Find legacy objects and their state:
+
+```bash
+kubectl get cloudendpoints.ngrok.k8s.ngrok.com -A \
+  -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,ID:.status.id,REASON:'.status.conditions[?(@.type=="Ready")].reason'
+```
+
+A `REASON` of `SupersededByV1` means the legacy object is safe to delete.
+
 ## Prepare for later cleanup releases
 
 0.25 still retains some compatibility code. Complete the user-managed
@@ -1121,6 +1300,7 @@ migrations before their cleanup releases:
 | `ingress.k8s.ngrok.com/v1alpha1` `Domain` | Serves both CRDs; the operator creates and prefers `ngrok.com/v1` Domains, and migrates the ones it created | Re-stamp the Domains you created (see [`Domain` moves to `ngrok.com/v1`](#domain-moves-to-ngrokcomv1)) before 1.1. 1.0 stops reconciling legacy Domains and removes their finalizers; a legacy Domain with no `ngrok.com/v1` twin keeps its reservation in ngrok, unmanaged, until you re-stamp it. 1.1 removes the `domains.ingress.k8s.ngrok.com` CRD. Upgrade through both 0.25 and 1.0; see [CRD Group Migration](../specs/crd-group-migration.md#release-plan) |
 | `IPPolicy` in `ingress.k8s.ngrok.com` | Serves both CRDs; an `ngrok.com/v1` `IPPolicy` takes over the legacy object's ngrok IP policy | Migrate to `ngrok.com/v1` `IPPolicy` before upgrading to 1.0, which stops reconciling the legacy kind. 1.1 removes the `ippolicies.ingress.k8s.ngrok.com` CRD; a policy re-stamped after that gets a new ID |
 | `ngrok.k8s.ngrok.com/v1alpha1` `AgentEndpoint` kind | Serves both CRDs; the `ngrok.com/v1` twin drives the endpoint | Migrate your AgentEndpoints to `ngrok.com/v1` before 1.0. The agent runs the endpoint itself, so a legacy AgentEndpoint goes offline as soon as 1.0 is running |
+| `ngrok.k8s.ngrok.com/v1alpha1` `CloudEndpoint` kind | Serves both CRDs; an `ngrok.com/v1` `CloudEndpoint` takes over the legacy object's ngrok endpoint | Migrate your CloudEndpoints to `ngrok.com/v1` before upgrading to 1.0, which stops reconciling the legacy kind; its endpoint keeps running unmanaged. A late re-stamp keeps its ID until 1.1 removes the legacy CRD, after which it gets a new one |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
 | Operator-written labels, annotations, and finalizer | Writes new prefix only; still reads legacy | None. The next release stops reading the legacy prefix, so upgrade through 0.25 rather than skipping it |

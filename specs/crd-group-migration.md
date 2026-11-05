@@ -119,6 +119,21 @@ between kinds must be listed under [Exceptions](#exceptions).
   only at startup, so nothing recreates or hands control back mid-run.
   Deleting the v1 object while a legacy twin exists skips the drain and the
   ngrok delete, releases the v1 finalizer, and emits `LegacyTwinSkippedDrain`.
+- **CloudEndpoint, rule 3 extension.** v1 also adopts a live legacy ID when
+  its own ID no longer exists in ngrok, instead of recreating. A rollback
+  creates this state: 0.24 gives a legacy object a new endpoint, and the
+  roll-forward finds v1 holding the ID of one that was since replaced. The
+  mirror case: when legacy's ID no longer exists, legacy follows v1's ID (or
+  clears), so the dead ID is never adopted again and a rollback reuses v1's
+  endpoint. Twins holding different live IDs get a `CloudEndpointIDConflict`
+  event and neither endpoint is deleted.
+- **CloudEndpoint, rule 5 wait.** A deleted legacy object whose v1 twin has no
+  ID yet requeues for a second before deciding, since v1 may still adopt the
+  ID. Drain never waits.
+- **CloudEndpoint, Service twin selection.** A Service's endpoints are named by
+  `GenerateName`, so its first v1 object takes the name of one of its legacy
+  objects (one with an ID preferred, then the lowest name); other legacy
+  objects it owns are deleted.
 - **KubernetesOperator, rule 10.** Deleting the KubernetesOperator is what
   starts the drain, so the general drain ordering does not apply to it.
 - **Domain, rule 3.** A reservation belongs to one hostname, so v1 adopts the
@@ -150,6 +165,12 @@ between kinds must be listed under [Exceptions](#exceptions).
   (description, `resolvesTo`), so the user re-stamps it. If the user deletes
   the legacy Domain without creating a v1 one, or if R2 leaves it inert,
   `ensureDomains` then creates the default v1 Domain.
+- **CloudEndpoint:** Implemented by
+  `internal/controller/ngrok/cloudendpoint_controller.go` and
+  `internal/cloudendpoint`; the kind-agnostic `Resource` interface lets both
+  kinds share one `Syncer`. Behaviors beyond the twin rules are under
+  [Exceptions](#exceptions). The v1 CRD carries the keep annotation
+  and both CRDs use the plural `cloudendpoints` and the short name `clep`.
 - **CloudEndpoint / AgentEndpoint, operator-generated:** The generator writes
   v1 objects with the same name. Rules 3-4 hand ownership over. The legacy
   object stays (rule 7) until R2 makes it inert, unless its source no longer

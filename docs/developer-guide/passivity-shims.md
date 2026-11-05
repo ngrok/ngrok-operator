@@ -223,6 +223,7 @@ Current sentinel tags:
 - `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
 - `LEGACY-enabledfeatures-format` — `KubernetesOperator.status.enabledFeatures` comma-separated **string** → `[]string` (a field *type* change on an operator-only, operator-written status field; same `json:` tag).
 - `LEGACY-values-layout` — Helm values moved in the 0.25 layout. `templates/_legacy-values.tpl` fails the render when an old top-level key is set, naming its new path, so old values are never silently ignored. Delete the file, its include and the tagged tests once 0.25 is the oldest release users upgrade from.
+- `LEGACY-cloudendpoint-kind` — CRD **group** move: `ngrok.k8s.ngrok.com/v1alpha1 CloudEndpoint` → `ngrok.com/v1 CloudEndpoint` (spec identical except `spec.metadata`, a `map[string]string` in v1). See the CloudEndpoint catalog entry below.
 
 ## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
 
@@ -1074,6 +1075,109 @@ resource, see the KubernetesOperator section below.
   the legacy RBAC, the `.golangci.yml` exclusion and the tests tagged for
   deletion. The shared-type aliases in `api/ngrok/v1alpha1/common_types.go`
   go with the last `v1alpha1` endpoint kind.
+
+## Per-shim catalog: CloudEndpoint CRD group move
+
+### `ngrok.k8s.ngrok.com/v1alpha1 CloudEndpoint` → `ngrok.com/v1 CloudEndpoint`
+
+- **Pattern:** Three-release CRD group move. The general plan, the twin rules,
+  and the required stops are in
+  [specs/crd-group-migration.md](../../specs/crd-group-migration.md). Tag:
+  `LEGACY-cloudendpoint-kind`.
+- **Why a pair reconciler:** a CloudEndpoint owns a remote ngrok endpoint
+  (`ep_...`). Two independent controllers would give a re-stamped manifest a
+  second, separately billed endpoint, and deleting the legacy object would
+  delete the endpoint the v1 object serves through. So the two kinds are
+  reconciled as a pair keyed by `namespace/name`, never by URL (pooling lets
+  distinct objects share one), and the v1 object adopts the legacy object's ID.
+- **R1 — migration release (0.25):**
+  - Two CRDs ship. The v1 spec matches the legacy one except `spec.metadata`,
+    which is a `map[string]string`. The legacy kind carries a
+    `deprecatedversion` warning and a Go `Deprecated:` comment (`SA1019`
+    excluded in `.golangci.yml`). The v1 CRD carries
+    `helm.sh/resource-policy: keep`. Both use the plural `cloudendpoints` and
+    the short name `clep`.
+  - `internal/cloudendpoint`: the kind-agnostic `Resource` interface, the
+    conditions helpers (`ReasonSupersededByV1`), the diff, and `Syncer`, which
+    pushes one object to the ngrok API and only changes it in memory.
+  - `internal/controller/ngrok/cloudendpoint_controller.go`: one reconciler
+    with `For` the v1 kind and a tagged `Watches` on the legacy kind. Each pass
+    loads both objects of a key and applies the twin rules:
+    - v1 adopts a legacy ID when it has none, and persists it first
+      (`CloudEndpointAdopted` event). The same applies when v1's own ID no
+      longer exists in ngrok (`adoptOverDeadID`): a rollback can leave v1
+      holding the ID of an endpoint 0.24 replaced, and adopting the legacy ID
+      avoids creating a third endpoint.
+    - While v1 is alive it is the only writer. The legacy twin is passive
+      (`Ready=True`, reason `SupersededByV1`); a user-created one gets a
+      `DeprecatedAPIGroup` warning event, an operator-generated one (controller
+      label or Service owner) doesn't. If the legacy twin's ID no longer exists
+      in ngrok, it follows v1's ID (or clears), so a rollback reuses v1's
+      endpoint.
+    - Twins holding different live IDs: v1 stays the only writer, neither
+      endpoint is deleted, and a `CloudEndpointIDConflict` warning event is
+      emitted on both.
+    - A remote endpoint is deleted only when no surviving twin holds its ID.
+      The twin is re-read through the `APIReader` first and the read fails
+      closed (`cloudEndpointTwinDecision`), including waiting for a v1 twin with
+      no ID that may still adopt it. Legacy finalizers stay in R1, and a legacy
+      object whose v1 twin is alive releases its finalizer without an ngrok
+      call.
+    - Adopting a legacy ID applies v1's spec, so a different `spec.url` moves
+      the endpoint.
+  - Writers:
+    - `pkg/managerdriver` (Ingress and Gateway API) creates and updates v1
+      CloudEndpoints with the legacy objects' names. A still-desired legacy
+      CloudEndpoint is left alone so a rollback finds it intact; one that is no
+      longer desired is deleted, before its v1 twin.
+    - The Service controller owns v1 CloudEndpoints. Their names come from
+      `GenerateName`, so the first one it creates takes the name of one of the
+      Service's legacy CloudEndpoints (`pickLegacyCloudEndpointTwin`: one with
+      an ID first, then by name), and any other legacy one is deleted. Until the
+      v1 object has a `domainRef`, the Service's load balancer status comes
+      from its legacy twin.
+    - Generated `spec.metadata` is converted with `MetadataToMap`; if any
+      annotation value isn't a string, the generated object gets no metadata.
+  - `internal/drain`: drains the legacy kind before v1.
+  - RBAC: `ngrok.com` `cloudendpoints` rules in the api-manager role and the
+    `cloudendpoint-{editor,viewer}` roles, next to the tagged legacy rules.
+- **R2 (1.0):** the pair reconciler goes back to a single-kind reconcile on
+  the v1 kind.
+  - Delete the legacy `Watches` and indexes, `cloudEndpointPair`'s legacy half,
+    `adopt`, `adoptOverDeadID`, `syncPassive`, `setPassive`, the twin check, and
+    the legacy deletes in the managerdriver and the Service controller
+    (including the name reuse and status fallback).
+  - Add one-way late adoption: a v1 CloudEndpoint with no ID reads the
+    same-named legacy object as `unstructured` and adopts `status.id`, so a late
+    re-stamp keeps its endpoint. The kind-agnostic finalizer sweeper strips the
+    legacy finalizers. Both are in the
+    [R2 plan](../../specs/crd-group-migration.md#r2-10).
+  - An unmigrated legacy CloudEndpoint keeps running unmanaged (orphaned) until
+    re-stamped. An Ingress- or Gateway-generated legacy CloudEndpoint outlives
+    its source once the managerdriver's deletes are gone, so the sweeper (or a
+    one-shot) should delete legacy objects that carry a controller-name label.
+- **R3 (1.1):** the legacy CRD, its RBAC and late adoption are deleted.
+- **Sweep:** `git grep 'LEGACY-cloudendpoint-kind'` and delete the rest:
+  - [ ] `api/ngrok/v1alpha1/cloudendpoint_types.go` and its CRD
+    (`make generate manifests`), plus the accessors block in
+    `api/ngrok/v1/cloudendpoint_types.go` and the keep annotation.
+  - [ ] `internal/controller/ngrok/cloudendpoint_controller.go`: the legacy
+    `Watches` and RBAC markers, `adopt`, `adoptID`, `adoptOverDeadID`,
+    `remoteGone`, `syncPassive`, `setPassive`, `isOperatorManagedCloudEndpoint`,
+    `twinOf`, the twin decision, and the legacy halves of `cloudEndpointPair`,
+    `writeStatus`, and `listCloudEndpoints`. `cloudendpoint_twin_test.go` and
+    the tagged `Describe` blocks in the controller tests go too.
+  - [ ] `internal/cloudendpoint`: the legacy assertion, `ReasonSupersededByV1`,
+    and the legacy diff-test entry. The `Resource` interface stays.
+  - [ ] `internal/controller/service/controller.go`: the legacy index, the
+    legacy half of `serviceCloudEndpointReconciler`, and its test context.
+  - [ ] `pkg/managerdriver`: `listLegacyCloudEndpointsForController` and the
+    legacy block in `applyCloudEndpoints`.
+  - [ ] `internal/drain`: the legacy handler entry and the twin test.
+  - [ ] Helm: the tagged rule blocks and the tagged test assert, then
+    `make helm-update-snapshots` and regenerate `manifest-bundle.yaml`.
+  - [ ] `.golangci.yml`: the `SA1019 ... CloudEndpoint is deprecated`
+    exclusion.
 
 ## Per-shim catalog: user-facing key compatibility (read-side only)
 
