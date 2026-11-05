@@ -166,6 +166,24 @@ should match snapshot with defaults:
       name: RELEASE-NAME-ngrok-operator-cloudendpoint-editor-role
     rules:
       - apiGroups:
+          - ngrok.com
+        resources:
+          - cloudendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - cloudendpoints/status
+        verbs:
+          - get
+      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - cloudendpoints
@@ -197,6 +215,20 @@ should match snapshot with defaults:
         helm.sh/chart: ngrok-operator-0.24.0
       name: RELEASE-NAME-ngrok-operator-cloudendpoint-viewer-role
     rules:
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - cloudendpoints
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - cloudendpoints/status
+        verbs:
+          - get
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:

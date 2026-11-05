@@ -91,6 +91,13 @@ linters:
       - linters:
           - staticcheck
         text: 'SA1019: .*\bAgentEndpoint is deprecated'
+      # LEGACY-cloudendpoint-kind: delete this exclusion at cleanup. Same
+      # reasoning as the AgentEndpoint rule above: the operator serves the
+      # deprecated ngrok.k8s.ngrok.com/v1alpha1 CloudEndpoint for the
+      # migration window.
+      - linters:
+          - staticcheck
+        text: 'SA1019: .*\bCloudEndpoint is deprecated'
     paths:
       - third_party$
       - builtin$

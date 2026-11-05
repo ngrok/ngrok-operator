@@ -100,6 +100,40 @@ tests:
         - patch
         - update
         - watch
+- it: should grant both cloudendpoint groups in the cloudendpoint editor
+  template: rbac/crd-access/cloudendpoint-editor.yaml
+  asserts:
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ngrok.com
+        resources:
+        - cloudendpoints
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
+  # LEGACY-cloudendpoint-kind: drop this assert at cleanup.
+  - contains:
+      path: rules
+      content:
+        apiGroups:
+        - ngrok.k8s.ngrok.com
+        resources:
+        - cloudendpoints
+        verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
 - it: should use ngrok.com for the canonical trafficpolicy editor
   template: rbac/crd-access/trafficpolicy-editor.yaml
   asserts:
@@ -122,6 +156,21 @@ tests:
 # so adding a rule or a group doesn't break it.
 - it: ippolicy viewer can't write ippolicies in either API group
   template: rbac/crd-access/ippolicy-viewer.yaml
+  asserts:
+  - notContains:
+      path: rules[*].verbs
+      content: create
+  - notContains:
+      path: rules[*].verbs
+      content: update
+  - notContains:
+      path: rules[*].verbs
+      content: patch
+  - notContains:
+      path: rules[*].verbs
+      content: delete
+- it: cloudendpoint viewer can't write cloudendpoints in either API group
+  template: rbac/crd-access/cloudendpoint-viewer.yaml
   asserts:
   - notContains:
       path: rules[*].verbs
