@@ -679,6 +679,7 @@ func enableIngressFeatureSet(_ context.Context, opts apiManagerOpts, mgr ctrl.Ma
 
 	if err := (&ngrokcontroller.CloudEndpointReconciler{
 		Client:                     mgr.GetClient(),
+		APIReader:                  mgr.GetAPIReader(),
 		Log:                        ctrl.Log.WithName("controllers").WithName("cloud-endpoint"),
 		Scheme:                     mgr.GetScheme(),
 		Recorder:                   mgr.GetEventRecorder("cloud-endpoint-controller"),

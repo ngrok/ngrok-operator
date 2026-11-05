@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +17,7 @@ import (
 func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 	tests := []struct {
 		name string
-		clep *ngrokv1alpha1.CloudEndpoint
+		clep client.Object
 		want []string
 	}{
 		{
@@ -36,6 +39,18 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 				Spec: ngrokv1alpha1.CloudEndpointSpec{
 					TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
 						Reference: &ngrokv1alpha1.K8sObjectRef{Name: "policy"},
+					},
+				},
+			},
+			want: []string{"ns/policy"},
+		},
+		{
+			name: "ngrok.com/v1 CloudEndpoint targetRef indexes namespace/name",
+			clep: &ngrokv1.CloudEndpoint{
+				Namespace: "ns",
+				Spec: ngrokv1.CloudEndpointSpec{
+					TrafficPolicy: &ngrokv1.TrafficPolicyCfg{
+						Reference: &ngrokv1.K8sObjectRef{Name: "policy"},
 					},
 				},
 			},
