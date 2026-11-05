@@ -119,8 +119,13 @@ type CloudEndpointStatus struct {
 
 // CloudEndpoint is the Schema for the cloudendpoints API
 //
+// Deprecated: use the canonical ngrok.com/v1 CloudEndpoint. This kind is still
+// served and reconciled for one migration release; see
+// docs/developer-guide/passivity-shims.md.
+//
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="ngrok.k8s.ngrok.com/v1alpha1 CloudEndpoint is deprecated; use ngrok.com/v1 CloudEndpoint. Re-stamp the apiVersion (spec.metadata must be a map), apply it, wait until Ready, then delete this object."
 // +kubebuilder:resource:categories="networking";"ngrok"
 // +kubebuilder:resource:shortName=clep
 // +kubebuilder:printcolumn:name="ID",type="string",JSONPath=".status.id"

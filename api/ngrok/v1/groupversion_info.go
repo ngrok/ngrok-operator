@@ -65,6 +65,8 @@ func addKnownTypes(s *runtime.Scheme) error {
 		&DomainList{},
 		&AgentEndpoint{},
 		&AgentEndpointList{},
+		&CloudEndpoint{},
+		&CloudEndpointList{},
 	)
 	metav1.AddToGroupVersion(s, GroupVersion)
 	return nil
