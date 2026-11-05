@@ -26,6 +26,8 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 )
 
 // CloudEndpointSpec defines the desired state of CloudEndpoint
@@ -191,4 +193,40 @@ func (c *CloudEndpoint) GetURL() string {
 // GetBindings returns the bindings for the CloudEndpoint
 func (c *CloudEndpoint) GetBindings() []string {
 	return c.Spec.Bindings
+}
+
+// GetID returns the ngrok API ID assigned to this endpoint, if any.
+func (c *CloudEndpoint) GetID() string {
+	return c.Status.ID
+}
+
+// SetID records the ngrok API ID assigned to this endpoint.
+func (c *CloudEndpoint) SetID(id string) {
+	c.Status.ID = id
+}
+
+// SetAssignedURL records the URL the ngrok API assigned to this endpoint.
+func (c *CloudEndpoint) SetAssignedURL(url string) {
+	c.Status.AssignedURL = url
+}
+
+// GetDescription returns the human-readable description from the spec.
+func (c *CloudEndpoint) GetDescription() string {
+	return c.Spec.Description
+}
+
+// GetMetadataAPIString returns the spec metadata encoded as the string the
+// ngrok API stores.
+func (c *CloudEndpoint) GetMetadataAPIString() string {
+	return common.MetadataAPIString(common.MetadataFromMap(c.Spec.Metadata))
+}
+
+// GetPoolingEnabled returns the spec pooling setting, if set.
+func (c *CloudEndpoint) GetPoolingEnabled() *bool {
+	return c.Spec.PoolingEnabled
+}
+
+// ResetStatus clears the whole status.
+func (c *CloudEndpoint) ResetStatus() {
+	c.Status = CloudEndpointStatus{}
 }

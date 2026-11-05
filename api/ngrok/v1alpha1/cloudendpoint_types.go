@@ -28,6 +28,8 @@ import (
 	"encoding/json"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 )
 
 // CloudEndpointSpec defines the desired state of CloudEndpoint
@@ -197,3 +199,46 @@ func (c *CloudEndpoint) GetURL() string {
 func (c *CloudEndpoint) GetBindings() []string {
 	return c.Spec.Bindings
 }
+
+// LEGACY-cloudendpoint-kind: BEGIN
+// These accessors satisfy cloudendpoint.Resource and go away when this type is
+// deleted at cleanup; the interface and its generic consumers stay.
+
+// GetID returns the ngrok API ID assigned to this endpoint, if any.
+func (c *CloudEndpoint) GetID() string {
+	return c.Status.ID
+}
+
+// SetID records the ngrok API ID assigned to this endpoint.
+func (c *CloudEndpoint) SetID(id string) {
+	c.Status.ID = id
+}
+
+// SetAssignedURL records the URL the ngrok API assigned to this endpoint.
+func (c *CloudEndpoint) SetAssignedURL(url string) {
+	c.Status.AssignedURL = url
+}
+
+// GetDescription returns the human-readable description from the spec.
+func (c *CloudEndpoint) GetDescription() string {
+	return c.Spec.Description
+}
+
+// GetMetadataAPIString returns the spec metadata encoded as the string the
+// ngrok API stores. Legacy free-text and non-string values pass through
+// verbatim, exactly as the operator has always sent them.
+func (c *CloudEndpoint) GetMetadataAPIString() string {
+	return common.MetadataAPIString(c.Spec.Metadata)
+}
+
+// GetPoolingEnabled returns the spec pooling setting, if set.
+func (c *CloudEndpoint) GetPoolingEnabled() *bool {
+	return c.Spec.PoolingEnabled
+}
+
+// ResetStatus clears the whole status.
+func (c *CloudEndpoint) ResetStatus() {
+	c.Status = CloudEndpointStatus{}
+}
+
+// LEGACY-cloudendpoint-kind: END
