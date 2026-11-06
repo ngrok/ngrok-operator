@@ -18,6 +18,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 )
 
 // operatorLabels are the controller labels newDomainsTestDriver stamps.
@@ -140,7 +141,24 @@ func TestGetDomainsByDomain_UnbackedV1DoesNotShadowLegacy(t *testing.T) {
 	assert.Equal(t, want, status(legacy), "legacy only")
 	assert.Equal(t, want, status(legacy, v1.DeepCopy()), "v1 created but not reserved yet")
 
+	// From here the v1 Domain has its own CNAME target, so each assertion
+	// shows which Domain won.
 	backed := v1.DeepCopy()
-	backed.Status = ngrokv1.DomainStatus{ID: "rd_1", CNAMETarget: new("legacy.ngrok-cname.com")}
-	assert.Equal(t, want, status(legacy, backed), "v1 took over the same reservation")
+	backed.Status = ngrokv1.DomainStatus{ID: "rd_1", CNAMETarget: new("v1.ngrok-cname.com")}
+	assert.Equal(t, want, status(legacy, backed), "v1 holds the reservation but isn't Ready yet")
+
+	wantV1 := []netv1.IngressLoadBalancerIngress{{Hostname: "v1.ngrok-cname.com"}}
+	ready := backed.DeepCopy()
+	ready.Status.Conditions = []metav1.Condition{{
+		Type: domainpkg.ConditionReady, Status: metav1.ConditionTrue, Reason: domainpkg.ReasonDomainActive,
+		LastTransitionTime: metav1.Now(),
+	}}
+	assert.Equal(t, wantV1, status(legacy, ready), "v1 took over the same reservation and is Ready")
+
+	superseded := legacy.DeepCopy()
+	superseded.Status.Conditions = []metav1.Condition{{
+		Type: domainpkg.ConditionReady, Status: metav1.ConditionTrue, Reason: domainpkg.ReasonSupersededByV1,
+		LastTransitionTime: metav1.Now(),
+	}}
+	assert.Equal(t, wantV1, status(superseded, backed), "legacy superseded: v1 wins even before it is Ready")
 }

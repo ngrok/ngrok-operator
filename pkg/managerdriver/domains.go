@@ -9,6 +9,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	"golang.org/x/sync/errgroup"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -88,25 +89,26 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 
 	for _, desiredDomain := range desiredDomains {
 		g.Go(func() error {
-			domain := &ngrokv1.Domain{
-				Name:      desiredDomain.Name,
-				Namespace: desiredDomain.Namespace,
-			}
-
-			// LEGACY-domain-kind: BEGIN
-			// A legacy Domain at this name must be copied to v1 as-is rather
-			// than replaced by defaults: the two share one reservation and the
-			// v1 object becomes the one that pushes its spec to it. CreateOrPatch
-			// can't do that (it knows nothing about the legacy kind), so EnsureV1
-			// creates the object first, with the same defaults CreateOrPatch would
-			// set; CreateOrPatch then only patches it.
-			_, _, err := domainpkg.EnsureV1(ctx, c, d.apiReader, client.ObjectKeyFromObject(domain), d.controllerLabels.HasLabels, func(n *ngrokv1.Domain) {
+			// EnsureV1 returns the Domain, creating it if needed. When a legacy
+			// Domain exists at this name, the new object is a copy of it rather
+			// than defaults: the two share one reservation, and the v1 object
+			// becomes the one that pushes its spec to it.
+			//
+			// The returned object is patched below without another Get. A
+			// CreateOrPatch here would re-read through the cache, which may not
+			// have seen an object EnsureV1 just created; it would then try to
+			// create it again, fail with AlreadyExists, and end the Sync early.
+			key := client.ObjectKey{Namespace: desiredDomain.Namespace, Name: desiredDomain.Name}
+			domain, created, err := domainpkg.EnsureV1(ctx, c, d.apiReader, key, d.controllerLabels.HasLabels, func(n *ngrokv1.Domain) {
+				// Runs only when creating from defaults, so the default reclaim
+				// policy is never forced onto an existing Domain.
 				n.Spec.Domain = desiredDomain.Spec.Domain
 				if d.defaultDomainReclaimPolicy != nil {
 					n.Spec.ReclaimPolicy = *d.defaultDomainReclaimPolicy
 				}
 				d.controllerLabels.EnsureLabels(n)
 			})
+			// LEGACY-domain-kind: BEGIN
 			if errors.Is(err, domainpkg.ErrLegacyDomainNotOwned) {
 				// A user's legacy Domain: they re-stamp it, and it keeps serving
 				// this hostname until then. Leave it alone.
@@ -118,32 +120,34 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 				d.log.Info("Not migrating legacy Domain to ngrok.com/v1", "reason", err.Error())
 				return nil
 			}
+			// LEGACY-domain-kind: END
 			if err != nil {
-				d.log.Error(err, "error creating domain", "domain", domain.Name, "namespace", domain.Namespace)
+				d.log.Error(err, "error creating domain", "domain", key.Name, "namespace", key.Namespace)
 				// Same reasoning as the IsInvalid case below.
 				if apierrors.IsInvalid(err) {
 					return nil
 				}
 				return err
 			}
-			// LEGACY-domain-kind: END
 
-			res, err := controllerutil.CreateOrPatch(ctx, c, domain, func() error {
-				domain.Spec.Domain = desiredDomain.Spec.Domain
-				// Only set the reclaim policy on create
-				if domain.CreationTimestamp.IsZero() && d.defaultDomainReclaimPolicy != nil {
-					domain.Spec.ReclaimPolicy = *d.defaultDomainReclaimPolicy
+			res := controllerutil.OperationResultNone
+			if created {
+				res = controllerutil.OperationResultCreated
+			}
+			before := domain.DeepCopy()
+			domain.Spec.Domain = desiredDomain.Spec.Domain
+			// Backfill the controller labels on existing Domains too: one stamped
+			// by an older operator version may carry only the legacy pair.
+			// Keeps this path consistent with
+			// internal/domain/manager.go::ensureControllerLabels.
+			// LEGACY-PREFIX-MIGRATION: EnsureLabels dual-writes the legacy pair.
+			d.controllerLabels.EnsureLabels(domain)
+			if !equality.Semantic.DeepEqual(before, domain) {
+				err = c.Patch(ctx, domain, client.MergeFrom(before))
+				if err == nil && !created {
+					res = controllerutil.OperationResultUpdated
 				}
-				// Set controller labels inside the mutate so the call covers both
-				// create and patch: CreateOrPatch's Get overwrites anything set on
-				// the object beforehand, so an ObjectMeta initializer would only
-				// survive on create and existing Domains would never get their
-				// label pairs backfilled. Keeps this path consistent with
-				// internal/domain/manager.go::ensureControllerLabels.
-				// LEGACY-PREFIX-MIGRATION: EnsureLabels dual-writes the legacy pair.
-				d.controllerLabels.EnsureLabels(domain)
-				return nil
-			})
+			}
 
 			log := d.log.WithValues("domain", domain.Name, "namespace", domain.Namespace, "result", res)
 

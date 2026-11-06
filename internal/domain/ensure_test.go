@@ -119,7 +119,10 @@ func TestEnsureV1_CopiesLegacySpec(t *testing.T) {
 }
 
 func TestEnsureV1_BlockedByUnmappableMetadata(t *testing.T) {
-	for _, raw := range []string{`"free text"`, `"{\"a\":1}"`, `{"a":{"b":"c"}}`} {
+	// An empty object would be omitted from the v1 copy, which then gets the
+	// CRD default and overwrites the reservation's {} metadata. A null value
+	// would become "" in the map, changing the reservation's metadata.
+	for _, raw := range []string{`"free text"`, `"{\"a\":1}"`, `{"a":{"b":"c"}}`, `{}`, `"{}"`, ` { } `, `{"a":null}`, `"{\"a\":null}"`} {
 		t.Run(raw, func(t *testing.T) {
 			legacy := &ingressv1alpha1.Domain{
 				ObjectMeta: metav1.ObjectMeta{Name: ensureKey.Name, Namespace: ensureKey.Namespace},
@@ -137,15 +140,19 @@ func TestEnsureV1_BlockedByUnmappableMetadata(t *testing.T) {
 }
 
 func TestEnsureV1_EmptyLegacyMetadataIsNotBlocked(t *testing.T) {
-	legacy := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{Name: ensureKey.Name, Namespace: ensureKey.Namespace},
-		Spec:       ingressv1alpha1.DomainSpec{Domain: "a.example.com"},
-	}
-	_, c := newTestManager(t, legacy)
+	for _, raw := range []string{``, `null`, `""`} {
+		t.Run(raw, func(t *testing.T) {
+			legacy := &ingressv1alpha1.Domain{
+				ObjectMeta: metav1.ObjectMeta{Name: ensureKey.Name, Namespace: ensureKey.Namespace},
+				Spec:       ingressv1alpha1.DomainSpec{Domain: "a.example.com", Metadata: json.RawMessage(raw)},
+			}
+			_, c := newTestManager(t, legacy)
 
-	got, _, err := EnsureV1(t.Context(), c, nil, ensureKey, ownAll, ensureDefaults)
-	require.NoError(t, err)
-	assert.Nil(t, got.Spec.Metadata)
+			got, _, err := EnsureV1(t.Context(), c, nil, ensureKey, ownAll, ensureDefaults)
+			require.NoError(t, err)
+			assert.Nil(t, got.Spec.Metadata)
+		})
+	}
 }
 
 // The driver and an endpoint reconcile can both decide to create the same v1

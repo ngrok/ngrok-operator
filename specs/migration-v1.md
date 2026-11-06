@@ -104,8 +104,7 @@ Steps:
    itself. It creates the `ngrok.com/v1` Domain for every hostname it serves:
    from defaults when no legacy Domain has that name, and as a copy when the
    legacy Domain there is one the operator created. A legacy Domain a user
-   created is left for the user to re-stamp as above (or with
-   `scripts/migrate-domains-to-ngrok-v1.sh`). The v1 Domain takes over the
+   created is left for the user to re-stamp as above. The v1 Domain takes over the
    legacy one's reservation, and readers switch to it once it is Ready or has
    superseded the legacy one. `kubectl get domains` shows the legacy kind
    while both exist, so use `domains.ngrok.com` and

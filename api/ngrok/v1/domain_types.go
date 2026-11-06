@@ -179,6 +179,11 @@ type DomainStatusProvisioningJob struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:categories=ngrok
+// The v1 CRD must survive a rollback to 0.24 (whose chart doesn't have it):
+// deleting it would cascade-delete every v1 Domain, and their deletes could
+// release reservations the rolled-back operator still serves through the
+// legacy kind.
+// +kubebuilder:metadata:annotations="helm.sh/resource-policy=keep"
 // +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`,description="Domain ID"
 // +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.status.domain`,description="Domain"
 // +kubebuilder:printcolumn:name="Reclaim Policy",type=string,JSONPath=`.spec.reclaimPolicy`,description="Reclaim Policy"

@@ -349,16 +349,6 @@ chart, or the operator will not start.
 
 ### Custom RBAC
 
-The chart adds rules for `trafficpolicies` and `trafficpolicies/status` in the
-`ngrok.com` API group to the api-manager and agent roles, plus
-`trafficpolicy-editor` and `trafficpolicy-viewer` aggregated ClusterRoles.
-
-It also adds `ngrok.com` rules for `domains`, `domains/status` and
-`domains/finalizers` to the api-manager role, and for `domains` to the agent
-role (AgentEndpoints create Domains). The `domain-editor` and `domain-viewer`
-aggregated ClusterRoles keep their names and gain `ngrok.com` rules next to the
-existing `ingress.k8s.ngrok.com` ones.
-
 No change is required when the chart manages RBAC. If you supply roles
 separately, add the equivalent rules before upgrading.
 
@@ -729,14 +719,32 @@ their finalizer in 0.25. 1.0 removes it; see
 
 **You migrate the Domains you created yourself.** They keep working as before
 until you do. `kubectl apply` of a legacy Domain prints a deprecation warning.
-Change `apiVersion` to `ngrok.com/v1`, apply it, wait until it is `Ready` with
-the legacy Domain's `status.id`, then delete the legacy one:
+For each Domain, create the `ngrok.com/v1` object, confirm it is `Ready` and
+has the legacy Domain's ID, then delete the legacy one:
 
 ```bash
+kubectl get domains.ingress.k8s.ngrok.com -A
+
+kubectl get domains.ingress.k8s.ngrok.com my-domain -n my-namespace -o json |
+  jq '
+    .apiVersion = "ngrok.com/v1"
+    | del(.metadata.resourceVersion, .metadata.uid,
+          .metadata.creationTimestamp, .metadata.generation,
+          .metadata.managedFields, .metadata.finalizers, .status)
+    | if .spec.metadata == "" then del(.spec.metadata)
+      elif (.spec.metadata | type) == "string" then .spec.metadata |= fromjson
+      else . end
+  ' |
+  kubectl apply -f -
+
 kubectl get domains.ngrok.com my-domain -n my-namespace
 kubectl get domains.ingress.k8s.ngrok.com my-domain -n my-namespace
+
 kubectl delete domains.ingress.k8s.ngrok.com my-domain -n my-namespace
 ```
+
+Both `get` commands should show the same ID before you delete the legacy
+object.
 
 If you delete a legacy Domain without creating an `ngrok.com/v1` one, and an
 Ingress, Gateway or endpoint still uses its hostname, the operator creates a
@@ -744,26 +752,15 @@ default `ngrok.com/v1` Domain for it, which takes over the same reservation.
 Re-stamp instead if you set a `description`, `resolvesTo` or `reclaimPolicy`
 you want to keep.
 
-[`scripts/migrate-domains-to-ngrok-v1.sh`](../scripts/migrate-domains-to-ngrok-v1.sh)
-does this in bulk for every legacy Domain without an `ngrok.com/v1` twin. It
-needs `kubectl` and `jq`:
-
-```bash
-./migrate-domains-to-ngrok-v1.sh                  # dry run: print the Domains it would create
-./migrate-domains-to-ngrok-v1.sh --apply          # create them
-./migrate-domains-to-ngrok-v1.sh --delete-legacy  # then delete legacy Domains whose twin is
-                                                  # Ready and holds the same reservation
-```
-
-`--namespace` limits it to one namespace.
-
 `ngrok.com/v1` `Domain` accepts `spec.metadata` only as a map of string values;
-the deprecated JSON-string form is rejected. The script and the operator
-convert string-form metadata that holds a JSON object of strings. A Domain whose
-metadata is free text, or has non-string values, is not copied: the operator
-keeps serving it from the legacy Domain and emits a `DomainMigrationBlocked`
-warning event on the endpoint, and the script reports it. Change its metadata
-to a map of strings to migrate it.
+the deprecated JSON-string form is rejected. The `jq` filter above converts
+string-form metadata that holds a JSON object. If a Domain's metadata is free
+text, or has non-string values, change it to a map of strings first: `jq`
+fails on free text, and `kubectl apply` rejects non-string values. For the Domains it created, the operator
+does the same conversion. It doesn't copy a Domain whose metadata is free text,
+has non-string values, or is an empty object: it keeps serving it from the
+legacy Domain and emits a `DomainMigrationBlocked` warning event on the
+endpoint. Change its metadata to a non-empty map of strings to migrate it.
 
 If you manage Domains with GitOps, change `apiVersion` (and any string-form
 `metadata`) in the source manifest instead. Let your tool create the new
@@ -781,7 +778,7 @@ migrations before their cleanup releases:
 | Migration | 0.25 behavior | Future requirement |
 | --- | --- | --- |
 | `NgrokTrafficPolicy` kind | Serves both CRDs; prefers `TrafficPolicy` | Migrate to `ngrok.com/v1` `TrafficPolicy` before the cleanup release removes the `ngroktrafficpolicies.ngrok.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
-| `ingress.k8s.ngrok.com/v1alpha1` `Domain` | Serves both CRDs; the operator creates and prefers `ngrok.com/v1` Domains, and migrates the ones it created | Re-stamp the Domains you created (`migrate-domains-to-ngrok-v1.sh`) before 1.1. 1.0 stops reconciling legacy Domains and removes their finalizers; a legacy Domain with no `ngrok.com/v1` twin keeps its reservation in ngrok, unmanaged, until you re-stamp it. 1.1 removes the `domains.ingress.k8s.ngrok.com` CRD. Upgrade through both 0.25 and 1.0; see [CRD Group Migration](../specs/crd-group-migration.md#release-plan) |
+| `ingress.k8s.ngrok.com/v1alpha1` `Domain` | Serves both CRDs; the operator creates and prefers `ngrok.com/v1` Domains, and migrates the ones it created | Re-stamp the Domains you created (see [`Domain` moves to `ngrok.com/v1`](#domain-moves-to-ngrokcomv1)) before 1.1. 1.0 stops reconciling legacy Domains and removes their finalizers; a legacy Domain with no `ngrok.com/v1` twin keeps its reservation in ngrok, unmanaged, until you re-stamp it. 1.1 removes the `domains.ingress.k8s.ngrok.com` CRD. Upgrade through both 0.25 and 1.0; see [CRD Group Migration](../specs/crd-group-migration.md#release-plan) |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |
 | CRD `spec.metadata` | Reads JSON strings and maps | Use maps before the announced cleanup release |
 | Operator-written labels, annotations, and finalizer | Writes new prefix only; still reads legacy | None. The next release stops reading the legacy prefix, so upgrade through 0.25 rather than skipping it |

@@ -681,9 +681,10 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
     SA1019 exclusion in `.golangci.yml` is tagged.
     `HyphenatedDomainNameFromURL` lives in `api/ngrok/v1`; the legacy one
     delegates.
-  - **`helm.sh/resource-policy: keep`** on `ngrok.com_domains.yaml`, added by
-    `make manifests` (`tools/make/generate.mk`; controller-gen has no marker
-    for it). Uninstall leaves the CRD behind (`docs/uninstall.md`).
+  - **`helm.sh/resource-policy: keep`** on the `domains.ngrok.com` CRD, from
+    the `+kubebuilder:metadata:annotations` marker on the `Domain` type (as for
+    IPPolicy), so a rollback to 0.24 leaves v1 Domains in place. Uninstall
+    leaves the CRD behind (`docs/uninstall.md`).
   - **Kind-agnostic layer** (`internal/domain`): `Resource` is the view every
     reconciler and reader uses. Its `Status()` is always `*ngrokv1.DomainStatus`;
     the legacy adapter (`resource_legacy.go`) bridges status through JSON
@@ -750,14 +751,13 @@ sentinel-tag every legacy-only code path, no operator-driven backfill.
   - **RBAC:** `ngrok.com` domains rules in the api-manager and agent roles,
     and in the existing `domain-{editor,viewer}` roles (names unchanged);
     legacy rules tagged.
-  - **Users** re-stamp the Domains they created;
-    `scripts/migrate-domains-to-ngrok-v1.sh` does it in bulk and deletes
-    legacy Domains whose twin is Ready with the same reservation.
+  - **Users** re-stamp the Domains they created, with the `jq` snippet in
+    the 0.25 upgrade guide.
 - **R2 — 1.0** (see the spec): the pair reconciler goes; the v1 controller
   goes back to a single-kind controller. The shared legacy finalizer sweeper
   strips finalizers from legacy Domains. No late adoption for Domain: a
-  re-stamped v1 Domain re-finds its reservation by hostname. The `keep` step in
-  `tools/make/generate.mk` is removed. Remove in this release, by
+  re-stamped v1 Domain re-finds its reservation by hostname. Remove in this
+  release, by
   `git grep 'LEGACY-domain-kind'`:
   - `internal/domain/resource_legacy.go`, `domain_migration_test.go`,
     `pkg/managerdriver/domains_migration_test.go`, and the tagged halves of

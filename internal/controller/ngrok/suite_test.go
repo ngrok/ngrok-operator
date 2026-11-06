@@ -26,6 +26,7 @@ package ngrok
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
@@ -62,6 +63,9 @@ var (
 	// Mock clients for testing
 	mockClientset *nmockapi.Clientset
 	domainClient  *nmockapi.DomainClient
+
+	// domainDrain puts the Domain reconciler into drain mode while it is set.
+	domainDrain = &toggleDrain{}
 
 	kginkgo *testutils.KGinkgo
 )
@@ -195,6 +199,7 @@ var _ = BeforeSuite(func() {
 		Recorder:      domainManager.GetEventRecorder("domain-controller"),
 		Scheme:        domainManager.GetScheme(),
 		DomainsClient: domainClient,
+		DrainState:    domainDrain,
 	}).SetupWithManager(domainManager)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -209,6 +214,11 @@ var _ = BeforeSuite(func() {
 		Expect(err).NotTo(HaveOccurred())
 	}()
 })
+
+// toggleDrain is a drain.State that specs can switch on and off.
+type toggleDrain struct{ atomic.Bool }
+
+func (d *toggleDrain) IsDraining(context.Context) bool { return d.Load() }
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

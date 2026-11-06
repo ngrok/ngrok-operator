@@ -102,8 +102,8 @@ func convertJSON(src, dst any) error {
 
 // ErrMigrationBlocked is returned by EnsureV1 when a legacy Domain exists at
 // the key but can't be copied to v1 without changing its reservation: its
-// spec.metadata is a string that isn't a flat JSON object of strings, which
-// the v1 map type can't hold.
+// spec.metadata is a string that isn't a flat JSON object of strings, or an
+// empty object, neither of which the v1 map type can hold.
 var ErrMigrationBlocked = errors.New("legacy Domain cannot be migrated to ngrok.com/v1 automatically")
 
 // ErrLegacyDomainNotOwned is returned by EnsureV1 when a legacy Domain at the
@@ -132,11 +132,13 @@ func copyOfLegacy(ctx context.Context, r client.Reader, key client.ObjectKey, ow
 // create makes it prune that object. Callers add the operator's own labels.
 func V1FromLegacy(legacy *ingressv1alpha1.Domain) (*ngrokv1.Domain, error) {
 	metadata := commonv1alpha1.MetadataToMap(legacy.Spec.Metadata)
-	// An unset or empty legacy value maps to nil, and v1 then gets the CRD
-	// default. Any other value must survive as a map, or the copy would change
-	// the metadata stored on the reservation.
-	if metadata == nil && commonv1alpha1.MetadataAPIString(legacy.Spec.Metadata) != "" {
-		return nil, fmt.Errorf("%w: %s/%s has spec.metadata %s, which is not a JSON object of strings; re-create it as ngrok.com/v1 by hand",
+	// An unset legacy value (absent, null or "") maps to nil, and v1 then gets
+	// the CRD default. Any other value must survive as a non-empty map, or the
+	// copy would change the metadata stored on the reservation. That includes
+	// an empty object ({} or "{}"): v1 can't hold one, since an empty map is
+	// omitted and the CRD default applies instead.
+	if len(metadata) == 0 && commonv1alpha1.MetadataAPIString(legacy.Spec.Metadata) != "" {
+		return nil, fmt.Errorf("%w: %s/%s has spec.metadata %s, which ngrok.com/v1 can't hold as a non-empty map of strings; re-create it as ngrok.com/v1 by hand",
 			ErrMigrationBlocked, legacy.Namespace, legacy.Name, string(legacy.Spec.Metadata))
 	}
 

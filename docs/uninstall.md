@@ -12,13 +12,13 @@ helm uninstall ngrok-operator -n ngrok-operator
 
 The pre-delete hook automatically triggers drain mode, waits for cleanup, then completes uninstall.
 
-`helm uninstall` leaves the `domains.ngrok.com` CRD in place: it carries
-`helm.sh/resource-policy: keep` so that a `helm rollback` to a release without
-it can't delete every `ngrok.com/v1` Domain. Once the uninstall has drained,
-delete it yourself if you don't plan to reinstall:
+For version 0.25, `helm uninstall` leaves some of the new `ngrok.com/v1` CRDs
+in place. They carry `helm.sh/resource-policy: keep`, so that a `helm rollback`
+to a release without them can't delete every object of those kinds. Once the
+uninstall has drained, delete them yourself if you don't plan to reinstall:
 
 ```bash
-kubectl delete crd domains.ngrok.com
+kubectl delete crd <CRD>
 ```
 
 ### Manual / Non-Helm

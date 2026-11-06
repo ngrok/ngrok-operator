@@ -400,14 +400,50 @@ func releasesReservation(domain domainpkg.Resource) bool {
 	return s.ID != "" && s.CoveredByWildcardDomain == nil && domain.ReclaimPolicy() == ngrokv1.DomainReclaimPolicyDelete
 }
 
-// liveTwinHolding reads the other kind's Domain at domain's namespace/name
-// straight from the API server and returns a description of it if it holds
-// domain's reservation, or "" if nothing does. It fails closed, per rule 5:
+// twinRead is what the result of a live twin read means for a release.
+//
+// LEGACY-domain-kind: delete at cleanup.
+type twinRead int
+
+const (
+	// twinReadFound: the read succeeded. Whether the twin holds the
+	// reservation depends on the object.
+	twinReadFound twinRead = iota
+	// twinReadAbsent: there is no twin.
+	twinReadAbsent
+	// twinReadAssumed: the twin can't be read, so it is assumed to exist and
+	// to hold the reservation.
+	twinReadAssumed
+	// twinReadRetry: the read failed and the delete must be retried.
+	twinReadRetry
+)
+
+// classifyTwinRead maps the error from a live twin read to what it means for
+// the release. It fails closed, per rule 5:
 //
 //   - NotFound, or the other kind isn't served (NoMatch): no twin.
 //   - Forbidden: treated as a twin, so the reservation is kept. On a rollback
 //     RBAC reverts before the CRDs do, so this happens in practice.
-//   - Any other error: returned, so the delete is retried.
+//   - Any other error: retry.
+//
+// LEGACY-domain-kind: delete at cleanup.
+func classifyTwinRead(err error) twinRead {
+	switch {
+	case err == nil:
+		return twinReadFound
+	case apierrors.IsNotFound(err) || meta.IsNoMatchError(err):
+		return twinReadAbsent
+	case apierrors.IsForbidden(err):
+		return twinReadAssumed
+	default:
+		return twinReadRetry
+	}
+}
+
+// liveTwinHolding reads the other kind's Domain at domain's namespace/name
+// straight from the API server and returns a description of it if it holds
+// domain's reservation, or "" if nothing does. Read errors are handled per
+// classifyTwinRead.
 //
 // LEGACY-domain-kind: delete at cleanup.
 func (r *DomainReconciler) liveTwinHolding(ctx context.Context, domain domainpkg.Resource) (string, error) {
@@ -423,12 +459,12 @@ func (r *DomainReconciler) liveTwinHolding(ctx context.Context, domain domainpkg
 	}
 
 	err := r.APIReader.Get(ctx, key, obj)
-	switch {
-	case apierrors.IsNotFound(err) || meta.IsNoMatchError(err):
+	switch classifyTwinRead(err) {
+	case twinReadAbsent:
 		return "", nil
-	case apierrors.IsForbidden(err):
+	case twinReadAssumed:
 		return fmt.Sprintf("%s %s (not readable, so assumed to exist)", resource, key), nil
-	case err != nil:
+	case twinReadRetry:
 		return "", err
 	}
 

@@ -98,6 +98,13 @@ func MetadataToMap(raw json.RawMessage) map[string]string {
 		}
 	}
 
+	// Decode values as raw messages first, as MetadataAPIString does:
+	// json.Unmarshal into map[string]string would coerce a null value to "",
+	// silently changing the metadata.
+	var raws map[string]json.RawMessage
+	if err := json.Unmarshal(t, &raws); err != nil || !allStringValues(raws) {
+		return nil
+	}
 	var m map[string]string
 	if err := json.Unmarshal(t, &m); err != nil {
 		return nil
