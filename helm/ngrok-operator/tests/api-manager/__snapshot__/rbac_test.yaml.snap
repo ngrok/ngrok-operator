@@ -374,6 +374,32 @@ should match snapshot in default mode:
           - patch
           - update
       - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies
+        verbs:
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
           - ""
         resources:
           - namespaces
@@ -801,6 +827,32 @@ should match snapshot in namespaced mode:
           - ngrok.com
         resources:
           - domains/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies
+        verbs:
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - ippolicies/status
         verbs:
           - get
           - patch

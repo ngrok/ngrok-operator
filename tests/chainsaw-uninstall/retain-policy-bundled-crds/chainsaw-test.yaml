@@ -305,14 +305,7 @@ spec:
         - script:
             timeout: 30s
             content: |
-              # With bundled CRDs, they should be removed when operator is uninstalled
-              if kubectl get crds 2>/dev/null | grep -q "ngrok"; then
-                echo "✗ ngrok CRDs still exist:"
-                kubectl get crds | grep ngrok
-                exit 1
-              else
-                echo "✓ All ngrok CRDs removed"
-              fi
+              ../_fixtures/assert-crds-removed.sh
 
     - name: verify KubernetesOperator deregistered from ngrok API
       try:

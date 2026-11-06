@@ -42,11 +42,10 @@ helm/ngrok-operator/         # Helm chart
 
 | API Group | Resources | Controller Location |
 |-----------|-----------|---------------------|
-| **ingress.k8s.ngrok.com/v1alpha1** | IPPolicy | [internal/controller/ingress/](internal/controller/ingress/) |
-| **ingress.k8s.ngrok.com/v1alpha1** | Domain (deprecated; reconciled with its `ngrok.com/v1` twin) | [internal/controller/ngrok/](internal/controller/ngrok/) |
+| **ingress.k8s.ngrok.com/v1alpha1** | Domain, IPPolicy (deprecated; each reconciled with its `ngrok.com/v1` twin) | [internal/controller/ngrok/](internal/controller/ngrok/) |
 | **ingress.k8s.ngrok.com/v1alpha1** | Ingress (networking.k8s.io/v1) | [internal/controller/ingress/](internal/controller/ingress/) |
 | **ngrok.k8s.ngrok.com/v1alpha1** | NgrokTrafficPolicy (deprecated), KubernetesOperator | [internal/controller/ngrok/](internal/controller/ngrok/) |
-| **ngrok.com/v1** | TrafficPolicy, Domain | [internal/controller/ngrok/](internal/controller/ngrok/) |
+| **ngrok.com/v1** | TrafficPolicy, Domain, IPPolicy | [internal/controller/ngrok/](internal/controller/ngrok/) |
 | **bindings.k8s.ngrok.com/v1alpha1** | BindingConfiguration, BoundEndpoint | [internal/controller/bindings/](internal/controller/bindings/) |
 | **gateway.networking.k8s.io/v1** | Gateway, GatewayClass, HTTPRoute, TLSRoute, TCPRoute | [internal/controller/gateway/](internal/controller/gateway/) |
 | **core/v1** | Service | [internal/controller/service/](internal/controller/service/) |
@@ -79,7 +78,7 @@ make preflight              # Verify environment (Go version, controller-gen)
 make generate               # Generate DeepCopy methods
 make manifests              # Generate CRDs, RBAC, webhooks
 make build                  # Build binaries
-make test                   # Run unit tests
+make test                   # Run unit and envtest tests
 make e2e-tests              # Run E2E tests
 make run                    # Run locally (uses kubeconfig)
 make deploy                 # Deploy to cluster
@@ -99,6 +98,18 @@ make undeploy               # Remove from cluster
 - Manage finalizers on resource deletion to clean up external resources
 - Requeue on transient ngrok API errors (return `ctrl.Result{Requeue: true}`)
 - Prefer `BaseController` helpers over raw client operations
+- Pick the test layer deliberately:
+  - **envtest** (the Ginkgo suites in `internal/controller/*/`) for controller
+    behavior. This is the default.
+  - **chainsaw** (`tests/chainsaw*`) only when the test needs the real ngrok
+    API or a real cluster.
+  - **Plain unit tests** only for libraries and pure functions with real
+    branching.
+
+  Don't call `Reconcile` or other reconciler methods against a fake client:
+  that rebuilds envtest by hand. If envtest can't reach a branch (a Forbidden
+  or NoMatch error, say), move that decision into a pure function and
+  table-test it.
 - App config settings are defined once in `internal/flags` (flag, env var,
   default, help), named after their values path (`ngrok.features.gateway.enabled` is
   `NGROK_OPERATOR__FEATURES__GATEWAY__ENABLED` and `--features-gateway-enabled`).

@@ -107,7 +107,11 @@ func (d *Drainer) DrainAll(ctx context.Context) (*DrainResult, error) {
 		// reservation, the v1 delete is the one that applies its reclaim policy.
 		{"Domain (ingress.k8s.ngrok.com/v1alpha1)", &ingressv1alpha1.DomainList{}, false, d.drainOperatorResource},
 		{"Domain", &ngrokv1.DomainList{}, false, d.drainOperatorResource},
-		{"IPPolicy", &ingressv1alpha1.IPPolicyList{}, false, d.drainOperatorResource},
+		// LEGACY-ippolicy-kind: delete the legacy IPPolicy entry at cleanup. It
+		// stays ahead of the v1 entry so that, for a twin pair sharing a remote
+		// policy, the v1 delete is the one that removes the remote.
+		{"IPPolicy (ingress.k8s.ngrok.com/v1alpha1)", &ingressv1alpha1.IPPolicyList{}, false, d.drainOperatorResource},
+		{"IPPolicy", &ngrokv1.IPPolicyList{}, false, d.drainOperatorResource},
 		{"BoundEndpoint", &bindingsv1alpha1.BoundEndpointList{}, false, d.drainOperatorResource},
 	}
 

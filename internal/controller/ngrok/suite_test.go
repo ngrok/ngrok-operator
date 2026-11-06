@@ -61,8 +61,10 @@ var (
 	cancel context.CancelFunc
 
 	// Mock clients for testing
-	mockClientset *nmockapi.Clientset
-	domainClient  *nmockapi.DomainClient
+	mockClientset      *nmockapi.Clientset
+	domainClient       *nmockapi.DomainClient
+	ipPolicyClient     *nmockapi.IPPolicyClient
+	ipPolicyRuleClient *nmockapi.IPPolicyRuleClient
 
 	// domainDrain puts the Domain reconciler into drain mode while it is set.
 	domainDrain = &toggleDrain{}
@@ -176,6 +178,19 @@ var _ = BeforeSuite(func() {
 	}
 
 	err = koReconciler.SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	ipPolicyClient = nmockapi.NewIPPolicyClient()
+	ipPolicyRuleClient = nmockapi.NewIPPolicyRuleClient(ipPolicyClient)
+
+	err = (&IPPolicyReconciler{
+		Client:              k8sManager.GetClient(),
+		Log:                 logf.Log.WithName("controllers").WithName("IPPolicy"),
+		Recorder:            k8sManager.GetEventRecorder("ippolicy-controller"),
+		Scheme:              k8sManager.GetScheme(),
+		IPPoliciesClient:    ipPolicyClient,
+		IPPolicyRulesClient: ipPolicyRuleClient,
+	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
 	// The Domain reconciler gets its own manager whose cache only sees
