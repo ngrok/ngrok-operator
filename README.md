@@ -111,4 +111,4 @@ The best place to get support using the ngrok Kubernetes Operator is by [opening
 
 The ngrok Kubernetes Operator is licensed under the terms of the MIT license.
 
-See [LICENSE](./LICENSE.txt) for details.
+See [LICENSE](./LICENSE) for details.
