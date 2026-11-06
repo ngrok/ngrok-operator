@@ -26,6 +26,7 @@ package ngrok
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
@@ -41,6 +42,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -60,13 +62,21 @@ var (
 
 	// Mock clients for testing
 	mockClientset      *nmockapi.Clientset
+	domainClient       *nmockapi.DomainClient
 	ipPolicyClient     *nmockapi.IPPolicyClient
 	ipPolicyRuleClient *nmockapi.IPPolicyRuleClient
+
+	// domainDrain puts the Domain reconciler into drain mode while it is set.
+	domainDrain = &toggleDrain{}
 
 	kginkgo *testutils.KGinkgo
 )
 
 const (
+	// domainTestNamespace is the only namespace the Domain reconciler watches
+	// in this suite.
+	domainTestNamespace = "default"
+
 	controllerNamespace = "test-controller-namespace"
 	controllerName      = "test-controller"
 	k8sOpName           = "test-ko"
@@ -183,12 +193,47 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
+	// The Domain reconciler gets its own manager whose cache only sees
+	// domainTestNamespace. The CloudEndpoint specs create Domains by hand in
+	// their own namespaces to simulate Domain states (not ready, covered by a
+	// wildcard), and a Domain reconciler acting on those would overwrite them.
+	domainManager, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:  scheme.Scheme,
+		Metrics: server.Options{BindAddress: "0"},
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{domainTestNamespace: {}},
+		},
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	domainClient = nmockapi.NewDomainClient()
+	err = (&DomainReconciler{
+		Client:        domainManager.GetClient(),
+		APIReader:     domainManager.GetAPIReader(),
+		Log:           logf.Log.WithName("controllers").WithName("Domain"),
+		Recorder:      domainManager.GetEventRecorder("domain-controller"),
+		Scheme:        domainManager.GetScheme(),
+		DomainsClient: domainClient,
+		DrainState:    domainDrain,
+	}).SetupWithManager(domainManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	go func() {
+		defer GinkgoRecover()
+		Expect(domainManager.Start(ctx)).To(Succeed())
+	}()
+
 	go func() {
 		defer GinkgoRecover()
 		err = k8sManager.Start(ctx)
 		Expect(err).NotTo(HaveOccurred())
 	}()
 })
+
+// toggleDrain is a drain.State that specs can switch on and off.
+type toggleDrain struct{ atomic.Bool }
+
+func (d *toggleDrain) IsDraining(context.Context) bool { return d.Load() }
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")

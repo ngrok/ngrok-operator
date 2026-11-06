@@ -45,6 +45,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	"github.com/ngrok/ngrok-operator/internal/util"
@@ -368,6 +369,8 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		&gatewayv1.GatewayClass{},
 		&gatewayv1.HTTPRoute{},
 		// &corev1.Service{},
+		&ngrokv1.Domain{},
+		// LEGACY-domain-kind: drop the legacy Domain entry at cleanup.
 		&ingressv1alpha1.Domain{},
 	}
 

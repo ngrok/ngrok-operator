@@ -7,6 +7,7 @@ import (
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -101,16 +102,14 @@ func NewTestServiceV1(name string, namespace string) *corev1.Service {
 	}
 }
 
-type DomainOpt func(*ingressv1alpha1.Domain)
+type DomainOpt func(*ngrokv1.Domain)
 
 // WithDomainStatusCondition adds a condition to the domain's status.
 func WithDomainStatusCondition(condition metav1.Condition) DomainOpt {
-	return func(d *ingressv1alpha1.Domain) {
+	return func(d *ngrokv1.Domain) {
 		d.Status.Conditions = append(d.Status.Conditions, condition)
 	}
 }
-
-// WithDomainReadyCondition is a convenience helper that sets the Ready condition.
 func WithDomainReadyCondition(status metav1.ConditionStatus, message string) DomainOpt {
 	return WithDomainStatusCondition(metav1.Condition{
 		Type:    "Ready",
@@ -119,11 +118,13 @@ func WithDomainReadyCondition(status metav1.ConditionStatus, message string) Dom
 	})
 }
 
-func NewDomainV1(name string, namespace string, opts ...DomainOpt) *ingressv1alpha1.Domain {
-	d := &ingressv1alpha1.Domain{
-		Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(name),
+// NewDomainV1 returns an ngrok.com/v1 Domain for hostname name, named the way
+// the operator names the Domains it creates.
+func NewDomainV1(name string, namespace string, opts ...DomainOpt) *ngrokv1.Domain {
+	d := &ngrokv1.Domain{
+		Name:      ngrokv1.HyphenatedDomainNameFromURL(name),
 		Namespace: namespace,
-		Spec: ingressv1alpha1.DomainSpec{
+		Spec: ngrokv1.DomainSpec{
 			Domain: name,
 		},
 	}
@@ -131,6 +132,20 @@ func NewDomainV1(name string, namespace string, opts ...DomainOpt) *ingressv1alp
 		opt(d)
 	}
 	return d
+}
+
+// NewLegacyDomain returns a deprecated ingress.k8s.ngrok.com/v1alpha1 Domain
+// for hostname name, named the way the operator names the Domains it creates.
+//
+// LEGACY-domain-kind: delete at cleanup.
+func NewLegacyDomain(name string, namespace string) *ingressv1alpha1.Domain {
+	return &ingressv1alpha1.Domain{
+		Name:      ngrokv1.HyphenatedDomainNameFromURL(name),
+		Namespace: namespace,
+		Spec: ingressv1alpha1.DomainSpec{
+			Domain: name,
+		},
+	}
 }
 
 // RandomName generates a random name with the given prefix. The random part is 5 characters long.
@@ -361,10 +376,10 @@ func FindCondition(conditions []metav1.Condition, condType string) *metav1.Condi
 
 // NewDomainMap creates a map of domain name to Domain objects, useful for testing
 // functions that operate on domain lookups.
-func NewDomainMap(domains ...*ingressv1alpha1.Domain) map[string]ingressv1alpha1.Domain {
-	result := make(map[string]ingressv1alpha1.Domain, len(domains))
+func NewDomainMap(domains ...*ngrokv1.Domain) map[string]domainpkg.Resource {
+	result := make(map[string]domainpkg.Resource, len(domains))
 	for _, d := range domains {
-		result[d.Spec.Domain] = *d
+		result[d.Spec.Domain] = domainpkg.FromV1(d)
 	}
 	return result
 }

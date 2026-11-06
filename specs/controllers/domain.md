@@ -4,11 +4,17 @@
 
 The Domain controller reconciles `Domain` resources by creating and managing domain reservations in the ngrok API. It handles DNS provisioning delays, CNAME target resolution, and certificate management status.
 
+It lives in `internal/controller/ngrok/domain_controller.go` and reconciles
+both the canonical `ngrok.com/v1` Domain and the deprecated
+`ingress.k8s.ngrok.com/v1alpha1` Domain, as a pair per namespace/name. See
+[Migration: twin Domains](#migration-twin-domains).
+
 ## Watches
 
 | Resource  | Relation | Predicate                                          |
 |-----------|----------|----------------------------------------------------|
-| `Domain`  | Primary  | AnnotationChanged or GenerationChanged; exponential backoff rate limiter (30s base, 10m max) |
+| `Domain` (`ngrok.com/v1`)  | Primary  | AnnotationChanged or GenerationChanged; exponential backoff rate limiter (30s base, 10m max) |
+| `Domain` (`ingress.k8s.ngrok.com/v1alpha1`, deprecated) | Same request key as its v1 twin | AnnotationChanged or GenerationChanged |
 
 ## Reconciliation Flow
 
@@ -140,3 +146,40 @@ the wildcard existed keeps its reservation.
 
 A covered domain re-verifies its coverage hourly, so if the wildcard reservation
 is removed from the account the domain reserves itself on the next check.
+
+## Migration: twin Domains
+
+The Domain controller follows the twin rules in
+[CRD Group Migration](../crd-group-migration.md#twin-rules-r1). A legacy and
+an `ngrok.com/v1` Domain with the same namespace and name are twins, and one
+reconcile pass handles both:
+
+- **Adoption.** A v1 Domain with no reservation takes its legacy twin's
+  `status.id` and saves it before anything else, when both name the same
+  hostname.
+- **One writer.** The `ngrok.com/v1` Domain is the only one that makes ngrok
+  API calls while it is alive. Adopting a reservation pushes its spec right
+  away.
+- **Superseded legacy Domain.** Once the v1 Domain holds a reservation, the
+  legacy one gets `Ready=True` with reason `SupersededByV1` and a
+  `DeprecatedAPIGroup` warning event, again on each edit. Its other status
+  fields stop updating, and it keeps its finalizer until it is deleted. The
+  operator never deletes a legacy Domain.
+- **Deletes.** Deleting either Domain leaves the reservation in place while the
+  other one is alive and holds it (same ID or same hostname). Unless the twin
+  is in the cache with a finalizer, it is re-read from the API server right
+  before any release: NotFound or an unserved kind means no twin, Forbidden
+  means a twin, and any other error retries. Deleting the v1 Domain makes the
+  legacy one the writer again in the same pass. Only the last of the two
+  applies its `reclaimPolicy`.
+- **Different hostnames.** Twins that share a name but not a hostname still
+  get one writer (v1), with a `DomainTwinMismatch` warning event on both. They
+  hold different reservations, so neither adopts nor guards the other's.
+
+The operator creates `ngrok.com/v1` Domains for the hostnames it serves: from
+defaults when there is no legacy Domain at that name, as a copy of the spec
+when the legacy Domain there carries the operator's controller labels, and not
+at all when a user created the legacy Domain (the user re-stamps it). Readers
+(Ingress, Gateway and Service load balancer status, endpoint `DomainReady`)
+use the v1 Domain only once it is Ready or has superseded the legacy one, and
+the legacy one until then.

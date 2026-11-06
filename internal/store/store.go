@@ -19,7 +19,6 @@ import (
 	"sort"
 	"strings"
 
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -90,8 +89,6 @@ type Storer interface {
 	ListTCPRoutes() []*gatewayv1alpha2.TCPRoute
 	ListTLSRoutes() []*gatewayv1alpha2.TLSRoute
 	ListReferenceGrants() []*gatewayv1beta1.ReferenceGrant
-
-	ListDomainsV1() []*ingressv1alpha1.Domain
 }
 
 // Store implements Storer and can be used to list Ingress, Services
@@ -405,11 +402,6 @@ func (s Store) ListNgrokIngressesV1() []*netv1.Ingress {
 		}
 	}
 	return ingresses
-}
-
-// ListDomainsV1 returns the list of Domains in the Domain v1 store.
-func (s Store) ListDomainsV1() []*ingressv1alpha1.Domain {
-	return genericListSorted[ingressv1alpha1.Domain](s.log, s.stores.DomainV1)
 }
 
 func genericList[T any, PT interface {

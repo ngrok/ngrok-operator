@@ -37,7 +37,7 @@ import (
 	"math/rand"
 	"time"
 
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -184,7 +184,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Verifying no domain CR was created for custom TCP endpoint")
 			Eventually(func(g Gomega) {
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(domains.Items).To(BeEmpty())
 			}, timeout, interval).Should(Succeed())
@@ -322,7 +322,7 @@ var _ = Describe("AgentEndpoint Controller", func() {
 
 			By("Verifying domain CR was created by controller")
 			Eventually(func(g Gomega) {
-				domainList := &ingressv1alpha1.DomainList{}
+				domainList := &ngrokv1.DomainList{}
 				g.Expect(k8sClient.List(ctx, domainList, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(domainList.Items).To(HaveLen(1))
 				g.Expect(domainList.Items[0].Spec.Domain).To(Equal("custom.example.com"))
@@ -1523,7 +1523,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
 
 				// Verify no Domain CRD was created
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(domains.Items).To(BeEmpty())
 			}, timeout, interval).Should(Succeed())
@@ -1548,17 +1548,17 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			wildcard := "*.wildcard-covered.example.com"
 
 			By("Creating a Domain that a wildcard already covers")
-			domain := &ingressv1alpha1.Domain{
-				Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(hostname),
+			domain := &ngrokv1.Domain{
+				Name:      ngrokv1.HyphenatedDomainNameFromURL(hostname),
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: hostname,
 				},
 			}
 			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 
 			Eventually(func(g Gomega) {
-				latest := &ingressv1alpha1.Domain{}
+				latest := &ngrokv1.Domain{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), latest)).To(Succeed())
 				domain = latest
 			}, timeout, interval).Should(Succeed())
@@ -1566,7 +1566,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			// No reservation of its own: exactly the state the reconciler writes.
 			domain.Status.ID = ""
 			domain.Status.Domain = hostname
-			domain.Status.CoveredByWildcardDomain = &ingressv1alpha1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard}
+			domain.Status.CoveredByWildcardDomain = &ngrokv1.DomainStatusWildcardDomain{ID: "rd_wildcard", Domain: wildcard}
 			domain.Status.Conditions = []metav1.Condition{
 				{
 					Type:               "Ready",
@@ -1617,13 +1617,13 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 		})
 
 		When("the domainRef for kubernetes-bound endpoint is stale", func() {
-			var staleDomain *ingressv1alpha1.Domain
+			var staleDomain *ngrokv1.Domain
 			BeforeEach(func(ctx SpecContext) {
 				By("Creating a domain that would be stale")
-				staleDomain = &ingressv1alpha1.Domain{
+				staleDomain = &ngrokv1.Domain{
 					Name:      "stale-domain-ref",
 					Namespace: namespace,
-					Spec: ingressv1alpha1.DomainSpec{
+					Spec: ngrokv1.DomainSpec{
 						Domain: "test.default",
 					},
 				}
@@ -1688,9 +1688,9 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
 
 			By("Waiting for controller to create Domain CR")
-			var domain *ingressv1alpha1.Domain
+			var domain *ngrokv1.Domain
 			Eventually(func(g Gomega) {
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(domains.Items).To(HaveLen(1))
 				domain = &domains.Items[0]
@@ -1718,7 +1718,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Making the domain ready")
 			Eventually(func(g Gomega) {
-				latestDomain := &ingressv1alpha1.Domain{}
+				latestDomain := &ngrokv1.Domain{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: domain.Name, Namespace: namespace}, latestDomain)).To(Succeed())
 				domain = latestDomain
 			}, timeout, interval).Should(Succeed())
@@ -1784,9 +1784,9 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 			Expect(k8sClient.Create(ctx, agentEndpoint)).To(Succeed())
 
 			By("Waiting for Domain to be created")
-			var domain *ingressv1alpha1.Domain
+			var domain *ngrokv1.Domain
 			Eventually(func(g Gomega) {
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(domains.Items).To(HaveLen(1))
 				domain = &domains.Items[0]
@@ -1805,7 +1805,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Updating domain status to ready")
 			Eventually(func(g Gomega) {
-				latestDomain := &ingressv1alpha1.Domain{}
+				latestDomain := &ngrokv1.Domain{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), latestDomain)).To(Succeed())
 				latestDomain.Status.ID = "dom_456"
 				latestDomain.Status.CNAMETarget = new("test.ngrok-cname.com")
@@ -1902,10 +1902,10 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 		It("should delete stale domain when endpoint has kubernetes binding and domainRef", func(ctx SpecContext) {
 			// Create domain first
-			staleDomain := &ingressv1alpha1.Domain{
+			staleDomain := &ngrokv1.Domain{
 				Name:      "stale-to-delete-example-com",
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: "stale-to-delete.example.com",
 				},
 			}
@@ -1964,7 +1964,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Verifying domain has deletion timestamp or is deleted")
 			Eventually(func(g Gomega) {
-				latestDomain := &ingressv1alpha1.Domain{}
+				latestDomain := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(staleDomain), latestDomain)
 				if err != nil {
 					// Domain deleted if there's no finalizer
@@ -2032,7 +2032,7 @@ cCzFoVcb6XWg4MpPeZ25v+xA
 
 			By("Verifying no Domain CRD was created")
 			Eventually(func(g Gomega) {
-				domains := &ingressv1alpha1.DomainList{}
+				domains := &ngrokv1.DomainList{}
 				g.Expect(k8sClient.List(ctx, domains, client.InNamespace(namespace))).To(Succeed())
 				g.Expect(domains.Items).To(BeEmpty())
 			}, timeout, interval).Should(Succeed())

@@ -194,6 +194,24 @@ should match snapshot with defaults:
       name: RELEASE-NAME-ngrok-operator-domain-editor-role
     rules:
       - apiGroups:
+          - ngrok.com
+        resources:
+          - domains
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains/status
+        verbs:
+          - get
+      - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
           - domains
@@ -225,6 +243,20 @@ should match snapshot with defaults:
         helm.sh/chart: ngrok-operator-0.24.0
       name: RELEASE-NAME-ngrok-operator-domain-viewer-role
     rules:
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - domains/status
+        verbs:
+          - get
       - apiGroups:
           - ingress.k8s.ngrok.com
         resources:
