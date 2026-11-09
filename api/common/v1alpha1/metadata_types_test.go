@@ -131,6 +131,8 @@ func TestMetadataToMap(t *testing.T) {
 		{name: "malformed legacy string", json: `"unterminated`, want: nil},
 		{name: "nested object not flat", json: `{"a":{"b":"c"}}`, want: nil},
 		{name: "numeric value not a string", json: `{"a":1}`, want: nil},
+		{name: "null value not a string", json: `{"a":"b","c":null}`, want: nil},
+		{name: "legacy string holding a null value", json: `"{\"a\":null}"`, want: nil},
 		{name: "array not an object", json: `["a","b"]`, want: nil},
 		{name: "bare number", json: `42`, want: nil},
 	}

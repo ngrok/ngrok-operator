@@ -34,8 +34,23 @@ rules:
   - get
   - list
   - watch
+# LEGACY-domain-kind: BEGIN — drop this rule block at cleanup.
 - apiGroups:
   - ingress.k8s.ngrok.com
+  resources:
+  - domains
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# LEGACY-domain-kind: END
+# AgentEndpoints create ngrok.com/v1 Domains for their hostnames.
+- apiGroups:
+  - ngrok.com
   resources:
   - domains
   verbs:

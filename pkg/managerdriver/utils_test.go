@@ -5,7 +5,8 @@ import (
 
 	"github.com/go-logr/logr"
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/ir"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -528,22 +529,13 @@ func TestCalculateIngressLoadBalancerIPStatus_DeterministicOrder(t *testing.T) {
 		},
 	}
 
-	domains := map[string]ingressv1alpha1.Domain{
-		"charlie.example.com": {
-			Status: ingressv1alpha1.DomainStatus{
-				CNAMETarget: new("charlie.cname.ngrok.io"),
-			},
-		},
-		"alpha.example.com": {
-			Status: ingressv1alpha1.DomainStatus{
-				CNAMETarget: new("alpha.cname.ngrok.io"),
-			},
-		},
-		"bravo.example.com": {
-			Status: ingressv1alpha1.DomainStatus{
-				CNAMETarget: new("bravo.cname.ngrok.io"),
-			},
-		},
+	withCNAME := func(cname string) domainpkg.Resource {
+		return domainpkg.FromV1(&ngrokv1.Domain{Status: ngrokv1.DomainStatus{CNAMETarget: new(cname)}})
+	}
+	domains := map[string]domainpkg.Resource{
+		"charlie.example.com": withCNAME("charlie.cname.ngrok.io"),
+		"alpha.example.com":   withCNAME("alpha.cname.ngrok.io"),
+		"bravo.example.com":   withCNAME("bravo.cname.ngrok.io"),
 	}
 
 	expected := []netv1.IngressLoadBalancerIngress{

@@ -55,10 +55,20 @@ spec:
       name: Message
       priority: 1
       type: string
+    deprecated: true
+    deprecationWarning: ingress.k8s.ngrok.com/v1alpha1 Domain is deprecated; use ngrok.com/v1
+      Domain instead. Re-stamp the manifest's apiVersion (spec.metadata must be a
+      map, not a JSON string), apply it, wait for the new object to be Ready, then
+      delete the old object.
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Domain is the Schema for the domains API
+        description: |-
+          Domain is the Schema for the domains API
+
+          Deprecated: use the canonical ngrok.com/v1 Domain. This kind is still
+          served and reconciled for one migration release; see
+          docs/developer-guide/passivity-shims.md.
         properties:
           apiVersion:
             description: |-

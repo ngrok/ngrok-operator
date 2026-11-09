@@ -1,4 +1,4 @@
-apiVersion: ingress.k8s.ngrok.com/v1alpha1
+apiVersion: ngrok.com/v1
 kind: Domain
 metadata:
   name: (join('', ['dom-labels', $ngrokDomainSuffixDashes]))

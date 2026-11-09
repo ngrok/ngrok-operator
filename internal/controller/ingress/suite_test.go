@@ -30,7 +30,6 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	. "github.com/onsi/ginkgo/v2"
@@ -57,11 +56,10 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var (
-	cfg          *rest.Config
-	k8sClient    client.Client
-	testEnv      *envtest.Environment
-	driver       *managerdriver.Driver
-	domainClient *nmockapi.DomainClient
+	cfg       *rest.Config
+	k8sClient client.Client
+	testEnv   *envtest.Environment
+	driver    *managerdriver.Driver
 
 	kginkgo *testutils.KGinkgo
 
@@ -135,18 +133,6 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sManager).NotTo(BeNil())
-
-	domainClient = nmockapi.NewDomainClient()
-
-	err = (&DomainReconciler{
-		Client:        k8sManager.GetClient(),
-		Log:           logf.Log.WithName("controllers").WithName("Domain"),
-		Recorder:      k8sManager.GetEventRecorder("domain-controller"),
-		Scheme:        k8sManager.GetScheme(),
-		DomainsClient: domainClient,
-	}).SetupWithManager(k8sManager)
-
-	Expect(err).NotTo(HaveOccurred())
 
 	go func() {
 		defer GinkgoRecover()

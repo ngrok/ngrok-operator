@@ -59,6 +59,8 @@ func addKnownTypes(s *runtime.Scheme) error {
 		&PrivateEndpointList{},
 		&IPPolicy{},
 		&IPPolicyList{},
+		&Domain{},
+		&DomainList{},
 	)
 	metav1.AddToGroupVersion(s, GroupVersion)
 	return nil

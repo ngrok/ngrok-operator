@@ -152,6 +152,8 @@ func storeFedResources() []client.Object {
 	return []client.Object{
 		&gatewayv1.GatewayClass{},
 		&corev1.Service{},
+		&ngrokv1.Domain{},
+		// LEGACY-domain-kind: drop the legacy Domain entry at cleanup.
 		&ingressv1alpha1.Domain{},
 		// LEGACY-trafficpolicy-kind: drop the NgrokTrafficPolicy entry at
 		// cleanup; the canonical TrafficPolicy entry below stays.

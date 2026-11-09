@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
 )
 
@@ -32,16 +33,17 @@ func TestApplyDomains_BackfillsLegacyOnlyDomain(t *testing.T) {
 
 	scheme := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(scheme))
-	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ingressv1alpha1.AddToScheme(scheme)) // LEGACY-domain-kind: delete at cleanup.
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
-	existing := &ingressv1alpha1.Domain{
+	existing := &ngrokv1.Domain{
 		Name:      domainName,
 		Namespace: "default",
 		Labels: map[string]string{
 			labels.LegacyControllerName:      controllerName,
 			labels.LegacyControllerNamespace: controllerNamespace,
 		},
-		Spec: ingressv1alpha1.DomainSpec{Domain: "example.com"},
+		Spec: ngrokv1.DomainSpec{Domain: "example.com"},
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
@@ -53,16 +55,16 @@ func TestApplyDomains_BackfillsLegacyOnlyDomain(t *testing.T) {
 		types.NamespacedName{Namespace: controllerNamespace, Name: controllerName},
 	)
 
-	desired := map[string]ingressv1alpha1.Domain{
+	desired := map[string]ngrokv1.Domain{
 		"example.com": {
 			ObjectMeta: metav1.ObjectMeta{Name: domainName, Namespace: "default"},
-			Spec:       ingressv1alpha1.DomainSpec{Domain: "example.com"},
+			Spec:       ngrokv1.DomainSpec{Domain: "example.com"},
 		},
 	}
 
 	require.NoError(t, d.applyDomains(context.Background(), c, desired))
 
-	got := &ingressv1alpha1.Domain{}
+	got := &ngrokv1.Domain{}
 	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(existing), got))
 
 	gotLabels := got.GetLabels()
