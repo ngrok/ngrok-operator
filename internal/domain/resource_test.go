@@ -109,9 +109,8 @@ func jsonFieldPaths(t reflect.Type, prefix string, out map[string]string) {
 	if t.Kind() != reflect.Struct || t.PkgPath() == "k8s.io/apimachinery/pkg/apis/meta/v1" {
 		return
 	}
-	for i := range t.NumField() {
-		f := t.Field(i)
-		name := strings.Split(f.Tag.Get("json"), ",")[0]
+	for f := range t.Fields() {
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
 		if name == "" || name == "-" {
 			continue
 		}
@@ -204,16 +203,16 @@ func TestFromLegacy_SpecAccessors(t *testing.T) {
 func domainKinds(t *testing.T, hostname, id string) map[string]Resource {
 	t.Helper()
 	legacy, err := FromLegacy(&ingressv1alpha1.Domain{ // LEGACY-domain-kind: delete this entry at cleanup.
-		ObjectMeta: metav1.ObjectMeta{Name: "d", Generation: 1},
-		Spec:       ingressv1alpha1.DomainSpec{Domain: hostname},
-		Status:     ingressv1alpha1.DomainStatus{ID: id},
+		Name: "d", Generation: 1,
+		Spec:   ingressv1alpha1.DomainSpec{Domain: hostname},
+		Status: ingressv1alpha1.DomainStatus{ID: id},
 	})
 	require.NoError(t, err)
 	return map[string]Resource{
 		"canonical": FromV1(&ngrokv1.Domain{
-			ObjectMeta: metav1.ObjectMeta{Name: "d", Generation: 1},
-			Spec:       ngrokv1.DomainSpec{Domain: hostname},
-			Status:     ngrokv1.DomainStatus{ID: id},
+			Name: "d", Generation: 1,
+			Spec:   ngrokv1.DomainSpec{Domain: hostname},
+			Status: ngrokv1.DomainStatus{ID: id},
 		}),
 		"legacy": legacy,
 	}

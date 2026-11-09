@@ -79,9 +79,9 @@ func pairFixture(v1 v1State, legacy legacyState) Pair {
 		}
 	case v1Deleting:
 		p.V1 = &ngrokv1.Domain{
-			ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &deleting, Finalizers: []string{"x"}},
-			Spec:       ngrokv1.DomainSpec{Domain: "a.example.com"},
-			Status:     ngrokv1.DomainStatus{ID: "rd_1"},
+			DeletionTimestamp: &deleting, Finalizers: []string{"x"},
+			Spec:   ngrokv1.DomainSpec{Domain: "a.example.com"},
+			Status: ngrokv1.DomainStatus{ID: "rd_1"},
 		}
 	}
 	switch legacy {
@@ -97,9 +97,9 @@ func pairFixture(v1 v1State, legacy legacyState) Pair {
 		}
 	case legacyDeleting:
 		p.Legacy = &ingressv1alpha1.Domain{
-			ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &deleting, Finalizers: []string{"x"}},
-			Spec:       ingressv1alpha1.DomainSpec{Domain: "a.example.com"},
-			Status:     ingressv1alpha1.DomainStatus{ID: "rd_1"},
+			DeletionTimestamp: &deleting, Finalizers: []string{"x"},
+			Spec:   ingressv1alpha1.DomainSpec{Domain: "a.example.com"},
+			Status: ingressv1alpha1.DomainStatus{ID: "rd_1"},
 		}
 	}
 	return p
@@ -172,14 +172,14 @@ func TestPairMatched(t *testing.T) {
 
 func TestByHostname(t *testing.T) {
 	v1s := []ngrokv1.Domain{
-		{ObjectMeta: metav1.ObjectMeta{Name: "backed"}, Spec: ngrokv1.DomainSpec{Domain: "backed.example.com"}, Status: ngrokv1.DomainStatus{ID: "rd_v1", Conditions: readyConditions}},
-		{ObjectMeta: metav1.ObjectMeta{Name: "unbacked"}, Spec: ngrokv1.DomainSpec{Domain: "unbacked.example.com"}},
-		{ObjectMeta: metav1.ObjectMeta{Name: "v1-only"}, Spec: ngrokv1.DomainSpec{Domain: "v1-only.example.com"}},
+		{Name: "backed", Spec: ngrokv1.DomainSpec{Domain: "backed.example.com"}, Status: ngrokv1.DomainStatus{ID: "rd_v1", Conditions: readyConditions}},
+		{Name: "unbacked", Spec: ngrokv1.DomainSpec{Domain: "unbacked.example.com"}},
+		{Name: "v1-only", Spec: ngrokv1.DomainSpec{Domain: "v1-only.example.com"}},
 	}
 	legacies := []ingressv1alpha1.Domain{
-		{ObjectMeta: metav1.ObjectMeta{Name: "backed"}, Spec: ingressv1alpha1.DomainSpec{Domain: "backed.example.com"}, Status: ingressv1alpha1.DomainStatus{ID: "rd_legacy"}},
-		{ObjectMeta: metav1.ObjectMeta{Name: "unbacked"}, Spec: ingressv1alpha1.DomainSpec{Domain: "unbacked.example.com"}, Status: ingressv1alpha1.DomainStatus{ID: "rd_legacy"}},
-		{ObjectMeta: metav1.ObjectMeta{Name: "legacy-only"}, Spec: ingressv1alpha1.DomainSpec{Domain: "legacy-only.example.com"}},
+		{Name: "backed", Spec: ingressv1alpha1.DomainSpec{Domain: "backed.example.com"}, Status: ingressv1alpha1.DomainStatus{ID: "rd_legacy"}},
+		{Name: "unbacked", Spec: ingressv1alpha1.DomainSpec{Domain: "unbacked.example.com"}, Status: ingressv1alpha1.DomainStatus{ID: "rd_legacy"}},
+		{Name: "legacy-only", Spec: ingressv1alpha1.DomainSpec{Domain: "legacy-only.example.com"}},
 	}
 
 	got, err := ByHostname(v1s, legacies)
@@ -193,8 +193,8 @@ func TestByHostname(t *testing.T) {
 }
 
 func TestGetPair(t *testing.T) {
-	v1 := &ngrokv1.Domain{ObjectMeta: metav1.ObjectMeta{Name: "a-example-com", Namespace: "default"}, Spec: ngrokv1.DomainSpec{Domain: "a.example.com"}}
-	legacy := &ingressv1alpha1.Domain{ObjectMeta: metav1.ObjectMeta{Name: "a-example-com", Namespace: "default"}, Spec: ingressv1alpha1.DomainSpec{Domain: "a.example.com"}}
+	v1 := &ngrokv1.Domain{Name: "a-example-com", Namespace: "default", Spec: ngrokv1.DomainSpec{Domain: "a.example.com"}}
+	legacy := &ingressv1alpha1.Domain{Name: "a-example-com", Namespace: "default", Spec: ingressv1alpha1.DomainSpec{Domain: "a.example.com"}}
 	_, c := newTestManager(t, v1, legacy)
 
 	p, err := GetPair(t.Context(), c, types.NamespacedName{Name: "a-example-com", Namespace: "default"})

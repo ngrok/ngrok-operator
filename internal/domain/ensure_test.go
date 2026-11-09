@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -69,8 +68,8 @@ func TestEnsureV1_CreatesFromDefaultsWithoutLegacy(t *testing.T) {
 
 func TestEnsureV1_ReturnsExisting(t *testing.T) {
 	existing := &ngrokv1.Domain{
-		ObjectMeta: metav1.ObjectMeta{Name: ensureKey.Name, Namespace: ensureKey.Namespace},
-		Spec:       ngrokv1.DomainSpec{Domain: "a.example.com", Description: "already here"},
+		Name: ensureKey.Name, Namespace: ensureKey.Namespace,
+		Spec: ngrokv1.DomainSpec{Domain: "a.example.com", Description: "already here"},
 	}
 	_, c := newTestManager(t, existing)
 
@@ -87,11 +86,9 @@ func TestEnsureV1_ReturnsExisting(t *testing.T) {
 // defaults.
 func TestEnsureV1_CopiesLegacySpec(t *testing.T) {
 	legacy := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ensureKey.Name, Namespace: ensureKey.Namespace,
-			Labels:      map[string]string{"team": "edge"},
-			Annotations: map[string]string{"kubectl.kubernetes.io/last-applied-configuration": "{}"},
-		},
+		Name: ensureKey.Name, Namespace: ensureKey.Namespace,
+		Labels:      map[string]string{"team": "edge"},
+		Annotations: map[string]string{"kubectl.kubernetes.io/last-applied-configuration": "{}"},
 		Spec: ingressv1alpha1.DomainSpec{
 			Domain:        "a.example.com",
 			Description:   "hand-written",
@@ -125,8 +122,8 @@ func TestEnsureV1_BlockedByUnmappableMetadata(t *testing.T) {
 	for _, raw := range []string{`"free text"`, `"{\"a\":1}"`, `{"a":{"b":"c"}}`, `{}`, `"{}"`, ` { } `, `{"a":null}`, `"{\"a\":null}"`} {
 		t.Run(raw, func(t *testing.T) {
 			legacy := &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{Name: ensureKey.Name, Namespace: ensureKey.Namespace},
-				Spec:       ingressv1alpha1.DomainSpec{Domain: "a.example.com", Metadata: json.RawMessage(raw)},
+				Name: ensureKey.Name, Namespace: ensureKey.Namespace,
+				Spec: ingressv1alpha1.DomainSpec{Domain: "a.example.com", Metadata: json.RawMessage(raw)},
 			}
 			_, c := newTestManager(t, legacy)
 
@@ -143,8 +140,8 @@ func TestEnsureV1_EmptyLegacyMetadataIsNotBlocked(t *testing.T) {
 	for _, raw := range []string{``, `null`, `""`} {
 		t.Run(raw, func(t *testing.T) {
 			legacy := &ingressv1alpha1.Domain{
-				ObjectMeta: metav1.ObjectMeta{Name: ensureKey.Name, Namespace: ensureKey.Namespace},
-				Spec:       ingressv1alpha1.DomainSpec{Domain: "a.example.com", Metadata: json.RawMessage(raw)},
+				Name: ensureKey.Name, Namespace: ensureKey.Namespace,
+				Spec: ingressv1alpha1.DomainSpec{Domain: "a.example.com", Metadata: json.RawMessage(raw)},
 			}
 			_, c := newTestManager(t, legacy)
 
@@ -159,8 +156,8 @@ func TestEnsureV1_EmptyLegacyMetadataIsNotBlocked(t *testing.T) {
 // Domain; the loser must return the winner's object, not an error.
 func TestEnsureV1_ConcurrentCreate(t *testing.T) {
 	winner := &ngrokv1.Domain{
-		ObjectMeta: metav1.ObjectMeta{Name: ensureKey.Name, Namespace: ensureKey.Namespace},
-		Spec:       ngrokv1.DomainSpec{Domain: "a.example.com", Description: "winner"},
+		Name: ensureKey.Name, Namespace: ensureKey.Namespace,
+		Spec: ngrokv1.DomainSpec{Domain: "a.example.com", Description: "winner"},
 	}
 	c := fake.NewClientBuilder().WithScheme(setupScheme()).WithInterceptorFuncs(interceptor.Funcs{
 		Create: func(ctx context.Context, cl client.WithWatch, obj client.Object, _ ...client.CreateOption) error {
@@ -180,8 +177,8 @@ func TestEnsureV1_ConcurrentCreate(t *testing.T) {
 // copy, and the caller keeps using the legacy Domain.
 func TestEnsureV1_LeavesUserLegacyDomainAlone(t *testing.T) {
 	legacy := &ingressv1alpha1.Domain{
-		ObjectMeta: metav1.ObjectMeta{Name: ensureKey.Name, Namespace: ensureKey.Namespace},
-		Spec:       ingressv1alpha1.DomainSpec{Domain: "a.example.com", ResolvesTo: []ingressv1alpha1.DomainResolvesToEntry{{Value: "eu"}}},
+		Name: ensureKey.Name, Namespace: ensureKey.Namespace,
+		Spec: ingressv1alpha1.DomainSpec{Domain: "a.example.com", ResolvesTo: []ingressv1alpha1.DomainResolvesToEntry{{Value: "eu"}}},
 	}
 	for name, owned := range map[string]func(client.Object) bool{
 		"not owned": func(client.Object) bool { return false },

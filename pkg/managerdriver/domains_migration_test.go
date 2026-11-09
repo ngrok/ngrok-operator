@@ -126,8 +126,8 @@ func TestGetDomainsByDomain_UnbackedV1DoesNotShadowLegacy(t *testing.T) {
 		Spec: ngrokv1.DomainSpec{Domain: "example.com"},
 	}
 	ingress := &netv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{Name: "ing", Namespace: "default"},
-		Spec:       netv1.IngressSpec{Rules: []netv1.IngressRule{{Host: "example.com"}}},
+		Name: "ing", Namespace: "default",
+		Spec: netv1.IngressSpec{Rules: []netv1.IngressRule{{Host: "example.com"}}},
 	}
 
 	status := func(objs ...client.Object) []netv1.IngressLoadBalancerIngress {
