@@ -11,6 +11,14 @@ tests:
   - matchRegex:
       path: spec.template.spec.containers[0].command[2]
       pattern: (?s)kubectl delete kubernetesoperators\.ngrok\.k8s\.ngrok\.com .*kubectl delete kubernetesoperators\.ngrok\.com
+- it: clears the legacy finalizer only when the operator does not release it
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: (?s)if ! kubectl delete kubernetesoperators\.ngrok\.k8s\.ngrok\.com [^\n]*\\\n[^\n]*; then\n[^\n]*\n\s*kubectl patch kubernetesoperators\.ngrok\.k8s\.ngrok\.com
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: (?s)kubectl patch kubernetesoperators\.ngrok\.k8s\.ngrok\.com .*kubectl delete kubernetesoperators\.ngrok\.k8s\.ngrok\.com
 - it: stops before the drain while the legacy KubernetesOperator remains
   asserts:
   - matchRegex:

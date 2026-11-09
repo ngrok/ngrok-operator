@@ -38,17 +38,34 @@ spec:
               # LEGACY-kubernetesoperator-kind: BEGIN — drop in R2.
               # 1. Remove the legacy KubernetesOperator. While it exists, the
               #    operator treats deleting the v1 object as a rollback and
-              #    skips the drain. Clear its finalizer first in case the
-              #    operator is not running.
+              #    skips the drain. The operator releases the legacy finalizer
+              #    once the v1 object holds the ngrok ID. If it does not within
+              #    the timeout (operator down, or the ID never adopted), clear
+              #    the finalizer so the uninstall can finish; the legacy ngrok
+              #    registration may then be left behind.
               echo "Removing the legacy KubernetesOperator..."
-              kubectl patch kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
-                --type=merge -p '{"metadata":{"finalizers":null}}' || true
-              kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
-                --ignore-not-found --wait=true --timeout=60s || true
+              if ! kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                --ignore-not-found --wait=true --timeout=60s; then
+                echo "The operator did not release the legacy KubernetesOperator; clearing its finalizer"
+                kubectl patch kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                  --type=merge -p '{"metadata":{"finalizers":null}}' || true
+              fi
               # Deleting the KubernetesOperator below would skip the drain if
-              # the legacy one were still here, so fail and let the Job retry.
-              if LEGACY=$(kubectl get kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
-                --ignore-not-found -o name) && [ -n "$LEGACY" ]; then
+              # the legacy one were still here or could not be checked, so fail
+              # and let the Job retry. A legacy kind that is no longer served
+              # counts as absent, as it does for the operator.
+              ERR=$(mktemp)
+              if ! LEGACY=$(kubectl get kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+                --ignore-not-found -o name 2>"$ERR"); then
+                if grep -q "doesn't have a resource type" "$ERR"; then
+                  LEGACY=""
+                else
+                  cat "$ERR" >&2
+                  echo "Could not check for the legacy KubernetesOperator; not deleting the KubernetesOperator"
+                  exit 1
+                fi
+              fi
+              if [ -n "$LEGACY" ]; then
                 echo "The legacy KubernetesOperator is still present; not deleting the KubernetesOperator"
                 exit 1
               fi
