@@ -68,8 +68,11 @@ spec:
             env:
               - name: HOST
                 value: ($host)
+            # timeout bounds each attempt like curl -m and nc -w do: a connection
+            # opened before kube-proxy programs the new Service hangs, and the
+            # single-threaded s_server origin would block every retry behind it.
             content: |
-              ../_fixtures/check.sh "CN=$HOST" "echo | openssl s_client -connect $HOST:443 -servername $HOST 2>/dev/null | grep '^subject=' | tr -d ' '"
+              ../_fixtures/check.sh "CN=$HOST" "echo | timeout 10 openssl s_client -connect $HOST:443 -servername $HOST 2>/dev/null | grep '^subject=' | tr -d ' '"
       catch:
         - podLogs:
             namespace: ($operatorNamespace)

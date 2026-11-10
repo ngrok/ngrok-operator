@@ -87,8 +87,10 @@ installCRDs: true
 ## @param ngrok.features.bindings.serviceAnnotations Annotations applied to projected services
 ## @param ngrok.features.bindings.serviceLabels Labels applied to projected services
 ## @param ngrok.features.bindings.ingressEndpoint Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`
-## @param ngrok.features.privateEndpoints.enabled (POC) Make ngrok private endpoints (*.ngrok.direct only; *.internal is not supported) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, UDP/443 egress, and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret
-## @param ngrok.features.privateEndpoints.privateDialServer Private dial server (host:port) the private-endpoint-forwarder connects through. QUIC only, so UDP/443 egress to it is required. Default: `quic.connect-endpoint.ngrok.com:443`
+## @param ngrok.features.privateEndpoints.enabled (POC) Make ngrok private endpoints (*.ngrok.direct only; *.internal is not supported) reachable from pods by URL, including the private-endpoint-forwarder. Requires CoreDNS rewrite rules mapping foo.ngrok.direct to Services in the release namespace, TCP/443 egress (UDP/443 too for QUIC), and a token: ngrok.credentials.privateEndpointForwarder.accessToken or ngrok.credentials.accessToken, or a PRIVATE_ENDPOINTS_ACCESS_TOKEN key in the ngrok.credentials.secret.name secret
+## @param ngrok.features.privateEndpoints.privateDialQuicServer Private dial server (host:port) the private-endpoint-forwarder connects to over HTTP/3 (QUIC, UDP/443). Default: `quic.connect-endpoint.ngrok.com:443`
+## @param ngrok.features.privateEndpoints.privateDialH2Server Private dial server (host:port) the private-endpoint-forwarder connects to over HTTP/2 (TLS, TCP/443). Default: `h2.connect-endpoint.ngrok.com:443`
+## @param ngrok.features.privateEndpoints.privateDialProtocol Private dial transport: `auto` races QUIC against HTTP/2 and keeps the first to connect, `quic` or `h2` uses only that one. Default: `auto`
 ## @param ngrok.features.domains.defaultReclaimPolicy Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`
 ## @param ngrok.features.cleanup.enabled Run a pre-delete hook on uninstall that deletes the KubernetesOperator resource, so the operator drains before it is removed
 ## @param ngrok.features.cleanup.timeout Seconds the hook waits for the drain to finish
@@ -140,7 +142,9 @@ ngrok:
       ingressEndpoint: ""
     privateEndpoints:
       enabled: false
-      privateDialServer: ""
+      privateDialQuicServer: ""
+      privateDialH2Server: ""
+      privateDialProtocol: ""
     domains:
       defaultReclaimPolicy: ""
     cleanup:

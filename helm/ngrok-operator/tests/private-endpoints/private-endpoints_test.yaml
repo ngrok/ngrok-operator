@@ -54,18 +54,30 @@ tests:
       content:
         name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
         value: "true"
-- it: forwarder gets the private dial server as env
+- it: forwarder gets the private dial settings as env
   set:
     ngrok.credentials.accessToken: abc123
     ngrok.features.privateEndpoints.enabled: true
-    ngrok.features.privateEndpoints.privateDialServer: quic.eu.example.com:443
+    ngrok.features.privateEndpoints.privateDialQuicServer: quic.eu.example.com:443
+    ngrok.features.privateEndpoints.privateDialH2Server: h2.eu.example.com:443
+    ngrok.features.privateEndpoints.privateDialProtocol: h2
   template: private-endpoints/deployment.yaml
   asserts:
   - contains:
       path: spec.template.spec.containers[0].env
       content:
-        name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__PRIVATE_DIAL_SERVER
+        name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__PRIVATE_DIAL_QUIC_SERVER
         value: quic.eu.example.com:443
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__PRIVATE_DIAL_H2_SERVER
+        value: h2.eu.example.com:443
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__PRIVATE_DIAL_PROTOCOL
+        value: h2
 - it: renders nothing in one-click demo mode
   set:
     ngrok.features.privateEndpoints.enabled: true

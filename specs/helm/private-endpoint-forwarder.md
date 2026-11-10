@@ -37,4 +37,4 @@ With the chart-generated Secret, the key is written only when the feature is ena
 
 ## Network
 
-The cluster must allow outbound UDP/443 from the forwarder pods: private dial runs over QUIC only.
+The cluster must allow outbound TCP/443 from the forwarder pods for private dial over HTTP/2. Outbound UDP/443 is optional: with `privateDialProtocol: auto`, QUIC is used when it is open and the node allows large UDP buffers. Set `privateDialProtocol: quic` to require it, or `h2` to never try it.
