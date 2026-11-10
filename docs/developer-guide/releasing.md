@@ -82,7 +82,7 @@ support `amd64` and `arm64` architectures, with future plans to build for other 
 ### Helm Chart
 
 The helm chart is packaged and published to its own [helm repository](https://charts.ngrok.com/index.yaml)
-and can be installed by following the instructions in the chart's [README](../helm/ingress-operator/README.md).
+and can be installed by following the instructions in the chart's [README](../../helm/ngrok-operator/README.md).
 
 ### CRDs Helm Chart
 
