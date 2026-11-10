@@ -201,6 +201,20 @@ func TestStateChecker_LegacyFallback(t *testing.T) {
 			wantDrain: true,
 		},
 		{
+			name: "canonical registered wins over legacy draining",
+			objs: []client.Object{
+				&ngrokv1.KubernetesOperator{
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1.KubernetesOperatorStatus{ID: "k8sop_canonical"},
+				},
+				&ngrokv1alpha1.KubernetesOperator{
+					Name: "my-release", Namespace: "ngrok-operator",
+					Status: ngrokv1alpha1.KubernetesOperatorStatus{ID: "k8sop_legacy", Conditions: draining},
+				},
+			},
+			wantDrain: false,
+		},
+		{
 			name: "canonical draining while unregistered wins over legacy",
 			objs: []client.Object{
 				&ngrokv1.KubernetesOperator{

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,6 +23,12 @@ const (
 
 var testKey = client.ObjectKey{Namespace: testNamespace, Name: testName}
 
+var drainingConditions = []metav1.Condition{{
+	Type:   ngrokv1.KubernetesOperatorConditionDraining,
+	Status: metav1.ConditionTrue,
+	Reason: ngrokv1.KubernetesOperatorReasonDrainInProgress,
+}}
+
 func canonicalKO(id, ingressEndpoint string) *ngrokv1.KubernetesOperator {
 	return &ngrokv1.KubernetesOperator{
 		Namespace: testNamespace, Name: testName,
@@ -32,22 +39,20 @@ func canonicalKO(id, ingressEndpoint string) *ngrokv1.KubernetesOperator {
 func legacyKO(id, ingressEndpoint string) *ngrokv1alpha1.KubernetesOperator {
 	return &ngrokv1alpha1.KubernetesOperator{
 		Namespace: testNamespace, Name: testName,
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			Binding: &ngrokv1alpha1.KubernetesOperatorBinding{
-				EndpointSelectors: []string{"true"},
-				TlsSecretName:     "default-tls",
-			},
-		},
-		Status: ngrokv1alpha1.KubernetesOperatorStatus{
-			ID:                      id,
-			BindingsIngressEndpoint: ingressEndpoint,
-			Conditions: []metav1.Condition{{
-				Type:   ngrokv1alpha1.KubernetesOperatorConditionDraining,
-				Status: metav1.ConditionTrue,
-				Reason: ngrokv1alpha1.KubernetesOperatorReasonDrainInProgress,
-			}},
-		},
+		Status: ngrokv1alpha1.KubernetesOperatorStatus{ID: id, BindingsIngressEndpoint: ingressEndpoint},
 	}
+}
+
+func drainingCanonicalKO(id string) *ngrokv1.KubernetesOperator {
+	ko := canonicalKO(id, "")
+	ko.Status.Conditions = drainingConditions
+	return ko
+}
+
+func drainingLegacyKO(id string) *ngrokv1alpha1.KubernetesOperator {
+	ko := legacyKO(id, "")
+	ko.Status.Conditions = drainingConditions
+	return ko
 }
 
 func newClient(t *testing.T, objs ...client.Object) client.Client {
@@ -65,7 +70,7 @@ func TestLookup(t *testing.T) {
 		wantNotFound bool
 		wantID       string
 		wantEndpoint string
-		wantLegacy   bool
+		wantDraining bool
 	}{
 		{
 			name:         "canonical registered only",
@@ -80,34 +85,34 @@ func TestLookup(t *testing.T) {
 			wantEndpoint: "canonical.example:443",
 		},
 		{
+			name:         "canonical registered wins over draining legacy",
+			objs:         []client.Object{canonicalKO("k8sop_canonical", "canonical.example:443"), drainingLegacyKO("k8sop_legacy")},
+			wantID:       "k8sop_canonical",
+			wantEndpoint: "canonical.example:443",
+		},
+		{
 			name:         "canonical unregistered falls back to legacy",
 			objs:         []client.Object{canonicalKO("", ""), legacyKO("k8sop_legacy", "legacy.example:443")},
 			wantID:       "k8sop_legacy",
 			wantEndpoint: "legacy.example:443",
-			wantLegacy:   true,
+		},
+		{
+			name:         "canonical unregistered falls back to draining legacy",
+			objs:         []client.Object{canonicalKO("", ""), drainingLegacyKO("k8sop_legacy")},
+			wantID:       "k8sop_legacy",
+			wantDraining: true,
 		},
 		{
 			name:         "legacy only",
 			objs:         []client.Object{legacyKO("k8sop_legacy", "legacy.example:443")},
 			wantID:       "k8sop_legacy",
 			wantEndpoint: "legacy.example:443",
-			wantLegacy:   true,
 		},
 		{
-			name: "canonical unregistered but draining wins over legacy",
-			objs: []client.Object{
-				func() client.Object {
-					ko := canonicalKO("", "")
-					ko.Status.Conditions = []metav1.Condition{{
-						Type:   ngrokv1.KubernetesOperatorConditionDraining,
-						Status: metav1.ConditionTrue,
-						Reason: ngrokv1.KubernetesOperatorReasonDrainInProgress,
-					}}
-					return ko
-				}(),
-				legacyKO("k8sop_legacy", "legacy.example:443"),
-			},
-			wantID: "",
+			name:         "canonical unregistered but draining wins over legacy",
+			objs:         []client.Object{drainingCanonicalKO(""), legacyKO("k8sop_legacy", "legacy.example:443")},
+			wantID:       "",
+			wantDraining: true,
 		},
 		{
 			name:   "canonical unregistered and no legacy",
@@ -131,13 +136,28 @@ func TestLookup(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantID, ko.Status.ID)
 			assert.Equal(t, tt.wantEndpoint, ko.Status.BindingsIngressEndpoint)
-			if tt.wantLegacy {
-				require.NotNil(t, ko.Spec.Binding)
-				assert.Equal(t, []string{"true"}, ko.Spec.Binding.EndpointSelectors)
-				assert.Equal(t, "default-tls", ko.Spec.Binding.TlsSecretName)
-				require.Len(t, ko.Status.Conditions, 1)
-				assert.Equal(t, ngrokv1.KubernetesOperatorConditionDraining, ko.Status.Conditions[0].Type)
-			}
+			assert.Equal(t, tt.wantDraining, meta.IsStatusConditionTrue(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining))
 		})
 	}
+}
+
+func TestFromLegacy(t *testing.T) {
+	legacy := drainingLegacyKO("k8sop_legacy")
+	legacy.Status.BindingsIngressEndpoint = "legacy.example:443"
+	legacy.Spec.Binding = &ngrokv1alpha1.KubernetesOperatorBinding{
+		EndpointSelectors: []string{"true"},
+		IngressEndpoint:   new("legacy.example:443"),
+		TlsSecretName:     "default-tls",
+	}
+
+	ko := fromLegacy(legacy)
+
+	assert.Equal(t, legacy.ObjectMeta, ko.ObjectMeta)
+	assert.Equal(t, "k8sop_legacy", ko.Status.ID)
+	assert.Equal(t, "legacy.example:443", ko.Status.BindingsIngressEndpoint)
+	assert.Equal(t, drainingConditions, ko.Status.Conditions)
+	require.NotNil(t, ko.Spec.Binding)
+	assert.Equal(t, []string{"true"}, ko.Spec.Binding.EndpointSelectors)
+	assert.Equal(t, legacy.Spec.Binding.IngressEndpoint, ko.Spec.Binding.IngressEndpoint)
+	assert.Equal(t, "default-tls", ko.Spec.Binding.TlsSecretName)
 }

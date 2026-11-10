@@ -21,25 +21,25 @@ func TestLegacyTwinReadSkipsDrain(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		err      error
+		readErr  error
 		wantSkip bool
 		wantErr  bool
 	}{
-		{name: "legacy twin present skips", wantSkip: true},
-		{name: "legacy read forbidden skips", err: apierrors.NewForbidden(legacyGR, "ko", errors.New("rbac")), wantSkip: true},
-		{name: "no legacy twin drains", err: apierrors.NewNotFound(legacyGR, "ko")},
-		{name: "legacy kind not installed drains", err: &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "ngrok.k8s.ngrok.com", Kind: "KubernetesOperator"}}},
-		{name: "other error requeues", err: errors.New("boom"), wantErr: true},
+		{name: "legacy twin present skips", readErr: nil, wantSkip: true, wantErr: false},
+		{name: "legacy read forbidden skips", readErr: apierrors.NewForbidden(legacyGR, "ko", errors.New("rbac")), wantSkip: true, wantErr: false},
+		{name: "no legacy twin drains", readErr: apierrors.NewNotFound(legacyGR, "ko"), wantSkip: false, wantErr: false},
+		{name: "legacy kind not installed drains", readErr: &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: "ngrok.k8s.ngrok.com", Kind: "KubernetesOperator"}}, wantSkip: false, wantErr: false},
+		{name: "other error requeues", readErr: errors.New("boom"), wantSkip: false, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			skip, err := legacyTwinReadSkipsDrain(tt.err)
+			skip, err := legacyTwinReadSkipsDrain(tt.readErr)
 			if tt.wantErr {
 				require.Error(t, err)
-				return
+			} else {
+				require.NoError(t, err)
 			}
-			require.NoError(t, err)
 			assert.Equal(t, tt.wantSkip, skip)
 		})
 	}
