@@ -100,9 +100,20 @@ Steps:
 3. If both a canonical and a deprecated object exist under the same name, the
    canonical one wins silently — that is the expected transitional state
    between the `apply` and the `delete` above.
-4. Once all manifests are updated, the deprecated CRDs are removed in the
-   cleanup release. Any objects still stored under a deprecated CRD at that
-   point are removed by the API server along with it.
+4. `Domain` differs from steps 2 and 3 because the operator writes Domains
+   itself. It creates the `ngrok.com/v1` Domain for every hostname it serves:
+   from defaults when no legacy Domain has that name, and as a copy when the
+   legacy Domain there is one the operator created. A legacy Domain a user
+   created is left for the user to re-stamp as above. The v1 Domain takes over the
+   legacy one's reservation, and readers switch to it once it is Ready or has
+   superseded the legacy one. `kubectl get domains` shows the legacy kind
+   while both exist, so use `domains.ngrok.com` and
+   `domains.ingress.k8s.ngrok.com`. See
+   [the Domain controller spec](controllers/domain.md#migration-twin-domains).
+5. The deprecated CRDs are removed over two later releases; see
+   [CRD Group Migration](crd-group-migration.md#release-plan). 1.0 stops
+   reconciling legacy objects and strips their finalizers, and 1.1 removes the
+   CRDs, with any objects still stored under them.
 
 ## Breaking Field Removals
 

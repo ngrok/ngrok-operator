@@ -1,0 +1,13 @@
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: Domain
+metadata:
+  name: (join('', ['dom-migrate', $ngrokDomainSuffixDashes]))
+  # The agent-manager's controller labels: this simulates a Domain an older
+  # operator created, which the operator copies to ngrok.com/v1 itself. A
+  # Domain without them is the user's to re-stamp.
+  labels:
+    ngrok.com/controller-name: ngrok-operator-agent-manager
+    ngrok.com/controller-namespace: ngrok-operator
+spec:
+  domain: (join('', ['dom-migrate', $ngrokDomainSuffix]))
+  description: created as a legacy Domain

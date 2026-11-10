@@ -49,7 +49,9 @@ There is no idle timeout: a silent but live peer can hold a connection open.
 
 ## Private Dial Session
 
-One private dial client per process, connecting over QUIC to the private dial server (`ngrok.features.privateEndpoints.privateDialServer`, default `quic.connect-endpoint.ngrok.com:443`) with the access token from `NGROK_ACCESS_TOKEN`.
+One private dial client per process, connecting to the private dial server with the access token from `NGROK_ACCESS_TOKEN`. The transport is `ngrok.features.privateEndpoints.privateDialProtocol`: `auto` (default) races HTTP/3 over QUIC (`privateDialQuicServer`, default `quic.connect-endpoint.ngrok.com:443`) against HTTP/2 (`privateDialH2Server`, default `h2.connect-endpoint.ngrok.com:443`) and keeps the first to connect for the life of the process; `quic` or `h2` skips the race. privatedial skips QUIC when the node cannot give a UDP socket 7 MiB buffers. The chosen protocol is logged on connect.
+
+HTTP/2 requires `golang.org/x/net` ≥ v0.57: older versions panic on Go 1.27 in `http2.Transport.NewClientConn`, killing the process. `TestPrivateDialHTTP2Connects` guards this.
 
 | Phase | Behavior |
 |-------|----------|

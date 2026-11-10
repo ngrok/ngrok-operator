@@ -56,6 +56,7 @@ func setupTestScheme(t *testing.T) *runtime.Scheme {
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
 	require.NoError(t, netv1.AddToScheme(scheme))

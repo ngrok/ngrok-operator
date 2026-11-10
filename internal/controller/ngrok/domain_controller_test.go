@@ -1,4 +1,4 @@
-package ingress
+package ngrok
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/ngrok/ngrok-api-go/v9"
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/controller"
+	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
 	"github.com/ngrok/ngrok-operator/internal/mocks/nmockapi"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -31,7 +31,7 @@ var _ = Describe("DomainReconciler", func() {
 
 	var (
 		ctx       context.Context
-		namespace string = "default"
+		namespace = domainTestNamespace
 	)
 
 	BeforeEach(func() {
@@ -40,8 +40,8 @@ var _ = Describe("DomainReconciler", func() {
 
 	AfterEach(func() {
 		// List all domain CRs in the env test cluster
-		domains := &ingressv1alpha1.DomainList{}
-		err := k8sClient.List(ctx, domains)
+		domains := &ngrokv1.DomainList{}
+		err := k8sClient.List(ctx, domains, client.InNamespace(namespace))
 		Expect(err).ToNot(HaveOccurred())
 		// Delete all domain CRs in the env test cluster
 		for _, d := range domains.Items {
@@ -51,8 +51,8 @@ var _ = Describe("DomainReconciler", func() {
 		// Eventually, listing all the domain CRs should return an empty list because we
 		// deleted all of them and the finalizer should have cleaned up the ngrok domains.
 		Eventually(func(g Gomega) {
-			domains := &ingressv1alpha1.DomainList{}
-			err := k8sClient.List(ctx, domains)
+			domains := &ngrokv1.DomainList{}
+			err := k8sClient.List(ctx, domains, client.InNamespace(namespace))
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(domains.Items).To(BeEmpty())
 		}, timeout, interval).Should(Succeed())
@@ -67,14 +67,14 @@ var _ = Describe("DomainReconciler", func() {
 			createDomainErr error
 			domainSuffix    string
 			domainName      string
-			domain          *ingressv1alpha1.Domain
+			domain          *ngrokv1.Domain
 		)
 
 		JustBeforeEach(func() {
-			domain = &ingressv1alpha1.Domain{
+			domain = &ngrokv1.Domain{
 				Name:      "test-domain",
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: domainName,
 				},
 			}
@@ -92,7 +92,7 @@ var _ = Describe("DomainReconciler", func() {
 					Expect(createDomainErr).ToNot(HaveOccurred())
 
 					Eventually(func(g Gomega) {
-						foundDomain := &ingressv1alpha1.Domain{}
+						foundDomain := &ngrokv1.Domain{}
 						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 						g.Expect(err).ToNot(HaveOccurred())
 
@@ -107,7 +107,7 @@ var _ = Describe("DomainReconciler", func() {
 					JustBeforeEach(func() {
 						Eventually(func(g Gomega) {
 							g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), domain)).To(Succeed())
-							domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
+							domain.Spec.ResolvesTo = []ngrokv1.DomainResolvesToEntry{
 								{
 									Value: "us",
 								},
@@ -120,7 +120,7 @@ var _ = Describe("DomainReconciler", func() {
 						Expect(createDomainErr).ToNot(HaveOccurred())
 
 						Eventually(func(g Gomega) {
-							foundDomain := &ingressv1alpha1.Domain{}
+							foundDomain := &ngrokv1.Domain{}
 							err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 							g.Expect(err).ToNot(HaveOccurred())
 
@@ -128,7 +128,7 @@ var _ = Describe("DomainReconciler", func() {
 							g.Expect(foundDomain.Status.Domain).To(Equal(domainName))
 							g.Expect(foundDomain.Status.CNAMETarget).To(BeNil())
 							g.Expect(foundDomain.Status.ResolvesTo).ToNot(BeNil())
-							g.Expect(foundDomain.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
+							g.Expect(foundDomain.Status.ResolvesTo).To(Equal([]ngrokv1.DomainResolvesToEntry{
 								{
 									Value: "us",
 								},
@@ -152,7 +152,7 @@ var _ = Describe("DomainReconciler", func() {
 					Expect(createDomainErr).ToNot(HaveOccurred())
 
 					Eventually(func(g Gomega) {
-						foundDomain := &ingressv1alpha1.Domain{}
+						foundDomain := &ngrokv1.Domain{}
 						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 						g.Expect(err).ToNot(HaveOccurred())
 
@@ -176,7 +176,7 @@ var _ = Describe("DomainReconciler", func() {
 					Expect(createDomainErr).ToNot(HaveOccurred())
 
 					Eventually(func(g Gomega) {
-						foundDomain := &ingressv1alpha1.Domain{}
+						foundDomain := &ngrokv1.Domain{}
 						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 						g.Expect(err).ToNot(HaveOccurred())
 
@@ -205,7 +205,7 @@ var _ = Describe("DomainReconciler", func() {
 					Expect(createDomainErr).ToNot(HaveOccurred())
 
 					Eventually(func(g Gomega) {
-						foundDomain := &ingressv1alpha1.Domain{}
+						foundDomain := &ngrokv1.Domain{}
 						err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 						g.Expect(err).ToNot(HaveOccurred())
 
@@ -219,31 +219,31 @@ var _ = Describe("DomainReconciler", func() {
 
 		When("the domain creation succeeds", func() {
 			It("should set success conditions and create the domain", func() {
-				domain := &ingressv1alpha1.Domain{
+				domain := &ngrokv1.Domain{
 					Name:      fmt.Sprintf("test-domain-%s", rand.String(10)),
 					Namespace: namespace,
-					Spec: ingressv1alpha1.DomainSpec{
+					Spec: ngrokv1.DomainSpec{
 						Domain: fmt.Sprintf("test-domain-%s.%s", rand.String(10), NgrokManagedDomainSuffix),
 					},
 				}
 				Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 
 				Eventually(func(g Gomega) {
-					foundDomain := &ingressv1alpha1.Domain{}
+					foundDomain := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 					g.Expect(err).ToNot(HaveOccurred())
 
 					// Should have success conditions set
-					readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+					readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, domainpkg.ConditionReady)
 					g.Expect(readyCondition).ToNot(BeNil())
 					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue))
-					g.Expect(readyCondition.Reason).To(Equal(ReasonDomainActive))
+					g.Expect(readyCondition.Reason).To(Equal(domainpkg.ReasonDomainActive))
 
 					// Should have domain created condition
-					createdCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainCreated)
+					createdCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, domainpkg.ConditionDomainCreated)
 					g.Expect(createdCondition).ToNot(BeNil())
 					g.Expect(createdCondition.Status).To(Equal(metav1.ConditionTrue))
-					g.Expect(createdCondition.Reason).To(Equal(ReasonDomainCreated))
+					g.Expect(createdCondition.Reason).To(Equal(domainpkg.ReasonDomainCreated))
 
 					// Domain should have been created in ngrok
 					g.Expect(foundDomain.Status.ID).ToNot(BeEmpty())
@@ -263,25 +263,25 @@ var _ = Describe("DomainReconciler", func() {
 			})
 
 			It("should set error conditions and not create the domain", func() {
-				domain := &ingressv1alpha1.Domain{
+				domain := &ngrokv1.Domain{
 					Name:      fmt.Sprintf("test-domain-%s", rand.String(10)),
 					Namespace: namespace,
-					Spec: ingressv1alpha1.DomainSpec{
+					Spec: ngrokv1.DomainSpec{
 						Domain: fmt.Sprintf("test-domain-%s.%s", rand.String(10), NgrokManagedDomainSuffix),
 					},
 				}
 				Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 
 				Eventually(func(g Gomega) {
-					foundDomain := &ingressv1alpha1.Domain{}
+					foundDomain := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 					g.Expect(err).ToNot(HaveOccurred())
 
 					// Should have error conditions set
-					readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+					readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, domainpkg.ConditionReady)
 					g.Expect(readyCondition).ToNot(BeNil())
 					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
-					g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+					g.Expect(readyCondition.Reason).To(Equal(domainpkg.ReasonDomainCreationFailed))
 
 					// Domain should not have been created in ngrok
 					g.Expect(foundDomain.Status.ID).To(BeEmpty())
@@ -293,7 +293,7 @@ var _ = Describe("DomainReconciler", func() {
 	Describe("UpdateDomain", func() {
 		var (
 			domainName string
-			domain     *ingressv1alpha1.Domain
+			domain     *ngrokv1.Domain
 			objKey     client.ObjectKey
 		)
 
@@ -304,12 +304,12 @@ var _ = Describe("DomainReconciler", func() {
 				Name:      name,
 				Namespace: namespace,
 			}
-			domain = &ingressv1alpha1.Domain{
+			domain = &ngrokv1.Domain{
 				Name:      name,
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Description: "starting description",
-					Metadata:    commonv1alpha1.MetadataFromLegacyString("starting metadata"),
+					Metadata:    map[string]string{"stage": "starting"},
 					Domain:      domainName,
 				},
 			}
@@ -318,7 +318,7 @@ var _ = Describe("DomainReconciler", func() {
 
 			// As a precondition to updates, we should be able to read our write.
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				g.Expect(k8sClient.Get(ctx, objKey, d)).To(Succeed())
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
 			}, timeout, interval).Should(Succeed())
@@ -326,16 +326,18 @@ var _ = Describe("DomainReconciler", func() {
 
 		It("updates the domain metadata", func() {
 			patch := client.MergeFrom(domain.DeepCopy())
-			domain.Spec.Metadata = commonv1alpha1.MetadataFromLegacyString("updated metadata")
+			domain.Spec.Metadata = map[string]string{"stage": "updated"}
 			Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
 
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
-				g.Expect(commonv1alpha1.MetadataAPIString(d.Spec.Metadata)).To(Equal("updated metadata"))
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
+				rd, err := domainClient.Get(ctx, d.Status.ID)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(rd.Metadata).To(Equal(`{"stage":"updated"}`))
 				g.Expect(d.Status.Domain).To(Equal(domainName))
 			}, timeout, interval).Should(Succeed())
 		})
@@ -346,7 +348,7 @@ var _ = Describe("DomainReconciler", func() {
 			Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
 
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
@@ -359,7 +361,7 @@ var _ = Describe("DomainReconciler", func() {
 		It("updates the domain ResolvesTo and reflects it in status", func() {
 			Eventually(func(g Gomega) {
 				patch := client.MergeFrom(domain.DeepCopy())
-				domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
+				domain.Spec.ResolvesTo = []ngrokv1.DomainResolvesToEntry{
 					{
 						Value: "us",
 					},
@@ -368,14 +370,14 @@ var _ = Describe("DomainReconciler", func() {
 			}, timeout, interval).Should(Succeed())
 
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
 				g.Expect(d.Status.Domain).To(Equal(domainName))
 				g.Expect(d.Status.ResolvesTo).ToNot(BeNil())
-				g.Expect(d.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
+				g.Expect(d.Status.ResolvesTo).To(Equal([]ngrokv1.DomainResolvesToEntry{
 					{
 						Value: "us",
 					},
@@ -386,7 +388,7 @@ var _ = Describe("DomainReconciler", func() {
 		It("updates the domain ResolvesTo with multiple entries", func() {
 			Eventually(func(g Gomega) {
 				patch := client.MergeFrom(domain.DeepCopy())
-				domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
+				domain.Spec.ResolvesTo = []ngrokv1.DomainResolvesToEntry{
 					{Value: "us"},
 					{Value: "eu"},
 				}
@@ -394,13 +396,13 @@ var _ = Describe("DomainReconciler", func() {
 			}, timeout, interval).Should(Succeed())
 
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
 				g.Expect(d.Status.ID).ToNot(BeEmpty())
 				g.Expect(d.Status.ResolvesTo).ToNot(BeNil())
-				g.Expect(d.Status.ResolvesTo).To(Equal([]ingressv1alpha1.DomainResolvesToEntry{
+				g.Expect(d.Status.ResolvesTo).To(Equal([]ngrokv1.DomainResolvesToEntry{
 					{Value: "us"},
 					{Value: "eu"},
 				}))
@@ -409,7 +411,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		When("domain IPs are already present", func() {
 			JustBeforeEach(func() {
-				domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
+				domain.Spec.ResolvesTo = []ngrokv1.DomainResolvesToEntry{
 					{
 						Value: "us",
 					},
@@ -418,14 +420,14 @@ var _ = Describe("DomainReconciler", func() {
 
 			It("removes the domain IPs", func() {
 				patch := client.MergeFrom(domain.DeepCopy())
-				domain.Spec.ResolvesTo = []ingressv1alpha1.DomainResolvesToEntry{
+				domain.Spec.ResolvesTo = []ngrokv1.DomainResolvesToEntry{
 					{
 						Value: "us",
 					},
 				}
 				Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
 				Eventually(func(g Gomega) {
-					d := &ingressv1alpha1.Domain{}
+					d := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, objKey, d)
 					g.Expect(err).ToNot(HaveOccurred())
 
@@ -442,7 +444,7 @@ var _ = Describe("DomainReconciler", func() {
 			)
 			BeforeEach(func() {
 				Eventually(func(g Gomega) {
-					d := &ingressv1alpha1.Domain{}
+					d := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, objKey, d)
 					g.Expect(err).ToNot(HaveOccurred())
 
@@ -463,7 +465,7 @@ var _ = Describe("DomainReconciler", func() {
 				Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
 
 				Eventually(func(g Gomega) {
-					d := &ingressv1alpha1.Domain{}
+					d := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, objKey, d)
 					g.Expect(err).ToNot(HaveOccurred())
 
@@ -489,7 +491,7 @@ var _ = Describe("DomainReconciler", func() {
 			It("should set error conditions", func() {
 				// Wait for domain to be created first
 				Eventually(func(g Gomega) {
-					d := &ingressv1alpha1.Domain{}
+					d := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, objKey, d)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(d.Status.ID).ToNot(BeEmpty())
@@ -501,15 +503,15 @@ var _ = Describe("DomainReconciler", func() {
 				Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
 
 				Eventually(func(g Gomega) {
-					d := &ingressv1alpha1.Domain{}
+					d := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, objKey, d)
 					g.Expect(err).ToNot(HaveOccurred())
 
 					// Should have error conditions set
-					readyCondition := meta.FindStatusCondition(d.Status.Conditions, ConditionDomainReady)
+					readyCondition := meta.FindStatusCondition(d.Status.Conditions, domainpkg.ConditionReady)
 					g.Expect(readyCondition).ToNot(BeNil())
 					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
-					g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+					g.Expect(readyCondition.Reason).To(Equal(domainpkg.ReasonDomainCreationFailed))
 				}, timeout, interval).Should(Succeed())
 			})
 		})
@@ -518,7 +520,7 @@ var _ = Describe("DomainReconciler", func() {
 			It("should still update status to ensure conditions are current", func() {
 				// Wait for domain to be created first
 				Eventually(func(g Gomega) {
-					d := &ingressv1alpha1.Domain{}
+					d := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, objKey, d)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(d.Status.ID).ToNot(BeEmpty())
@@ -532,12 +534,12 @@ var _ = Describe("DomainReconciler", func() {
 				Expect(k8sClient.Patch(ctx, domain, patch)).To(Succeed())
 
 				Eventually(func(g Gomega) {
-					d := &ingressv1alpha1.Domain{}
+					d := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, objKey, d)
 					g.Expect(err).ToNot(HaveOccurred())
 
 					// Should still have conditions set (status was updated)
-					readyCondition := meta.FindStatusCondition(d.Status.Conditions, ConditionDomainReady)
+					readyCondition := meta.FindStatusCondition(d.Status.Conditions, domainpkg.ConditionReady)
 					g.Expect(readyCondition).ToNot(BeNil())
 					// The observed generation should be updated to match the current generation
 					g.Expect(readyCondition.ObservedGeneration).To(Equal(d.Generation))
@@ -547,7 +549,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		When("spec.domain is changed", func() {
 			It("should reject the change because spec.domain is immutable", func() {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				Expect(k8sClient.Get(ctx, objKey, d)).To(Succeed())
 
 				patch := client.MergeFrom(d.DeepCopy())
@@ -565,7 +567,7 @@ var _ = Describe("DomainReconciler", func() {
 
 				// The reservation in ngrok is untouched.
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, objKey, found)).To(Succeed())
 					g.Expect(found.Spec.Domain).To(Equal(domainName))
 					g.Expect(found.Status.Domain).To(Equal(domainName))
@@ -576,8 +578,8 @@ var _ = Describe("DomainReconciler", func() {
 
 	Describe("DeleteDomain", func() {
 		var (
-			reclaimPolicy ingressv1alpha1.DomainReclaimPolicy
-			domain        *ingressv1alpha1.Domain
+			reclaimPolicy ngrokv1.DomainReclaimPolicy
+			domain        *ngrokv1.Domain
 
 			ngrokDomainID                string
 			deleteDomainInNgrokBeforeK8s bool
@@ -585,10 +587,10 @@ var _ = Describe("DomainReconciler", func() {
 
 		JustBeforeEach(func() {
 			By("Creating the domain")
-			domain = &ingressv1alpha1.Domain{
+			domain = &ngrokv1.Domain{
 				Name:      "test-domain",
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					ReclaimPolicy: reclaimPolicy,
 					Domain:        fmt.Sprintf("test-domain-%s.%s", rand.String(10), NgrokManagedDomainSuffix),
 				},
@@ -597,7 +599,7 @@ var _ = Describe("DomainReconciler", func() {
 
 			By("Waiting for the domain to be created in ngrok")
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), d)
 				g.Expect(err).ToNot(HaveOccurred())
 
@@ -618,7 +620,7 @@ var _ = Describe("DomainReconciler", func() {
 
 			By("Waiting for the domain to be deleted in kubernetes")
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), d)
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
@@ -628,7 +630,7 @@ var _ = Describe("DomainReconciler", func() {
 		When("The domain exists in ngrok", func() {
 			When("The reclaim policy is set to delete", func() {
 				BeforeEach(func() {
-					reclaimPolicy = ingressv1alpha1.DomainReclaimPolicyDelete
+					reclaimPolicy = ngrokv1.DomainReclaimPolicyDelete
 				})
 
 				It("should delete the domain in ngrok", func() {
@@ -640,7 +642,7 @@ var _ = Describe("DomainReconciler", func() {
 
 			When("The reclaim policy is set to retain", func() {
 				BeforeEach(func() {
-					reclaimPolicy = ingressv1alpha1.DomainReclaimPolicyRetain
+					reclaimPolicy = ngrokv1.DomainReclaimPolicyRetain
 				})
 
 				It("should not delete the domain in ngrok", func() {
@@ -659,7 +661,7 @@ var _ = Describe("DomainReconciler", func() {
 
 			When("The reclaim policy is set to delete", func() {
 				BeforeEach(func() {
-					reclaimPolicy = ingressv1alpha1.DomainReclaimPolicyDelete
+					reclaimPolicy = ngrokv1.DomainReclaimPolicyDelete
 				})
 
 				It("The domain should be deleted in ngrok", func() {
@@ -671,7 +673,7 @@ var _ = Describe("DomainReconciler", func() {
 
 			When("The reclaim policy is set to retain", func() {
 				BeforeEach(func() {
-					reclaimPolicy = ingressv1alpha1.DomainReclaimPolicyRetain
+					reclaimPolicy = ngrokv1.DomainReclaimPolicyRetain
 				})
 
 				It("The domain is still missing in ngrok", func() {
@@ -691,7 +693,7 @@ var _ = Describe("DomainReconciler", func() {
 	Describe("Certificate Management Status", func() {
 		var (
 			domainName string
-			domain     *ingressv1alpha1.Domain
+			domain     *ngrokv1.Domain
 			objKey     client.ObjectKey
 		)
 
@@ -702,10 +704,10 @@ var _ = Describe("DomainReconciler", func() {
 				Name:      name,
 				Namespace: namespace,
 			}
-			domain = &ingressv1alpha1.Domain{
+			domain = &ngrokv1.Domain{
 				Name:      name,
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: domainName,
 				},
 			}
@@ -714,7 +716,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		It("should populate certificate management fields for custom domains", func() {
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
@@ -736,7 +738,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		It("should set conditions for custom domains", func() {
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
@@ -764,7 +766,7 @@ var _ = Describe("DomainReconciler", func() {
 	Describe("ngrok Managed Domain Status", func() {
 		var (
 			domainName string
-			domain     *ingressv1alpha1.Domain
+			domain     *ngrokv1.Domain
 			objKey     client.ObjectKey
 		)
 
@@ -775,10 +777,10 @@ var _ = Describe("DomainReconciler", func() {
 				Name:      name,
 				Namespace: namespace,
 			}
-			domain = &ingressv1alpha1.Domain{
+			domain = &ngrokv1.Domain{
 				Name:      name,
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: domainName,
 				},
 			}
@@ -787,7 +789,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		It("should not have certificate management fields for ngrok subdomains", func() {
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
@@ -803,7 +805,7 @@ var _ = Describe("DomainReconciler", func() {
 
 		It("should set Ready conditions immediately for ngrok subdomains", func() {
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 
@@ -836,11 +838,11 @@ var _ = Describe("DomainReconciler", func() {
 			return count
 		}
 
-		createDomain := func(hostname string) *ingressv1alpha1.Domain {
-			domain := &ingressv1alpha1.Domain{
-				Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(hostname),
+		createDomain := func(hostname string) *ngrokv1.Domain {
+			domain := &ngrokv1.Domain{
+				Name:      ngrokv1.HyphenatedDomainNameFromURL(hostname),
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: hostname,
 				},
 			}
@@ -874,10 +876,10 @@ var _ = Describe("DomainReconciler", func() {
 				domain := createDomain(hostname)
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 
-					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(&ingressv1alpha1.DomainStatusWildcardDomain{
+					g.Expect(found.Status.CoveredByWildcardDomain).To(Equal(&ngrokv1.DomainStatusWildcardDomain{
 						ID:     wildcardReservation.ID,
 						Domain: wildcard,
 					}))
@@ -889,13 +891,13 @@ var _ = Describe("DomainReconciler", func() {
 					// wildcard here would advertise the apex.
 					g.Expect(found.Status.Domain).To(Equal(hostname))
 
-					readyCondition := meta.FindStatusCondition(found.Status.Conditions, ConditionDomainReady)
+					readyCondition := meta.FindStatusCondition(found.Status.Conditions, domainpkg.ConditionReady)
 					g.Expect(readyCondition).ToNot(BeNil())
 					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue))
-					g.Expect(readyCondition.Reason).To(Equal(ReasonCoveredByWildcardDomain))
+					g.Expect(readyCondition.Reason).To(Equal(domainpkg.ReasonCoveredByWildcardDomain))
 					g.Expect(readyCondition.Message).To(ContainSubstring(wildcard))
 
-					g.Expect(IsDomainReady(found)).To(BeTrue())
+					g.Expect(domainpkg.IsReady(domainpkg.FromV1(found))).To(BeTrue())
 				}, timeout, interval).Should(Succeed())
 
 				// The whole point: still only the wildcard is reserved.
@@ -909,7 +911,7 @@ var _ = Describe("DomainReconciler", func() {
 				domain := createDomain("cname." + suffix)
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(HaveField("Domain", wildcard))
 					g.Expect(found.Status.CNAMETarget).ToNot(BeNil())
@@ -933,7 +935,7 @@ var _ = Describe("DomainReconciler", func() {
 				domain := createDomain("deleted." + suffix)
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(HaveField("Domain", wildcard))
 				}, timeout, interval).Should(Succeed())
@@ -941,7 +943,7 @@ var _ = Describe("DomainReconciler", func() {
 				Expect(k8sClient.Delete(ctx, domain)).To(Succeed())
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)
 					g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "finalizer should be released")
 				}, timeout, interval).Should(Succeed())
@@ -961,7 +963,7 @@ var _ = Describe("DomainReconciler", func() {
 				domain := createDomain(hostname)
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					// Adopts the exact reservation. The filter returns two rows and
 					// the mock iterates a Go map, so a first-match-wins
@@ -980,7 +982,7 @@ var _ = Describe("DomainReconciler", func() {
 				domain := createDomain(hostname)
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 					g.Expect(found.Status.ID).ToNot(BeEmpty(), "should reserve its own domain")
@@ -993,7 +995,7 @@ var _ = Describe("DomainReconciler", func() {
 				domain := createDomain(suffix)
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 					g.Expect(found.Status.ID).ToNot(BeEmpty())
@@ -1006,18 +1008,18 @@ var _ = Describe("DomainReconciler", func() {
 				// resolvesTo is a property of the reservation, so a Domain that sets
 				// it needs one of its own -- there is nowhere else to record it.
 				hostname := "resolves." + suffix
-				domain := &ingressv1alpha1.Domain{
-					Name:      ingressv1alpha1.HyphenatedDomainNameFromURL(hostname),
+				domain := &ngrokv1.Domain{
+					Name:      ngrokv1.HyphenatedDomainNameFromURL(hostname),
 					Namespace: namespace,
-					Spec: ingressv1alpha1.DomainSpec{
+					Spec: ngrokv1.DomainSpec{
 						Domain:     hostname,
-						ResolvesTo: []ingressv1alpha1.DomainResolvesToEntry{{Value: "us"}},
+						ResolvesTo: []ngrokv1.DomainResolvesToEntry{{Value: "us"}},
 					},
 				}
 				Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 					g.Expect(found.Status.ID).ToNot(BeEmpty())
@@ -1037,7 +1039,7 @@ var _ = Describe("DomainReconciler", func() {
 
 				By("Waiting for the domain to be marked as covered")
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(HaveField("Domain", wildcard))
 				}, timeout, interval).Should(Succeed())
@@ -1050,7 +1052,7 @@ var _ = Describe("DomainReconciler", func() {
 				// rather than waiting out the hourly recheck.
 				By("Forcing a reconcile")
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					if found.Annotations == nil {
 						found.Annotations = map[string]string{}
@@ -1061,7 +1063,7 @@ var _ = Describe("DomainReconciler", func() {
 
 				By("Verifying the domain now holds its own reservation")
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil(),
 						"stale coverage must be cleared once the domain reserves itself")
@@ -1079,7 +1081,7 @@ var _ = Describe("DomainReconciler", func() {
 
 				By("Waiting for the domain to be marked as covered")
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(HaveField("Domain", wildcard))
 				}, timeout, interval).Should(Succeed())
@@ -1091,7 +1093,7 @@ var _ = Describe("DomainReconciler", func() {
 
 				By("Forcing a reconcile")
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					if found.Annotations == nil {
 						found.Annotations = map[string]string{}
@@ -1102,13 +1104,13 @@ var _ = Describe("DomainReconciler", func() {
 
 				By("Verifying the domain no longer claims wildcard coverage")
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
 					g.Expect(found.Status.CNAMETarget).To(BeNil(),
 						"the wildcard's CNAME target must not outlive its coverage")
 					g.Expect(found.Status.ID).To(BeEmpty())
-					g.Expect(IsDomainReady(found)).To(BeFalse())
+					g.Expect(domainpkg.IsReady(domainpkg.FromV1(found))).To(BeFalse())
 				}, timeout, interval).Should(Succeed())
 			})
 		})
@@ -1119,7 +1121,7 @@ var _ = Describe("DomainReconciler", func() {
 				domain := createDomain(hostname)
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.ID).ToNot(BeEmpty())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
@@ -1133,7 +1135,7 @@ var _ = Describe("DomainReconciler", func() {
 				domain := createDomain(wildcard)
 
 				Eventually(func(g Gomega) {
-					found := &ingressv1alpha1.Domain{}
+					found := &ngrokv1.Domain{}
 					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), found)).To(Succeed())
 					g.Expect(found.Status.ID).ToNot(BeEmpty())
 					g.Expect(found.Status.CoveredByWildcardDomain).To(BeNil())
@@ -1148,10 +1150,10 @@ var _ = Describe("DomainReconciler", func() {
 
 	Describe("Internal Domain Handling", func() {
 		It("should skip reconciliation and not reserve .internal TLD domains in ngrok", func() {
-			domain := &ingressv1alpha1.Domain{
+			domain := &ngrokv1.Domain{
 				Name:      fmt.Sprintf("test-internal-domain-%s", rand.String(10)),
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: "my-service.namespace.internal",
 				},
 			}
@@ -1159,15 +1161,15 @@ var _ = Describe("DomainReconciler", func() {
 
 			// The domain CRD should still exist but have no finalizer and status conditions set
 			Eventually(func(g Gomega) {
-				foundDomain := &ingressv1alpha1.Domain{}
+				foundDomain := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(foundDomain.Finalizers).To(BeEmpty(), "internal domain should have no finalizer")
 
-				readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+				readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, domainpkg.ConditionReady)
 				g.Expect(readyCondition).ToNot(BeNil())
 				g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
-				g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+				g.Expect(readyCondition.Reason).To(Equal(domainpkg.ReasonDomainCreationFailed))
 				g.Expect(readyCondition.Message).To(ContainSubstring(".internal domains do not need to be reserved"))
 			}, timeout, interval).Should(Succeed())
 
@@ -1183,47 +1185,47 @@ var _ = Describe("DomainReconciler", func() {
 			// Verify the domain can be deleted without hanging
 			Expect(k8sClient.Delete(ctx, domain)).To(Succeed())
 			Eventually(func(g Gomega) {
-				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), &ingressv1alpha1.Domain{})
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), &ngrokv1.Domain{})
 				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "internal domain should be deleted")
 			}, timeout, interval).Should(Succeed())
 		})
 
 		It("should remove finalizer from .INTERNAL TLD domains allowing clean deletion", func() {
-			domain := &ingressv1alpha1.Domain{
+			domain := &ngrokv1.Domain{
 				Name:      fmt.Sprintf("test-internal-upper-%s", rand.String(10)),
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: "my-service.namespace.INTERNAL",
 				},
 			}
 			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 
 			Eventually(func(g Gomega) {
-				foundDomain := &ingressv1alpha1.Domain{}
+				foundDomain := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(foundDomain.Finalizers).To(BeEmpty(), "internal domain should have no finalizer")
 
-				readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, ConditionDomainReady)
+				readyCondition := meta.FindStatusCondition(foundDomain.Status.Conditions, domainpkg.ConditionReady)
 				g.Expect(readyCondition).ToNot(BeNil())
 				g.Expect(readyCondition.Status).To(Equal(metav1.ConditionFalse))
-				g.Expect(readyCondition.Reason).To(Equal(ReasonDomainCreationFailed))
+				g.Expect(readyCondition.Reason).To(Equal(domainpkg.ReasonDomainCreationFailed))
 				g.Expect(readyCondition.Message).To(ContainSubstring(".internal domains do not need to be reserved"))
 			}, timeout, interval).Should(Succeed())
 
 			Expect(k8sClient.Delete(ctx, domain)).To(Succeed())
 			Eventually(func(g Gomega) {
-				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), &ingressv1alpha1.Domain{})
+				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), &ngrokv1.Domain{})
 				g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "internal domain should be deleted")
 			}, timeout, interval).Should(Succeed())
 		})
 
 		It("should NOT delete domains that contain 'internal' as a subdomain", func() {
 			// This is NOT an internal domain - it just has "internal" as a subdomain
-			domain := &ingressv1alpha1.Domain{
+			domain := &ngrokv1.Domain{
 				Name:      fmt.Sprintf("test-not-internal-%s", rand.String(10)),
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: fmt.Sprintf("service.internal.%s", CustomDomainSuffix),
 				},
 			}
@@ -1231,7 +1233,7 @@ var _ = Describe("DomainReconciler", func() {
 
 			// The domain should NOT be deleted - it should be created normally
 			Eventually(func(g Gomega) {
-				foundDomain := &ingressv1alpha1.Domain{}
+				foundDomain := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(foundDomain.Status.ID).ToNot(BeEmpty(), "non-internal domain should be created in ngrok")
@@ -1282,7 +1284,7 @@ var _ = Describe("DomainReconciler", func() {
 
 	Describe("Domain Creation Failures", func() {
 		var (
-			domain *ingressv1alpha1.Domain
+			domain *ngrokv1.Domain
 			objKey client.ObjectKey
 		)
 
@@ -1292,10 +1294,10 @@ var _ = Describe("DomainReconciler", func() {
 				Name:      name,
 				Namespace: namespace,
 			}
-			domain = &ingressv1alpha1.Domain{
+			domain = &ngrokv1.Domain{
 				Name:      name,
 				Namespace: namespace,
-				Spec: ingressv1alpha1.DomainSpec{
+				Spec: ngrokv1.DomainSpec{
 					Domain: "ngrok.com", // This should fail to create
 				},
 			}
@@ -1305,7 +1307,7 @@ var _ = Describe("DomainReconciler", func() {
 			Expect(k8sClient.Create(ctx, domain)).To(Succeed())
 
 			Eventually(func(g Gomega) {
-				d := &ingressv1alpha1.Domain{}
+				d := &ngrokv1.Domain{}
 				err := k8sClient.Get(ctx, objKey, d)
 				g.Expect(err).ToNot(HaveOccurred())
 

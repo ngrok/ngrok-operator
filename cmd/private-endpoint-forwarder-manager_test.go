@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,6 +14,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.ngrok.com/ngrok/privatedial"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -66,6 +70,31 @@ func TestForwarderReadyz(t *testing.T) {
 	}
 }
 
+func TestParsePrivateDialProtocol(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    privatedial.Protocol
+		wantErr bool
+	}{
+		{in: "auto", want: privatedial.ProtocolAuto},
+		{in: "quic", want: privatedial.ProtocolQUIC},
+		{in: "h2", want: privatedial.ProtocolH2},
+		{in: "", wantErr: true},
+		{in: "http3", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got, err := parsePrivateDialProtocol(tt.in)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 type fakeSessionDialer struct {
 	connectErrs []error
 	connects    atomic.Int32
@@ -82,6 +111,8 @@ func (f *fakeSessionDialer) Connect(context.Context) error {
 }
 
 func (f *fakeSessionDialer) Done() <-chan struct{} { return f.done }
+
+func (f *fakeSessionDialer) Protocol() privatedial.Protocol { return privatedial.ProtocolQUIC }
 
 func (f *fakeSessionDialer) Err() error {
 	err, _ := f.err.Load().(error)
@@ -147,4 +178,30 @@ func TestDialSessionNotReadyWhileConnectFails(t *testing.T) {
 	cancel()
 	assert.NoError(t, <-startErr)
 	assert.Error(t, s.readyz(nil))
+}
+
+// x/net/http2 before v0.57 panics on Go 1.27 when privatedial opens an HTTP/2
+// session, killing the forwarder. Guards against an x/net downgrade.
+func TestPrivateDialHTTP2Connects(t *testing.T) {
+	var gotProto atomic.Int32
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotProto.Store(int32(r.ProtoMajor))
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	srv.EnableHTTP2 = true
+	srv.StartTLS()
+	defer srv.Close()
+
+	d := privatedial.New(privatedial.Config{
+		H2ServerAddr:  srv.Listener.Addr().String(),
+		ForceProtocol: privatedial.ProtocolH2,
+		AuthToken:     "x",
+		TLSConfig:     &tls.Config{InsecureSkipVerify: true},
+	})
+	defer d.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	assert.Error(t, d.Connect(ctx), "the server rejects the session")
+	assert.Equal(t, int32(2), gotProto.Load(), "the session request reached the server over HTTP/2")
 }
