@@ -51,7 +51,7 @@ type Drainer struct {
 	Client client.Client
 	Log    logr.Logger
 	// Policy determines whether to delete ngrok API resources or just remove finalizers
-	Policy ngrokv1alpha1.DrainPolicy
+	Policy ngrokv1.DrainPolicy
 }
 
 type DrainResult struct {
@@ -143,7 +143,7 @@ func (d *Drainer) drainUserResource(ctx context.Context, obj client.Object) erro
 
 func (d *Drainer) drainOperatorResource(ctx context.Context, obj client.Object) error {
 	switch d.Policy {
-	case ngrokv1alpha1.DrainPolicyDelete:
+	case ngrokv1.DrainPolicyDelete:
 		// Delete mode: Delete the CR without removing finalizer first.
 		// The controller will handle ngrok API cleanup during the delete reconcile,
 		// then remove the finalizer itself. This ensures proper cleanup ordering.
@@ -165,7 +165,7 @@ func (d *Drainer) drainOperatorResource(ctx context.Context, obj client.Object) 
 		}
 		d.Log.V(1).Info("Resource fully deleted", "namespace", obj.GetNamespace(), "name", obj.GetName())
 
-	case ngrokv1alpha1.DrainPolicyRetain:
+	case ngrokv1.DrainPolicyRetain:
 		// Retain mode: Only remove finalizer so the CR can be garbage collected
 		// when the CRD is removed. Do not delete to preserve ngrok API resources.
 		if err := util.RemoveAndSyncFinalizer(ctx, d.Client, obj); err != nil {

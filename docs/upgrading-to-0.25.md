@@ -340,7 +340,9 @@ reconciles each object.
 ### Upgrade the CRDs before the operator
 
 0.25 adds new CRDs, `trafficpolicies.ngrok.com` (see
-[Migrate `NgrokTrafficPolicy` to `TrafficPolicy`](#migrate-ngroktrafficpolicy-to-trafficpolicy))
+[Migrate `NgrokTrafficPolicy` to `TrafficPolicy`](#migrate-ngroktrafficpolicy-to-trafficpolicy)),
+`kubernetesoperators.ngrok.com` (see
+[`KubernetesOperator` moves to `ngrok.com/v1`](#kubernetesoperator-moves-to-ngrokcomv1)),
 and `domains.ngrok.com` (see
 [`Domain` moves to `ngrok.com/v1`](#domain-moves-to-ngrokcomv1)),
 and the operator watches them on startup. If you install the CRD chart
@@ -351,6 +353,65 @@ chart, or the operator will not start.
 
 No change is required when the chart manages RBAC. If you supply roles
 separately, add the equivalent rules before upgrading.
+
+### `KubernetesOperator` moves to `ngrok.com/v1`
+
+The operator's own `KubernetesOperator` resource moves from
+`ngrok.k8s.ngrok.com/v1alpha1` to `ngrok.com/v1`. No action is needed: the
+operator creates and reconciles the `ngrok.com/v1` object itself. It attaches to
+the same ngrok `KubernetesOperator` the old object used, so its ID, its
+bindings certificate, and every endpoint it manages carry over unchanged. No
+drain runs.
+
+The old `ngrok.k8s.ngrok.com/v1alpha1` object stays in the cluster, unchanged
+apart from its status:
+
+- it keeps its finalizer and its ID, so rolling back to 0.24 picks it up as it
+  was;
+- its `Ready` condition is `False` with reason `SupersededByV1`, and the
+  condition message names the `ngrok.com/v1` object;
+- the operator no longer reconciles it or calls ngrok for it.
+
+Deleting it is safe: the operator releases its finalizer without draining or
+deleting anything in ngrok. While it exists, the operator treats a deletion of
+the `ngrok.com/v1` object as a rollback rather than an uninstall, and does not
+drain. `helm uninstall` removes the old object first, so it still drains.
+1.0 removes the old object's finalizer, and 1.1 removes the old CRD.
+
+The `kubernetesoperators.ngrok.com` and `trafficpolicies.ngrok.com` CRDs carry
+`helm.sh/resource-policy: keep` in this release, so a rollback cannot delete
+them or the objects stored under them. The annotation also stops
+`helm uninstall` from deleting them, whether they come from the operator chart
+or from a separate `ngrok/ngrok-crds` release. After a drain they hold no
+operator-managed objects, and installing the chart again under the same
+release name and namespace adopts them.
+
+Deleting a CRD deletes every object stored under it. `trafficpolicies.ngrok.com`
+holds your own `TrafficPolicy` objects, and `kubernetesoperators.ngrok.com`
+holds the `KubernetesOperator` of every operator release in the cluster. Before
+removing them, back up any `TrafficPolicy` objects you want to keep and make
+sure no other ngrok-operator release still uses them:
+
+```bash
+kubectl get trafficpolicies.ngrok.com,kubernetesoperators.ngrok.com -A
+```
+
+To remove them:
+
+```bash
+kubectl delete crd kubernetesoperators.ngrok.com trafficpolicies.ngrok.com
+```
+
+1.0 removes the annotation, and Helm deletes the CRDs again on uninstall.
+
+What changes for tooling:
+
+- Both kinds use the plural `kubernetesoperators`, so name the group when you
+  query or delete them: `kubectl get kubernetesoperators.ngrok.com -A`. A bare
+  `kubectl get kubernetesoperator` may return either one.
+- `spec.metadata` on the `ngrok.com/v1` kind is a map of strings. The JSON
+  string form is not accepted.
+- `status.enabledFeatures` is always an array.
 
 ### Endpoint events
 
@@ -431,7 +492,7 @@ Confirm that the workloads rolled out and the operator is ready:
 
 ```bash
 kubectl get deployments,pods --namespace "$NAMESPACE"
-kubectl get kubernetesoperators.ngrok.k8s.ngrok.com -A
+kubectl get kubernetesoperators.ngrok.com -A
 ```
 
 At startup the api-manager verifies the token by listing endpoints. A token it
@@ -558,10 +619,47 @@ Rolling back to 0.24 is safe for objects the 0.25 operator wrote: 0.24 reads
 both label, annotation, and finalizer prefixes and re-adds the legacy forms on
 its next reconcile.
 
-Do not start the "After the rollback window" migration below until rollback is
-ruled out. 0.24 does not know about `ngrok.com/v1` `TrafficPolicy`, and rolling
-back the CRD chart removes the `trafficpolicies.ngrok.com` CRD, which deletes
-every `TrafficPolicy` object stored under it.
+Rolling back keeps the operator registered, without a drain or any change in
+ngrok, and needs no extra steps: the 0.24 operator picks up the
+`ngrok.k8s.ngrok.com/v1alpha1` `KubernetesOperator` that 0.25 left in place,
+with its finalizer and ID, and attaches to the same ngrok `KubernetesOperator`.
+The `ngrok.com` CRDs and their objects stay in the cluster because of the keep
+annotation. 0.24 ignores them, and upgrading to 0.25 again picks them up.
+
+`ngrok.com/v1` `TrafficPolicy` objects survive a rollback, but 0.24 does not
+read them, so endpoints that reference only a `TrafficPolicy` fail to
+reconcile until you upgrade again. Do not start the "After the rollback window" migration below until
+rollback is ruled out.
+
+### Uninstalling after a rollback
+
+Avoid this if you can. The 0.24 uninstall hook deletes
+`kubernetesoperator "$RELEASE"` by its bare name, which now resolves to the
+`ngrok.com` kind. The 0.24 hook has no permissions there, so nothing drains.
+Helm then deletes the old CRDs while their objects still carry finalizers, and
+those objects stay in `Terminating`.
+
+To uninstall cleanly, delete the old object yourself first. The 0.24 operator
+drains as usual:
+
+```bash
+kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com "$RELEASE" -n "$NAMESPACE"
+helm uninstall "$RELEASE" -n "$NAMESPACE"
+```
+
+Then remove what the keep annotation left behind:
+
+```bash
+kubectl patch kubernetesoperators.ngrok.com "$RELEASE" -n "$NAMESPACE" \
+  --type=merge -p '{"metadata":{"finalizers":null}}'
+kubectl delete crd kubernetesoperators.ngrok.com trafficpolicies.ngrok.com
+```
+
+If you already uninstalled without deleting the old object first, set
+`metadata.finalizers` to `null` on every object left in `Terminating`, then
+run the two commands above. With `drainPolicy: Retain` (the default) your ngrok
+resources were kept anyway. With `Delete`, remove them in the ngrok dashboard,
+along with the Kubernetes Operator registration.
 
 `Domain` objects survive a rollback. The `domains.ngrok.com` CRD carries
 `helm.sh/resource-policy: keep`, so rolling back the CRD chart leaves it, and
@@ -889,6 +987,7 @@ migrations before their cleanup releases:
 | Migration | 0.25 behavior | Future requirement |
 | --- | --- | --- |
 | `NgrokTrafficPolicy` kind | Serves both CRDs; prefers `TrafficPolicy` | Migrate to `ngrok.com/v1` `TrafficPolicy` before the cleanup release removes the `ngroktrafficpolicies.ngrok.k8s.ngrok.com` CRD. Objects still stored under it are deleted with the CRD |
+| `KubernetesOperator` kind | Operator writes `ngrok.com/v1`; the legacy object is left in place, passive, with its finalizer | None. 1.0 removes the legacy finalizer and 1.1 removes the `kubernetesoperators.ngrok.k8s.ngrok.com` CRD and the legacy object with it. 0.25 and 1.0 are both required stops: do not skip either |
 | `ingress.k8s.ngrok.com/v1alpha1` `Domain` | Serves both CRDs; the operator creates and prefers `ngrok.com/v1` Domains, and migrates the ones it created | Re-stamp the Domains you created (see [`Domain` moves to `ngrok.com/v1`](#domain-moves-to-ngrokcomv1)) before 1.1. 1.0 stops reconciling legacy Domains and removes their finalizers; a legacy Domain with no `ngrok.com/v1` twin keeps its reservation in ngrok, unmanaged, until you re-stamp it. 1.1 removes the `domains.ingress.k8s.ngrok.com` CRD. Upgrade through both 0.25 and 1.0; see [CRD Group Migration](../specs/crd-group-migration.md#release-plan) |
 | `IPPolicy` in `ingress.k8s.ngrok.com` | Serves both CRDs; an `ngrok.com/v1` `IPPolicy` takes over the legacy object's ngrok IP policy | Migrate to `ngrok.com/v1` `IPPolicy` before upgrading to 1.0, which stops reconciling the legacy kind. 1.1 removes the `ippolicies.ingress.k8s.ngrok.com` CRD; a policy re-stamped after that gets a new ID |
 | User annotations and `appProtocol` | Reads old and new forms | Remove all `k8s.ngrok.com/*` user configuration before 1.0 |

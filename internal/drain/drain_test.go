@@ -140,6 +140,7 @@ func TestDrainer_DrainOperatorResource(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	// Note: no finalizer here - the fake client will immediately delete the resource
 	// when Delete is called. In a real cluster, the controller would handle
@@ -160,7 +161,7 @@ func TestDrainer_DrainOperatorResource(t *testing.T) {
 	drainer := &Drainer{
 		Client: c,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyDelete,
+		Policy: ngrokv1.DrainPolicyDelete,
 	}
 
 	err := drainer.drainOperatorResource(context.Background(), domain)
@@ -177,6 +178,7 @@ func TestDrainer_DrainOperatorResource_RetainMode(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	domain := &ingressv1alpha1.Domain{
 		Name:       "test-domain",
@@ -195,7 +197,7 @@ func TestDrainer_DrainOperatorResource_RetainMode(t *testing.T) {
 	drainer := &Drainer{
 		Client: fakeClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Policy: ngrokv1.DrainPolicyRetain,
 	}
 
 	err := drainer.drainOperatorResource(context.Background(), domain)
@@ -214,6 +216,7 @@ func TestDrainer_DrainAll_EmptyCluster(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -237,6 +240,7 @@ func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, gatewayv1alpha2.Install(scheme))
@@ -276,7 +280,7 @@ func TestDrainer_DrainUserCreatedResources_NoControllerLabels(t *testing.T) {
 	drainer := &Drainer{
 		Client: fakeClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Policy: ngrokv1.DrainPolicyRetain,
 	}
 
 	result, err := drainer.DrainAll(context.Background())
@@ -308,6 +312,7 @@ func TestDrainer_SkipsResourcesWithoutFinalizer(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, gatewayv1alpha2.Install(scheme))
@@ -331,7 +336,7 @@ func TestDrainer_SkipsResourcesWithoutFinalizer(t *testing.T) {
 	drainer := &Drainer{
 		Client: fakeClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Policy: ngrokv1.DrainPolicyRetain,
 	}
 
 	result, err := drainer.DrainAll(context.Background())
@@ -375,7 +380,7 @@ func TestDrainer_drainList_ListError(t *testing.T) {
 	drainer := &Drainer{
 		Client: errClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Policy: ngrokv1.DrainPolicyRetain,
 	}
 
 	completed, total, failed, errs := drainer.drainList(
@@ -418,7 +423,7 @@ func TestDrainer_drainList_NoMatchError_SkipsOptionalCRD(t *testing.T) {
 	drainer := &Drainer{
 		Client: errClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Policy: ngrokv1.DrainPolicyRetain,
 	}
 
 	completed, total, failed, errs := drainer.drainList(
@@ -440,6 +445,7 @@ func TestDrainer_DrainOperatorResource_AlreadyDeleted(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -457,7 +463,7 @@ func TestDrainer_DrainOperatorResource_AlreadyDeleted(t *testing.T) {
 	drainer := &Drainer{
 		Client: fakeClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyDelete,
+		Policy: ngrokv1.DrainPolicyDelete,
 	}
 
 	err := drainer.drainOperatorResource(context.Background(), domain)
@@ -469,6 +475,7 @@ func TestDrainer_DrainOperatorResource_DeleteError(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	domain := &ingressv1alpha1.Domain{
 		Name:       "test-domain",
@@ -490,7 +497,7 @@ func TestDrainer_DrainOperatorResource_DeleteError(t *testing.T) {
 	drainer := &Drainer{
 		Client: errClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyDelete,
+		Policy: ngrokv1.DrainPolicyDelete,
 	}
 
 	err := drainer.drainOperatorResource(context.Background(), domain)
@@ -523,6 +530,7 @@ func TestDrainer_DrainOperatorResource_RetainUpdateError(t *testing.T) {
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	domain := &ingressv1alpha1.Domain{
 		Name:       "test-domain",
@@ -544,7 +552,7 @@ func TestDrainer_DrainOperatorResource_RetainUpdateError(t *testing.T) {
 	drainer := &Drainer{
 		Client: errClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Policy: ngrokv1.DrainPolicyRetain,
 	}
 
 	err := drainer.drainOperatorResource(context.Background(), domain)
@@ -592,7 +600,7 @@ func TestDrainer_IPPolicyTwins(t *testing.T) {
 	drainer := &Drainer{
 		Client: fakeClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Policy: ngrokv1.DrainPolicyRetain,
 	}
 
 	result, err := drainer.DrainAll(context.Background())
@@ -652,7 +660,7 @@ func TestDrainer_DomainTwins(t *testing.T) {
 	drainer := &Drainer{
 		Client: fakeClient,
 		Log:    logr.Discard(),
-		Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Policy: ngrokv1.DrainPolicyRetain,
 	}
 
 	result, err := drainer.DrainAll(context.Background())

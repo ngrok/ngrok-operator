@@ -24,15 +24,27 @@ kubectl delete crd <CRD>
 ### Manual / Non-Helm
 
 ```bash
-# 1. Trigger drain
-kubectl delete kubernetesoperator <name> -n <namespace>
+# 1. Remove the pre-0.25 KubernetesOperator, if one exists. While it exists,
+#    deleting the ngrok.com one skips the drain. The operator releases its
+#    finalizer; if the delete hangs because the operator is not running, clear
+#    the finalizer by hand.
+kubectl delete kubernetesoperators.ngrok.k8s.ngrok.com <name> -n <namespace> --ignore-not-found --timeout=60s ||
+  kubectl patch kubernetesoperators.ngrok.k8s.ngrok.com <name> -n <namespace> \
+    --type=merge -p '{"metadata":{"finalizers":null}}'
 
-# 2. Wait for completion
-kubectl wait --for=delete kubernetesoperator/<name> -n <namespace> --timeout=300s
+# 2. Trigger drain
+kubectl delete kubernetesoperators.ngrok.com <name> -n <namespace>
 
-# 3. Delete operator resources
+# 3. Wait for completion
+kubectl wait --for=delete kubernetesoperators.ngrok.com/<name> -n <namespace> --timeout=300s
+
+# 4. Delete operator resources
 kubectl delete -f operator-manifests.yaml
 ```
+
+Name the group in every `kubectl` command: the pre-0.25
+`ngrok.k8s.ngrok.com` KubernetesOperator shares the `kubernetesoperators`
+plural.
 
 ## Drain Policies
 
@@ -48,7 +60,7 @@ Both policies remove finalizers from all managed Kubernetes resources.
 ## Monitoring Drain Progress
 
 ```bash
-kubectl get kubernetesoperator <name> -n <namespace> -o yaml
+kubectl get kubernetesoperators.ngrok.com <name> -n <namespace> -o yaml
 ```
 
 Status fields:

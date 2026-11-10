@@ -54,6 +54,7 @@ import (
 func setupTestScheme(t *testing.T) *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
@@ -67,6 +68,7 @@ func setupTestScheme(t *testing.T) *runtime.Scheme {
 func TestOrchestrator_State(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -91,12 +93,12 @@ func TestOrchestrator_State(t *testing.T) {
 func TestOrchestrator_HandleDrain_CompletesSuccessfully(t *testing.T) {
 	scheme := setupTestScheme(t)
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			Drain: &ngrokv1alpha1.DrainConfig{
-				Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Spec: ngrokv1.KubernetesOperatorSpec{
+			Drain: &ngrokv1.DrainConfig{
+				Policy: ngrokv1.DrainPolicyRetain,
 			},
 		},
 	}
@@ -124,10 +126,10 @@ func TestOrchestrator_HandleDrain_CompletesSuccessfully(t *testing.T) {
 	assert.Equal(t, OutcomeComplete, outcome)
 
 	// Status should be updated to completed
-	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining)
 	require.NotNil(t, drainingCond)
 	assert.Equal(t, metav1.ConditionFalse, drainingCond.Status)
-	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted, drainingCond.Reason)
+	assert.Equal(t, ngrokv1.KubernetesOperatorReasonDrainCompleted, drainingCond.Reason)
 	assert.Equal(t, "Drain completed successfully", drainingCond.Message)
 	assert.True(t, ko.IsDrainComplete())
 
@@ -138,7 +140,7 @@ func TestOrchestrator_HandleDrain_CompletesSuccessfully(t *testing.T) {
 func TestOrchestrator_HandleDrain_SetsStatusToDraining(t *testing.T) {
 	scheme := setupTestScheme(t)
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
 	}
@@ -161,7 +163,7 @@ func TestOrchestrator_HandleDrain_SetsStatusToDraining(t *testing.T) {
 	ctx := context.Background()
 
 	// Before drain, no Draining condition exists
-	assert.Nil(t, meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining))
+	assert.Nil(t, meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining))
 
 	// HandleDrain should update status
 	_, err := orchestrator.HandleDrain(ctx, ko)
@@ -174,14 +176,14 @@ func TestOrchestrator_HandleDrain_SetsStatusToDraining(t *testing.T) {
 func TestOrchestrator_HandleDrain_AlreadyCompleted(t *testing.T) {
 	scheme := setupTestScheme(t)
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
-		Status: ngrokv1alpha1.KubernetesOperatorStatus{
+		Status: ngrokv1.KubernetesOperatorStatus{
 			Conditions: []metav1.Condition{{
-				Type:               ngrokv1alpha1.KubernetesOperatorConditionDraining,
+				Type:               ngrokv1.KubernetesOperatorConditionDraining,
 				Status:             metav1.ConditionFalse,
-				Reason:             ngrokv1alpha1.KubernetesOperatorReasonDrainCompleted,
+				Reason:             ngrokv1.KubernetesOperatorReasonDrainCompleted,
 				Message:            "Drain completed successfully",
 				LastTransitionTime: metav1.Now(),
 			}},
@@ -212,12 +214,12 @@ func TestOrchestrator_HandleDrain_AlreadyCompleted(t *testing.T) {
 func TestOrchestrator_HandleDrain_TransientErrors_OutcomeRetry(t *testing.T) {
 	scheme := setupTestScheme(t)
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
-		Spec: ngrokv1alpha1.KubernetesOperatorSpec{
-			Drain: &ngrokv1alpha1.DrainConfig{
-				Policy: ngrokv1alpha1.DrainPolicyRetain,
+		Spec: ngrokv1.KubernetesOperatorSpec{
+			Drain: &ngrokv1.DrainConfig{
+				Policy: ngrokv1.DrainPolicyRetain,
 			},
 		},
 	}
@@ -250,15 +252,15 @@ func TestOrchestrator_HandleDrain_TransientErrors_OutcomeRetry(t *testing.T) {
 	outcome, err := orchestrator.HandleDrain(context.Background(), ko)
 	require.NoError(t, err)
 	assert.Equal(t, OutcomeRetry, outcome, "should return retry when there are transient errors")
-	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining)
 	require.NotNil(t, drainingCond)
 	assert.Equal(t, metav1.ConditionTrue, drainingCond.Status)
-	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, drainingCond.Reason)
+	assert.Equal(t, ngrokv1.KubernetesOperatorReasonDrainFailed, drainingCond.Reason)
 	assert.Contains(t, drainingCond.Message, "errors")
-	readyCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionReady)
+	readyCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionReady)
 	require.NotNil(t, readyCond)
 	assert.Equal(t, metav1.ConditionFalse, readyCond.Status)
-	assert.Equal(t, ngrokv1alpha1.KubernetesOperatorReasonDrainFailed, readyCond.Reason)
+	assert.Equal(t, ngrokv1.KubernetesOperatorReasonDrainFailed, readyCond.Reason)
 	assert.Equal(t, ko.Generation, ko.Status.ObservedGeneration)
 	require.NotNil(t, ko.Status.Drain)
 	assert.Zero(t, ko.Status.Drain.DrainedResources)
@@ -273,7 +275,7 @@ type updateErrorClient struct {
 // Update returns an error for non-KubernetesOperator objects to simulate transient failures
 func (c *updateErrorClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	// Allow KubernetesOperator status updates to succeed, but fail on other resources
-	if _, ok := obj.(*ngrokv1alpha1.KubernetesOperator); ok {
+	if _, ok := obj.(*ngrokv1.KubernetesOperator); ok {
 		return c.Client.Update(ctx, obj, opts...)
 	}
 	return errors.New("conflict: object has been modified")
@@ -281,7 +283,7 @@ func (c *updateErrorClient) Update(ctx context.Context, obj client.Object, opts 
 
 // Patch returns an error for non-KubernetesOperator objects to simulate transient failures
 func (c *updateErrorClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-	if _, ok := obj.(*ngrokv1alpha1.KubernetesOperator); ok {
+	if _, ok := obj.(*ngrokv1.KubernetesOperator); ok {
 		return c.Client.Patch(ctx, obj, patch, opts...)
 	}
 	return errors.New("conflict: object has been modified")
@@ -290,7 +292,7 @@ func (c *updateErrorClient) Patch(ctx context.Context, obj client.Object, patch 
 func TestOrchestrator_HandleDrain_ListError_OutcomeRetry(t *testing.T) {
 	scheme := setupTestScheme(t)
 
-	ko := &ngrokv1alpha1.KubernetesOperator{
+	ko := &ngrokv1.KubernetesOperator{
 		Name:      "my-release",
 		Namespace: "ngrok-operator",
 	}
@@ -315,7 +317,7 @@ func TestOrchestrator_HandleDrain_ListError_OutcomeRetry(t *testing.T) {
 	outcome, err := orchestrator.HandleDrain(context.Background(), ko)
 	require.NoError(t, err)
 	assert.Equal(t, OutcomeRetry, outcome, "should return retry when there are list errors")
-	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1alpha1.KubernetesOperatorConditionDraining)
+	drainingCond := meta.FindStatusCondition(ko.Status.Conditions, ngrokv1.KubernetesOperatorConditionDraining)
 	require.NotNil(t, drainingCond)
 	assert.Contains(t, drainingCond.Message, "errors")
 	require.NotNil(t, ko.Status.Drain)
