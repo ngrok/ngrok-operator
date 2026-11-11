@@ -142,12 +142,13 @@ between kinds must be listed under [Exceptions](#exceptions).
 - **Domain, rule 5.** A twin also holds the reservation when it names the same
   hostname but has no ID yet: it is about to find that same reservation by
   hostname. This only skips more deletes than the rule requires.
-- **AgentEndpoint, rule 4 event.** No `DeprecatedAPIGroup`
+- **AgentEndpoint and CloudEndpoint, rule 4 event.** No `DeprecatedAPIGroup`
   event on a legacy object the operator generated (one with a controller-name
   label or a Service owner). The operator migrates those itself, so the user
   has nothing to act on.
-- **AgentEndpoint, rule 4 status.** The legacy twin is
-  marked `SupersededByV1` even when the v1 sync failed. v1 is the writer
+- **AgentEndpoint and CloudEndpoint, rule 4 status.** The legacy twin is
+  marked `SupersededByV1` even when the v1 sync failed (for CloudEndpoint,
+  unless v1's status write failed). v1 is the writer
   either way, and the v1 object reports the failure. IPPolicy and Domain mark
   legacy passive only after a successful v1 sync.
 
@@ -362,8 +363,21 @@ ticket.
   only signal before that.
 - **Generator `AlreadyExists`.** The managerdriver skips a create that
   returns `AlreadyExists`, usually cache lag, and the next sync applies it.
-- **Re-stamp recipe.** The documented `jq` filter stops on
+- **Re-stamp recipe.** The documented `jq` filters stop on
   `spec.metadata: ""`; set it by hand.
+- **CloudEndpoint IDs a user or another tool damaged.** A legacy `status.id`
+  that isn't a valid ID (ngrok answers 400, not 404) is never repaired, and
+  deleting that object hangs on its finalizer. A legacy ID that was cleared
+  doesn't follow v1's again, so a rollback creates a second endpoint.
+- **`SupersededByV1` during an ID conflict.** The guide's listing calls
+  `SupersededByV1` objects safe to delete. During a `CloudEndpointIDConflict`
+  the legacy object is `SupersededByV1` but holds its own live endpoint, which
+  deleting it deletes.
+- **Legacy free-form metadata with large numbers.** `MetadataEqual` decodes
+  numbers as `float64`, so a change between two large integers isn't pushed.
+- **Changing a CloudEndpoint's URL.** ngrok doesn't reliably route a cloud
+  endpoint after its URL is updated (an ngrok platform issue), which also
+  affects handing an endpoint back to a legacy twin with a different URL.
 - **Agent rollout at scale** (K8SOP-333, from before R1). A new agent pod is
   Ready before it rebinds its endpoints, so with one agent replica a large
   install has a gap of up to about 30s on upgrade or rollback. Run two agent

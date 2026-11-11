@@ -1154,13 +1154,14 @@ resource, see the KubernetesOperator section below.
     [R2 plan](../../specs/crd-group-migration.md#r2-10).
   - An unmigrated legacy CloudEndpoint keeps running unmanaged (orphaned) until
     re-stamped. An Ingress- or Gateway-generated legacy CloudEndpoint outlives
-    its source once the managerdriver's deletes are gone, so the sweeper (or a
-    one-shot) should delete legacy objects that carry a controller-name label.
+    its source once the managerdriver's deletes are gone. As for
+    AgentEndpoint, R2 must decide who deletes legacy objects that carry a
+    controller-name label: the sweeper only strips finalizers.
 - **R3 (1.1):** the legacy CRD, its RBAC and late adoption are deleted.
 - **Sweep:** `git grep 'LEGACY-cloudendpoint-kind'` and delete the rest:
-  - [ ] `api/ngrok/v1alpha1/cloudendpoint_types.go` and its CRD
-    (`make generate manifests`), plus the accessors block in
-    `api/ngrok/v1/cloudendpoint_types.go` and the keep annotation.
+  - [ ] `api/ngrok/v1alpha1/cloudendpoint_types.go` (with its accessors
+    block) and its CRD (`make generate manifests`), and the keep annotation on
+    the `cloudendpoints.ngrok.com` CRD.
   - [ ] `internal/controller/ngrok/cloudendpoint_controller.go`: the legacy
     `Watches` and RBAC markers, `adopt`, `adoptID`, `adoptOverDeadID`,
     `remoteGone`, `syncPassive`, `setPassive`, `isOperatorManagedCloudEndpoint`,
@@ -1174,8 +1175,9 @@ resource, see the KubernetesOperator section below.
   - [ ] `pkg/managerdriver`: `listLegacyCloudEndpointsForController` and the
     legacy block in `applyCloudEndpoints`.
   - [ ] `internal/drain`: the legacy handler entry and the twin test.
-  - [ ] Helm: the tagged rule blocks and the tagged test assert, then
-    `make helm-update-snapshots` and regenerate `manifest-bundle.yaml`.
+  - [ ] Helm: the tagged rule blocks, then `make helm-update-snapshots` and
+    regenerate `manifest-bundle.yaml`.
+  - [ ] `tests/chainsaw/cloudendpoint-migration/`.
   - [ ] `.golangci.yml`: the `SA1019 ... CloudEndpoint is deprecated`
     exclusion.
 

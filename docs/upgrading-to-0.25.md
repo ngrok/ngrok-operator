@@ -433,9 +433,9 @@ Both kinds are served in 0.25. Endpoints keep serving through the upgrade:
   deletes it with its replacement once the Ingress, route, or Service no
   longer needs it.
 - An `ngrok.com/v1` AgentEndpoint's metadata holds strings only, so the
-  `ngrok.com/metadata` annotation on an Ingress or route should be a JSON
-  object of strings. A value that isn't a string, such as `{"replicas": 3}`, is
-  left out of the generated AgentEndpoint's metadata; the other keys are kept.
+  `ngrok.com/metadata` annotation on an Ingress or route must be a JSON object
+  of strings. If any value isn't a string, such as `{"replicas": 3}`, the
+  generated AgentEndpoint gets none of that metadata.
 - AgentEndpoints you created keep working. Migrate them after the rollback
   window; see
   [Migrate `AgentEndpoint` to `ngrok.com/v1`](#migrate-agentendpoint-to-ngrokcomv1).
@@ -1268,7 +1268,11 @@ endpoint. Free-text metadata makes the filter stop; set it by hand.
 If you manage CloudEndpoints with GitOps, change `apiVersion` (and any
 string-form `metadata`) in the source manifest instead. Let your tool create the
 new object and confirm it has the legacy object's ID before it prunes the old
-one.
+one. If the old object is deleted first, its endpoint is deleted and the new
+object creates another, with a new ID, which drops traffic for a few seconds.
+Argo CD prunes before it creates by default, so set the `PruneLast=true` sync
+option on the Application (or sync without pruning, then prune). Flux prunes
+after it applies.
 
 CloudEndpoints the operator generates for Ingresses, Gateway API routes, and
 Services need no action.
