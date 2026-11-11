@@ -17,6 +17,10 @@ import (
 // environments.
 type DomainClient struct {
 	baseClient[*ngrok.ReservedDomain, ngrok.FilteredPaging]
+
+	// concurrentlyReserved holds domains that get reserved just before the
+	// next Create of them, see ReserveConcurrently.
+	concurrentlyReserved map[string]bool
 }
 
 func NewDomainClient() *DomainClient {
@@ -27,9 +31,36 @@ func NewDomainClient() *DomainClient {
 	}
 }
 
+// ReserveConcurrently makes the next Create of domain find it already
+// reserved, as if something reserved it after the caller looked it up. ngrok
+// does this when it creates an endpoint on a hostname that isn't reserved yet.
+func (m *DomainClient) ReserveConcurrently(domain string) {
+	if m.concurrentlyReserved == nil {
+		m.concurrentlyReserved = map[string]bool{}
+	}
+	m.concurrentlyReserved[domain] = true
+}
+
+// Reset clears the client's state between tests.
+func (m *DomainClient) Reset() {
+	m.baseClient.Reset()
+	m.concurrentlyReserved = nil
+}
+
 func (m *DomainClient) Create(_ context.Context, item *ngrok.ReservedDomainCreate) (*ngrok.ReservedDomain, error) {
 	if m.createError != nil {
 		return nil, m.createError
+	}
+
+	if m.concurrentlyReserved[item.Domain] {
+		delete(m.concurrentlyReserved, item.Domain)
+		id := m.newID()
+		m.items[id] = &ngrok.ReservedDomain{
+			ID:        id,
+			CreatedAt: m.createdAt(),
+			Domain:    item.Domain,
+			URI:       fmt.Sprintf("https://mock-api.ngrok.com/reserved_domains/%s", id),
+		}
 	}
 
 	if m.any(func(rd *ngrok.ReservedDomain) bool { return rd.Domain == item.Domain }) {

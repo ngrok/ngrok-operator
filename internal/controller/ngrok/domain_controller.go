@@ -689,6 +689,17 @@ func (r *DomainReconciler) create(ctx context.Context, domain domainpkg.Resource
 		ResolvesTo:  buildResolvesToRequest(domain.ResolvesTo()),
 	}
 	resp, err := r.DomainsClient.Create(ctx, req)
+	if ngrok.IsErrorCode(err, 413) {
+		// Reserved since the lookup above, usually by ngrok itself: creating
+		// an endpoint on a hostname that isn't reserved yet reserves it. The
+		// 413 is terminal, so adopt the reservation now or the Domain would
+		// stay without an ID.
+		if lookup, lookupErr := r.findReservedDomainForHostname(ctx, domain.Hostname()); lookupErr == nil && lookup.Exact != nil {
+			log.Info("Adopting a reservation made since the lookup", "hostname", domain.Hostname(), "id", lookup.Exact.ID)
+			domain.Status().ID = lookup.Exact.ID
+			return r.pushSpec(ctx, domain, lookup.Exact)
+		}
+	}
 	return r.updateStatus(ctx, domain, resp, err)
 }
 
