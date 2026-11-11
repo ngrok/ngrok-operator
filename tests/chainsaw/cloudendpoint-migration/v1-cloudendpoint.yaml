@@ -1,0 +1,18 @@
+apiVersion: ngrok.com/v1
+kind: CloudEndpoint
+metadata:
+  name: cep-migrate
+spec:
+  url: (join('', ['https://cep-migrate', $ngrokDomainSuffix]))
+  description: migrated to ngrok.com/v1
+  metadata:
+    test: cloudendpoint-migration
+  trafficPolicy:
+    inline:
+      on_http_request:
+        - name: test-response
+          actions:
+            - type: custom-response
+              config:
+                status_code: 200
+                content: cep-migrate

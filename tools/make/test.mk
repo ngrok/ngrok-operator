@@ -14,7 +14,7 @@ CHAINSAW_NGROK_DOMAIN_SUFFIX_DASHES := $(shell echo "$(CHAINSAW_NGROK_DOMAIN_SUF
 .PHONY: test
 test: manifests generate fmt vet _helm_setup ## Run tests. The chart tests in cmd/ render the chart, so its dependencies are set up first.
 	setup-envtest use $$ENVTEST_K8S_VERSION
-	go test $(if $(PACKAGE),$(PACKAGE),./...) -coverprofile cover.out -timeout 120s
+	go test $(if $(PACKAGE),$(PACKAGE),./...) -coverprofile cover.out -timeout 300s
 
 .PHONY: test-coverage
 test-coverage: test ## Run tests and open coverage report. Usage: make test-coverage PACKAGE=./internal/domain

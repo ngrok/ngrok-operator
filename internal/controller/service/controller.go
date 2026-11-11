@@ -144,7 +144,7 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	owns := []client.Object{
 		&ngrokv1.AgentEndpoint{},
-		&ngrokv1alpha1.CloudEndpoint{},
+		&ngrokv1.CloudEndpoint{},
 	}
 
 	controller := ctrl.NewControllerManagedBy(mgr).
@@ -184,10 +184,13 @@ func (r *ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 	}
 
-	// LEGACY-agentendpoint-kind: delete at cleanup. Legacy AgentEndpoints
-	// aren't watched, only listed by owner when the v1 one is created or the
-	// Service stops wanting one.
+	// LEGACY-agentendpoint-kind, LEGACY-cloudendpoint-kind: delete at cleanup.
+	// Legacy endpoints aren't watched, only listed by owner when the v1 one is
+	// created or the Service stops wanting one.
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &ngrokv1alpha1.AgentEndpoint{}, OwnerReferencePath, serviceOwnerUID); err != nil {
+		return err
+	}
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &ngrokv1alpha1.CloudEndpoint{}, OwnerReferencePath, serviceOwnerUID); err != nil {
 		return err
 	}
 
@@ -609,18 +612,18 @@ func (r *ServiceReconciler) buildEndpoints(ctx context.Context, svc *corev1.Serv
 			return objects, err
 		}
 
-		cloudEndpoint := &ngrokv1alpha1.CloudEndpoint{
+		cloudEndpoint := &ngrokv1.CloudEndpoint{
 			GenerateName: svc.Name + "-",
 			Namespace:    svc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(svc, corev1.SchemeGroupVersion.WithKind("Service")),
 			},
 			Labels: r.ControllerLabels.Labels(),
-			Spec: ngrokv1alpha1.CloudEndpointSpec{
+			Spec: ngrokv1.CloudEndpointSpec{
 				URL:            computedEndpointURL,
 				Bindings:       useBindings,
 				PoolingEnabled: useEndpointPooling,
-				TrafficPolicy: &ngrokv1alpha1.TrafficPolicyCfg{
+				TrafficPolicy: &ngrokv1.TrafficPolicyCfg{
 					Inline: rawPolicy,
 				},
 			},
@@ -675,7 +678,7 @@ func (r *ServiceReconciler) getObjectForStatusUpdate(mappingStrategy ir.IRMappin
 			return nil, fmt.Errorf("expected 2 owned resources, got %d", len(ownedResources))
 		}
 		for _, owned := range ownedResources {
-			if _, ok := owned.(*ngrokv1alpha1.CloudEndpoint); ok {
+			if _, ok := owned.(*ngrokv1.CloudEndpoint); ok {
 				return owned, nil
 			}
 		}
@@ -851,26 +854,155 @@ func (r *baseSubresourceReconciler[T, PT]) UpdateServiceStatus(ctx context.Conte
 }
 
 func newServiceCloudEndpointReconciler() serviceSubresourceReconciler {
-	return &baseSubresourceReconciler[ngrokv1alpha1.CloudEndpoint, *ngrokv1alpha1.CloudEndpoint]{
-		listOwned: func(ctx context.Context, c client.Client, opts ...client.ListOption) ([]ngrokv1alpha1.CloudEndpoint, error) {
-			endpoints := &ngrokv1alpha1.CloudEndpointList{}
+	return &serviceCloudEndpointReconciler{
+		listOwned: func(ctx context.Context, c client.Client, opts ...client.ListOption) ([]ngrokv1.CloudEndpoint, error) {
+			endpoints := &ngrokv1.CloudEndpointList{}
 			if err := c.List(ctx, endpoints, opts...); err != nil {
 				return nil, err
 			}
 			return endpoints.Items, nil
 		},
-		matches: func(desired, existing ngrokv1alpha1.CloudEndpoint) bool {
+		matches: func(desired, existing ngrokv1.CloudEndpoint) bool {
 			return reflect.DeepEqual(existing.Spec, desired.Spec) &&
 				maps.Equal(existing.Labels, desired.Labels)
 		},
-		mergeExisting: func(desired ngrokv1alpha1.CloudEndpoint, existing *ngrokv1alpha1.CloudEndpoint) {
+		mergeExisting: func(desired ngrokv1.CloudEndpoint, existing *ngrokv1.CloudEndpoint) {
 			existing.Spec = desired.Spec
 			existing.Labels = desired.Labels
 		},
-		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1alpha1.CloudEndpoint) error {
+		updateStatus: func(ctx context.Context, c client.Client, svc *corev1.Service, endpoint *ngrokv1.CloudEndpoint) error {
 			return updateStatus(ctx, c, svc, endpoint)
 		},
 	}
+}
+
+// serviceCloudEndpointReconciler manages a Service's ngrok.com/v1
+// CloudEndpoint, and the legacy CloudEndpoints an earlier release created for
+// it. It works like serviceAgentEndpointReconciler, except a Service can have
+// several legacy CloudEndpoints (a rollback adds one), so Reconcile picks
+// which one the v1 CloudEndpoint takes over.
+//
+// LEGACY-cloudendpoint-kind: at cleanup, replace with the plain
+// baseSubresourceReconciler it embeds.
+type serviceCloudEndpointReconciler struct {
+	baseSubresourceReconciler[ngrokv1.CloudEndpoint, *ngrokv1.CloudEndpoint]
+
+	legacy []ngrokv1alpha1.CloudEndpoint
+}
+
+// GetOwnedResources returns the Service's v1 CloudEndpoints. The legacy ones
+// are kept aside and don't count towards what the Service waits on. The v1
+// CloudEndpoint is the status source; UpdateServiceStatus reads its legacy
+// twin only until the v1 one has a domainRef. A Service with no v1
+// CloudEndpoint gets no status update and keeps the status it had.
+func (r *serviceCloudEndpointReconciler) GetOwnedResources(ctx context.Context, c client.Client, svc *corev1.Service) ([]client.Object, error) {
+	owned, err := r.baseSubresourceReconciler.GetOwnedResources(ctx, c, svc)
+	if err != nil {
+		return nil, err
+	}
+
+	legacy := &ngrokv1alpha1.CloudEndpointList{}
+	if err := c.List(ctx, legacy,
+		client.InNamespace(svc.Namespace),
+		client.MatchingFields{OwnerReferencePath: string(svc.UID)},
+	); err != nil {
+		return nil, err
+	}
+	r.legacy = legacy.Items
+	return owned, nil
+}
+
+// UpdateServiceStatus reports through the legacy twin of a v1 CloudEndpoint
+// that has no domainRef yet. The twin serves the same Domain, so a TLS
+// Service keeps its load balancer status while the v1 CloudEndpoint takes
+// over, instead of clearing it until the v1 one is reconciled.
+func (r *serviceCloudEndpointReconciler) UpdateServiceStatus(ctx context.Context, c client.Client, svc *corev1.Service, o client.Object) error {
+	clep, ok := o.(*ngrokv1.CloudEndpoint)
+	if !ok {
+		return nil
+	}
+	if clep.GetDomainRef() == nil {
+		for i := range r.legacy {
+			if twin := &r.legacy[i]; twin.Name == clep.Name && twin.GetDomainRef() != nil {
+				return updateStatus(ctx, c, svc, twin)
+			}
+		}
+	}
+	return updateStatus(ctx, c, svc, clep)
+}
+
+// Reconcile hands the Service's legacy CloudEndpoint over to a v1 one. The
+// first v1 CloudEndpoint takes the legacy one's name, so the two are twins
+// and the v1 one takes over its endpoint. The twin is left alone while the
+// Service still wants a CloudEndpoint, and deleted with the v1 one when it
+// doesn't. Any other legacy CloudEndpoint, such as one a rolled-back release
+// created next to an existing v1 one, has no twin and would serve a second
+// endpoint on the same URL, so it is deleted.
+func (r *serviceCloudEndpointReconciler) Reconcile(ctx context.Context, c client.Client, objects []client.Object) error {
+	// Find the CloudEndpoint the Service wants, and where it sits in objects.
+	// objects is nil when the Service no longer wants any.
+	var desired []*ngrokv1.CloudEndpoint
+	at := -1
+	for i, o := range objects {
+		if clep, ok := o.(*ngrokv1.CloudEndpoint); ok {
+			desired = append(desired, clep)
+			at = i
+		}
+	}
+
+	// Pick the name of the legacy CloudEndpoint to keep as the v1 one's
+	// twin. It stays empty, so every legacy CloudEndpoint is deleted below,
+	// when the Service wants no CloudEndpoint.
+	twin := ""
+	switch {
+	case len(desired) != 1:
+	case len(r.owned) == 1:
+		// The v1 CloudEndpoint exists already. Its legacy twin, if any, has
+		// the same name.
+		twin = r.owned[0].Name
+	case len(r.owned) == 0 && len(r.legacy) > 0:
+		// The first v1 CloudEndpoint for a Service from an earlier release.
+		// The desired one has only a GenerateName, so the base reconciler
+		// would create it under a new random name with no twin, and a new
+		// endpoint. Give it a legacy one's name instead. The other
+		// subresource reconcilers read objects concurrently, so rename a
+		// copy.
+		twin = pickLegacyCloudEndpointTwin(r.legacy)
+		named := desired[0].DeepCopy()
+		named.Name = twin
+		named.GenerateName = ""
+		objects = slices.Clone(objects)
+		objects[at] = named
+	}
+
+	// Delete every legacy CloudEndpoint except the twin.
+	for i := range r.legacy {
+		if r.legacy[i].Name == twin {
+			continue
+		}
+		if err := c.Delete(ctx, &r.legacy[i]); client.IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+
+	return r.baseSubresourceReconciler.Reconcile(ctx, c, objects)
+}
+
+// pickLegacyCloudEndpointTwin chooses which of several legacy CloudEndpoints
+// the first v1 one takes over: one holding an endpoint ID, so the live
+// endpoint is adopted rather than recreated, then the lowest name.
+//
+// LEGACY-cloudendpoint-kind: delete at cleanup.
+func pickLegacyCloudEndpointTwin(legacy []ngrokv1alpha1.CloudEndpoint) string {
+	best := &legacy[0]
+	for i := 1; i < len(legacy); i++ {
+		c := &legacy[i]
+		cID, bestID := c.Status.ID != "", best.Status.ID != ""
+		if (cID && !bestID) || (cID == bestID && c.Name < best.Name) {
+			best = c
+		}
+	}
+	return best.Name
 }
 
 func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {

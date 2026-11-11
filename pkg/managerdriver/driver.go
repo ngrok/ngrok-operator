@@ -301,8 +301,8 @@ func listObjectsForType(ctx context.Context, client client.Reader, v any, listOp
 		agentEndpoints := &ngrokv1.AgentEndpointList{}
 		err := client.List(ctx, agentEndpoints, listOpts...)
 		return util.ToClientObjects(agentEndpoints.Items), err
-	case *ngrokv1alpha1.CloudEndpoint:
-		cloudEndpoints := &ngrokv1alpha1.CloudEndpointList{}
+	case *ngrokv1.CloudEndpoint:
+		cloudEndpoints := &ngrokv1.CloudEndpointList{}
 		err := client.List(ctx, cloudEndpoints, listOpts...)
 		return util.ToClientObjects(cloudEndpoints.Items), err
 	}
@@ -355,7 +355,7 @@ func BaseSeededTypes() []any {
 		&ngrokv1alpha1.NgrokTrafficPolicy{},
 		&ngrokv1.TrafficPolicy{},
 		&ngrokv1.AgentEndpoint{},
-		&ngrokv1alpha1.CloudEndpoint{},
+		&ngrokv1.CloudEndpoint{},
 	}
 }
 
@@ -694,6 +694,12 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		d.log.Error(err, "error listing cloud endpoints")
 		return err
 	}
+	// LEGACY-cloudendpoint-kind: delete at cleanup.
+	legacyCloudEndpoints, err := d.listLegacyCloudEndpointsForController(ctx, c)
+	if err != nil {
+		d.log.Error(err, "error listing legacy cloud endpoints")
+		return err
+	}
 	// LEGACY-PREFIX-MIGRATION: END
 
 	if err := d.applyDomains(ctx, c, domains.totalDomains); err != nil {
@@ -705,7 +711,7 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currCloudEndpoints); err != nil {
+	if err := d.applyCloudEndpoints(ctx, c, translationResult.CloudEndpoints, currCloudEndpoints, legacyCloudEndpoints); err != nil {
 		d.log.Error(err, "applying cloud endpoints")
 		return err
 	}

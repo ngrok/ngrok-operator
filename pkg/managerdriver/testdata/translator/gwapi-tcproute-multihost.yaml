@@ -76,7 +76,7 @@ input:
       type: ClusterIP
 expected:
   cloudEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
       labels:
@@ -109,7 +109,7 @@ expected:
                 config:
                   url: "tcp://e3b0c-test-service-2-default.internal:12000"
       url: tcp://test-hostname.ngrok.io:9000
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
       labels:
@@ -142,7 +142,7 @@ expected:
                 config:
                   url: "tcp://e3b0c-test-service-2-default.internal:12000"
       url: tcp://test-hostname.ngrok.io:7000
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
       labels:
@@ -175,7 +175,7 @@ expected:
                 config:
                   url: "tcp://e3b0c-test-service-2-default.internal:12000"
       url: tcp://test-hostname-2.ngrok.io:9000
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
       labels:

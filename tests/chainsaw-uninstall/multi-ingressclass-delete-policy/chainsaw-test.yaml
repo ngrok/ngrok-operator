@@ -175,7 +175,7 @@ spec:
               # Check CloudEndpoint URLs (more reliable than names which may have hashes)
               
               # Verify operator-a created CloudEndpoint in namespace-a
-              CLOUD_EP_URLS_A=$(kubectl get cloudendpoint -n namespace-a -o jsonpath='{.items[*].spec.url}')
+              CLOUD_EP_URLS_A=$(kubectl get cloudendpoints.ngrok.com -n namespace-a -o jsonpath='{.items[*].spec.url}')
               if echo "$CLOUD_EP_URLS_A" | grep -q "uninstall-test-ingress-a.internal"; then
                 echo "✓ Ingress A created CloudEndpoint for uninstall-test-ingress-a.internal"
               else
@@ -193,7 +193,7 @@ spec:
               echo "✓ Found AgentEndpoint(s) in namespace-a: $AGENT_EPS_A"
               
               # Verify operator-b created CloudEndpoint in namespace-b
-              CLOUD_EP_URLS_B=$(kubectl get cloudendpoint -n namespace-b -o jsonpath='{.items[*].spec.url}')
+              CLOUD_EP_URLS_B=$(kubectl get cloudendpoints.ngrok.com -n namespace-b -o jsonpath='{.items[*].spec.url}')
               if echo "$CLOUD_EP_URLS_B" | grep -q "uninstall-test-ingress-b.internal"; then
                 echo "✓ Ingress B created CloudEndpoint for uninstall-test-ingress-b.internal"
               else

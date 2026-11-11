@@ -135,6 +135,21 @@ tests:
   - notContains:
       path: rules[*].verbs
       content: delete
+- it: cloudendpoint viewer can't write cloudendpoints in either API group
+  template: rbac/crd-access/cloudendpoint-viewer.yaml
+  asserts:
+  - notContains:
+      path: rules[*].verbs
+      content: create
+  - notContains:
+      path: rules[*].verbs
+      content: update
+  - notContains:
+      path: rules[*].verbs
+      content: patch
+  - notContains:
+      path: rules[*].verbs
+      content: delete
 # LEGACY-trafficpolicy-kind: drop this test at cleanup along with the template
 # it covers.
 - it: should keep the deprecated ngrok.k8s.ngrok.com trafficpolicy editor

@@ -2,6 +2,8 @@
 
 ## Resource Identity
 
+The deprecated `ngrok.k8s.ngrok.com/v1alpha1` `CloudEndpoint` is still served during the migration window. Its schema is the same except `spec.metadata`, which also accepts a raw JSON string. See [crd-group-migration.md](../crd-group-migration.md).
+
 | Property    | Value                    |
 |-------------|--------------------------|
 | Group       | `ngrok.com`              |
@@ -50,6 +52,10 @@
 | Ready          | `.status.conditions[?(@.type=='Ready')].status`               | 0        |
 | Reason         | `.status.conditions[?(@.type=='Ready')].reason`               | 1        |
 | Message        | `.status.conditions[?(@.type=='Ready')].message`              | 1        |
+
+## Deprecated kind
+
+`ngrok.k8s.ngrok.com/v1alpha1` `CloudEndpoint` is served during the migration window. Both kinds use the plural `cloudendpoints` and the short name `clep`. The legacy CRD is marked deprecated, so applying it prints a warning, and a legacy object whose v1 twin manages the endpoint is `Ready` with reason `SupersededByV1`. The v1 CRD carries `helm.sh/resource-policy: keep`. See [the CloudEndpoint controller](../controllers/cloudendpoint.md#migration-from-ngrokk8sngrokcom) for how the two kinds share one ngrok endpoint.
 
 ## Annotations
 

@@ -1,4 +1,4 @@
-apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+apiVersion: ngrok.com/v1
 kind: CloudEndpoint
 metadata:
   name: uninstall-test-cloud-ep
@@ -7,7 +7,8 @@ spec:
   # Using .internal domain - no domain registration required
   url: https://uninstall-test-cloud-ep.internal
   description: "Uninstall test CloudEndpoint"
-  metadata: '{"test":"uninstall-e2e"}'
+  metadata:
+    test: uninstall-e2e
   trafficPolicy:
     inline:
       on_http_request:

@@ -43,7 +43,7 @@ type translator struct {
 // TranslationResult is the final set of translation output resources
 type TranslationResult struct {
 	AgentEndpoints map[types.NamespacedName]*ngrokv1.AgentEndpoint
-	CloudEndpoints map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint
+	CloudEndpoints map[types.NamespacedName]*ngrokv1.CloudEndpoint
 }
 
 // NewTranslator creates a new default Translator
@@ -168,10 +168,10 @@ func validateMappingStrategies(irVHosts []*ir.IRVirtualHost) {
 }
 
 // IRToEndpoints converts a set of IRVirtualHosts into CloudEndpoints and AgentEndpoints
-func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint, agentEndpoints map[types.NamespacedName]*ngrokv1.AgentEndpoint) {
+func (t *translator) IRToEndpoints(irVHosts []*ir.IRVirtualHost) (cloudEndpoints map[types.NamespacedName]*ngrokv1.CloudEndpoint, agentEndpoints map[types.NamespacedName]*ngrokv1.AgentEndpoint) {
 	// Setup a cache for the agent endpoints as any given backend may be used across several ingresses, etc.
 	agentEndpointCache := make(map[ir.IRServiceKey]*ngrokv1.AgentEndpoint)
-	cloudEndpoints = make(map[types.NamespacedName]*ngrokv1alpha1.CloudEndpoint)
+	cloudEndpoints = make(map[types.NamespacedName]*ngrokv1.CloudEndpoint)
 
 	validateMappingStrategies(irVHosts)
 	for _, irVHost := range irVHosts {
@@ -780,7 +780,7 @@ func buildPublicURL(irVHost *ir.IRVirtualHost) (string, error) {
 }
 
 // buildCloudEndpoint initializes a new CloudEndpoint
-func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1alpha1.CloudEndpoint, error) {
+func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1.CloudEndpoint, error) {
 	name := ""
 	if irVHost.NamePrefix != nil {
 		name = fmt.Sprintf("%s-", *irVHost.NamePrefix)
@@ -799,19 +799,17 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1alpha1.CloudEndpoint
 		return nil, fmt.Errorf("failed to build public URL for CloudEndpoint, err: %w", err)
 	}
 
-	return &ngrokv1alpha1.CloudEndpoint{
+	return &ngrokv1.CloudEndpoint{
 		Name:        sanitizeStringForK8sName(name),
 		Namespace:   irVHost.Namespace,
 		Labels:      irVHost.LabelsToAdd,
 		Annotations: irVHost.AnnotationsToAdd,
-		Spec: ngrokv1alpha1.CloudEndpointSpec{
+		Spec: ngrokv1.CloudEndpointSpec{
 			URL:            publicURL,
 			PoolingEnabled: irVHost.EndpointPoolingEnabled,
-			// LEGACY-metadata-format: operator-generated objects keep writing the
-			// string form during the migration window for rollback safety.
-			Metadata:    commonv1alpha1.MetadataFromLegacyString(irVHost.Metadata),
-			Description: irVHost.Description,
-			Bindings:    irVHost.Bindings,
+			Metadata:       commonv1alpha1.MetadataToMap(json.RawMessage(irVHost.Metadata)),
+			Description:    irVHost.Description,
+			Bindings:       irVHost.Bindings,
 		},
 	}, nil
 }
