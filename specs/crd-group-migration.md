@@ -127,6 +127,14 @@ between kinds must be listed under [Exceptions](#exceptions).
 - **Domain, rule 5.** A twin also holds the reservation when it names the same
   hostname but has no ID yet: it is about to find that same reservation by
   hostname. This only skips more deletes than the rule requires.
+- **AgentEndpoint, rule 4 event.** No `DeprecatedAPIGroup`
+  event on a legacy object the operator generated (one with a controller-name
+  label or a Service owner). The operator migrates those itself, so the user
+  has nothing to act on.
+- **AgentEndpoint, rule 4 status.** The legacy twin is
+  marked `SupersededByV1` even when the v1 sync failed. v1 is the writer
+  either way, and the v1 object reports the failure. IPPolicy and Domain mark
+  legacy passive only after a successful v1 sync.
 
 ### Per-kind application
 
@@ -288,11 +296,63 @@ guide documents them.
     annotation.
 - **Uninstall in R1.** `helm uninstall` leaves the kept `ngrok.com` CRDs
   behind, whether they come from the operator chart or a separate
-  `ngrok-crds` release. After a drain they are empty, and a reinstall into
-  the same release name and namespace adopts them. Delete them by hand to
+  `ngrok-crds` release. After a drain with `drainPolicy: Delete` they hold
+  no operator-managed objects. `Retain` only strips finalizers, so they keep
+  the v1 objects. A reinstall into the same release name and namespace adopts
+  them. Delete them by hand to
   remove them.
 - **R2 → R1:** Legacy CRDs are still installed. R1 resumes dual-read, and v1
   objects win.
+
+## Accepted R1 gaps
+
+Behavior found in review and live testing that R1 does not fix. Each was
+judged rare, self-inflicted, or cheaper to document than to handle. Don't
+reopen these without a new reason; the ones that need later work have a
+ticket.
+
+- **Going back to legacy after changing v1.** Deleting a generated v1 object
+  by hand hands control to its legacy twin, which still has the spec from
+  the upgrade, until the next event on its Ingress, route or Service
+  recreates the v1 object. On 0.24 the same delete was an outage. Likewise,
+  a rollback to 0.24 only knows the legacy objects: anything created or
+  changed through `ngrok.com/v1` after the upgrade (new sources, references
+  to an `ngrok.com/v1` TrafficPolicy) breaks or briefly drops while rolled
+  back. Undo the v1 changes before rolling back.
+- **Uninstalling after a rollback** leaves the `ngrok.com` objects created
+  after the upgrade, with finalizers, in the kept CRDs. The guide covers the
+  KubernetesOperator and Domain cleanup only.
+- **Deleting CRDs by hand.** Deleting a kept `ngrok.com` CRD deletes every
+  object of that kind for every release sharing it. Deleting a legacy CRD
+  before R3 works until the operator restarts, then the operator crash-loops
+  because it watches the legacy kind. 1.0 should start without the legacy
+  CRDs.
+- **Forbidden twin read.** Rule 5 keeps the remote resource and logs at Info
+  only; nothing reconciles it once RBAC is restored.
+- **Non-string metadata.** A non-string value in the `ngrok.com/metadata`
+  annotation drops all of a generated endpoint's metadata. The v1 CRDs
+  reject non-string values on objects users write; annotations can't be
+  validated.
+- **Foreign finalizers with several agents.** A Terminating AgentEndpoint
+  that another finalizer holds stays bound on the agent replicas that
+  didn't remove ours, until that finalizer clears.
+- **No warning on legacy-only user objects.** `DeprecatedAPIGroup` fires
+  only once a legacy object has a v1 twin; `kubectl apply` warnings are the
+  only signal before that.
+- **Generator `AlreadyExists`.** The managerdriver skips a create that
+  returns `AlreadyExists`, usually cache lag, and the next sync applies it.
+- **Re-stamp recipe.** The documented `jq` filter stops on
+  `spec.metadata: ""`; set it by hand.
+- **Agent rollout at scale** (K8SOP-333, from before R1). A new agent pod is
+  Ready before it rebinds its endpoints, so with one agent replica a large
+  install has a gap of up to about 30s on upgrade or rollback. Run two agent
+  replicas for the upgrade.
+- **Kept CRDs and later installs.** After an uninstall, the kept CRDs still
+  carry the old release's Helm ownership, so switching to a separate
+  `ngrok-crds` release fails until they're deleted or re-annotated. A 0.24
+  release installed on a cluster that once ran 0.25 can't drain on
+  uninstall: its bare `kubernetesoperator` name resolves to the kept
+  `ngrok.com` kind.
 
 ## Verification per kind PR
 

@@ -216,6 +216,10 @@ Current sentinel tags:
   the operator write, and that owns an ngrok resource:
   `ingress.k8s.ngrok.com/v1alpha1 Domain` → `ngrok.com/v1 Domain`. The kind
   keeps its name.
+- `LEGACY-agentendpoint-kind` — CRD **group** move:
+  `ngrok.k8s.ngrok.com/v1alpha1 AgentEndpoint` → `ngrok.com/v1 AgentEndpoint`.
+  Users and the operator both write it; it owns the agent's tunnel, not an
+  ngrok API resource.
 - `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
 - `LEGACY-enabledfeatures-format` — `KubernetesOperator.status.enabledFeatures` comma-separated **string** → `[]string` (a field *type* change on an operator-only, operator-written status field; same `json:` tag).
 - `LEGACY-values-layout` — Helm values moved in the 0.25 layout. `templates/_legacy-values.tpl` fails the render when an old top-level key is set, naming its new path, so old values are never silently ignored. Delete the file, its include and the tagged tests once 0.25 is the oldest release users upgrade from.
@@ -1053,14 +1057,18 @@ resource, see the KubernetesOperator section below.
   Service controller, and the Service name reuse and status fallback. The
   kind-agnostic finalizer sweeper from the spec strips the legacy finalizers.
   There is no late adoption: an AgentEndpoint has no remote ID.
+  - Remove the `helm.sh/resource-policy: keep` marker on the
+    `agentendpoints.ngrok.com` CRD, so Helm deletes it on uninstall again.
   - Unlike the kinds with a remote resource, an unmigrated legacy
     AgentEndpoint does not keep running: its tunnel lives in the agent, so it
     goes offline when the 1.0 agent starts. The 1.0 guide must say so.
   - Once the managerdriver's legacy deletes are gone, an Ingress- or
     Gateway-generated legacy AgentEndpoint (no owner reference) outlives its
     source and shows up in the "legacy with no v1 twin" listing as if the user
-    had to migrate it. The sweeper (or a one-shot) should delete legacy
-    AgentEndpoints that carry a controller-name label.
+    had to migrate it. The spec's sweeper only strips finalizers and has no
+    delete permission, so R2 must decide who deletes legacy AgentEndpoints
+    that carry a controller-name label: the sweeper with added delete RBAC,
+    or a one-shot in the managerdriver.
 - **R3 (1.1):** `git grep 'LEGACY-agentendpoint-kind'` and delete the rest:
   `api/ngrok/v1alpha1/agentendpoint_types.go` and its CRD, the drain entry,
   the legacy RBAC, the `.golangci.yml` exclusion and the tests tagged for
