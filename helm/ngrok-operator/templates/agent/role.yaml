@@ -62,6 +62,32 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ngrok.com
+  resources:
+  - agentendpoints
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ngrok.com
+  resources:
+  - agentendpoints/finalizers
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ngrok.com
+  resources:
+  - agentendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
+# LEGACY-agentendpoint-kind: BEGIN — drop these three rule blocks at cleanup.
+- apiGroups:
   - ngrok.k8s.ngrok.com
   resources:
   - agentendpoints
@@ -86,6 +112,7 @@ rules:
   - get
   - patch
   - update
+# LEGACY-agentendpoint-kind: END
 # KubernetesOperator is intentionally NOT in this role. The KubernetesOperator
 # CR is a singleton owned by the api-manager and always lives in the release
 # namespace, independent of `watchNamespace`. The agent reads it for drain

@@ -96,10 +96,11 @@ between kinds must be listed under [Exceptions](#exceptions).
    - Any other error: requeue.
 6. **Deleting v1 hands control back to legacy.** Legacy becomes the writer
    again on the next pass.
-7. **R1 never deletes legacy objects**, including operator-created ones. After
-   `helm rollback` to 0.24, the old operator needs the legacy object with its
-   ID intact. Without it, 0.24 creates a second endpoint: a duplicate in the
-   pool and on the bill.
+7. **R1 never deletes a legacy object because a v1 twin exists**, including
+   operator-created ones. After `helm rollback` to 0.24, the old operator needs
+   the legacy object with its ID intact. Without it, 0.24 creates a second
+   endpoint: a duplicate in the pool and on the bill. A generator deletes a
+   legacy object together with its v1 twin once its source wants neither.
 8. **Legacy finalizers stay in R1.** R2 strips them all. This keeps R1 simpler:
    no re-stamp logic when v1 is deleted.
 9. **Deleting a twinned legacy object releases its finalizer without an ngrok
@@ -126,6 +127,14 @@ between kinds must be listed under [Exceptions](#exceptions).
 - **Domain, rule 5.** A twin also holds the reservation when it names the same
   hostname but has no ID yet: it is about to find that same reservation by
   hostname. This only skips more deletes than the rule requires.
+- **AgentEndpoint, rule 4 event.** No `DeprecatedAPIGroup`
+  event on a legacy object the operator generated (one with a controller-name
+  label or a Service owner). The operator migrates those itself, so the user
+  has nothing to act on.
+- **AgentEndpoint, rule 4 status.** The legacy twin is
+  marked `SupersededByV1` even when the v1 sync failed. v1 is the writer
+  either way, and the v1 object reports the failure. IPPolicy and Domain mark
+  legacy passive only after a successful v1 sync.
 
 ### Per-kind application
 
@@ -143,7 +152,14 @@ between kinds must be listed under [Exceptions](#exceptions).
   `ensureDomains` then creates the default v1 Domain.
 - **CloudEndpoint / AgentEndpoint, operator-generated:** The generator writes
   v1 objects with the same name. Rules 3-4 hand ownership over. The legacy
-  object stays (rule 7) until R2 makes it inert. Users do nothing.
+  object stays (rule 7) until R2 makes it inert, unless its source no longer
+  wants it: then the generator deletes both halves, legacy first. Otherwise
+  rule 6 would hand the tunnel back to the stale legacy object once the v1
+  twin is deleted. A Service's legacy AgentEndpoint that isn't its v1
+  object's twin, which a rollback creates, is deleted too. Users do nothing.
+  Service-owned endpoints are named by `GenerateName`, so the Service
+  controller gives the first v1 object the name of the Service's legacy object;
+  without that no twin forms.
 - **AgentEndpoint handoff:** The agent driver keys tunnels by `namespace/name`
   (`statusID`, `internal/controller/agent/agent_endpoint_controller.go`).
   `CreateAgentEndpoint` is a no-op when the stored config equals the new one
@@ -152,6 +168,9 @@ between kinds must be listed under [Exceptions](#exceptions).
   then close). Rule 4 must hold, or two objects with different specs flap the
   same slot. Rule 5 must hold, or deleting legacy closes the tunnel v1 serves
   through. The v1 spec must reach the driver as the type the driver takes.
+  Implemented by `internal/controller/agent/agent_endpoint_controller.go`; the
+  driver takes `agent.EndpointSpec`, which both kinds convert to, so equal
+  specs compare equal and the take-over doesn't rebind.
 - **KubernetesOperator:** Branch
   `alex/k8sop-318-move-kubernetesoperator-from-v1alpha-to-v1-and-migrate-api`.
   The v1 object adopts the legacy twin's `status.id` (rule 3) and falls back
@@ -191,6 +210,9 @@ between kinds must be listed under [Exceptions](#exceptions).
   it, at which point late adoption takes it back. The 1.0 upgrade guide says
   so, includes a command that lists legacy objects with no v1 twin, and says
   to migrate before 1.1: a re-stamp after 1.1 creates a new ID.
+  AgentEndpoint is the exception: its tunnel lives in the agent process, so
+  an unmigrated legacy AgentEndpoint goes offline when 1.0 starts. The guide
+  says that instead.
 - **Opt-in legacy CRD removal.** The `ngrok-crds` subchart gets a value,
   set from the operator chart as `ngrok-crds.legacy.install` (default
   `true`). Once 1.0 is running and no legacy object carries an ngrok
@@ -274,11 +296,63 @@ guide documents them.
     annotation.
 - **Uninstall in R1.** `helm uninstall` leaves the kept `ngrok.com` CRDs
   behind, whether they come from the operator chart or a separate
-  `ngrok-crds` release. After a drain they are empty, and a reinstall into
-  the same release name and namespace adopts them. Delete them by hand to
+  `ngrok-crds` release. After a drain with `drainPolicy: Delete` they hold
+  no operator-managed objects. `Retain` only strips finalizers, so they keep
+  the v1 objects. A reinstall into the same release name and namespace adopts
+  them. Delete them by hand to
   remove them.
 - **R2 → R1:** Legacy CRDs are still installed. R1 resumes dual-read, and v1
   objects win.
+
+## Accepted R1 gaps
+
+Behavior found in review and live testing that R1 does not fix. Each was
+judged rare, self-inflicted, or cheaper to document than to handle. Don't
+reopen these without a new reason; the ones that need later work have a
+ticket.
+
+- **Going back to legacy after changing v1.** Deleting a generated v1 object
+  by hand hands control to its legacy twin, which still has the spec from
+  the upgrade, until the next event on its Ingress, route or Service
+  recreates the v1 object. On 0.24 the same delete was an outage. Likewise,
+  a rollback to 0.24 only knows the legacy objects: anything created or
+  changed through `ngrok.com/v1` after the upgrade (new sources, references
+  to an `ngrok.com/v1` TrafficPolicy) breaks or briefly drops while rolled
+  back. Undo the v1 changes before rolling back.
+- **Uninstalling after a rollback** leaves the `ngrok.com` objects created
+  after the upgrade, with finalizers, in the kept CRDs. The guide covers the
+  KubernetesOperator and Domain cleanup only.
+- **Deleting CRDs by hand.** Deleting a kept `ngrok.com` CRD deletes every
+  object of that kind for every release sharing it. Deleting a legacy CRD
+  before R3 works until the operator restarts, then the operator crash-loops
+  because it watches the legacy kind. 1.0 should start without the legacy
+  CRDs.
+- **Forbidden twin read.** Rule 5 keeps the remote resource and logs at Info
+  only; nothing reconciles it once RBAC is restored.
+- **Non-string metadata.** A non-string value in the `ngrok.com/metadata`
+  annotation drops all of a generated endpoint's metadata. The v1 CRDs
+  reject non-string values on objects users write; annotations can't be
+  validated.
+- **Foreign finalizers with several agents.** A Terminating AgentEndpoint
+  that another finalizer holds stays bound on the agent replicas that
+  didn't remove ours, until that finalizer clears.
+- **No warning on legacy-only user objects.** `DeprecatedAPIGroup` fires
+  only once a legacy object has a v1 twin; `kubectl apply` warnings are the
+  only signal before that.
+- **Generator `AlreadyExists`.** The managerdriver skips a create that
+  returns `AlreadyExists`, usually cache lag, and the next sync applies it.
+- **Re-stamp recipe.** The documented `jq` filter stops on
+  `spec.metadata: ""`; set it by hand.
+- **Agent rollout at scale** (K8SOP-333, from before R1). A new agent pod is
+  Ready before it rebinds its endpoints, so with one agent replica a large
+  install has a gap of up to about 30s on upgrade or rollback. Run two agent
+  replicas for the upgrade.
+- **Kept CRDs and later installs.** After an uninstall, the kept CRDs still
+  carry the old release's Helm ownership, so switching to a separate
+  `ngrok-crds` release fails until they're deleted or re-annotated. A 0.24
+  release installed on a cluster that once ran 0.25 can't drain on
+  uninstall: its bare `kubernetesoperator` name resolves to the kept
+  `ngrok.com` kind.
 
 ## Verification per kind PR
 

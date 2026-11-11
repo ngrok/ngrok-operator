@@ -90,6 +90,31 @@ should match snapshot in default mode:
           - update
           - watch
       - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints
@@ -235,6 +260,31 @@ should match snapshot in namespaced mode:
           - patch
           - update
           - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/finalizers
+        verbs:
+          - patch
+          - update
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+          - patch
+          - update
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:

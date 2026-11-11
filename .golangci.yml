@@ -100,6 +100,13 @@ linters:
       - linters:
           - staticcheck
         text: 'SA1019: .*\bDomain is deprecated'
+      # LEGACY-agentendpoint-kind: delete this exclusion at cleanup. Same
+      # reasoning as the NgrokTrafficPolicy rule above: the operator serves
+      # the deprecated ngrok.k8s.ngrok.com/v1alpha1 AgentEndpoint for the
+      # migration window.
+      - linters:
+          - staticcheck
+        text: 'SA1019: .*\bAgentEndpoint is deprecated'
     paths:
       - third_party$
       - builtin$

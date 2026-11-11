@@ -170,7 +170,7 @@ func (c CacheStores) Get(obj runtime.Object) (item any, exists bool, err error) 
 		return c.NgrokTrafficPolicyV1.Get(obj)
 	case *ngrokv1.TrafficPolicy:
 		return c.TrafficPolicyV1.Get(obj)
-	case *ngrokv1alpha1.AgentEndpoint:
+	case *ngrokv1.AgentEndpoint:
 		return c.AgentEndpointV1.Get(obj)
 	case *ngrokv1alpha1.CloudEndpoint:
 		return c.CloudEndpointV1.Get(obj)
@@ -229,7 +229,7 @@ func (c CacheStores) Add(obj runtime.Object) error {
 		return c.NgrokTrafficPolicyV1.Add(obj)
 	case *ngrokv1.TrafficPolicy:
 		return c.TrafficPolicyV1.Add(obj)
-	case *ngrokv1alpha1.AgentEndpoint:
+	case *ngrokv1.AgentEndpoint:
 		return c.AgentEndpointV1.Add(obj)
 	case *ngrokv1alpha1.CloudEndpoint:
 		return c.CloudEndpointV1.Add(obj)
@@ -289,7 +289,7 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 		return c.NgrokTrafficPolicyV1.Delete(obj)
 	case *ngrokv1.TrafficPolicy:
 		return c.TrafficPolicyV1.Delete(obj)
-	case *ngrokv1alpha1.AgentEndpoint:
+	case *ngrokv1.AgentEndpoint:
 		return c.AgentEndpointV1.Delete(obj)
 	case *ngrokv1alpha1.CloudEndpoint:
 		return c.CloudEndpointV1.Delete(obj)

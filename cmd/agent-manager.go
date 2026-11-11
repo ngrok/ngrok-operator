@@ -37,6 +37,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -182,6 +183,9 @@ func runAgentController(_ context.Context, opts agentManagerOpts) error {
 
 	// create default config and clientset for use outside the mgr.Start() blocking loop
 	k8sConfig := ctrl.GetConfigOrDie()
+	// Log each API warning once. Every write to a deprecated kind, such as a
+	// legacy AgentEndpoint, returns the same deprecation warning.
+	k8sConfig.WarningHandlerWithContext = ctrllog.NewKubeAPIWarningLogger(ctrllog.KubeAPIWarningLoggerOptions{Deduplicate: true})
 	mgr, err := ctrl.NewManager(k8sConfig, options)
 	if err != nil {
 		return fmt.Errorf("unable to start agent-manager: %w", err)

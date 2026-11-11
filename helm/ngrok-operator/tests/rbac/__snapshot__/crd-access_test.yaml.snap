@@ -14,6 +14,24 @@ should match snapshot with defaults:
       name: RELEASE-NAME-ngrok-operator-agentendpoint-editor-role
     rules:
       - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
+      - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:
           - agentendpoints
@@ -45,6 +63,20 @@ should match snapshot with defaults:
         helm.sh/chart: ngrok-operator-0.24.0
       name: RELEASE-NAME-ngrok-operator-agentendpoint-viewer-role
     rules:
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ngrok.com
+        resources:
+          - agentendpoints/status
+        verbs:
+          - get
       - apiGroups:
           - ngrok.k8s.ngrok.com
         resources:

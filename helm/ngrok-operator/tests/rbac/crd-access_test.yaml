@@ -83,6 +83,23 @@ tests:
   - notContains:
       path: rules[*].verbs
       content: delete
+# The snapshot pins the exact rules; this checks the property that matters,
+# so adding a rule or a group doesn't break it.
+- it: agentendpoint viewer can't write agentendpoints in either API group
+  template: rbac/crd-access/agentendpoint-viewer.yaml
+  asserts:
+  - notContains:
+      path: rules[*].verbs
+      content: create
+  - notContains:
+      path: rules[*].verbs
+      content: update
+  - notContains:
+      path: rules[*].verbs
+      content: patch
+  - notContains:
+      path: rules[*].verbs
+      content: delete
 - it: should use ngrok.com for the canonical trafficpolicy editor
   template: rbac/crd-access/trafficpolicy-editor.yaml
   asserts:

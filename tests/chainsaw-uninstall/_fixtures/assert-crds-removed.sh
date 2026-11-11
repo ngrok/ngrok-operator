@@ -8,18 +8,27 @@
 
 set -o pipefail
 
-if ! crds=$(kubectl get crds -o json); then
-  echo "✗ could not list CRDs"
-  exit 1
-fi
+remaining() {
+  local crds
+  if ! crds=$(kubectl get crds -o json); then
+    echo "✗ could not list CRDs" >&2
+    return 1
+  fi
+  if ! echo "$crds" | jq -r '.items[]
+    | select(.metadata.name | test("ngrok"))
+    | select(.metadata.annotations["helm.sh/resource-policy"] != "keep")
+    | .metadata.name'; then
+    echo "✗ could not read the CRD list" >&2
+    return 1
+  fi
+}
 
-if ! leftover=$(echo "$crds" | jq -r '.items[]
-  | select(.metadata.name | test("ngrok"))
-  | select(.metadata.annotations["helm.sh/resource-policy"] != "keep")
-  | .metadata.name'); then
-  echo "✗ could not read the CRD list"
-  exit 1
-fi
+# CRD deletion is asynchronous, so give the rest a moment to go.
+for _ in $(seq 20); do
+  leftover=$(remaining) || exit 1
+  [ -z "$leftover" ] && break
+  sleep 1
+done
 if [ -n "$leftover" ]; then
   echo "✗ ngrok CRDs still exist:"
   echo "$leftover"

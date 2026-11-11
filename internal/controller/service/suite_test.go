@@ -26,6 +26,7 @@ package service
 import (
 	"context"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ngrok/ngrok-operator/internal/controller/labels"
@@ -50,6 +51,13 @@ import (
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
+
+// testDrainState lets a spec put the controller in drain mode.
+var testDrainState drainToggle
+
+type drainToggle struct{ on atomic.Bool }
+
+func (d *drainToggle) IsDraining(context.Context) bool { return d.on.Load() }
 
 var (
 	cfg            *rest.Config
@@ -131,6 +139,7 @@ var _ = BeforeSuite(func() {
 		Scheme:           k8sManager.GetScheme(),
 		TCPAddresses:     tcpAddrsClient,
 		ControllerLabels: labels.NewControllerLabelValues(controllerLabelNamespace, controllerLabelName),
+		DrainState:       &testDrainState,
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 

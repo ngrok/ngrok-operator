@@ -160,7 +160,7 @@ expected:
                 headers:
                   content-type: text/plain
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:

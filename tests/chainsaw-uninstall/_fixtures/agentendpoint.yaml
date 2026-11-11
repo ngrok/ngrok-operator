@@ -1,4 +1,4 @@
-apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+apiVersion: ngrok.com/v1
 kind: AgentEndpoint
 metadata:
   name: uninstall-test-agent-ep
@@ -11,4 +11,5 @@ spec:
   upstream:
     url: http://localhost:8080
   description: "Uninstall test AgentEndpoint"
-  metadata: '{"test":"uninstall-e2e"}'
+  metadata:
+    test: uninstall-e2e

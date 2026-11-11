@@ -140,7 +140,7 @@ expected:
                   "server_private_key": "ServerPrivateKey"
       url: https://test-hostname.ngrok.io
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:

@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/annotations"
@@ -39,6 +40,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -66,8 +68,8 @@ func getCloudEndpoints(k8sClient client.Client, namespace string) (*ngrokv1alpha
 }
 
 // getAgentEndpoints fetches AgentEndpoints in the given namespace
-func getAgentEndpoints(k8sClient client.Client, namespace string) (*ngrokv1alpha1.AgentEndpointList, error) {
-	aepList := &ngrokv1alpha1.AgentEndpointList{}
+func getAgentEndpoints(k8sClient client.Client, namespace string) (*ngrokv1.AgentEndpointList, error) {
+	aepList := &ngrokv1.AgentEndpointList{}
 	listOpts := []client.ListOption{
 		client.InNamespace(namespace),
 	}
@@ -178,6 +180,211 @@ var _ = Describe("ServiceController", func() {
 				By("checking the service is not modified")
 				g.Expect(fetched.Finalizers).To(BeEmpty())
 			}, duration, interval).Should(Succeed())
+		})
+	})
+
+	When("the operator is draining", func() {
+		BeforeEach(func() {
+			testDrainState.on.Store(true)
+			DeferCleanup(func() { testDrainState.on.Store(false) })
+			modifiers.Add(SetLoadBalancerClass(NgrokLoadBalancerClass))
+		})
+
+		It("doesn't add a finalizer or create endpoints", func() {
+			Consistently(func(g Gomega) {
+				fetched := &corev1.Service{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+				g.Expect(fetched.Finalizers).To(BeEmpty())
+
+				aeps := &ngrokv1.AgentEndpointList{}
+				g.Expect(k8sClient.List(ctx, aeps, client.InNamespace(namespace))).To(Succeed())
+				g.Expect(aeps.Items).To(BeEmpty())
+			}, "3s", interval).Should(Succeed())
+		})
+	})
+
+	// LEGACY-agentendpoint-kind: delete this context at cleanup.
+	When("an earlier release created a legacy AgentEndpoint for the service", func() {
+		var (
+			legacy *ngrokv1alpha1.AgentEndpoint
+			// legacyDomain, when set, is the Domain the legacy AgentEndpoint
+			// reports in its status.
+			legacyDomain *ingressv1alpha1.Domain
+		)
+
+		BeforeEach(func() {
+			legacyDomain = nil
+		})
+
+		BeforeEach(func() {
+			// Start ignored, so the legacy AgentEndpoint exists before the
+			// controller first handles the service.
+			modifiers.Add(SetServiceType(ClusterIP))
+		})
+
+		JustBeforeEach(func() {
+			fetched := &corev1.Service{}
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+
+			legacy = &ngrokv1alpha1.AgentEndpoint{
+				Name:      svc.Name + "-legacy",
+				Namespace: namespace,
+				OwnerReferences: []metav1.OwnerReference{
+					*metav1.NewControllerRef(fetched, corev1.SchemeGroupVersion.WithKind("Service")),
+				},
+				Labels: labels.ControllerLabels(controllerLabelNamespace, controllerLabelName),
+				Spec: ngrokv1alpha1.AgentEndpointSpec{
+					URL:      "tcp://",
+					Upstream: ngrokv1alpha1.EndpointUpstream{URL: "tcp://svc:80"},
+				},
+			}
+			Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+
+			if legacyDomain != nil {
+				Expect(k8sClient.Create(ctx, legacyDomain)).To(Succeed())
+				legacyDomain.Status.CNAMETarget = new("legacy.cname.ngrok.app")
+				Expect(k8sClient.Status().Update(ctx, legacyDomain)).To(Succeed())
+
+				legacy.Status.DomainRef = &ngrokv1alpha1.K8sObjectRefOptionalNamespace{Name: legacyDomain.Name}
+				Expect(k8sClient.Status().Update(ctx, legacy)).To(Succeed())
+			}
+
+			By("making the service an ngrok LoadBalancer")
+			Eventually(func() error {
+				fetched := &corev1.Service{}
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+					return err
+				}
+				fetched.Spec.Type = LoadBalancer
+				fetched.Spec.LoadBalancerClass = new(NgrokLoadBalancerClass)
+				return k8sClient.Update(ctx, fetched)
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("creates the v1 AgentEndpoint as the legacy one's twin and keeps the legacy one", func() {
+			kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
+				g.Expect(aeps).To(HaveLen(1))
+				g.Expect(aeps[0].Name).To(Equal(legacy.Name))
+			})
+			Consistently(func() error {
+				return k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), &ngrokv1alpha1.AgentEndpoint{})
+			}, "2s", interval).Should(Succeed())
+		})
+
+		// A rolled-back release ignores the v1 AgentEndpoint and creates
+		// another legacy one under a new name, which has no twin.
+		It("deletes a legacy AgentEndpoint that isn't the v1 one's twin", func() {
+			kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
+				g.Expect(aeps).To(HaveLen(1))
+			})
+
+			extra := legacy.DeepCopy()
+			extra.ObjectMeta = metav1.ObjectMeta{
+				Name:            svc.Name + "-rolled-back",
+				Namespace:       namespace,
+				OwnerReferences: legacy.OwnerReferences,
+				Labels:          legacy.Labels,
+			}
+			extra.Status = ngrokv1alpha1.AgentEndpointStatus{}
+			Expect(k8sClient.Create(ctx, extra)).To(Succeed())
+
+			By("touching the service so it is reconciled")
+			Eventually(func() error {
+				fetched := &corev1.Service{}
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+					return err
+				}
+				if fetched.Annotations == nil {
+					fetched.Annotations = map[string]string{}
+				}
+				fetched.Annotations["touched"] = "true"
+				return k8sClient.Update(ctx, fetched)
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func() bool {
+				return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(extra), &ngrokv1alpha1.AgentEndpoint{}))
+			}, timeout, interval).Should(BeTrue())
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), &ngrokv1alpha1.AgentEndpoint{})).To(Succeed())
+			kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
+				g.Expect(aeps).To(HaveLen(1))
+				g.Expect(aeps[0].Name).To(Equal(legacy.Name))
+			})
+		})
+
+		When("the service is a TLS endpoint", func() {
+			BeforeEach(func() {
+				modifiers.Add(AddAnnotation(Annotation_URL, "tls://legacy.example.com:443"))
+				legacyDomain = &ingressv1alpha1.Domain{
+					Name:      "legacy-example-com",
+					Namespace: namespace,
+					Spec:      ingressv1alpha1.DomainSpec{Domain: "legacy.example.com"},
+				}
+			})
+
+			It("reports the legacy twin's Domain until the v1 AgentEndpoint has its own", func() {
+				Eventually(func(g Gomega) {
+					fetched := &corev1.Service{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+					g.Expect(fetched.Status.LoadBalancer.Ingress).To(HaveLen(1))
+					g.Expect(fetched.Status.LoadBalancer.Ingress[0].Hostname).To(Equal("legacy.cname.ngrok.app"))
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
+		It("deletes the legacy AgentEndpoint with the v1 one when the service stops being a LoadBalancer", func() {
+			kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
+				g.Expect(aeps).To(HaveLen(1))
+			})
+
+			Eventually(func() error {
+				fetched := &corev1.Service{}
+				if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+					return err
+				}
+				fetched.Spec.Type = ClusterIP
+				fetched.Spec.LoadBalancerClass = nil
+				return k8sClient.Update(ctx, fetched)
+			}, timeout, interval).Should(Succeed())
+
+			kginkgo.EventuallyExpectNoEndpoints(ctx, namespace)
+			Eventually(func() bool {
+				return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), &ngrokv1alpha1.AgentEndpoint{}))
+			}, timeout, interval).Should(BeTrue())
+		})
+
+		// The legacy AgentEndpoint keeps serving the endpoint an earlier
+		// release built, even though the service's endpoints no longer build.
+		When("the service's v1 AgentEndpoint can't be built", func() {
+			BeforeEach(func() {
+				modifiers.Add(AddAnnotation(Annotation_TrafficPolicy, "does-not-exist"))
+			})
+
+			It("deletes the legacy AgentEndpoint when the service stops being a LoadBalancer", func() {
+				Eventually(func(g Gomega) {
+					fetched := &corev1.Service{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+					g.Expect(fetched.Finalizers).NotTo(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+				Consistently(func(g Gomega) {
+					aeps := &ngrokv1.AgentEndpointList{}
+					g.Expect(k8sClient.List(ctx, aeps, client.InNamespace(namespace))).To(Succeed())
+					g.Expect(aeps.Items).To(BeEmpty())
+				}, "1s", interval).Should(Succeed())
+
+				Eventually(func() error {
+					fetched := &corev1.Service{}
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+						return err
+					}
+					fetched.Spec.Type = ClusterIP
+					fetched.Spec.LoadBalancerClass = nil
+					return k8sClient.Update(ctx, fetched)
+				}, timeout, interval).Should(Succeed())
+
+				Eventually(func() bool {
+					return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), &ngrokv1alpha1.AgentEndpoint{}))
+				}, timeout, interval).Should(BeTrue())
+			})
 		})
 	})
 
@@ -315,7 +522,7 @@ var _ = Describe("ServiceController", func() {
 						g.Expect(cleps[0].Spec.URL).To(Equal("tcp://1.tcp.ngrok.io:12345"))
 					})
 
-					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
 						By("checking an agent endpoint exists")
 						g.Expect(aeps).To(HaveLen(1))
 					})
@@ -381,7 +588,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should create an agent endpoint with .internal suffix in URL", func() {
-					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
 						By("checking an agent endpoint exists")
 						g.Expect(aeps).To(HaveLen(1))
 
@@ -430,7 +637,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("Should create an agent endpoint", func() {
-					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
 						By("checking an agent endpoint exists")
 						g.Expect(aeps).To(HaveLen(1))
 
@@ -479,7 +686,7 @@ var _ = Describe("ServiceController", func() {
 					})
 
 					It("should apply traffic policy to the agent endpoint", func() {
-						kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+						kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
 							By("checking an agent endpoint exists")
 							g.Expect(aeps).To(HaveLen(1))
 
@@ -493,7 +700,7 @@ var _ = Describe("ServiceController", func() {
 
 					It("should update agent endpoint when traffic policy changes", func() {
 						// Wait for initial reconciliation
-						kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+						kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
 							By("checking an agent endpoint exists")
 							g.Expect(aeps).To(HaveLen(1))
 
@@ -509,7 +716,7 @@ var _ = Describe("ServiceController", func() {
 						fetched.Spec.Policy = json.RawMessage(`{"on_tcp_connect": [{"actions": [{"type": "restrict-ips", "config": {"allow": ["5.6.7.8/32"]}}]}]}`)
 						Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
 
-						kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+						kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
 							By("checking an agent endpoint exists")
 							g.Expect(aeps).To(HaveLen(1))
 
@@ -589,7 +796,7 @@ var _ = Describe("ServiceController", func() {
 
 				It("should clean up owned resources when service is deleted", func() {
 					// Wait for resources to be created
-					kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1alpha1.AgentEndpoint) {
+					kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 						By("checking an agent endpoint exists")
@@ -613,7 +820,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should create an agent endpoint with the explicit TCP URL", func() {
-					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
 						By("checking an agent endpoint exists")
 						g.Expect(aeps).To(HaveLen(1))
 
@@ -631,7 +838,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should have owner reference pointing to the service", func() {
-					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
 						By("checking an agent endpoint exists")
 						g.Expect(aeps).To(HaveLen(1))
 
@@ -657,7 +864,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should create an agent endpoint with the TLS URL", func() {
-					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1alpha1.AgentEndpoint) {
+					kginkgo.EventuallyWithAgentEndpoints(ctx, namespace, func(g Gomega, aeps []ngrokv1.AgentEndpoint) {
 						By("checking an agent endpoint exists")
 						g.Expect(aeps).To(HaveLen(1))
 
@@ -739,7 +946,7 @@ var _ = Describe("ServiceController", func() {
 					})
 
 					It("should create both cloud and agent endpoints", func() {
-						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1alpha1.AgentEndpoint) {
+						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 							By("checking a cloud endpoint exists")
 							g.Expect(cleps).To(HaveLen(1))
 
@@ -768,7 +975,7 @@ var _ = Describe("ServiceController", func() {
 				})
 
 				It("should create cloud and agent endpoints", func() {
-					kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1alpha1.AgentEndpoint) {
+					kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 						By("checking a cloud endpoint exists")
 						g.Expect(cleps).To(HaveLen(1))
 
@@ -948,7 +1155,7 @@ var _ = Describe("ServiceController", func() {
 				When("the traffic policy is updated", func() {
 					It("should trigger service reconciliation", func() {
 						// Wait for initial reconciliation
-						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1alpha1.AgentEndpoint) {
+						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 							By("checking a cloud endpoint exists")
 							g.Expect(cleps).To(HaveLen(1))
 
@@ -967,7 +1174,7 @@ var _ = Describe("ServiceController", func() {
 						fetched.Spec.Policy = json.RawMessage(`{"on_tcp_connect": [{"actions": [{"type": "restrict-ips", "config": {"allow": ["1.2.3.4/32"]}}]}]}`)
 						Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
 
-						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1alpha1.AgentEndpoint) {
+						kginkgo.EventuallyWithCloudAndAgentEndpoints(ctx, namespace, func(g Gomega, cleps []ngrokv1alpha1.CloudEndpoint, aeps []ngrokv1.AgentEndpoint) {
 							By("checking a cloud endpoint exists")
 							g.Expect(cleps).To(HaveLen(1))
 

@@ -59,8 +59,22 @@ fi
 # Endpoint functions
 # ============================================================
 
+# Prints {"endpoints": [...]} with every page of the account's endpoints. The
+# API returns at most 100 per page, and a match beyond the first page would
+# otherwise be missed.
 fetch_endpoints() {
-    ngrok api endpoints list --api-key "${NGROK_ACCESS_TOKEN}" 2>/dev/null
+    local url="${NGROK_API_URL}/endpoints?limit=100"
+    local pages=()
+    local page
+    while [[ -n "$url" ]]; do
+        page=$(curl -sf \
+            -H "Authorization: Bearer ${NGROK_ACCESS_TOKEN}" \
+            -H "Ngrok-Version: 2" \
+            "$url") || return 1
+        pages+=("$page")
+        url=$(jq -r '.next_page_uri // empty' <<<"$page")
+    done
+    printf '%s\n' "${pages[@]}" | jq -s '{endpoints: (map(.endpoints) | add // [])}'
 }
 
 get_endpoint_urls() {

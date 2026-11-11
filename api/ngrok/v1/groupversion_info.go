@@ -63,6 +63,8 @@ func addKnownTypes(s *runtime.Scheme) error {
 		&IPPolicyList{},
 		&Domain{},
 		&DomainList{},
+		&AgentEndpoint{},
+		&AgentEndpointList{},
 	)
 	metav1.AddToGroupVersion(s, GroupVersion)
 	return nil

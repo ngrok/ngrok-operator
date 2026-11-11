@@ -14,6 +14,7 @@ package managerdriver
 import (
 	"context"
 
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,7 +25,30 @@ import (
 // (k8s.ngrok.com/...) prefixes, deduping by UID. The legacy fallback covers
 // objects stamped by a previous version of the operator that has not yet
 // reconciled them under the new prefix.
-func (d *Driver) listAgentEndpointsForController(ctx context.Context, c client.Client) ([]ngrokv1alpha1.AgentEndpoint, error) {
+func (d *Driver) listAgentEndpointsForController(ctx context.Context, c client.Client) ([]ngrokv1.AgentEndpoint, error) {
+	seen := map[types.UID]struct{}{}
+	out := []ngrokv1.AgentEndpoint{}
+	for _, sel := range d.controllerLabels.Selectors() {
+		var l ngrokv1.AgentEndpointList
+		if err := c.List(ctx, &l, sel); err != nil {
+			return nil, err
+		}
+		for _, item := range l.Items {
+			if _, ok := seen[item.UID]; ok {
+				continue
+			}
+			seen[item.UID] = struct{}{}
+			out = append(out, item)
+		}
+	}
+	return out, nil
+}
+
+// listLegacyAgentEndpointsForController is listAgentEndpointsForController
+// for the deprecated ngrok.k8s.ngrok.com/v1alpha1 kind.
+//
+// LEGACY-agentendpoint-kind: delete at cleanup.
+func (d *Driver) listLegacyAgentEndpointsForController(ctx context.Context, c client.Client) ([]ngrokv1alpha1.AgentEndpoint, error) {
 	seen := map[types.UID]struct{}{}
 	out := []ngrokv1alpha1.AgentEndpoint{}
 	for _, sel := range d.controllerLabels.Selectors() {

@@ -4,8 +4,10 @@ import (
 	"context"
 	"reflect"
 
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -37,6 +39,12 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 		d.log.Error(err, "error listing agent endpoints")
 		return err
 	}
+	// LEGACY-agentendpoint-kind: delete at cleanup.
+	legacyAgentEndpoints, err := d.listLegacyAgentEndpointsForController(ctx, c)
+	if err != nil {
+		d.log.Error(err, "error listing legacy agent endpoints")
+		return err
+	}
 
 	currentCloudEndpoints, err := d.listCloudEndpointsForController(ctx, c)
 	if err != nil {
@@ -45,7 +53,7 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 	}
 	// LEGACY-PREFIX-MIGRATION: END
 
-	if err := d.applyAgentEndpoints(ctx, c, translationResult.AgentEndpoints, currentAgentEndpoints); err != nil {
+	if err := d.applyAgentEndpoints(ctx, c, translationResult.AgentEndpoints, currentAgentEndpoints, legacyAgentEndpoints); err != nil {
 		d.log.Error(err, "applying agent endpoints")
 		return err
 	}
@@ -57,7 +65,32 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 	return nil
 }
 
-func (d *Driver) applyAgentEndpoints(ctx context.Context, c client.Client, desired map[types.NamespacedName]*ngrokv1alpha1.AgentEndpoint, current []ngrokv1alpha1.AgentEndpoint) error {
+// applyAgentEndpoints makes the operator's ngrok.com/v1 AgentEndpoints match
+// desired, and deletes the operator's legacy AgentEndpoints that are no longer
+// desired.
+//
+// A legacy AgentEndpoint that is still desired is left alone: its v1 twin of
+// the same name takes over the tunnel, and a helm rollback to a release that
+// only knows the legacy kind finds it intact. One that is no longer desired is
+// deleted together with its v1 twin, as a release that only knew the legacy
+// kind would have done. Otherwise it would take the tunnel back once its twin
+// is gone.
+func (d *Driver) applyAgentEndpoints(ctx context.Context, c client.Client, desired map[types.NamespacedName]*ngrokv1.AgentEndpoint, current []ngrokv1.AgentEndpoint, legacy []ngrokv1alpha1.AgentEndpoint) error {
+	// LEGACY-agentendpoint-kind: BEGIN
+	for _, legacyAEP := range legacy {
+		if d.shouldBeSkippedInApply(&legacyAEP) {
+			continue
+		}
+		if _, exists := desired[client.ObjectKeyFromObject(&legacyAEP)]; exists {
+			continue
+		}
+		if err := c.Delete(ctx, &legacyAEP); client.IgnoreNotFound(err) != nil {
+			d.log.Error(err, "error deleting legacy agent endpoint", "legacy agent endpoint", client.ObjectKeyFromObject(&legacyAEP))
+			return err
+		}
+	}
+	// LEGACY-agentendpoint-kind: END
+
 	// update or delete agent endpoints we don't need anymore
 	for _, currAEP := range current {
 
@@ -107,6 +140,14 @@ func (d *Driver) applyAgentEndpoints(ctx context.Context, c client.Client, desir
 	// the set of desired agent endpoints now only contains new agent endpoints, create them
 	for _, agentEndpoint := range desired {
 		if err := c.Create(ctx, agentEndpoint); err != nil {
+			// An AgentEndpoint the operator doesn't manage already has this
+			// name, so it was skipped above. Retrying can't succeed, and
+			// failing here would stop the rest of the sync for every Ingress
+			// and Gateway.
+			if apierrors.IsAlreadyExists(err) {
+				d.log.Info("an AgentEndpoint the operator doesn't manage already uses this name; not creating it", "agent endpoint", client.ObjectKeyFromObject(agentEndpoint))
+				continue
+			}
 			d.log.Error(err, "error creating agent endpoint", "agent endpoint", agentEndpoint)
 			return err
 		}

@@ -53,10 +53,10 @@ import (
 
 func setupTestScheme(t *testing.T) *runtime.Scheme {
 	scheme := runtime.NewScheme()
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ingressv1alpha1.AddToScheme(scheme))
-	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, bindingsv1alpha1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
 	require.NoError(t, netv1.AddToScheme(scheme))
@@ -67,6 +67,7 @@ func setupTestScheme(t *testing.T) *runtime.Scheme {
 
 func TestOrchestrator_State(t *testing.T) {
 	scheme := runtime.NewScheme()
+	require.NoError(t, ngrokv1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1alpha1.AddToScheme(scheme))
 	require.NoError(t, ngrokv1.AddToScheme(scheme))
 

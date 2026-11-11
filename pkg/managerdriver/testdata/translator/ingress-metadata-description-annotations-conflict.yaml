@@ -122,7 +122,7 @@ expected:
                 headers:
                   content-type: text/plain
   agentEndpoints:
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -132,11 +132,11 @@ expected:
       namespace: default
     spec:
       url: "https://e3b0c-service-a-default-8080.internal"
-      metadata: '{"owner":"team-a"}'
+      metadata: {"owner":"team-a"}
       description: "Team A description"
       upstream:
         url: "http://service-a.default:8080"
-  - apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+  - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
     metadata:
       labels:
@@ -146,7 +146,7 @@ expected:
       namespace: default
     spec:
       url: "https://e3b0c-service-b-default-9090.internal"
-      metadata: '{"owner":"team-a"}'
+      metadata: {"owner":"team-a"}
       description: "Team A description"
       upstream:
         url: "http://service-b.default:9090"

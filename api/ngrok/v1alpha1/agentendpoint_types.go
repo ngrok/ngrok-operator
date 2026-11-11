@@ -22,20 +22,31 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+// LEGACY-agentendpoint-kind: delete this whole file at cleanup, then re-run
+// `make manifests` and delete the CRD manifest it stops emitting,
+// helm/ngrok-crds/templates/ngrok.k8s.ngrok.com_agentendpoints.yaml. The
+// canonical replacement is api/ngrok/v1.AgentEndpoint. See
+// docs/developer-guide/passivity-shims.md.
+
 package v1alpha1
 
 import (
 	"encoding/json"
 
-	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 )
 
 // AgentEndpoint is the Schema for the agentendpoints API
 //
+// Deprecated: use the canonical ngrok.com/v1 AgentEndpoint. This kind is still
+// served and reconciled for one migration release; see
+// docs/developer-guide/passivity-shims.md.
+//
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="ngrok.k8s.ngrok.com/v1alpha1 AgentEndpoint is deprecated; use ngrok.com/v1 AgentEndpoint. Re-stamp the apiVersion (spec.metadata must be a map), apply it, wait until Ready, then delete this object."
 // +kubebuilder:resource:categories="networking";"ngrok"
 // +kubebuilder:resource:shortName=aep
 // +kubebuilder:printcolumn:name="URL",type="string",JSONPath=".spec.url"
@@ -53,47 +64,19 @@ type AgentEndpoint struct {
 	Status AgentEndpointStatus `json:"status,omitempty"`
 }
 
-type EndpointUpstream struct {
-	// The local or remote address you would like to incoming traffic to be forwarded to. Accepted formats are:
-	// Origin - https://example.org or http://example.org:80 or tcp://127.0.0.1:80
-	//     When using the origin format you are defining the protocol, domain and port.
-	//         When no port is present and scheme is https or http the port will be inferred.
-	//             For https port will be443.
-	//             For http port will be 80.
-	// Domain - example.org
-	//     This is only allowed for https and http endpoints.
-	//         For tcp and tls endpoints host and port is required.
-	//     When using the domain format you are only defining the host.
-	//         Scheme will default to http.
-	//         Port will default to 80.
-	// Scheme (shorthand) - https://
-	//     This only works for https and http.
-	//         For tcp and tls host and port is required.
-	//     When using scheme you are defining the protocol and the port will be inferred on the local host.
-	//         For https port will be443.
-	//         For http port will be 80.
-	//         Host will be localhost.
-	// Port (shorthand) - 8080
-	//     When using port you are defining the port on the local host that will receive traffic.
-	//         Scheme will default to http.
-	//         Host will default to localhost.
-	//
-	// +kubebuilder:validation:Required
-	URL string `json:"url"`
+// The spec's sub-structs are shared with ngrok.com/v1, so a legacy spec
+// converts to the driver's input without a field-by-field copy.
+type (
+	EndpointUpstream       = ngrokv1.EndpointUpstream
+	EndpointTLSTermination = ngrokv1.EndpointTLSTermination
+	EndpointMutualTLS      = ngrokv1.EndpointMutualTLS
+	EndpointMutualTLSMode  = ngrokv1.EndpointMutualTLSMode
+)
 
-	// Specifies the protocol to use when connecting to the upstream. Currently only http1 and http2 are supported
-	// with prior knowledge (defaulting to http1). alpn negotiation is not currently supported.
-	//
-	// +kubebuilder:validation:Enum=http1;http2
-	// +kubebuilder:validation:Optional
-	Protocol *commonv1alpha1.ApplicationProtocol `json:"protocol,omitempty"`
-
-	// Optionally specify the version of proxy protocol to use if the upstream requires it
-	//
-	// +kubebuilder:validation:Enum="1";"2"
-	// +kubebuilder:validation:Optional
-	ProxyProtocolVersion *commonv1alpha1.ProxyProtocolVersion `json:"proxyProtocolVersion,omitempty"`
-}
+const (
+	EndpointMutualTLSModeRequire = ngrokv1.EndpointMutualTLSModeRequire
+	EndpointMutualTLSModeRequest = ngrokv1.EndpointMutualTLSModeRequest
+)
 
 // AgentEndpointSpec defines the desired state of an AgentEndpoint
 //
@@ -173,78 +156,9 @@ type AgentEndpointSpec struct {
 	TLSTermination *EndpointTLSTermination `json:"tlsTermination,omitempty"`
 }
 
-// EndpointTLSTermination configures agent-side ("zero-knowledge") TLS termination.
-type EndpointTLSTermination struct {
-	// Reference to a kubernetes.io/tls Secret containing the server certificate
-	// (tls.crt) and private key (tls.key) the agent will present to clients when
-	// terminating TLS for incoming traffic. The Secret must live in the same
-	// namespace as the AgentEndpoint.
-	//
-	// +kubebuilder:validation:Required
-	ServerCertificateRef K8sObjectRef `json:"serverCertificateRef"`
-
-	// Optional mutual-TLS configuration. When set, the agent will require or
-	// request client certificates during the TLS handshake and validate them
-	// against the supplied CA bundle.
-	//
-	// +kubebuilder:validation:Optional
-	MutualTLS *EndpointMutualTLS `json:"mutualTLS,omitempty"`
-}
-
-// EndpointMutualTLS configures client-certificate verification at the agent.
-type EndpointMutualTLS struct {
-	// Reference to a Secret whose `ca.crt` key contains a PEM-encoded bundle of
-	// certificate authorities trusted to sign client certificates. The Secret
-	// must live in the same namespace as the AgentEndpoint.
-	//
-	// +kubebuilder:validation:Required
-	ClientCAsRef K8sObjectRef `json:"clientCAsRef"`
-
-	// Mode selects the TLS client-auth policy:
-	//   require - reject the handshake if no valid client cert is presented
-	//   request - request a client cert but do not require one
-	//
-	// +kubebuilder:validation:Enum=require;request
-	// +kubebuilder:default=require
-	Mode EndpointMutualTLSMode `json:"mode,omitempty"`
-}
-
-// EndpointMutualTLSMode selects the agent's client-certificate verification mode.
-type EndpointMutualTLSMode string
-
-const (
-	EndpointMutualTLSModeRequire EndpointMutualTLSMode = "require"
-	EndpointMutualTLSModeRequest EndpointMutualTLSMode = "request"
-)
-
-// AgentEndpointStatus defines the observed state of an AgentEndpoint
-type AgentEndpointStatus struct {
-	// ObservedGeneration is the most recent metadata.generation observed by the
-	// controller. When it matches metadata.generation, the status reflects the
-	// latest spec.
-	// +optional
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-
-	// The assigned URL. This will either be the user-supplied url, or the generated assigned url
-	// depending on the configuration of spec.url
-	AssignedURL string `json:"assignedURL,omitempty"`
-
-	// Identifies any traffic policies attached to the AgentEndpoint ("inline", "none", or reference name).
-	AttachedTrafficPolicy string `json:"trafficPolicy,omitempty"`
-
-	// DomainRef is a reference to the Domain resource associated with this endpoint.
-	// For internal endpoints, this will be nil.
-	// +kubebuilder:validation:Optional
-	// +nullable
-	DomainRef *K8sObjectRefOptionalNamespace `json:"domainRef,omitempty"`
-
-	// Conditions describe the current conditions of the AgentEndpoint.
-	//
-	// +listType=map
-	// +listMapKey=type
-	// +kubebuilder:validation:MaxItems=8
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
+// AgentEndpointStatus is shared with ngrok.com/v1; the status shape didn't
+// change.
+type AgentEndpointStatus = ngrokv1.AgentEndpointStatus
 
 // AgentEndpointList contains a list of AgentEndpoints
 //

@@ -27,7 +27,7 @@ package agent
 import (
 	"time"
 
-	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/pkg/agent"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -48,24 +48,24 @@ var _ = Describe("AgentEndpoint Controller Namespace Filtering", func() {
 	Context("Namespace filtering", func() {
 		It("should only reconcile AgentEndpoints in the watched namespace", func(ctx SpecContext) {
 			// Create AgentEndpoint in watched namespace
-			watchedEndpoint := &ngrokv1alpha1.AgentEndpoint{
+			watchedEndpoint := &ngrokv1.AgentEndpoint{
 				Name:      "watched-endpoint",
 				Namespace: watchedNamespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://1.tcp.ngrok.io:12345",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
 			}
 
 			// Create AgentEndpoint in unwatched namespace
-			unwatchedEndpoint := &ngrokv1alpha1.AgentEndpoint{
+			unwatchedEndpoint := &ngrokv1.AgentEndpoint{
 				Name:      "unwatched-endpoint",
 				Namespace: unwatchedNamespace,
-				Spec: ngrokv1alpha1.AgentEndpointSpec{
+				Spec: ngrokv1.AgentEndpointSpec{
 					URL: "tcp://2.tcp.ngrok.io:12346",
-					Upstream: ngrokv1alpha1.EndpointUpstream{
+					Upstream: ngrokv1.EndpointUpstream{
 						URL: "http://test-service:80",
 					},
 				},
@@ -94,7 +94,7 @@ var _ = Describe("AgentEndpoint Controller Namespace Filtering", func() {
 
 			By("Waiting for watched endpoint to be reconciled")
 			Eventually(func(g Gomega) {
-				obj := &ngrokv1alpha1.AgentEndpoint{}
+				obj := &ngrokv1.AgentEndpoint{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(watchedEndpoint), obj)).To(Succeed())
 				g.Expect(obj.Status.AssignedURL).To(Equal("tcp://1.tcp.ngrok.io:12345"))
 			}, timeout, interval).Should(Succeed())
@@ -103,7 +103,7 @@ var _ = Describe("AgentEndpoint Controller Namespace Filtering", func() {
 			// Give it some time to potentially be reconciled (it shouldn't be)
 			time.Sleep(2 * time.Second)
 
-			unwatchedObj := &ngrokv1alpha1.AgentEndpoint{}
+			unwatchedObj := &ngrokv1.AgentEndpoint{}
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(unwatchedEndpoint), unwatchedObj)).To(Succeed())
 			// The unwatched endpoint should have empty status (not reconciled)
 			Expect(unwatchedObj.Status.AssignedURL).To(BeEmpty(),

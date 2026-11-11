@@ -45,11 +45,11 @@ helm/ngrok-operator/         # Helm chart
 | **ingress.k8s.ngrok.com/v1alpha1** | Domain, IPPolicy (deprecated; each reconciled with its `ngrok.com/v1` twin) | [internal/controller/ngrok/](internal/controller/ngrok/) |
 | **ingress.k8s.ngrok.com/v1alpha1** | Ingress (networking.k8s.io/v1) | [internal/controller/ingress/](internal/controller/ingress/) |
 | **ngrok.k8s.ngrok.com/v1alpha1** | NgrokTrafficPolicy (deprecated), KubernetesOperator | [internal/controller/ngrok/](internal/controller/ngrok/) |
-| **ngrok.com/v1** | TrafficPolicy, Domain, IPPolicy | [internal/controller/ngrok/](internal/controller/ngrok/) |
+| **ngrok.com/v1** | TrafficPolicy, Domain, IPPolicy, KubernetesOperator | [internal/controller/ngrok/](internal/controller/ngrok/) |
+| **ngrok.com/v1** | AgentEndpoint (with its deprecated `ngrok.k8s.ngrok.com/v1alpha1` twin) | [internal/controller/agent/](internal/controller/agent/) |
 | **bindings.k8s.ngrok.com/v1alpha1** | BindingConfiguration, BoundEndpoint | [internal/controller/bindings/](internal/controller/bindings/) |
 | **gateway.networking.k8s.io/v1** | Gateway, GatewayClass, HTTPRoute, TLSRoute, TCPRoute | [internal/controller/gateway/](internal/controller/gateway/) |
 | **core/v1** | Service | [internal/controller/service/](internal/controller/service/) |
-| **agent** | AgentEndpoint | [internal/controller/agent/](internal/controller/agent/) |
 
 ## Core Patterns
 

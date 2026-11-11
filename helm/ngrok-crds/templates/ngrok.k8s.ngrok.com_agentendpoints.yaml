@@ -40,10 +40,19 @@ spec:
       name: Message
       priority: 1
       type: string
+    deprecated: true
+    deprecationWarning: ngrok.k8s.ngrok.com/v1alpha1 AgentEndpoint is deprecated;
+      use ngrok.com/v1 AgentEndpoint. Re-stamp the apiVersion (spec.metadata must
+      be a map), apply it, wait until Ready, then delete this object.
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: AgentEndpoint is the Schema for the agentendpoints API
+        description: |-
+          AgentEndpoint is the Schema for the agentendpoints API
+
+          Deprecated: use the canonical ngrok.com/v1 AgentEndpoint. This kind is still
+          served and reconciled for one migration release; see
+          docs/developer-guide/passivity-shims.md.
         properties:
           apiVersion:
             description: |-
