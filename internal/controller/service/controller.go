@@ -900,6 +900,18 @@ func newServiceAgentEndpointReconciler() serviceSubresourceReconciler {
 // AgentEndpoint, and the legacy AgentEndpoint an earlier release created for
 // it.
 //
+// The embedded baseSubresourceReconciler does the usual work on the v1
+// objects: create what's missing, update what drifted, delete what's no
+// longer wanted. This wrapper adds the migration from the legacy kind:
+//
+//   - GetOwnedResources also lists the Service's legacy AgentEndpoints into
+//     r.legacy, kept apart from the v1 ones the base reconciler manages.
+//   - Reconcile names the first v1 AgentEndpoint after the legacy one, so the
+//     two are twins and the agent hands the tunnel over without closing it,
+//     and deletes legacy AgentEndpoints that are no longer needed.
+//   - UpdateServiceStatus falls back to the legacy twin for the load balancer
+//     status until the v1 AgentEndpoint has its own Domain.
+//
 // LEGACY-agentendpoint-kind: at cleanup, replace with the plain
 // baseSubresourceReconciler it embeds.
 type serviceAgentEndpointReconciler struct {
@@ -955,6 +967,8 @@ func (r *serviceAgentEndpointReconciler) UpdateServiceStatus(ctx context.Context
 // created next to an existing v1 one, has no twin and would serve a second
 // tunnel on the same URL, so it is deleted.
 func (r *serviceAgentEndpointReconciler) Reconcile(ctx context.Context, c client.Client, objects []client.Object) error {
+	// Find the AgentEndpoint the Service wants, and where it sits in objects.
+	// objects is nil when the Service no longer wants any.
 	var desired []*ngrokv1.AgentEndpoint
 	at := -1
 	for i, o := range objects {
@@ -964,15 +978,23 @@ func (r *serviceAgentEndpointReconciler) Reconcile(ctx context.Context, c client
 		}
 	}
 
+	// Pick the name of the legacy AgentEndpoint to keep as the v1 one's twin.
+	// It stays empty, so every legacy AgentEndpoint is deleted below, when
+	// the Service wants no AgentEndpoint.
 	twin := ""
 	switch {
 	case len(desired) != 1:
 	case len(r.owned) == 1:
+		// The v1 AgentEndpoint exists already. Its legacy twin, if any, has
+		// the same name.
 		twin = r.owned[0].Name
 	case len(r.owned) == 0 && len(r.legacy) == 1:
+		// The first v1 AgentEndpoint for a Service from an earlier release.
+		// The desired one has only a GenerateName, so the base reconciler
+		// would create it under a new random name with no twin. Give it the
+		// legacy one's name instead. The other subresource reconcilers read
+		// objects concurrently, so rename a copy.
 		twin = r.legacy[0].Name
-		// The other subresource reconcilers read objects concurrently, so
-		// rename a copy.
 		named := desired[0].DeepCopy()
 		named.Name = twin
 		named.GenerateName = ""
@@ -980,6 +1002,7 @@ func (r *serviceAgentEndpointReconciler) Reconcile(ctx context.Context, c client
 		objects[at] = named
 	}
 
+	// Delete every legacy AgentEndpoint except the twin.
 	for i := range r.legacy {
 		if r.legacy[i].Name == twin {
 			continue
