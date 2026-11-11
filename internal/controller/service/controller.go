@@ -240,8 +240,9 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		newServiceAgentEndpointReconciler(),
 	}
 
-	ownedResources, err := subResourceReconcilers.GetOwnedResources(ctx, r.Client, svc)
-	if err != nil {
+	// Loads each reconciler's view of what the Service owns, which Reconcile
+	// below works from.
+	if _, err := subResourceReconcilers.GetOwnedResources(ctx, r.Client, svc); err != nil {
 		log.Error(err, "Failed to get owned resources")
 		return ctrl.Result{}, err
 	}
@@ -254,7 +255,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		// re-fetch owned resources after cleanup
-		ownedResources, err = subResourceReconcilers.GetOwnedResources(ctx, r.Client, svc)
+		ownedResources, err := subResourceReconcilers.GetOwnedResources(ctx, r.Client, svc)
 		if err != nil {
 			log.Error(err, "Failed to get owned resources")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -274,15 +275,14 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if !shouldHandleService(svc) {
-		if len(ownedResources) > 0 {
-			log.Info("Service is not of type LoadBalancer, performing cleanup...")
-			// We need to check if the service is being changed from a LoadBalancer to something else.
-			// If it is, we need to clean up any resources that are using it.
-			err = subResourceReconcilers.Reconcile(ctx, r.Client, nil)
-			if err != nil {
-				log.Error(err, "Failed to cleanup owned resources")
-				return ctrl.Result{}, err
-			}
+		// We need to check if the service is being changed from a LoadBalancer to something else.
+		// If it is, we need to clean up any resources that are using it. This runs even when
+		// the Service owns no v1 endpoints: legacy ones from an earlier release can be left
+		// when the v1 ones were never built.
+		log.Info("Service is not of type LoadBalancer, performing cleanup...")
+		if err := subResourceReconcilers.Reconcile(ctx, r.Client, nil); err != nil {
+			log.Error(err, "Failed to cleanup owned resources")
+			return ctrl.Result{}, err
 		}
 
 		// Once we clean up the Cloud/Agent Endpoints, we can remove the finalizer if it exists. We don't
@@ -337,7 +337,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Refetch owned resources after reconciliation and update the service's status
-	ownedResources, err = subResourceReconcilers.GetOwnedResources(ctx, r.Client, svc)
+	ownedResources, err := subResourceReconcilers.GetOwnedResources(ctx, r.Client, svc)
 	if err != nil {
 		log.Error(err, "Failed to get owned resources")
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil

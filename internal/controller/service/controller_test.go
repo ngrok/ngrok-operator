@@ -351,6 +351,41 @@ var _ = Describe("ServiceController", func() {
 				return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), &ngrokv1alpha1.AgentEndpoint{}))
 			}, timeout, interval).Should(BeTrue())
 		})
+
+		// The legacy AgentEndpoint keeps serving the endpoint an earlier
+		// release built, even though the service's endpoints no longer build.
+		When("the service's v1 AgentEndpoint can't be built", func() {
+			BeforeEach(func() {
+				modifiers.Add(AddAnnotation(Annotation_TrafficPolicy, "does-not-exist"))
+			})
+
+			It("deletes the legacy AgentEndpoint when the service stops being a LoadBalancer", func() {
+				Eventually(func(g Gomega) {
+					fetched := &corev1.Service{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+					g.Expect(fetched.Finalizers).NotTo(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+				Consistently(func(g Gomega) {
+					aeps := &ngrokv1.AgentEndpointList{}
+					g.Expect(k8sClient.List(ctx, aeps, client.InNamespace(namespace))).To(Succeed())
+					g.Expect(aeps.Items).To(BeEmpty())
+				}, "1s", interval).Should(Succeed())
+
+				Eventually(func() error {
+					fetched := &corev1.Service{}
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+						return err
+					}
+					fetched.Spec.Type = ClusterIP
+					fetched.Spec.LoadBalancerClass = nil
+					return k8sClient.Update(ctx, fetched)
+				}, timeout, interval).Should(Succeed())
+
+				Eventually(func() bool {
+					return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(legacy), &ngrokv1alpha1.AgentEndpoint{}))
+				}, timeout, interval).Should(BeTrue())
+			})
+		})
 	})
 
 	When("service type is LoadBalancer", func() {
