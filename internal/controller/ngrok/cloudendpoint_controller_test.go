@@ -47,6 +47,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -1507,6 +1508,22 @@ var _ = Describe("CloudEndpoint migration", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(endpoint.Metadata).To(Equal(`{"team": "edge", "app": "x"}`))
 		Consistently(callsTo("Update", url), 2*time.Second, interval).Should(BeZero())
+	})
+
+	// A v1 twin applied right after its legacy object can be reconciled from
+	// a cache that hasn't seen the legacy object's ID yet.
+	It("doesn't wipe the legacy ID when marking a stale copy passive", func(ctx SpecContext) {
+		url := uniqueURL("mig-stale")
+		legacy := newLegacy("mig-stale", url)
+		Expect(k8sClient.Create(ctx, legacy)).To(Succeed())
+		stale := legacy.DeepCopy()
+		Eventually(idOf(ctx, legacy), timeout, interval).ShouldNot(BeEmpty())
+		id := idOf(ctx, legacy)(Default)
+
+		r := &CloudEndpointReconciler{Client: k8sClient, Recorder: events.NewFakeRecorder(10)}
+		err := r.syncPassive(ctx, stale, newV1("mig-stale", url))
+		Expect(apierrors.IsConflict(err)).To(BeTrue(), "got %v", err)
+		Expect(idOf(ctx, legacy)(Default)).To(Equal(id))
 	})
 })
 

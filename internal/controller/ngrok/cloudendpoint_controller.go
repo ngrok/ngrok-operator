@@ -520,6 +520,12 @@ func (r *CloudEndpointReconciler) remoteGone(ctx context.Context, id string) (bo
 // it changed: every v1 reconcile gets here, and each legacy request draws a
 // deprecation warning from the API server.
 //
+// The write is a plain status update, not writeStatus, for the reason given
+// on adoptID: legacy may come from a cache that hasn't seen the ID its own
+// reconcile just wrote, and writeStatus would put the stale status back over
+// it on a conflict, orphaning the endpoint. A conflict requeues the pass
+// instead.
+//
 // LEGACY-cloudendpoint-kind: delete at cleanup.
 func (r *CloudEndpointReconciler) syncPassive(ctx context.Context, legacy *ngrokv1alpha1.CloudEndpoint, canonical *ngrokv1.CloudEndpoint) error {
 	before := legacy.Status.DeepCopy()
@@ -556,7 +562,7 @@ func (r *CloudEndpointReconciler) syncPassive(ctx context.Context, legacy *ngrok
 	if equality.Semantic.DeepEqual(before, &legacy.Status) {
 		return nil
 	}
-	return r.writeStatus(ctx, legacy, nil)
+	return r.Client.Status().Update(ctx, legacy)
 }
 
 // setPassive marks a legacy CloudEndpoint whose v1 twin manages the remote
