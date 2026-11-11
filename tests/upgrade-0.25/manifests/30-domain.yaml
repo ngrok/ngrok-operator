@@ -1,0 +1,48 @@
+# User-created legacy Domains (no operator controller labels), so the
+# operator leaves them alone and you re-stamp them by hand after the
+# rollback window. Operator-created Domains come from the Ingress, Gateway,
+# Service and endpoint hostnames in the other files.
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: Domain
+metadata:
+  name: user-domain-map
+  namespace: upgrade-test
+spec:
+  domain: ${PREFIX}-user-map${DOMAIN_SUFFIX}
+  description: upgrade-test user domain, map metadata
+  reclaimPolicy: Delete
+  metadata:
+    team: edge
+---
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: Domain
+metadata:
+  name: user-domain-string
+  namespace: upgrade-test
+spec:
+  domain: ${PREFIX}-user-string${DOMAIN_SUFFIX}
+  description: upgrade-test user domain, string metadata
+  reclaimPolicy: Delete
+  metadata: '{"team":"edge"}'
+---
+# Free-text metadata: jq stops, kubectl apply of the v1 object is rejected.
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: Domain
+metadata:
+  name: user-domain-freetext
+  namespace: upgrade-test
+spec:
+  domain: ${PREFIX}-user-freetext${DOMAIN_SUFFIX}
+  reclaimPolicy: Delete
+  metadata: 'owned by the edge team'
+---
+# reclaimPolicy: Retain, to check the reservation survives the legacy object
+# being deleted after its v1 twin takes over. Clean up in the dashboard.
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: Domain
+metadata:
+  name: user-domain-retain
+  namespace: upgrade-test
+spec:
+  domain: ${PREFIX}-user-retain${DOMAIN_SUFFIX}
+  reclaimPolicy: Retain

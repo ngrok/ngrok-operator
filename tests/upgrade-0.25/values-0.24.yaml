@@ -1,0 +1,40 @@
+# 0.24 chart layout. Sets a spread of keys that move in 0.25 so the values
+# migration section gets exercised. Credentials are passed with --set.
+description: "upgrade-test (0.24 values)"
+ngrokMetadata:
+  env: upgrade-test
+  from: values-0.24
+
+log:
+  format: console
+  level: debug
+
+podAnnotations:
+  upgrade-test/pod-annotation: "applies-to-api-manager-only-in-0.24"
+podLabels:
+  upgrade-test: "true"
+
+replicaCount: 1
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+ingress:
+  enabled: true
+  ingressClass:
+    name: ngrok
+    create: true
+    default: false
+
+gateway:
+  enabled: true
+
+agent:
+  replicaCount: 1
+
+drainPolicy: Delete
+defaultDomainReclaimPolicy: Delete
+
+cleanupHook:
+  enabled: true

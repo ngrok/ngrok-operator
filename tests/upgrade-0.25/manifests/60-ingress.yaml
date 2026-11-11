@@ -1,0 +1,57 @@
+# Default (collapsed) mapping: operator-generated AgentEndpoint + Domain.
+# References the legacy NgrokTrafficPolicy by annotation. The metadata
+# annotation has a non-string value: the guide says the generated v1
+# AgentEndpoint gets none of it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ing-default
+  namespace: upgrade-test
+  annotations:
+    ngrok.com/traffic-policy: tp-add-header
+    ngrok.com/metadata: '{"team":"edge","replicas":3}'
+spec:
+  ingressClassName: ngrok
+  rules:
+    - host: ${PREFIX}-ing-default${DOMAIN_SUFFIX}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: whoami
+                port:
+                  number: 80
+          # Resource backend pointing at the legacy kind.
+          - path: /respond
+            pathType: Prefix
+            backend:
+              resource:
+                apiGroup: ngrok.k8s.ngrok.com
+                kind: NgrokTrafficPolicy
+                name: tp-respond
+---
+# endpoints-verbose: operator-generated CloudEndpoint + AgentEndpoint.
+# Uses legacy k8s.ngrok.com/ user annotations, which 0.25 still reads.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ing-verbose
+  namespace: upgrade-test
+  annotations:
+    k8s.ngrok.com/mapping-strategy: endpoints-verbose
+    k8s.ngrok.com/metadata: '{"team":"edge"}'
+spec:
+  ingressClassName: ngrok
+  rules:
+    - host: ${PREFIX}-ing-verbose${DOMAIN_SUFFIX}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: whoami
+                port:
+                  number: 80

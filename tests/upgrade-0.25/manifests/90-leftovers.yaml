@@ -1,0 +1,46 @@
+# Fields 0.24 accepts and 0.25 removes. The guide's "required before
+# upgrading" section should find every one of these with its jq queries.
+# Leave them in place to test what happens if you skip that section, or
+# fix them per the guide before upgrading.
+
+# resolves_to only. 0.25 prunes it and treats the Domain as having no
+# resolvesTo entries.
+# NOTE: "global" is a guess at a value the ngrok API accepts. If the Domain
+# reports an API error on 0.24, swap in a value your account allows.
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: Domain
+metadata:
+  name: leftover-resolves-to
+  namespace: upgrade-test
+spec:
+  domain: ${PREFIX}-leftover-rt${DOMAIN_SUFFIX}
+  reclaimPolicy: Delete
+  resolves_to:
+    - value: global
+---
+# Deprecated trafficPolicyName. 0.25: Ready=False, last policy keeps serving.
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: CloudEndpoint
+metadata:
+  name: leftover-tp-name
+  namespace: upgrade-test
+spec:
+  url: https://${PREFIX}-leftover-tpname${DOMAIN_SUFFIX}
+  trafficPolicyName: tp-respond
+---
+# Deprecated trafficPolicy.policy.
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: CloudEndpoint
+metadata:
+  name: leftover-tp-policy
+  namespace: upgrade-test
+spec:
+  url: https://${PREFIX}-leftover-tppolicy${DOMAIN_SUFFIX}
+  trafficPolicy:
+    policy:
+      on_http_request:
+        - actions:
+            - type: custom-response
+              config:
+                status_code: 200
+                body: "hello from leftover-tp-policy"

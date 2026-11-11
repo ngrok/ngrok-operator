@@ -1,0 +1,41 @@
+# LoadBalancer Services. The operator writes the computed-url annotation on
+# these (k8s.ngrok.com/computed-url in 0.24, ngrok.com/computed-url in 0.25).
+#
+# Default mapping, TCP: ngrok assigns a TCP address.
+apiVersion: v1
+kind: Service
+metadata:
+  name: lb-tcp
+  namespace: upgrade-test
+spec:
+  type: LoadBalancer
+  loadBalancerClass: ngrok
+  allocateLoadBalancerNodePorts: false
+  selector:
+    app.kubernetes.io/name: whoami
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+# endpoints-verbose TLS on a reserved domain: operator-generated CloudEndpoint
+# + AgentEndpoint + Domain. Legacy appProtocol value on the port.
+apiVersion: v1
+kind: Service
+metadata:
+  name: lb-tls-verbose
+  namespace: upgrade-test
+  annotations:
+    ngrok.com/url: tls://${PREFIX}-lb-tls${DOMAIN_SUFFIX}:443
+    ngrok.com/mapping-strategy: endpoints-verbose
+spec:
+  type: LoadBalancer
+  loadBalancerClass: ngrok
+  allocateLoadBalancerNodePorts: false
+  selector:
+    app.kubernetes.io/name: whoami
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      appProtocol: k8s.ngrok.com/http2

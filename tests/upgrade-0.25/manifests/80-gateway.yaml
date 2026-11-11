@@ -1,0 +1,49 @@
+# Gateway API. Needs the Gateway API CRDs installed before the operator
+# starts (README step 1). Skip this file if you don't care about Gateway.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: ngrok
+spec:
+  controllerName: ngrok.com/gateway-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gw
+  namespace: upgrade-test
+spec:
+  gatewayClassName: ngrok
+  listeners:
+    - name: https
+      hostname: ${PREFIX}-gw${DOMAIN_SUFFIX}
+      port: 443
+      protocol: HTTPS
+---
+# ExtensionRef filter on the legacy group/kind. The guide says it keeps
+# resolving after the policy moves to TrafficPolicy, and you update the
+# group/kind later.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: route
+  namespace: upgrade-test
+spec:
+  parentRefs:
+    - name: gw
+  hostnames:
+    - ${PREFIX}-gw${DOMAIN_SUFFIX}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: ngrok.k8s.ngrok.com
+            kind: NgrokTrafficPolicy
+            name: tp-add-header
+      backendRefs:
+        - name: whoami
+          port: 80

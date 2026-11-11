@@ -1,0 +1,42 @@
+# Answer key: values-0.24.yaml translated to the 0.25 layout. Try the
+# translation yourself from the guide first, then diff against this.
+# Credentials are passed with --set ngrok.credentials.accessToken.
+ngrok:
+  description: "upgrade-test (0.25 values)"
+  metadata:
+    env: upgrade-test
+    from: values-0.25
+  log:
+    format: console
+    level: debug
+  features:
+    ingress:
+      enabled: true
+      ingressClass:
+        name: ngrok
+        create: true
+        default: false
+    gateway:
+      enabled: true
+    cleanup:
+      enabled: true
+      drainPolicy: Delete
+    domains:
+      defaultReclaimPolicy: Delete
+
+components:
+  common:
+    # Behavior change: in 0.25 this lands on every component, not just the
+    # api-manager. Check the agent pod picks it up.
+    podAnnotations:
+      upgrade-test/pod-annotation: "applies-to-api-manager-only-in-0.24"
+    podLabels:
+      upgrade-test: "true"
+  apiManager:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+  agent:
+    replicaCount: 1

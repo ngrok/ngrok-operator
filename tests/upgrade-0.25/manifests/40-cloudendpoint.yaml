@@ -1,0 +1,53 @@
+# User-created legacy CloudEndpoints using only fields 0.25 still accepts.
+# The fields 0.25 removes are in 90-leftovers.yaml.
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: CloudEndpoint
+metadata:
+  name: clep-inline
+  namespace: upgrade-test
+spec:
+  url: https://${PREFIX}-clep-inline${DOMAIN_SUFFIX}
+  description: upgrade-test inline policy, string metadata
+  metadata: '{"team":"edge"}'
+  trafficPolicy:
+    inline:
+      on_http_request:
+        - actions:
+            - type: custom-response
+              config:
+                status_code: 200
+                body: "hello from clep-inline"
+---
+# targetRef to a legacy NgrokTrafficPolicy. Must keep resolving after the
+# policy itself moves to ngrok.com/v1 TrafficPolicy.
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: CloudEndpoint
+metadata:
+  name: clep-targetref
+  namespace: upgrade-test
+spec:
+  url: https://${PREFIX}-clep-targetref${DOMAIN_SUFFIX}
+  metadata:
+    team: edge
+  trafficPolicy:
+    targetRef:
+      name: tp-respond
+---
+# Public CloudEndpoint forwarding to the user AgentEndpoint on an internal URL.
+# Exercises cloud -> agent through the migration of both.
+# Metadata has a non-string value: the guide's jq drops "replicas".
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: CloudEndpoint
+metadata:
+  name: clep-forward
+  namespace: upgrade-test
+spec:
+  url: https://${PREFIX}-clep-forward${DOMAIN_SUFFIX}
+  metadata: '{"team":"edge","replicas":3}'
+  trafficPolicy:
+    inline:
+      on_http_request:
+        - actions:
+            - type: forward-internal
+              config:
+                url: https://${PREFIX}-aep-internal.internal

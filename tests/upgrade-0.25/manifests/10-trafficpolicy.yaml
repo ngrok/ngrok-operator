@@ -1,0 +1,31 @@
+# Legacy NgrokTrafficPolicy objects. Referenced by name from Ingress
+# annotations, an Ingress resource backend, CloudEndpoint/AgentEndpoint
+# targetRefs, and a Gateway API ExtensionRef filter, so the "references keep
+# resolving across kinds" claim gets exercised from every direction.
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: NgrokTrafficPolicy
+metadata:
+  name: tp-add-header
+  namespace: upgrade-test
+spec:
+  policy:
+    on_http_response:
+      - actions:
+          - type: add-headers
+            config:
+              headers:
+                x-upgrade-test: tp-add-header
+---
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: NgrokTrafficPolicy
+metadata:
+  name: tp-respond
+  namespace: upgrade-test
+spec:
+  policy:
+    on_http_request:
+      - actions:
+          - type: custom-response
+            config:
+              status_code: 200
+              body: "hello from tp-respond"

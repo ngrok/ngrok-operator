@@ -1,0 +1,27 @@
+# User-created legacy AgentEndpoints.
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: aep-public
+  namespace: upgrade-test
+spec:
+  url: https://${PREFIX}-aep-public${DOMAIN_SUFFIX}
+  upstream:
+    url: http://whoami.upgrade-test:80
+  metadata: '{"team":"edge"}'
+  trafficPolicy:
+    targetRef:
+      name: tp-add-header
+---
+# Internal endpoint, target of clep-forward. No Domain reservation involved.
+apiVersion: ngrok.k8s.ngrok.com/v1alpha1
+kind: AgentEndpoint
+metadata:
+  name: aep-internal
+  namespace: upgrade-test
+spec:
+  url: https://${PREFIX}-aep-internal.internal
+  upstream:
+    url: http://whoami.upgrade-test:80
+  metadata:
+    team: edge

@@ -1,0 +1,45 @@
+# User-created legacy IPPolicies, one per metadata shape the migration jq has
+# to handle.
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: IPPolicy
+metadata:
+  name: ipp-map-metadata
+  namespace: upgrade-test
+spec:
+  description: upgrade-test map metadata
+  metadata:
+    team: edge
+  rules:
+    - cidr: 203.0.113.0/24
+      action: allow
+      description: docs range
+      metadata:
+        rule: office
+---
+# String-form JSON metadata on the policy and on a rule. The guide's jq
+# converts both.
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: IPPolicy
+metadata:
+  name: ipp-string-metadata
+  namespace: upgrade-test
+spec:
+  description: upgrade-test string metadata
+  metadata: '{"team":"edge"}'
+  rules:
+    - cidr: 198.51.100.0/24
+      action: deny
+      metadata: '{"rule":"blocklist"}'
+---
+# Free-text metadata. The guide says jq fails on this and you fix it by hand.
+apiVersion: ingress.k8s.ngrok.com/v1alpha1
+kind: IPPolicy
+metadata:
+  name: ipp-freetext-metadata
+  namespace: upgrade-test
+spec:
+  description: upgrade-test free-text metadata
+  metadata: 'owned by the edge team'
+  rules:
+    - cidr: 192.0.2.0/24
+      action: allow
