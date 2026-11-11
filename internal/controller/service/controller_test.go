@@ -594,6 +594,39 @@ var _ = Describe("ServiceController", func() {
 			})
 			Eventually(legacyGone(legacy), timeout, interval).Should(BeTrue())
 		})
+
+		// The legacy CloudEndpoint keeps serving the endpoint an earlier
+		// release built, even though the service's endpoints no longer build.
+		When("the service's v1 CloudEndpoint can't be built", func() {
+			BeforeEach(func() {
+				modifiers.Add(AddAnnotation(Annotation_TrafficPolicy, "does-not-exist"))
+			})
+
+			It("deletes the legacy CloudEndpoint when the service stops being a LoadBalancer", func() {
+				Eventually(func(g Gomega) {
+					fetched := &corev1.Service{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched)).To(Succeed())
+					g.Expect(fetched.Finalizers).NotTo(BeEmpty())
+				}, timeout, interval).Should(Succeed())
+				Consistently(func(g Gomega) {
+					cleps := &ngrokv1.CloudEndpointList{}
+					g.Expect(k8sClient.List(ctx, cleps, client.InNamespace(namespace))).To(Succeed())
+					g.Expect(cleps.Items).To(BeEmpty())
+				}, "1s", interval).Should(Succeed())
+
+				Eventually(func() error {
+					fetched := &corev1.Service{}
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(svc), fetched); err != nil {
+						return err
+					}
+					fetched.Spec.Type = ClusterIP
+					fetched.Spec.LoadBalancerClass = nil
+					return k8sClient.Update(ctx, fetched)
+				}, timeout, interval).Should(Succeed())
+
+				Eventually(legacyGone(legacy), timeout, interval).Should(BeTrue())
+			})
+		})
 	})
 
 	When("service type is LoadBalancer", func() {
