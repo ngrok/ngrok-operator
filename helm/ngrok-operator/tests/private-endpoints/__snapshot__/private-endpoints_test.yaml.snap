@@ -9,8 +9,8 @@ forwarder deployment uses the private endpoints token and cluster DNS:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.22.0
-        helm.sh/chart: ngrok-operator-0.24.0
+        app.kubernetes.io/version: 0.23.0-rc.1
+        helm.sh/chart: ngrok-operator-0.25.0-rc.1
       name: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
       namespace: NAMESPACE
     spec:
@@ -78,7 +78,7 @@ forwarder deployment uses the private endpoints token and cluster DNS:
                   value: "false"
                 - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
                   value: "true"
-              image: docker.io/ngrok/ngrok-operator:0.22.0
+              image: docker.io/ngrok/ngrok-operator:0.23.0-rc.1
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:

@@ -5,6 +5,41 @@ All notable changes to the helm chart will be documented in this file. Please se
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.25.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.24.2...helm-chart-ngrok-operator-0.25.0-rc.1
+
+Before upgrading, review the
+[Helm chart 0.24 to 0.25 upgrade guide](../../docs/upgrading-to-0.25.md).
+Upgrade from 0.24.x only.
+
+- Update ngrok-operator image version to `0.23.0-rc.1`
+- Update Helm chart version to `0.25.0-rc.1`
+- Update [ngrok-crds](../ngrok-crds/CHANGELOG.md) dependency version to `0.5.0-rc.1`
+
+### Breaking Changes
+- `credentials.apiKey` and `credentials.authtoken` are replaced by a single `ngrok.credentials.accessToken`, optionally set per component. A self-managed Secret now uses the `AGENT_ACCESS_TOKEN` and `API_MANAGER_ACCESS_TOKEN` keys. Passing the old values fails the render by @alex-bezek in [#894](https://github.com/ngrok/ngrok-operator/pull/894)
+- Restructured the values: operator settings move under `ngrok`, pod settings under `components`. Old keys fail the render with their new location. Top-level pod settings such as `podAnnotations` and `tolerations` now apply to every component by @alex-bezek in [#899](https://github.com/ngrok/ngrok-operator/pull/899)
+
+### Added
+- RBAC for the `ngrok.com/v1` `TrafficPolicy`, `IPPolicy`, `Domain`, `KubernetesOperator`, `AgentEndpoint`, and `CloudEndpoint` kinds. Their CRDs carry `helm.sh/resource-policy: keep` so a rollback cannot delete them by @jackmcclary-ngrok and @alex-bezek in [#875](https://github.com/ngrok/ngrok-operator/pull/875), [#913](https://github.com/ngrok/ngrok-operator/pull/913), [#921](https://github.com/ngrok/ngrok-operator/pull/921), [#923](https://github.com/ngrok/ngrok-operator/pull/923), [#929](https://github.com/ngrok/ngrok-operator/pull/929), [#930](https://github.com/ngrok/ngrok-operator/pull/930)
+- Private endpoints (preview, off by default) with the `ngrok.features.privateEndpoints.*` values and a `components.privateEndpointForwarder` component by @alex-bezek in [#912](https://github.com/ngrok/ngrok-operator/pull/912), [#928](https://github.com/ngrok/ngrok-operator/pull/928)
+
+## 0.24.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.24.1...helm-chart-ngrok-operator-0.24.2
+
+- Update ngrok-operator image version to `0.22.2`
+- Update Helm chart version to `0.24.2`
+
+No chart or values changes. See the container [0.22.2 notes](../../CHANGELOG.md#0222) for the security fix.
+
+## 0.24.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.24.0...helm-chart-ngrok-operator-0.24.1
+
+- Update ngrok-operator image version to `0.22.1`
+- Update Helm chart version to `0.24.1`
+
+No chart or values changes. See the container [0.22.1 notes](../../CHANGELOG.md#0221) for the fix.
+
 ## 0.24.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-operator-0.23.0...helm-chart-ngrok-operator-0.24.0
 
