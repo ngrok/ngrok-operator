@@ -138,6 +138,32 @@ var _ = Describe("DomainReconciler", func() {
 				})
 			})
 
+			// ngrok reserves a hostname itself when an endpoint on it is
+			// created first, so the reservation can appear after the lookup.
+			When("the domain is reserved between the lookup and the create", func() {
+				BeforeEach(func() {
+					domainClient.ReserveConcurrently(domainName)
+				})
+
+				It("adopts the reservation", func() {
+					Expect(createDomainErr).ToNot(HaveOccurred())
+
+					Eventually(func(g Gomega) {
+						foundDomain := &ngrokv1.Domain{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(domain), foundDomain)).To(Succeed())
+
+						var reserved []*ngrok.ReservedDomain
+						iter := domainClient.List(nil)
+						for iter.Next(ctx) {
+							reserved = append(reserved, iter.Item())
+						}
+						g.Expect(reserved).To(HaveLen(1))
+						g.Expect(foundDomain.Status.ID).To(Equal(reserved[0].ID))
+						g.Expect(meta.IsStatusConditionTrue(foundDomain.Status.Conditions, "Ready")).To(BeTrue())
+					}, timeout, interval).Should(Succeed())
+				})
+			})
+
 			When("the domain already exists in ngrok", func() {
 				var (
 					existingDomain     *ngrok.ReservedDomain
