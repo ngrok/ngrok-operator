@@ -66,8 +66,6 @@ In 0.25 we move to using a single access token instead of apiKey+authtoken. Prov
 - **Full access**: the simplest option. The token gets everything its owner's role can access today.
 - **Custom**: select only the scopes listed in [Access token scopes](#access-token-scopes).
 
-Scopes ngrok adds later aren't granted to existing tokens automatically, so a token created before private endpoints were available won't work for them.
-
 **NOTE:** Do not revoke your API Key and Authtoken yet. Rolling back to 0.24 still uses them.
 
 Follow the instructions below for your secret integrations strategy:
