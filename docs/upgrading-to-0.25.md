@@ -64,7 +64,7 @@ Both files contain your current credentials, so store them somewhere only you ca
 In 0.25 we move to using a single access token instead of apiKey+authtoken. Provision an access token at https://dashboard.ngrok.com/access-tokens. Under **Scopes**, choose either:
 
 - **Full access**: the simplest option. The token gets everything its owner's role can access today.
-- **Custom**: select only the scopes listed in [Access token scopes](#access-token-scopes).
+- **Custom**: open **Quick select** and choose **Kubernetes Operator** to select only the scopes the operator needs. See [Access token scopes](#access-token-scopes) for the list.
 
 **NOTE:** Do not revoke your API Key and Authtoken yet. Rolling back to 0.24 still uses them.
 
@@ -409,6 +409,8 @@ In `1.0`, the `v1alpha1` CRDs will be ignored by the controllers, and in `1.1`, 
 ## Appendix
 
 ### Access token scopes
+
+The **Kubernetes Operator** quick select in the dashboard picks the api-manager and agent-manager scopes below. If you enable private endpoints, also add `gateway:endpoints:connect`.
 
 The operator needs these scopes:
 
