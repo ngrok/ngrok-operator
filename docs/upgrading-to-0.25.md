@@ -61,7 +61,12 @@ Both files contain your current credentials, so store them somewhere only you ca
 
 ## Create an access token
 
-In 0.25 we move to using a single access token instead of apiKey+authtoken. Provision an access token at https://dashboard.ngrok.com/access-tokens. The simplest option is **Full access**. For a token with only the scopes the operator needs, choose **Custom** and select the scopes listed in [Access token scopes](#access-token-scopes).
+In 0.25 we move to using a single access token instead of apiKey+authtoken. Provision an access token at https://dashboard.ngrok.com/access-tokens. Under **Scopes**, choose either:
+
+- **Full access**: the simplest option. The token gets everything its owner's role can access today.
+- **Custom**: select only the scopes listed in [Access token scopes](#access-token-scopes).
+
+Scopes ngrok adds later aren't granted to existing tokens automatically, so a token created before private endpoints were available won't work for them.
 
 **NOTE:** Do not revoke your API Key and Authtoken yet. Rolling back to 0.24 still uses them.
 
