@@ -139,6 +139,11 @@ cat > "$tmp/chart/templates/values.yaml" <<'EOF'
 {{- /* Pod settings every 0.24 pod read: components.common. */ -}}
 {{- /* In 0.24 agent.podAnnotations replaced podAnnotations on the agent; in 0.25
        component maps merge with common, so keep the top-level ones off it. */ -}}
+{{- /* An empty agent.podAnnotations fell back to podAnnotations in 0.24, but in
+       0.25 a component's empty value clears the common one, so drop it. */ -}}
+{{- if and $in.agent (hasKey $in.agent "podAnnotations") (not $in.agent.podAnnotations) -}}
+{{- $_ := unset $in.agent "podAnnotations" -}}
+{{- end -}}
 {{- if and $in.podAnnotations $in.agent $in.agent.podAnnotations -}}
 {{- $notes = append $notes "podAnnotations and agent.podAnnotations were both set. In 0.24 the agent used only its own, so podAnnotations moved to components.apiManager and components.bindingsForwarder instead of components.common, which would add them to the agent." -}}
 {{- include "setPath" (dict "root" $out "path" (list "components" "apiManager" "podAnnotations") "value" (deepCopy $in.podAnnotations)) -}}
