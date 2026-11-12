@@ -46,7 +46,7 @@ The secret key a component reads its access token from.
 
 Each component reads its own key, so each can be given a token scoped to
 only the permissions it needs. The key holds the component's own token
-when one is set, and the shared credentials.accessToken otherwise.
+when one is set, and the shared ngrok.credentials.accessToken otherwise.
 
 Note that both deployments annotate the same checksum over the whole rendered
 secret, so changing any token restarts every component that holds one.
