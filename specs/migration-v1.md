@@ -11,18 +11,22 @@ Previous releases of the ngrok-operator used three separate API groups at `v1alp
 |----------------------------------|-------------------------------------------------------------|
 | `ngrok.k8s.ngrok.com/v1alpha1`   | KubernetesOperator, NgrokTrafficPolicy, CloudEndpoint, AgentEndpoint |
 | `ingress.k8s.ngrok.com/v1alpha1` | Domain, IPPolicy                                            |
-| `bindings.k8s.ngrok.com/v1alpha1`| BoundEndpoint, BindingConfiguration                         |
+| `bindings.k8s.ngrok.com/v1alpha1`| BoundEndpoint                                               |
 
-All resources are consolidated into a single group in v1:
+All resources except BoundEndpoint are consolidated into a single group in v1:
 
 | New API Group    | Version | Resources                                                                             |
 |------------------|---------|---------------------------------------------------------------------------------------|
-| `ngrok.com`      | `v1`    | AgentEndpoint, CloudEndpoint, KubernetesOperator, TrafficPolicy, Domain, IPPolicy, BoundEndpoint |
+| `ngrok.com`      | `v1`    | AgentEndpoint, CloudEndpoint, KubernetesOperator, TrafficPolicy, Domain, IPPolicy      |
 
 `NgrokTrafficPolicy` is also **renamed** to `TrafficPolicy` as part of the move.
 The `Ngrok` prefix was redundant once the group is `ngrok.com`. The spec is
 unchanged, so migrating an object is a manifest re-stamp — see
 [Upgrade Path](#upgrade-path).
+
+BoundEndpoint does not move. It stays in `bindings.k8s.ngrok.com/v1alpha1`
+because private dial replaces bindings; see
+[CRD Group Migration](crd-group-migration.md) ("Out of scope").
 
 ## Status Field Changes
 
