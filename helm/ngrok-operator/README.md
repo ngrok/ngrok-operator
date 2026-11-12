@@ -11,7 +11,7 @@ The cluster must be set up with a secret named `ngrok-operator-credentials` hold
 * AGENT_ACCESS_TOKEN
 * API_MANAGER_ACCESS_TOKEN
 
-Both keys may hold the same token. Setting `credentials.accessToken` creates this secret for you.
+Both keys may hold the same token. Setting `ngrok.credentials.accessToken` creates this secret for you.
 
 ## Installation
 
