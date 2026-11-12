@@ -131,7 +131,8 @@ The mapping can be found in the table below:
 | --- | --- |
 | `description`, `region`, `rootCAs`, `serverAddr`, `apiURL`, `clusterDomain` | `ngrok.<same>` |
 | `ngrokMetadata`, `metaData` | `ngrok.metadata` |
-| `credentials.*` | `ngrok.credentials.*` |
+| `credentials.secret.name` | `ngrok.credentials.secret.name` |
+| `credentials.apiKey`, `credentials.authtoken` | removed: set `ngrok.credentials.accessToken` instead (see [Create an access token](#create-an-access-token)) |
 | `log.*` | `ngrok.log.*` |
 | `ingress.*` | `ngrok.features.ingress.*` |
 | `watchNamespace`, `controllerName`, `ingressClass.*` | `ngrok.features.ingress.watchNamespace`, `ngrok.features.ingress.controllerName`, `ngrok.features.ingress.ingressClass.*` |
@@ -170,9 +171,10 @@ Fields that were deprecated in 0.24 are now removed in 0.25. If you completed th
 
 - [`Domain` `spec.resolves_to` -> `spec.resolvesTo`](upgrading-to-0.24.md#rename-domainspecresolves_to)
 - [`CloudEndpoint` `spec.trafficPolicyName` / `spec.trafficPolicy.policy` -> `spec.trafficPolicy.targetRef` / `spec.trafficPolicy.inline`](upgrading-to-0.24.md#migrate-cloudendpoint-traffic-policies)
-- [`k8s.ngrok.com/*` annotations you set -> `ngrok.com/*`](upgrading-to-0.24.md#rename-user-set-annotations)
 - [Selectors on `bindings.k8s.ngrok.com/*` labels and the `endpoint-url` annotation -> `ngrok.com/*`](upgrading-to-0.24.md#update-selectors-for-operator-written-bindings-labels)
 - Tooling that reads the operator-written `k8s.ngrok.com/controller-name` and `k8s.ngrok.com/controller-namespace` labels, `k8s.ngrok.com/computed-url` annotation, or `k8s.ngrok.com/finalizer` finalizer -> the same keys under `ngrok.com/`. The operator swaps these on its own.
+
+0.25 still reads the `k8s.ngrok.com/*` annotations you set, but [rename them to `ngrok.com/*`](upgrading-to-0.24.md#rename-user-set-annotations) before upgrading to 1.0.
 
 ## Upgrade `ngrok-crds` Helm Chart if installed separately
 
@@ -199,20 +201,20 @@ helm upgrade "$CRD_RELEASE" ngrok/ngrok-crds \
 Verify the new CRDs are available
 
 ```bash
-kubectl get crds | grep ngrok | grep -v k8s
+kubectl get crds | grep ngrok.com | grep -v k8s.ngrok.com
 ```
 
 ```
-agentendpoints.ngrok.com                   Namespaced   v1(storage)         2026-11-11T19:45:16Z
-cloudendpoints.ngrok.com                   Namespaced   v1(storage)         2026-11-11T19:45:16Z
-domains.ngrok.com                          Namespaced   v1(storage)         2026-11-11T19:45:16Z
-ippolicies.ngrok.com                       Namespaced   v1(storage)         2026-11-11T19:45:16Z
-kubernetesoperators.ngrok.com              Namespaced   v1(storage)         2026-11-11T19:45:16Z
-privateendpoints.ngrok.com                 Namespaced   v1(storage)         2026-11-11T19:45:16Z
-trafficpolicies.ngrok.com                  Namespaced   v1(storage)         2026-11-11T19:45:16Z
+agentendpoints.ngrok.com                    2026-11-11T19:45:16Z
+cloudendpoints.ngrok.com                    2026-11-11T19:45:16Z
+domains.ngrok.com                           2026-11-11T19:45:16Z
+ippolicies.ngrok.com                        2026-11-11T19:45:16Z
+kubernetesoperators.ngrok.com               2026-11-11T19:45:16Z
+privateendpoints.ngrok.com                  2026-11-11T19:45:16Z
+trafficpolicies.ngrok.com                   2026-11-11T19:45:16Z
 ```
 
-Note: Both the old and new versions of the CRDs exist at the same time in the cluster (see the `grep -v k8s` filtering out the old ones). You should query by the fully qualified CRD name such as `agentendpoints.ngrok.com`, not just `agentendpoints` as it could resolve to the `v1alpha1` versions and not be obvious.
+Note: Both the old and new versions of the CRDs exist at the same time in the cluster (see the `grep -v k8s.ngrok.com` filtering out the old ones). You should query by the fully qualified CRD name such as `domains.ngrok.com`, not just `domains` as it could resolve to the `v1alpha1` versions and not be obvious.
 
 ## Helm upgrade, verify health
 
@@ -230,7 +232,7 @@ helm upgrade "$RELEASE" ngrok/ngrok-operator \
   --wait
 ```
 
-If any of the new Helm values are named incorrectly, you may see an error like this:
+If any of your values still use their 0.24 names, you will see an error like this:
 
 ```
 Error: UPGRADE FAILED: execution error at (ngrok-operator/templates/api-manager/deployment.yaml:1:4):
@@ -238,6 +240,8 @@ Error: UPGRADE FAILED: execution error at (ngrok-operator/templates/api-manager/
 These Helm values moved in 0.25 and are no longer read at their old location:
 
   credentials -> ngrok.credentials (apiKey and authtoken are replaced by accessToken)
+
+See the 0.25 upgrade guide for the full mapping.
 ```
 
 ### Verify Health
@@ -255,7 +259,7 @@ The CRDs fall into 3 categories:
 2. User managed: `TrafficPolicy`, `IPPolicy`
 3. Operator and User managed: `Domains`, `CloudEndpoints`, `AgentEndpoints`
 
-CRDs managed by the Operator will automatically create new `v1` versions of the existing `v1alpha1` Custom Resource Objects, without making changes in the ngrok API. CRDs managed by the User are left alone.
+CRDs managed by the Operator will automatically create new `v1` versions of the existing `v1alpha1` Custom Resource Objects, without creating new resources in ngrok. CRDs managed by the User are left alone.
 
 ### Rolling back
 
@@ -265,7 +269,7 @@ Rolling back at this point is safe and easy via a `helm rollback` command. The `
 
 Once the Operator is running, you can create `v1` versions of them. Both the `v1alpha1` version and the `v1` versions can live side by side without conflicting or resulting in duplicate resources being created. Instead, the operator will see that there is a pair of resources of different `Kinds` but with the same `metadata.name` and namespace and prefer the `v1` as the source of truth, adopting the `v1alpha1` resources `status` fields like `ID` and adds the status condition of `Ready` and reason `SupersededByV1` to the `v1alpha1` indicating that the `v1` version is the primary object.
 
-Trying to modify the `v1alpha1` in this state will result in a `SupersededByV1` warning event, and changes will be ignored, indicating that the changes should be made on the `v1` version. **NOTE:** Changes to `v1` are not persisted to `v1alpha1` objects.
+Trying to modify the `v1alpha1` in this state will result in a `DeprecatedAPIGroup` warning event, and changes will be ignored, indicating that the changes should be made on the `v1` version. **NOTE:** Changes to `v1` are not persisted to `v1alpha1` objects.
 
 **NOTE**: If you use gitops tools like ArgoCD, do not just edit the versions and kinds in place as it may prune the old `v1alpha1` before making the new `v1` versions, which may result in intermittent downtime
 
@@ -308,17 +312,11 @@ All `TrafficPolicy` objects are user created, so the user is responsible for all
 
 `ingress.k8s.ngrok.com/v1alpha1` `Domain` is deprecated. Its replacement is `ngrok.com/v1` `Domain`. The spec is unchanged except `spec.metadata`, which must be a map as described above.
 
-K8sOperator will automatically update CR objects that are managed by the operator, but the user is responsible for upgrading the CRs they manage. If a user changed the metadata on an operator created `Domain` that is unable to be converted into a map, a `DomainMigrationBlocked` event will be emitted.
-
-If you delete a `v1alpha1` Domain without creating an `ngrok.com/v1` one, and an
-Ingress, Gateway or endpoint still uses its hostname, the operator creates a
-default `ngrok.com/v1` Domain for it, which takes over the same reservation.
-Re-stamp instead if you set a `description`, `resolvesTo` or `reclaimPolicy`
-you want to keep.
+K8sOperator will automatically update CR objects that are managed by the operator, but the user is responsible for upgrading the CRs they manage. If a user changed the metadata on an operator created `Domain` that is unable to be converted into a map, a `DomainMigrationBlocked` event will be emitted on the endpoint that uses the domain.
 
 ### IPPolicy
 
-`ingress.k8s.ngrok.com/v1alpha1` `IPPolicy` is deprecated. Its replacement is `ngrok.com/v1` `IPPolicy`. The spec is unchanged except `spec.metadata`, which must be a map as described above.
+`ingress.k8s.ngrok.com/v1alpha1` `IPPolicy` is deprecated. Its replacement is `ngrok.com/v1` `IPPolicy`. The spec is unchanged except `spec.metadata` and `spec.rules[].metadata`, which must be maps as described above.
 
 All `IPPolicy` objects are user created, so the user is responsible for all migrations.
 
