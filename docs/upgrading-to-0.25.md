@@ -1,5 +1,3 @@
-//TODO: Fix headers throughout file
-
 # Upgrading from Helm chart 0.24 to 0.25
 
 This guide covers upgrading an existing ngrok Kubernetes Operator installation
@@ -20,35 +18,32 @@ release.
 **Upgrade from 0.24 only.** Do not upgrade directly from 0.23 or earlier. 0.25
 removes compatibility code that 0.24 used to migrate existing objects, so a
 0.23 installation must first upgrade to 0.24, run healthily, and complete the
-"After the rollback window" steps in the
-0.24 upgrade guide that
-this guide lists as required below.
+["After the rollback window"](upgrading-to-0.24.md#after-the-rollback-window)
+steps in the 0.24 upgrade guide that this guide lists as required below.
 
 This migration has 4 major breaking changes:
 
-- API Key and Authtoken have been removed and replaced with access tokens
-- The Helm Values schema has been refactored, requiring any values you set to likely need to be changed.
-- Some minor Spec fields and annotations have been changed (Called out below: TODO: Link to section)
-- The CRDs have moved from `V1Alpha1` to `V1` and also moved groups to all be in the `ngrok.com` group
-    - Note: Some CRDs have their resources created by the operator, which it will manage migrating after upgrading. The others are managed by you, you will need to change after the upgrade. TODO: Phrasing.
+- API Key and Authtoken have been removed and replaced with a single [access token](#create-an-access-token)
+- The [Helm Values schema](#migrate-helm-values-to-the-new-schema) has been refactored, requiring any values you set to likely need to be changed.
+- Spec fields and annotations deprecated in 0.24 [have been removed](#remove-deprecated-fields-dropped-by-025)
+- The CRDs have moved from `v1alpha1` to `v1` and also moved groups to all be in the `ngrok.com` group
+    - The operator migrates the objects it created for you. You [migrate the objects you created](#migrate-your-alpha-objects-to-their-v1-versions) after the upgrade.
 
 ## TL;DR checklist
 
-TODO: Link to sections
-
-1. Prerequisite requirements met
-2. Create an access token
-3. Migrate Helm values to the new schema
-4. Remove deprecated fields dropped by 0.25 
-5. Upgrade `ngrok-crds` Helm Chart if installed separately
-6. Helm upgrade, verify health
-7. Migrate your alpha objects to their v1 versions
+1. [Prerequisite requirements met](#prerequisite-requirements)
+2. [Create an access token](#create-an-access-token)
+3. [Migrate Helm values to the new schema](#migrate-helm-values-to-the-new-schema)
+4. [Remove deprecated fields dropped by 0.25](#remove-deprecated-fields-dropped-by-025)
+5. [Upgrade `ngrok-crds` Helm Chart if installed separately](#upgrade-ngrok-crds-helm-chart-if-installed-separately)
+6. [Helm upgrade, verify health](#helm-upgrade-verify-health)
+7. [Migrate your alpha objects to their v1 versions](#migrate-your-alpha-objects-to-their-v1-versions)
 
 ## Prerequisite Requirements
 
 ### Confirm you are on 0.24
 
-If you are not follow the upgrade guide //TODO: add link
+If you are not, follow the [0.24 upgrade guide](upgrading-to-0.24.md) first.
 
 ### Back up your 0.24 helm release
 
@@ -56,23 +51,27 @@ If you are not follow the upgrade guide //TODO: add link
 RELEASE=ngrok-operator
 NAMESPACE=ngrok-operator
 
-helm get values "$RELEASE" --namespace "$NAMESPACE" --all \
+helm get values "$RELEASE" --namespace "$NAMESPACE" \
 > ngrok-operator-0.24-values.yaml
 helm get manifest "$RELEASE" --namespace "$NAMESPACE" \
 > ngrok-operator-0.24-manifest.yaml
 ```
 
+Both files contain your current credentials, so store them somewhere only you can read.
+
 ## Create an access token
 
-In 0.25 we move to using access tokens instead of apiKey+authtoken. Provision an access token at https://dashboard.ngrok.com/access-tokens. **NOTE:** Keep all credentials valid until the end of the upgrade process.  TODO: Link to bottom section that explains the needed scopes
+In 0.25 we move to using a single access token instead of apiKey+authtoken. Provision an access token at https://dashboard.ngrok.com/access-tokens. The simplest option is **Full access**. For a token with only the scopes the operator needs, choose **Custom** and select the scopes listed in [Access token scopes](#access-token-scopes).
+
+**NOTE:** Do not revoke your API Key and Authtoken yet. Rolling back to 0.24 still uses them.
 
 Follow the instructions below for your secret integrations strategy:
 
-#### Using Helm Values to Reference Secret by Name (`credentails.secret.name`)
+### Using Helm Values to Reference Secret by Name (`credentials.secret.name`)
 
-Create a new secret (with a new name) with the access token you created above. Later, you will pass the reference to the new Helm chart.
+Create a new secret (with a new name) with the access token you created above. Keep the old secret so you can still roll back.
 
-```markdown
+```yaml
 apiVersion: v1
 kind: Secret
 metadata:
@@ -82,15 +81,46 @@ type: Opaque
 data:
   AGENT_ACCESS_TOKEN: <base64-encoded-access-token>
   API_MANAGER_ACCESS_TOKEN: <base64-encoded-access-token>
+  # Only if you enable ngrok.features.privateEndpoints
+  PRIVATE_ENDPOINTS_ACCESS_TOKEN: <base64-encoded-access-token>
 ```
 
-#### Set Secret Value Directly in Helm Chart (`credentials.apiKey + credentials.authtoken`)
+Then point your 0.25 values at it:
 
-You will set the value directly when upgrading the Helm chart. No action is needed now. TODO: Link to helm upgrade section
+```yaml
+ngrok:
+  credentials:
+    secret:
+      name: my-ngrok-credentials-v2
+```
+
+### Set Secret Value Directly in Helm Chart (`credentials.apiKey + credentials.authtoken`)
+
+Replace `credentials.apiKey` and `credentials.authtoken` with the access token in your 0.25 values:
+
+```yaml
+ngrok:
+  credentials:
+    accessToken: "<your-access-token>"
+```
+
+Or, if you pass it on the command line, use `--set ngrok.credentials.accessToken="$NGROK_ACCESS_TOKEN"` in the [Helm upgrade](#helm-upgrade-to-025) command.
 
 ## Migrate Helm values to the new schema
 
 The 0.25 chart reorganizes its values into three groups: the chart's own settings stay at the top level, the operator's configuration moves under `ngrok`, and pod settings move under `components`. There are no aliases for the old keys: a values file that still sets one fails the render and lists each old key with its new location. 
+
+### Migration script
+
+The [migration script](https://github.com/ngrok/ngrok-operator/blob/main/scripts/migrate-helm-values-to-0.25.sh) rewrites your 0.24 values into the 0.25 layout. It requires only `helm`:
+
+```bash
+./migrate-helm-values-to-0.25.sh ngrok-operator-0.24-values.yaml > ngrok-operator-0.25-values.yaml
+```
+
+It prints a note for anything you need to fix by hand, such as credentials. Review the result before upgrading.
+
+### Values mapping
 
 The mapping can be found in the table below:
 
@@ -127,25 +157,15 @@ setting on one component only, set it on that component instead, for example
 - An empty operator setting means "use the operator's built-in default". The
 defaults are listed in the chart README.
 
-#### //TODO: include migration script
-
 ## Remove deprecated fields dropped by 0.25
 
-Fields that were deprecated in 0.24 are now removed in 0.25. Those fields are:
+Fields that were deprecated in 0.24 are now removed in 0.25. If you completed the 0.24 guide, these are already done. If any of these still exist, follow the linked 0.24 guide section to update them:
 
-- Domain spec.resolves_to -> resolvesTo
-- CloudEndpoint trafficPolicyName / trafficPolicy.policy -> targetRef / inline
-- Selectors on bindings.k8s.ngrok.com/* labels + endpoint-url annotation -> ngrok.com/*
-- Tooling on k8s.ngrok.com/* controller labels, computed-url, finalizer
-
-If any of those exist, follow the 0.24 guide to update them //TODO: Link to 0.24 guide section
-
-https://github.com/ngrok/ngrok-operator/blob/main/docs/upgrading-to-0.24.md#remove-domainspecregion
-https://github.com/ngrok/ngrok-operator/blob/main/docs/upgrading-to-0.24.md#migrate-cloudendpoint-traffic-policies
-https://github.com/ngrok/ngrok-operator/blob/main/docs/upgrading-to-0.24.md#update-selectors-for-operator-written-bindings-labels
-https://github.com/ngrok/ngrok-operator/blob/main/docs/upgrading-to-0.24.md#rename-user-set-annotations
-
-- <!-- old: 206-336. Should already be done if 0.24 guide followed. Short intro, then:All safe to do on 0.24 and survive rollback. -->
+- [`Domain` `spec.resolves_to` -> `spec.resolvesTo`](upgrading-to-0.24.md#rename-domainspecresolves_to)
+- [`CloudEndpoint` `spec.trafficPolicyName` / `spec.trafficPolicy.policy` -> `spec.trafficPolicy.targetRef` / `spec.trafficPolicy.inline`](upgrading-to-0.24.md#migrate-cloudendpoint-traffic-policies)
+- [`k8s.ngrok.com/*` annotations you set -> `ngrok.com/*`](upgrading-to-0.24.md#rename-user-set-annotations)
+- [Selectors on `bindings.k8s.ngrok.com/*` labels and the `endpoint-url` annotation -> `ngrok.com/*`](upgrading-to-0.24.md#update-selectors-for-operator-written-bindings-labels)
+- Tooling that reads the operator-written `k8s.ngrok.com/controller-name` and `k8s.ngrok.com/controller-namespace` labels, `k8s.ngrok.com/computed-url` annotation, or `k8s.ngrok.com/finalizer` finalizer -> the same keys under `ngrok.com/`. The operator swaps these on its own.
 
 ## Upgrade `ngrok-crds` Helm Chart if installed separately
 
@@ -153,14 +173,18 @@ By default, the Helm chart comes packaged with the CRDs, if you installed them s
 
 ### Upgrade Instructions
 
+Use the release name and namespace you installed the CRDs chart under, not the operator's. Find them with `helm list -A | grep ngrok-crds`.
+
 ```bash
+CRD_RELEASE=ngrok-crds
+CRD_NAMESPACE=ngrok-operator
 TARGET_VERSION=0.5.0
 
 helm repo update ngrok
 
-helm upgrade "$RELEASE" ngrok/ngrok-crds \
-  --version "$TARGET_VERSION" \
-  --values path/to/your-values.yaml
+helm upgrade "$CRD_RELEASE" ngrok/ngrok-crds \
+  --namespace "$CRD_NAMESPACE" \
+  --version "$TARGET_VERSION"
 ```
 
 ### Verification Instructions
@@ -169,6 +193,9 @@ Verify the new CRDs are available
 
 ```bash
 kubectl get crds | grep ngrok | grep -v k8s
+```
+
+```
 agentendpoints.ngrok.com                   Namespaced   v1(storage)         2026-11-11T19:45:16Z
 cloudendpoints.ngrok.com                   Namespaced   v1(storage)         2026-11-11T19:45:16Z
 domains.ngrok.com                          Namespaced   v1(storage)         2026-11-11T19:45:16Z
@@ -178,7 +205,7 @@ privateendpoints.ngrok.com                 Namespaced   v1(storage)         2026
 trafficpolicies.ngrok.com                  Namespaced   v1(storage)         2026-11-11T19:45:16Z
 ```
 
-Note: Both the old and new versions of the CRDs exist at the same time in the cluster (see the `grep -v k8s` filtering out the old ones). You should query by the fully qualified CRD name such as `agentendpoints.ngrok.com,` not just `agentendpoints` as it could resolve to the `v1alpha1` versions and not be obvious.
+Note: Both the old and new versions of the CRDs exist at the same time in the cluster (see the `grep -v k8s` filtering out the old ones). You should query by the fully qualified CRD name such as `agentendpoints.ngrok.com`, not just `agentendpoints` as it could resolve to the `v1alpha1` versions and not be obvious.
 
 ## Helm upgrade, verify health
 
@@ -192,13 +219,13 @@ helm repo update ngrok
 helm upgrade "$RELEASE" ngrok/ngrok-operator \
   --namespace "$NAMESPACE" \
   --version "$TARGET_VERSION" \
-  --values path/to/your-values.yaml \
+  --values ngrok-operator-0.25-values.yaml \
   --wait
 ```
 
 If any of the new Helm values are named incorrectly, you may see an error like this:
 
-```bash
+```
 Error: UPGRADE FAILED: execution error at (ngrok-operator/templates/api-manager/deployment.yaml:1:4):
 
 These Helm values moved in 0.25 and are no longer read at their old location:
@@ -229,7 +256,7 @@ Rolling back at this point is safe and easy via a `helm rollback` command. The `
 
 ## Migrate your alpha objects to their v1 versions
 
-Once the Operator is running, you can create `v1` versions of them. Both the `v1alpha1` version and the `v1` versions can live side by side without conflicting or resulting in duplicate resources being created. Instead, the operator will see that there is a pair of resources of different `Kinds` but with the same `spec.name` and prefer the `v1` as the source of truth, adopting the `v1alpha1` resources `status` fields like `ID` and adds the status condition of `Ready` and reason `SupersededByV1` to the `v1alpha1` indicating that the `v1` version is the primary object.
+Once the Operator is running, you can create `v1` versions of them. Both the `v1alpha1` version and the `v1` versions can live side by side without conflicting or resulting in duplicate resources being created. Instead, the operator will see that there is a pair of resources of different `Kinds` but with the same `metadata.name` and namespace and prefer the `v1` as the source of truth, adopting the `v1alpha1` resources `status` fields like `ID` and adds the status condition of `Ready` and reason `SupersededByV1` to the `v1alpha1` indicating that the `v1` version is the primary object.
 
 Trying to modify the `v1alpha1` in this state will result in a `SupersededByV1` warning event, and changes will be ignored, indicating that the changes should be made on the `v1` version. **NOTE:** Changes to `v1` are not persisted to `v1alpha1` objects.
 
@@ -241,7 +268,7 @@ As a part of the migration to V1, the previous `spec.metadata` fields of CRDs, w
 
 Example:
 
-```bash
+```yaml
 apiVersion: <group>/v1alpha1
 kind: <kind>
 metadata:
@@ -253,7 +280,7 @@ spec:
 
 Becomes:
 
-```bash
+```yaml
 apiVersion: ngrok.com/v1
 kind: <kind>
 metadata:
@@ -298,7 +325,7 @@ kind: CloudEndpoint
 metadata:
   name: my-endpoint
 spec:
-  url: <https://example.ngrok.app>
+  url: https://example.ngrok.app
   trafficPolicy:
     inline:
       on_http_request:
@@ -317,7 +344,7 @@ kind: CloudEndpoint
 metadata:
   name: my-endpoint
 spec:
-  url: <https://example.ngrok.app>
+  url: https://example.ngrok.app
   trafficPolicy:
     inline:
       on_http_request:
@@ -341,9 +368,9 @@ kind: AgentEndpoint
 metadata:
   name: my-endpoint 
 spec:
-  url: <https://example.ngrok.app>
+  url: https://example.ngrok.app
   upstream:
-    url: <http://my-service.my-namespace:80>
+    url: http://my-service.my-namespace:80
   metadata: '{"team":"edge"}'
 ```
 
@@ -355,9 +382,9 @@ kind: AgentEndpoint
 metadata:
   name: my-endpoint
 spec:
-  url: <https://example.ngrok.app>
+  url: https://example.ngrok.app
   upstream:
-    url: <http://my-service.my-namespace:80>
+    url: http://my-service.my-namespace:80
   metadata:
     team: edge
 ```
@@ -370,7 +397,7 @@ While both a `v1alpha1` version and `v1` version exist, as long as they have the
 
 After upgrading your resources to `v1` you have satisfied the requirements for this release. All `v1alpha1` resources are deprecated in this release and are safe to remove. However, to support dual read, the `v1alpha1` CRDs **are required** in the cluster while `0.25.0` is running and should not be removed in this release. 
 
-At this point, you can also delete your Kubernetes ngrok credential `Secret` and you can delete the `API Key` and `Authtoken` from your account in the Dashboard. 
+At this point, you can also delete the `API Key` and `Authtoken` from your account in the Dashboard. If you created a new credentials `Secret` for 0.25, you can delete your old 0.24 `Secret`. Do not delete the `Secret` your 0.25 release uses.
 
 ## What's next: 1.0 and 1.1
 
@@ -378,26 +405,33 @@ In `1.0`, the `v1alpha1` CRDs will be ignored by the controllers, and in `1.1`, 
 
 ## Appendix
 
+### Access token scopes
+
+The operator needs these scopes:
+
+| Component | Scopes |
+| --- | --- |
+| api-manager | `domains:read`, `domains:write`, `endpoints:read`, `endpoints:write`, `tcp-addrs:read`, `tcp-addrs:write`, `ip-policies:read`, `ip-policies:write`, `kubernetes-operators:read`, `kubernetes-operators:write` |
+| agent-manager | `tunnel:start` |
+| private-endpoint-forwarder (only with `ngrok.features.privateEndpoints.enabled`) | `gateway:endpoints:connect` |
+
 ### One token per component
 
-By default, you can create 1 `Access Token` with all the permissions the operator needs which gets used by both the `API Manager` pod, the `Agent Manager Pod` , and the `Private Dial` pod if you have it enabled. If you want extra security and minimal access, you can create separate tokens for each with their scoped permissions:
+By default, 1 access token is used by every component. If you want extra security and minimal access, you can create a separate token for each component with only the scopes in the [table above](#access-token-scopes):
 
-### Agent Manager Pod
+```yaml
+ngrok:
+  credentials:
+    agent:
+      accessToken: "<agent-manager token>"
+    apiManager:
+      accessToken: "<api-manager token>"
+    # Only if you enable ngrok.features.privateEndpoints
+    privateEndpointForwarder:
+      accessToken: "<private-endpoint-forwarder token>"
+```
 
-The Agent Manager Pod only needs a token with the scope `tunnels:start-tunnels`
-
-### Private Dial
-
-TODO: uhhh… no scope for private dial yet?? need full access? asking brian…
-
-### API Manager Pod
-
-The API Manager Pod needs a token with the following scopes:
-
-- `domains:read`, `domains:write`
-- `endpoints:read`, `endpoints:write`
-- `kubernetesOperator:read` , `kubernetesOperator:write`
-- `ipPolicies:read`, `ipPolicies:write` : If you use IP Policies.
+If you reference a `Secret` instead, put each token under its own key: `AGENT_ACCESS_TOKEN`, `API_MANAGER_ACCESS_TOKEN`, and `PRIVATE_ENDPOINTS_ACCESS_TOKEN`.
 
 ### Uninstalling after a rollback
 
