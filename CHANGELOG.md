@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.23.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.22.2...ngrok-operator-0.23.0-rc.1
+
+For upgrade steps and required manifest migrations, see the
+[Helm chart 0.24 to 0.25 upgrade guide](https://github.com/ngrok/ngrok-operator/blob/main/docs/upgrading-to-0.25.md).
+Upgrade from 0.22.x (chart 0.24.x) only.
+
+Includes the fixes released in `0.22.1` and `0.22.2`.
+
+### Breaking Changes
+- The operator authenticates with a single ngrok access token. The API key and authtoken credentials are removed by @alex-bezek in [#894](https://github.com/ngrok/ngrok-operator/pull/894)
+- Operator settings are defined once and named after their Helm values path. Flags are renamed to match (for example `--enable-feature-gateway` is now `--features-gateway-enabled`), and the chart passes settings as `NGROK_OPERATOR__*` environment variables by @alex-bezek in [#899](https://github.com/ngrok/ngrok-operator/pull/899)
+- Removed the legacy `Domain.spec.resolves_to` field; use `spec.resolvesTo` by @alex-bezek in [#873](https://github.com/ngrok/ngrok-operator/pull/873)
+- Removed the deprecated CloudEndpoint `spec.trafficPolicyName` and `spec.trafficPolicy.policy` fields; use `spec.trafficPolicy.targetRef` and `spec.trafficPolicy.inline` by @alex-bezek in [#920](https://github.com/ngrok/ngrok-operator/pull/920)
+- `Domain.spec.domain` is now immutable. Create a new Domain to reserve a different hostname by @jonstacks in [#889](https://github.com/ngrok/ngrok-operator/pull/889)
+- The operator no longer writes legacy `k8s.ngrok.com/` labels, the `k8s.ngrok.com/computed-url` annotation, or the `k8s.ngrok.com/finalizer` finalizer, and removes them on the next reconcile. It still reads them by @alex-bezek in [#872](https://github.com/ngrok/ngrok-operator/pull/872)
+
+### Added
+- `TrafficPolicy` in the new `ngrok.com/v1` API group. `NgrokTrafficPolicy` is deprecated, and references resolve to either kind by name by @jackmcclary-ngrok in [#875](https://github.com/ngrok/ngrok-operator/pull/875)
+- `IPPolicy` in `ngrok.com/v1`. A v1 object with the same name as a legacy one takes over its ngrok IP policy and ID by @jackmcclary-ngrok in [#892](https://github.com/ngrok/ngrok-operator/pull/892), [#913](https://github.com/ngrok/ngrok-operator/pull/913), [#915](https://github.com/ngrok/ngrok-operator/pull/915), [#916](https://github.com/ngrok/ngrok-operator/pull/916), [#917](https://github.com/ngrok/ngrok-operator/pull/917), [#918](https://github.com/ngrok/ngrok-operator/pull/918)
+- `Domain` in `ngrok.com/v1`. The operator migrates the Domains it created, keeping their reservations by @jackmcclary-ngrok in [#923](https://github.com/ngrok/ngrok-operator/pull/923)
+- `KubernetesOperator` in `ngrok.com/v1`. The operator moves its own registration automatically, without a drain by @alex-bezek in [#921](https://github.com/ngrok/ngrok-operator/pull/921)
+- `AgentEndpoint` in `ngrok.com/v1`. Endpoints generated for Ingresses, Gateway API routes, and Services move automatically by @alex-bezek in [#929](https://github.com/ngrok/ngrok-operator/pull/929)
+- `CloudEndpoint` in `ngrok.com/v1`. Generated endpoints move automatically and keep their IDs by @alex-bezek in [#930](https://github.com/ngrok/ngrok-operator/pull/930)
+- Wildcard domain support: a Domain covered by an existing wildcard reservation is no longer reserved separately, and reports the wildcard in `status.coveredByWildcardDomain` by @jonstacks in [#887](https://github.com/ngrok/ngrok-operator/pull/887)
+- Private endpoints (preview, off by default): pods can reach `*.ngrok.direct` private endpoints by URL, enabled with `ngrok.features.privateEndpoints.enabled` by @alex-bezek in [#912](https://github.com/ngrok/ngrok-operator/pull/912)
+- Configurable private dial HTTP/2 server and transport protocol for private endpoints by @alex-bezek in [#928](https://github.com/ngrok/ngrok-operator/pull/928)
+
+### Changed
+- Upgraded `ngrok-api-go` to v9 and look up reserved domains with server-side filtering by @jonstacks in [#886](https://github.com/ngrok/ngrok-operator/pull/886)
+- Built with Go 1.27 by @jonstacks in [#878](https://github.com/ngrok/ngrok-operator/pull/878)
+- Backed out the IngressClass controller name migration. The default controller name stays `k8s.ngrok.com/ingress-controller` by @alex-bezek in [#896](https://github.com/ngrok/ngrok-operator/pull/896)
+- Removed handling for the legacy IPPolicy `RulesConfigured` condition by @alex-bezek in [#874](https://github.com/ngrok/ngrok-operator/pull/874)
+- Replaced retired community Slack links in the README by @iambmelt in [#881](https://github.com/ngrok/ngrok-operator/pull/881)
+
+### Fixed
+- A Domain whose hostname was reserved by an endpoint between the operator's lookup and create now adopts that reservation instead of failing until restart by @alex-bezek in [#934](https://github.com/ngrok/ngrok-operator/pull/934)
+- Error wrapping, logger context propagation, and graceful shutdown fixes by @jonstacks in [#882](https://github.com/ngrok/ngrok-operator/pull/882)
+
+## 0.22.2
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.22.1...ngrok-operator-0.22.2
+
+Security patch release cut from `0.22.1`. It contains only the change below and none of the unreleased changes on `main`. All 0.22.x users should upgrade.
+
+### Security
+- Build with Go 1.26.10, which no longer trusts certificates issued under the compromised eMudhra intermediate CAs ("emSign ECC Root CA - G3" and "AAA Certificate Services" chains). 0.22.1 and earlier were built with a Go version that still trusts them, so the operator's outbound TLS connections (for example to the ngrok API) could accept a forged certificate by @alex-bezek in [#907](https://github.com/ngrok/ngrok-operator/pull/907)
+
+## 0.22.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.22.0...ngrok-operator-0.22.1
+
+Patch release cut from `0.22.0`. It contains only the fix below and none of the unreleased changes on `main`.
+
+### Fixed
+- Keep pooled agent endpoints serving when an update fails. Previously a failed rebind (for example `ERR_NGROK_324` at the session tunnel limit, or an invalid traffic policy) tore down the healthy endpoint, and reconciles with unchanged config rebound needlessly, which under load could drop traffic by @alex-bezek in [#897](https://github.com/ngrok/ngrok-operator/pull/897)
+
 ## 0.22.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/ngrok-operator-0.21.0...ngrok-operator-0.22.0
 

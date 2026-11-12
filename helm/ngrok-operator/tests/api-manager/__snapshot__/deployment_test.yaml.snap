@@ -12,8 +12,8 @@ Should match all-options snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.22.0
-        helm.sh/chart: ngrok-operator-0.24.0
+        app.kubernetes.io/version: 0.23.0-rc.1
+        helm.sh/chart: ngrok-operator-0.25.0-rc.1
       name: RELEASE-NAME-ngrok-operator-manager
       namespace: NAMESPACE
     spec:
@@ -93,7 +93,7 @@ Should match all-options snapshot:
                     value: test-value
                 - name: TEST_ENV_VAR
                   value: test
-              image: docker.io/ngrok/ngrok-operator:0.22.0
+              image: docker.io/ngrok/ngrok-operator:0.23.0-rc.1
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
@@ -680,8 +680,8 @@ Should match default snapshot:
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: ngrok-operator
         app.kubernetes.io/part-of: ngrok-operator
-        app.kubernetes.io/version: 0.22.0
-        helm.sh/chart: ngrok-operator-0.24.0
+        app.kubernetes.io/version: 0.23.0-rc.1
+        helm.sh/chart: ngrok-operator-0.25.0-rc.1
       name: RELEASE-NAME-ngrok-operator-manager
       namespace: NAMESPACE
     spec:
@@ -754,7 +754,7 @@ Should match default snapshot:
                   value: "false"
                 - name: NGROK_OPERATOR__FEATURES__PRIVATE_ENDPOINTS__ENABLED
                   value: "false"
-              image: docker.io/ngrok/ngrok-operator:0.22.0
+              image: docker.io/ngrok/ngrok-operator:0.23.0-rc.1
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:

@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## 0.5.0-rc.1
+**Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.4.0...helm-chart-ngrok-crds-0.5.0-rc.1
+
+Before upgrading, review the
+[Helm chart 0.24 to 0.25 upgrade guide](../../docs/upgrading-to-0.25.md).
+If you install this chart separately, upgrade it before the operator chart.
+
+- Update CRDs Helm chart version to `0.5.0-rc.1`
+
+### Breaking Changes
+- Removed the legacy `Domain.spec.resolves_to` field by @alex-bezek in [#873](https://github.com/ngrok/ngrok-operator/pull/873)
+- Removed the deprecated CloudEndpoint `spec.trafficPolicyName` and `spec.trafficPolicy.policy` fields. `spec.trafficPolicy`, when set, must set exactly one of `inline` or `targetRef` by @alex-bezek in [#920](https://github.com/ngrok/ngrok-operator/pull/920)
+- `Domain.spec.domain` is immutable by @jonstacks in [#889](https://github.com/ngrok/ngrok-operator/pull/889)
+
+### Added
+- `trafficpolicies.ngrok.com` CRD. `NgrokTrafficPolicy` is marked deprecated by @jackmcclary-ngrok in [#875](https://github.com/ngrok/ngrok-operator/pull/875)
+- `ippolicies.ngrok.com` CRD by @jackmcclary-ngrok in [#892](https://github.com/ngrok/ngrok-operator/pull/892), [#913](https://github.com/ngrok/ngrok-operator/pull/913)
+- `kubernetesoperators.ngrok.com` CRD by @alex-bezek in [#921](https://github.com/ngrok/ngrok-operator/pull/921)
+- `domains.ngrok.com` CRD by @jackmcclary-ngrok in [#923](https://github.com/ngrok/ngrok-operator/pull/923)
+- `agentendpoints.ngrok.com` CRD by @alex-bezek in [#929](https://github.com/ngrok/ngrok-operator/pull/929)
+- `cloudendpoints.ngrok.com` CRD by @alex-bezek in [#930](https://github.com/ngrok/ngrok-operator/pull/930)
+- `privateendpoints.ngrok.com` CRD for the private endpoints preview by @alex-bezek in [#912](https://github.com/ngrok/ngrok-operator/pull/912)
+- `Domain.status.coveredByWildcardDomain` by @jonstacks in [#887](https://github.com/ngrok/ngrok-operator/pull/887)
+
+### Changed
+- The legacy `Domain` and `IPPolicy` (`ingress.k8s.ngrok.com/v1alpha1`) and `KubernetesOperator`, `AgentEndpoint`, and `CloudEndpoint` (`ngrok.k8s.ngrok.com/v1alpha1`) versions are marked deprecated, so `kubectl` warns when you use them. Use the `ngrok.com/v1` kinds by @jackmcclary-ngrok and @alex-bezek in [#913](https://github.com/ngrok/ngrok-operator/pull/913), [#921](https://github.com/ngrok/ngrok-operator/pull/921), [#923](https://github.com/ngrok/ngrok-operator/pull/923), [#929](https://github.com/ngrok/ngrok-operator/pull/929), [#930](https://github.com/ngrok/ngrok-operator/pull/930)
+- The six `ngrok.com/v1` CRDs carry `helm.sh/resource-policy: keep`, so a rollback cannot delete them or the objects stored under them. `helm uninstall` leaves them behind; delete them by hand after uninstalling by @jackmcclary-ngrok and @alex-bezek in [#913](https://github.com/ngrok/ngrok-operator/pull/913), [#921](https://github.com/ngrok/ngrok-operator/pull/921), [#923](https://github.com/ngrok/ngrok-operator/pull/923), [#929](https://github.com/ngrok/ngrok-operator/pull/929), [#930](https://github.com/ngrok/ngrok-operator/pull/930)
+- Bare plural names such as `kubectl get domains` or `kubectl get kubernetesoperators` can now match either the legacy or the `ngrok.com/v1` kind. Name the group in scripts, for example `domains.ngrok.com` by @jackmcclary-ngrok and @alex-bezek in [#913](https://github.com/ngrok/ngrok-operator/pull/913), [#921](https://github.com/ngrok/ngrok-operator/pull/921), [#923](https://github.com/ngrok/ngrok-operator/pull/923), [#929](https://github.com/ngrok/ngrok-operator/pull/929), [#930](https://github.com/ngrok/ngrok-operator/pull/930)
+- Regenerated the `BoundEndpoint` CRD for `ngrok-api-go` v9 by @jonstacks in [#886](https://github.com/ngrok/ngrok-operator/pull/886)
+
 ## 0.4.0
 **Full Changelog**: https://github.com/ngrok/ngrok-operator/compare/helm-chart-ngrok-crds-0.3.0...helm-chart-ngrok-crds-0.4.0
 
