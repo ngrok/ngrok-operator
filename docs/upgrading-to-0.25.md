@@ -142,19 +142,23 @@ The mapping can be found in the table below:
 | `oneClickDemoMode` | `ngrok.features.oneClickDemoMode.enabled` |
 | `cleanupHook.enabled`, `cleanupHook.timeout` | `ngrok.features.cleanup.enabled`, `ngrok.features.cleanup.timeout` |
 | `cleanupHook.image`, `cleanupHook.resources` | `components.cleanupHook.<same>` |
-| `podAnnotations`, `podLabels`, `nodeSelector`, `tolerations`, `affinity`, `podAffinityPreset`, `podAntiAffinityPreset`, `nodeAffinityPreset`, `topologySpreadConstraints`, `priorityClassName`, `extraEnv` | `components.common.<same>` (applies to every component) |
-| `lifecycle`, `extraVolumes`, `extraVolumeMounts` | `components.common.<same>` (as in 0.24, these apply to every component) |
-| `replicaCount`, `resources`, `terminationGracePeriodSeconds`, `podDisruptionBudget.*`, `serviceAccount.*` | `components.apiManager.<same>` |
+| `podAnnotations`, `podLabels`, `affinity`, `podAffinityPreset`, `podAntiAffinityPreset`, `nodeAffinityPreset`, `extraEnv`, `extraVolumes`, `extraVolumeMounts`, `lifecycle` | `components.common.<same>` (as in 0.24, these apply to every component) |
+| `nodeSelector`, `tolerations`, `topologySpreadConstraints`, `priorityClassName`, `replicaCount`, `resources`, `terminationGracePeriodSeconds`, `podDisruptionBudget.*`, `serviceAccount.*` | `components.apiManager.<same>` |
 | `agent.*` | `components.agent.*` |
 | `bindings.forwarder.*` | `components.bindingsForwarder.*` |
 | `nameOverride`, `fullnameOverride`, `commonLabels`, `commonAnnotations`, `image.*`, `installCRDs`, `crdAccessRoles.*` | unchanged |
 
+In 0.24 the `components.apiManager` settings above only applied to the api-manager. To apply one to every pod, set it under `components.common` instead.
+
 Three behaviors change along with the keys:
 
-- Top-level pod settings such as `podAnnotations` and `tolerations` now apply to
-the agent and bindings-forwarder as well as the api-manager. To keep a
-setting on one component only, set it on that component instead, for example
-`components.apiManager.tolerations`.
+- In 0.24, a non-empty `agent.podAnnotations` replaced the top-level
+`podAnnotations` on the agent pod. In 0.25, `components.agent.podAnnotations`
+merges over `components.common.podAnnotations`, and setting it to `{}` clears
+the common value. If you set both in 0.24 and don't want the top-level
+annotations on the agent, put them on `components.apiManager` and
+`components.bindingsForwarder` instead of `components.common`. The
+[migration script](#migration-script) does this for you.
 - Log settings can be overridden for one component under
 `components.<component>.log`, for example `components.agent.log.level: debug`.
 - An empty operator setting means "use the operator's built-in default". The
