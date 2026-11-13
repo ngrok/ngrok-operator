@@ -12,6 +12,8 @@ The ngrok-operator supports the Kubernetes Gateway API, providing a role-oriente
 |------------------------------------|------------------------------------------------------|---------|
 | `ngrok.features.gateway.enabled`                  | Enable Gateway API support (if CRDs detected)        | `true`  |
 | `ngrok.features.gateway.disableReferenceGrants`   | Disable ReferenceGrant requirement                   | `false` |
+| `ngrok.features.gateway.generatedDomainSuffix`    | Suffix (for example `ngrok.app`) under which a Gateway with a listener without a hostname gets a domain | `""` (such listeners are rejected) |
+| `ngrok.features.gateway.conformanceHostnameSuffix` | Test only: appended to every Gateway API hostname so the conformance suite can run. See [gateway-api-conformance.md](../gateway-api-conformance.md) | `""` |
 
 ## Supported Resources
 
@@ -32,7 +34,21 @@ When enabled and Gateway API CRDs are detected:
 2. `Gateway` resources referencing that GatewayClass are reconciled by the operator.
 3. Route resources (`HTTPRoute`, `TCPRoute`, `TLSRoute`) referencing a managed Gateway are materialized as ngrok endpoints.
 4. `ReferenceGrant` resources enable cross-namespace references (e.g., a route in namespace A referencing a service in namespace B).
-5. Domain resources are managed for listener hostnames. A listener hostname that is a direct child of an already-reserved wildcard gets a Domain CR but no separate ngrok reservation — see [controllers/domain.md](../controllers/domain.md#wildcard-domain-coverage).
+5. Domain resources are managed for the hostnames the Gateway's endpoints use (see [Hostnames](#hostnames)). A hostname that is a direct child of an already-reserved wildcard gets a Domain CR but no separate ngrok reservation — see [controllers/domain.md](../controllers/domain.md#wildcard-domain-coverage).
+
+## Hostnames
+
+ngrok routes by hostname, so every HTTP, HTTPS and TLS endpoint needs one. The endpoints for a listener get their hostnames this way:
+
+1. If the Gateway sets `spec.addresses` (type `Hostname`), those addresses, for every listener.
+2. Otherwise, each route attached to the listener contributes the intersection of its hostnames with the listener's. A listener `*.example.com` with a route for `foo.example.com` gets an endpoint for `foo.example.com`; a route without hostnames takes the listener's.
+3. When neither the listener nor the route names a hostname, the Gateway's generated domain, `<gateway>-<namespace>-<uid prefix>.<generatedDomainSuffix>`. Without `generatedDomainSuffix`, a listener without a hostname is rejected with `Accepted=False`, reason `HostnameRequired`.
+
+A route's rules are added to every endpoint of the listener whose hostname one of the route's hostnames covers, so a route for `*.example.com` also serves `foo.example.com` behind a more specific route for that name. Within an endpoint, matches are ordered by the Gateway API precedence rules: the most specific matching hostname, then exact path over prefix and the longest prefix, then method, then the most header matches, then the most query parameter matches, then the oldest route, then `namespace/name`, then rule order.
+
+## Backends
+
+A backendRef that is not a core `Service`, is in another namespace without a ReferenceGrant, or names a Service that doesn't exist, gets a 500 for its share of the route's traffic. A rule with neither backendRefs nor filters answers every request with a 500. The route stays `Accepted`; its `ResolvedRefs` condition reports the problem.
 
 ## Driver Pattern
 

@@ -25,6 +25,7 @@ package gateway
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -40,6 +41,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
+
+// SupportedFeatures are the Gateway API features the operator passes the conformance suite for,
+// published in GatewayClass status.supportedFeatures. Keep sorted (the API requires it) and in step with
+// CONFORMANCE_SUPPORTED_FEATURES in tools/make/conformance.mk.
+var SupportedFeatures = []gatewayv1.FeatureName{
+	"Gateway",
+	"HTTPRoute",
+	"ReferenceGrant",
+}
 
 // GatewayClassReconciler reconciles a GatewayClass object
 type GatewayClassReconciler struct {
@@ -103,15 +113,13 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, r.reconcileGatewayExistsFinalizer(ctx, gwc)
 }
 
-// reconcileAcceptedCondition makes sure that the GatewayClass has an accepted condition
+// reconcileAcceptedCondition makes sure that the GatewayClass has an accepted condition for its
+// current generation, and lists the features the controller supports.
 func (r *GatewayClassReconciler) reconcileAcceptedCondition(ctx context.Context, gwc *gatewayv1.GatewayClass) error {
 	log := ctrl.LoggerFrom(ctx)
 
-	if gatewayClassIsAccepted(gwc) {
-		log.V(3).Info("GatewayClass already accepted")
-		return nil
-	}
-
+	// SetStatusCondition reports a change when only observedGeneration moved, so a spec edit is
+	// acknowledged even though the class was already accepted.
 	changed := meta.SetStatusCondition(&gwc.Status.Conditions, metav1.Condition{
 		Type:               string(gatewayv1.GatewayClassConditionStatusAccepted),
 		Status:             metav1.ConditionTrue,
@@ -120,7 +128,17 @@ func (r *GatewayClassReconciler) reconcileAcceptedCondition(ctx context.Context,
 		ObservedGeneration: gwc.Generation,
 	})
 
+	features := make([]gatewayv1.SupportedFeature, 0, len(SupportedFeatures))
+	for _, f := range SupportedFeatures {
+		features = append(features, gatewayv1.SupportedFeature{Name: f})
+	}
+	if !reflect.DeepEqual(gwc.Status.SupportedFeatures, features) {
+		gwc.Status.SupportedFeatures = features
+		changed = true
+	}
+
 	if !changed {
+		log.V(3).Info("GatewayClass status already up to date")
 		return nil
 	}
 

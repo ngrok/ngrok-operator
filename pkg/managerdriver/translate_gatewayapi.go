@@ -57,7 +57,7 @@ type GatewayMatch struct {
 
 // With ingress translation into ir/endpoints, we merge routes for the same hostname across all ingresses, but with
 // gateway API, we will only merge routes for the same gateway.
-func (t *translator) gatewayAPIToIR() []*ir.IRVirtualHost {
+func (t *translator) gatewayAPIToIR() ([]*ir.IRVirtualHost, map[types.NamespacedName][]string) {
 	virtualHostsPerGateway := make(map[types.NamespacedName]map[ir.IRListener]*ir.IRVirtualHost) // We key the list of virtual hosts by the gateway they are for
 	upstreamCache := make(map[ir.IRServiceKey]*ir.IRUpstream)                                    // Each unique service/port combo corresponds to one IRUpstream
 	gateways := t.store.ListNgrokGateways()
@@ -71,9 +71,21 @@ func (t *translator) gatewayAPIToIR() []*ir.IRVirtualHost {
 		}] = gateway
 	}
 
+	// HTTPRoutes take two passes. The first creates the virtual hosts for every route's hostnames;
+	// the second adds each route's rules to every virtual host it covers, which can include one
+	// created for another route: a route for *.example.com also serves foo.example.com when another
+	// route on the same listener asked for that name.
 	httpRoutes := t.store.ListHTTPRoutes()
-	for _, httpRoute := range httpRoutes {
-		t.HTTPRouteToIR(httpRoute, upstreamCache, gatewayMap, virtualHostsPerGateway)
+	httpAttachments := make([][]routeAttachment, len(httpRoutes))
+	for i, httpRoute := range httpRoutes {
+		var hostnameStrings []string
+		for _, h := range httpRoute.Spec.Hostnames {
+			hostnameStrings = append(hostnameStrings, string(h))
+		}
+		_, httpAttachments[i] = t.findMatchingVHostsForXRoute(virtualHostsPerGateway, gatewayMap, httpRoute.Name, httpRoute.Namespace, xRouteKind_HTTPRoute, httpRoute.Spec.ParentRefs, hostnameStrings...)
+	}
+	for i, httpRoute := range httpRoutes {
+		t.HTTPRouteToIR(httpRoute, httpAttachments[i], upstreamCache, virtualHostsPerGateway)
 	}
 	tcpRoutes := t.store.ListTCPRoutes()
 	for _, tcpRoute := range tcpRoutes {
@@ -85,13 +97,17 @@ func (t *translator) gatewayAPIToIR() []*ir.IRVirtualHost {
 	}
 
 	vHostSlice := []*ir.IRVirtualHost{}
-	for _, vHostsForGateway := range virtualHostsPerGateway {
-		for _, irVirtualHost := range vHostsForGateway {
+	hostnamesPerGateway := map[types.NamespacedName][]string{}
+	for gatewayKey, vHostsForGateway := range virtualHostsPerGateway {
+		for irListener, irVirtualHost := range vHostsForGateway {
 			vHostSlice = append(vHostSlice, irVirtualHost)
+			if irListener.Protocol != ir.IRProtocol_TCP {
+				hostnamesPerGateway[gatewayKey] = appendStringUnique(hostnamesPerGateway[gatewayKey], string(irListener.Hostname))
+			}
 		}
 	}
 
-	return vHostSlice
+	return vHostSlice, hostnamesPerGateway
 }
 
 func (t *translator) findMatchingVHostsForXRoute(
@@ -102,8 +118,9 @@ func (t *translator) findMatchingVHostsForXRoute(
 	routeKind xRouteKind,
 	routeParentRefs []gatewayv1.ParentReference,
 	routeHostnames ...string,
-) map[*ir.IRVirtualHost]bool {
+) (map[*ir.IRVirtualHost]bool, []routeAttachment) {
 	vHostsMatchingRoute := make(map[*ir.IRVirtualHost]bool)
+	attachments := []routeAttachment{}
 
 	// First, go through the route's parentRefs to find matching gateways and figure out which hostnames within those matching
 	// gateways this route matches. Along the way, build/update virtual hosts for all the hostnames this route matches
@@ -265,9 +282,36 @@ func (t *translator) findMatchingVHostsForXRoute(
 
 			var virtualHostHostnames []string
 			if len(gatewayAddressHostnames) == 0 {
-				virtualHostHostnames = []string{string(*matchingListener.Hostname)}
+				attachment := routeAttachment{
+					gateway:          gatewayKey,
+					port:             matchingListener.Port,
+					listenerHostname: t.gatewayHostnames.Listener(matchingListener),
+				}
+				for _, h := range routeListenerHostnames(t.gatewayHostnames.Listener(matchingListener), mapHostnames(t.gatewayHostnames, routeHostnames)) {
+					attachment.hostnames = append(attachment.hostnames, h)
+					if h == "" {
+						// Neither the listener nor the route names a hostname: use the Gateway's.
+						h = t.gatewayHostnames.Generated(gateway)
+					}
+					if h != "" {
+						virtualHostHostnames = appendStringUnique(virtualHostHostnames, h)
+					}
+				}
+				if p, ok := listenerIRProtocol(matchingListener.Protocol); ok {
+					attachment.protocol = p
+					attachments = append(attachments, attachment)
+				}
 			} else {
 				virtualHostHostnames = gatewayAddressHostnames
+				// Every listener is bound to every address, so the route serves all of them.
+				if p, ok := listenerIRProtocol(matchingListener.Protocol); ok {
+					attachments = append(attachments, routeAttachment{
+						gateway:   gatewayKey,
+						port:      matchingListener.Port,
+						protocol:  p,
+						hostnames: []string{""},
+					})
+				}
 			}
 
 			for _, virtualHostHostname := range virtualHostHostnames {
@@ -277,19 +321,12 @@ func (t *translator) findMatchingVHostsForXRoute(
 					Port:     matchingListener.Port,
 				}
 
-				switch matchingListener.Protocol {
-				case gatewayv1.HTTPProtocolType:
-					irListener.Protocol = ir.IRProtocol_HTTP
-				case gatewayv1.HTTPSProtocolType:
-					irListener.Protocol = ir.IRProtocol_HTTPS
-				case gatewayv1.TCPProtocolType:
-					irListener.Protocol = ir.IRProtocol_TCP
-				case gatewayv1.TLSProtocolType:
-					irListener.Protocol = ir.IRProtocol_TLS
-				default:
+				protocol, ok := listenerIRProtocol(matchingListener.Protocol)
+				if !ok {
 					// Ignore other listener protocols
 					continue
 				}
+				irListener.Protocol = protocol
 
 				irVHost, exists := vHostsForCurrentGateway[irListener]
 				if !exists {
@@ -341,7 +378,82 @@ func (t *translator) findMatchingVHostsForXRoute(
 		}
 	}
 
-	return vHostsMatchingRoute
+	return vHostsMatchingRoute, attachments
+}
+
+// routeAttachment records that a route attached to one listener of a Gateway, and the hostnames it
+// serves there. A route serves every virtual host of that listener whose hostname one of its
+// hostnames covers, including ones created for other routes.
+type routeAttachment struct {
+	gateway  types.NamespacedName
+	port     int32
+	protocol ir.IRProtocol
+	// listenerHostname is the listener's hostname, "" when it accepts every hostname.
+	listenerHostname string
+	// hostnames are the route's hostnames intersected with the listener's: exact names, "*."
+	// wildcards, or "" when both accept every hostname.
+	hostnames []string
+}
+
+// covering returns the most specific of the attachment's hostnames that covers host.
+func (a routeAttachment) covering(host string) (string, bool) {
+	if !hostnameCovers(a.listenerHostname, host) {
+		return "", false
+	}
+	best, found := "", false
+	for _, h := range a.hostnames {
+		if !hostnameCovers(h, host) {
+			continue
+		}
+		if !found || len(h) > len(best) || (strings.HasPrefix(best, "*") && !strings.HasPrefix(h, "*")) {
+			best, found = h, true
+		}
+	}
+	return best, found
+}
+
+// routeListenerHostnames intersects a route's hostnames with a listener's. A route without hostnames
+// takes the listener's.
+func routeListenerHostnames(listener string, routeHostnames []string) []string {
+	if len(routeHostnames) == 0 {
+		return []string{listener}
+	}
+	out := []string{}
+	for _, r := range routeHostnames {
+		if r == "*" {
+			r = ""
+		}
+		if h, ok := intersectHostnames(listener, r); ok {
+			out = appendStringUnique(out, h)
+		}
+	}
+	return out
+}
+
+func mapHostnames(h GatewayHostnames, hostnames []string) []string {
+	out := make([]string, 0, len(hostnames))
+	for _, n := range hostnames {
+		if n == "*" {
+			out = append(out, n)
+			continue
+		}
+		out = append(out, h.Map(n))
+	}
+	return out
+}
+
+func listenerIRProtocol(p gatewayv1.ProtocolType) (ir.IRProtocol, bool) {
+	switch p {
+	case gatewayv1.HTTPProtocolType:
+		return ir.IRProtocol_HTTP, true
+	case gatewayv1.HTTPSProtocolType:
+		return ir.IRProtocol_HTTPS, true
+	case gatewayv1.TCPProtocolType:
+		return ir.IRProtocol_TCP, true
+	case gatewayv1.TLSProtocolType:
+		return ir.IRProtocol_TLS, true
+	}
+	return "", false
 }
 
 // #region HTTPRoute to IR
@@ -350,24 +462,38 @@ func (t *translator) findMatchingVHostsForXRoute(
 // as routes on the VirtualHost(s)
 func (t *translator) HTTPRouteToIR(
 	httpRoute *gatewayv1.HTTPRoute,
+	attachments []routeAttachment,
 	upstreamCache map[ir.IRServiceKey]*ir.IRUpstream,
-	gatewayMap map[types.NamespacedName]*gatewayv1.Gateway,
 	virtualHostsPerGateway map[types.NamespacedName]map[ir.IRListener]*ir.IRVirtualHost,
 ) {
-	var hostnameStrings []string
-	for _, h := range httpRoute.Spec.Hostnames {
-		hostnameStrings = append(hostnameStrings, string(h))
+	// Find every virtual host this route serves, with the most specific of its hostnames that covers
+	// it. A route attached to two listeners can reach the same virtual host twice.
+	covering := map[*ir.IRVirtualHost]string{}
+	for _, a := range attachments {
+		for irListener, irVHost := range virtualHostsPerGateway[a.gateway] {
+			if irListener.Port != a.port || irListener.Protocol != a.protocol {
+				continue
+			}
+			hostname, ok := a.covering(string(irListener.Hostname))
+			if !ok {
+				continue
+			}
+			if prev, seen := covering[irVHost]; seen && len(prev) >= len(hostname) {
+				continue
+			}
+			covering[irVHost] = hostname
+		}
 	}
-	vHostsMatchingRoute := t.findMatchingVHostsForXRoute(virtualHostsPerGateway, gatewayMap, httpRoute.Name, httpRoute.Namespace, xRouteKind_HTTPRoute, httpRoute.Spec.ParentRefs, hostnameStrings...)
 
-	// Now that we have a set of the virtual hosts that are applicable to this HTTPRoute, go through and build new routes
-	// for all the HTTPRoute rules and add them to the matching virtual hosts
-
-	// Add all the routes we just processed to all matching virtual hosts
-	for irVHost := range vHostsMatchingRoute {
+	for irVHost, hostname := range covering {
+		irVHost.AddOwningResource(ir.OwningResource{
+			Kind:      string(xRouteKind_HTTPRoute),
+			Name:      httpRoute.Name,
+			Namespace: httpRoute.Namespace,
+		})
 		// Note: it would be more efficient to build the routes for the HTTPRoute once, then apply them to all matching virtualHosts, but
 		// each Gateway can specify upstream client certificates, so the routes we build are dependent on the current Gateway
-		routesToAdd := t.httpRouteRulesToIR(irVHost, httpRoute, upstreamCache)
+		routesToAdd := t.httpRouteRulesToIR(irVHost, httpRoute, upstreamCache, hostname)
 		for _, routeToAdd := range routesToAdd {
 			for _, destination := range routeToAdd.Destinations {
 				// Inherit all the virtual host's owning resources
@@ -392,7 +518,7 @@ func (t *translator) TCPRouteToIR(
 	gatewayMap map[types.NamespacedName]*gatewayv1.Gateway,
 	virtualHostsPerGateway map[types.NamespacedName]map[ir.IRListener]*ir.IRVirtualHost,
 ) {
-	vHostsMatchingRoute := t.findMatchingVHostsForXRoute(virtualHostsPerGateway, gatewayMap, tcpRoute.Name, tcpRoute.Namespace, xRouteKind_TCPRoute, tcpRoute.Spec.ParentRefs)
+	vHostsMatchingRoute, _ := t.findMatchingVHostsForXRoute(virtualHostsPerGateway, gatewayMap, tcpRoute.Name, tcpRoute.Namespace, xRouteKind_TCPRoute, tcpRoute.Spec.ParentRefs)
 
 	// Now that we have a set of the virtual hosts that are applicable to this TCPRoute, go through and build new routes
 	// for all the TCPRoute rules and add them to the matching virtual hosts
@@ -429,7 +555,7 @@ func (t *translator) TLSRouteToIR(
 	for _, h := range tlsRoute.Spec.Hostnames {
 		hostnameStrings = append(hostnameStrings, string(h))
 	}
-	vHostsMatchingRoute := t.findMatchingVHostsForXRoute(virtualHostsPerGateway, gatewayMap, tlsRoute.Name, tlsRoute.Namespace, xRouteKind_TLSRoute, tlsRoute.Spec.ParentRefs, hostnameStrings...)
+	vHostsMatchingRoute, _ := t.findMatchingVHostsForXRoute(virtualHostsPerGateway, gatewayMap, tlsRoute.Name, tlsRoute.Namespace, xRouteKind_TLSRoute, tlsRoute.Spec.ParentRefs, hostnameStrings...)
 
 	// Now that we have a set of the virtual hosts that are applicable to this TLSRoute, go through and build new routes
 	// for all the TLSRoute rules and add them to the matching virtual hosts
@@ -498,14 +624,21 @@ func (t *translator) tlsRouteRulesToIR(irVHost *ir.IRVirtualHost, tlsRoute *gate
 	return nil
 }
 
-func (t *translator) httpRouteRulesToIR(irVHost *ir.IRVirtualHost, httpRoute *gatewayv1.HTTPRoute, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream) []*ir.IRRoute {
+func (t *translator) httpRouteRulesToIR(irVHost *ir.IRVirtualHost, httpRoute *gatewayv1.HTTPRoute, upstreamCache map[ir.IRServiceKey]*ir.IRUpstream, hostname string) []*ir.IRRoute {
 	routesToAdd := []*ir.IRRoute{}
-	for _, rule := range httpRoute.Spec.Rules {
+	for ruleIndex, rule := range httpRoute.Spec.Rules {
 		// For each rule.Match create a route
-		for _, match := range rule.Matches {
+		for matchIndex, match := range rule.Matches {
 			irRoute := &ir.IRRoute{
 				HTTPMatchCriteria: GatewayAPIHTTPMatchToIR(match),
 				TrafficPolicies:   []*trafficpolicy.TrafficPolicy{},
+				Precedence: &ir.IRRoutePrecedence{
+					Hostname:   hostname,
+					CreatedAt:  httpRoute.CreationTimestamp.Time,
+					Route:      httpRoute.Namespace + "/" + httpRoute.Name,
+					RuleIndex:  ruleIndex,
+					MatchIndex: matchIndex,
+				},
 			}
 
 			for _, filter := range rule.Filters {
@@ -521,12 +654,23 @@ func (t *translator) httpRouteRulesToIR(irVHost *ir.IRVirtualHost, httpRoute *ga
 			for _, backendRef := range rule.BackendRefs {
 				irDestination, err := t.httpRouteBackendToIR(httpRoute, backendRef, upstreamCache, irRoute.HTTPMatchCriteria, irVHost.ClientCertRefs)
 				if err != nil {
-					t.log.Error(err, "unable to translate HTTPRoute backend ref",
+					t.log.Error(err, "unable to translate HTTPRoute backend ref, its share of the traffic will get a 500",
 						"HTTPRoute", fmt.Sprintf("%s.%s", httpRoute.Name, httpRoute.Namespace),
 					)
+					var weight *int
+					if backendRef.Weight != nil {
+						weight = new(int(*backendRef.Weight))
+					}
+					irRoute.Destinations = append(irRoute.Destinations, unresolvedBackendDestination(weight, "The backend for this route is not available"))
 					continue
 				}
 				irRoute.Destinations = append(irRoute.Destinations, irDestination)
+			}
+
+			// A rule with neither backends nor filters has nothing to do with the request. The spec
+			// requires a 500 for it, as for a rule whose backends are all invalid.
+			if len(rule.BackendRefs) == 0 && len(rule.Filters) == 0 {
+				irRoute.Destinations = append(irRoute.Destinations, unresolvedBackendDestination(nil, "This route has no backends"))
 			}
 
 			if len(irRoute.TrafficPolicies) > 0 || len(irRoute.Destinations) > 0 {
@@ -644,22 +788,18 @@ func (t *translator) matchGatewayListenersToXRoute(
 
 		listenerHostname := "*"
 		if len(gatewayAddressHostnames) == 0 {
-			if listener.Hostname == nil {
-				t.log.Error(errors.New("gateway has a listener with a nil hostname"), "Gateway listeners with nil hostnames are not supported when Gateway.spec.addresses is empty, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
-					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
-				)
-				continue
-			}
-
-			if string(*listener.Hostname) == "*" {
+			// Without spec.addresses, the endpoints take their hostnames from the listener, from the
+			// routes, or from a generated domain (see GatewayHostnames). A listener with no hostname
+			// can only fall back on the last, so it needs GeneratedSuffix.
+			if listener.Hostname == nil || string(*listener.Hostname) == "" {
+				if t.gatewayHostnames.GeneratedSuffix == "" || listener.Protocol == gatewayv1.TCPProtocolType || listener.Protocol == gatewayv1.UDPProtocolType {
+					t.log.Error(errors.New("gateway has a listener without a hostname"), "Gateway listeners without a hostname need Gateway.spec.addresses or the features.gateway.generatedDomainSuffix setting. Invalid listeners will be skipped.",
+						"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
+					)
+					continue
+				}
+			} else if string(*listener.Hostname) == "*" {
 				t.log.Error(errors.New("gateway has a listener with hostname \"*\""), "Gateway listeners with hostname \"*\" are not supported when Gateway.spec.addresses is empty, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
-					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
-				)
-				continue
-			}
-
-			if listener.Hostname != nil && string(*listener.Hostname) == "" {
-				t.log.Error(errors.New("gateway has a listener with an empty hostname"), "Gateway listeners with empty hostnames are not supported when Gateway.spec.addresses is empty, gateway listeners must have a valid non-empty hostname other than \"*\". Invalid listeners will be skipped.",
 					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 				)
 				continue
@@ -691,33 +831,35 @@ func (t *translator) matchGatewayListenersToXRoute(
 			}
 		}
 
-		// When the route hostnames are empty, it matches all listeners for all parent gateways
-		if len(routeHostnames) == 0 {
+		// A route attaches to a listener when they share at least one hostname.
+		if listenerMatchesRouteHostnames(listener, routeHostnames) {
 			matchingListeners = append(matchingListeners, listener)
-			continue
-		}
-
-		// Check matches for valid hostnames
-		for _, routeHostname := range routeHostnames {
-			if routeHostname == "*" {
-				matchingListeners = append(matchingListeners, listener)
-				break
-			}
-			match, err := doHostGlobsMatch(listenerHostname, routeHostname)
-			if err != nil {
-				t.log.Error(err, "unable to compile hostname glob for Gateway listener hostname, this listener will be skipped",
-					"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
-					"listener hostname", listenerHostname,
-				)
-				continue
-			}
-			if match {
-				matchingListeners = append(matchingListeners, listener)
-			}
 		}
 	}
 
 	return matchingListeners
+}
+
+// listenerMatchesRouteHostnames reports whether a route with these hostnames can attach to the
+// listener: a route without hostnames matches every listener, and otherwise one of its hostnames must
+// intersect the listener's.
+func listenerMatchesRouteHostnames(listener gatewayv1.Listener, routeHostnames []string) bool {
+	if len(routeHostnames) == 0 {
+		return true
+	}
+	l := ""
+	if listener.Hostname != nil {
+		l = string(*listener.Hostname)
+	}
+	for _, r := range routeHostnames {
+		if r == "*" {
+			return true
+		}
+		if _, ok := intersectHostnames(l, r); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // #region HTTPMatch to IR
@@ -726,7 +868,7 @@ func (t *translator) matchGatewayListenersToXRoute(
 func GatewayAPIHTTPMatchToIR(match gatewayv1.HTTPRouteMatch) *ir.IRHTTPMatch {
 	// GatewayAPI specifies that when nil, the default path match behaviour should be a prefix match on "/"
 	path := "/"
-	pathType := ir.IRPathType_Prefix
+	pathType := ir.IRPathType_SegmentPrefix
 
 	if match.Path != nil {
 		if match.Path.Value != nil {
@@ -1220,7 +1362,7 @@ func (t *translator) httpRouteBackendToIR(httpRoute *gatewayv1.HTTPRoute, backen
 		UID:       string(service.UID),
 		Name:      serviceName,
 		Namespace: serviceNamespace,
-		Port:      servicePort.Port,
+		Port:      upstreamPort(service, servicePort),
 		Scheme:    irScheme,
 	}
 
@@ -1332,7 +1474,7 @@ func (t *translator) tcpBackendToIR(routeName string, routeNamespace string, rou
 		UID:       string(service.UID),
 		Name:      serviceName,
 		Namespace: serviceNamespace,
-		Port:      servicePort.Port,
+		Port:      upstreamPort(service, servicePort),
 		Scheme:    irScheme,
 	}
 

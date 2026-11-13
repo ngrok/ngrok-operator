@@ -2,7 +2,9 @@ package ir
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -514,6 +516,102 @@ func TestMergeMetadata(t *testing.T) {
 			var got map[string]any
 			require.NoError(t, json.Unmarshal([]byte(result), &got), "result should be valid JSON: %s", result)
 			assert.Equal(t, tc.wantKeys, got)
+		})
+	}
+}
+
+func TestSortRoutesGatewayPrecedence(t *testing.T) {
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	route := func(name string, p IRRoutePrecedence, m IRHTTPMatch) *IRRoute {
+		p.Route = name
+		if p.CreatedAt.IsZero() {
+			p.CreatedAt = t0
+		}
+		return &IRRoute{HTTPMatchCriteria: &m, Precedence: &p}
+	}
+	prefix := func(path string) IRHTTPMatch {
+		return IRHTTPMatch{Path: new(path), PathType: new(IRPathType_Prefix)}
+	}
+	exact := func(path string) IRHTTPMatch {
+		return IRHTTPMatch{Path: new(path), PathType: new(IRPathType_Exact)}
+	}
+	withHeaders := func(m IRHTTPMatch, n int) IRHTTPMatch {
+		for i := range n {
+			m.Headers = append(m.Headers, IRHeaderMatch{Name: string(rune('a' + i)), Value: "v", ValueType: IRStringValueType_Exact})
+		}
+		return m
+	}
+	withQuery := func(m IRHTTPMatch, n int) IRHTTPMatch {
+		for i := range n {
+			m.QueryParams = append(m.QueryParams, IRQueryParamMatch{Name: string(rune('a' + i)), Value: "v", ValueType: IRStringValueType_Exact})
+		}
+		return m
+	}
+	withMethod := func(m IRHTTPMatch) IRHTTPMatch {
+		m.Method = new(IRMethodMatch_Get)
+		return m
+	}
+
+	tests := []struct {
+		name   string
+		routes []*IRRoute
+		want   []string
+	}{
+		{
+			name: "exact hostname beats wildcard, which beats none",
+			routes: []*IRRoute{
+				route("none", IRRoutePrecedence{}, prefix("/")),
+				route("wildcard", IRRoutePrecedence{Hostname: "*.example.com"}, prefix("/")),
+				route("exact", IRRoutePrecedence{Hostname: "foo.example.com"}, prefix("/")),
+			},
+			want: []string{"exact/0/0", "wildcard/0/0", "none/0/0"},
+		},
+		{
+			name: "hostname outranks a more specific path",
+			routes: []*IRRoute{
+				route("long-path", IRRoutePrecedence{Hostname: "*.example.com"}, exact("/a/very/long/path")),
+				route("host", IRRoutePrecedence{Hostname: "foo.example.com"}, prefix("/")),
+			},
+			want: []string{"host/0/0", "long-path/0/0"},
+		},
+		{
+			name: "exact path beats a longer prefix",
+			routes: []*IRRoute{
+				route("prefix", IRRoutePrecedence{}, prefix("/foo/bar")),
+				route("exact", IRRoutePrecedence{}, exact("/foo")),
+			},
+			want: []string{"exact/0/0", "prefix/0/0"},
+		},
+		{
+			name: "method beats headers, more headers beat fewer, then query params",
+			routes: []*IRRoute{
+				route("one-header", IRRoutePrecedence{}, withHeaders(prefix("/"), 1)),
+				route("two-query", IRRoutePrecedence{}, withQuery(withHeaders(prefix("/"), 1), 2)),
+				route("two-headers", IRRoutePrecedence{}, withHeaders(prefix("/"), 2)),
+				route("method", IRRoutePrecedence{}, withMethod(prefix("/"))),
+			},
+			want: []string{"method/0/0", "two-headers/0/0", "two-query/0/0", "one-header/0/0"},
+		},
+		{
+			name: "ties go to the oldest route, then the name, then rule and match order",
+			routes: []*IRRoute{
+				route("b", IRRoutePrecedence{RuleIndex: 0}, prefix("/")),
+				route("a", IRRoutePrecedence{RuleIndex: 1}, prefix("/")),
+				route("a", IRRoutePrecedence{RuleIndex: 0, MatchIndex: 1}, prefix("/")),
+				route("newer", IRRoutePrecedence{CreatedAt: t0.Add(-time.Hour)}, prefix("/")),
+			},
+			want: []string{"newer/0/0", "a/0/1", "a/1/0", "b/0/0"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vh := &IRVirtualHost{Routes: tt.routes}
+			vh.SortRoutes()
+			got := []string{}
+			for _, r := range vh.Routes {
+				got = append(got, fmt.Sprintf("%s/%d/%d", r.Precedence.Route, r.Precedence.RuleIndex, r.Precedence.MatchIndex))
+			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

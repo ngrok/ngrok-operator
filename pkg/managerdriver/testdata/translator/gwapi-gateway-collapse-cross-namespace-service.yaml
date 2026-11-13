@@ -1,0 +1,93 @@
+# The default mapping strategy collapses a hostname that routes to a single Service into one public
+# AgentEndpoint. That endpoint lives in the Service's namespace, so when the Service is in another
+# namespace than the Gateway the hostname is not collapsed: the public CloudEndpoint stays with the
+# Gateway and forwards to an internal AgentEndpoint. Otherwise the Domain for the Gateway's hostname would
+# also be created in the Service's namespace, and deleting it would release a hostname still in use.
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: gw
+      namespace: infra
+    spec:
+      gatewayClassName: ngrok
+      listeners:
+        - name: http
+          hostname: app.example.com
+          port: 80
+          protocol: HTTP
+          allowedRoutes:
+            namespaces:
+              from: All
+  httpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: route
+      namespace: web
+    spec:
+      parentRefs:
+      - name: gw
+        namespace: infra
+      rules:
+      - matches:
+        - path: {type: PathPrefix, value: /}
+        backendRefs:
+        - {name: web, port: 80}
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata: {name: web, namespace: web}
+    spec:
+      ports: [{name: http, port: 80, protocol: TCP}]
+expected:
+  agentEndpoints:
+  - apiVersion: ngrok.com/v1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-web-web-80
+      namespace: web
+    spec:
+      upstream:
+        url: http://web.web:80
+      url: http://e3b0c-web-web-80.internal
+  cloudEndpoints:
+  - apiVersion: ngrok.com/v1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
+      name: gw.infra-app.example.com
+      namespace: infra
+    spec:
+      trafficPolicy:
+        inline:
+          on_http_request:
+          - actions:
+            - config:
+                url: http://e3b0c-web-web-80.internal
+              type: forward-internal
+            expressions:
+            - req.url.path.startsWith('/')
+            name: Generated-Route
+          - actions:
+            - config:
+                content: No route was found for this ngrok Endpoint
+                headers:
+                  content-type: text/plain
+                status_code: 404
+              type: custom-response
+            name: Fallback-404
+      url: http://app.example.com

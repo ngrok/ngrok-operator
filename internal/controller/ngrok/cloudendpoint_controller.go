@@ -348,6 +348,17 @@ func (r *CloudEndpointReconciler) processDeletes(ctx context.Context, pair *clou
 			continue
 		}
 
+		// An endpoint deleted right after it was created can reach here before the cache has the
+		// status write that recorded its ID. Without the ID the remote endpoint would be left
+		// behind, holding its URL, so read the object from the API server before giving up on it.
+		if ep.GetID() == "" {
+			if id, err := r.freshID(ctx, ep); err != nil {
+				return ctrl.Result{}, err
+			} else if id != "" {
+				ep.SetID(id)
+			}
+		}
+
 		if id := ep.GetID(); id != "" && !deletedIDs[id] && !pair.survivorHolds(id) {
 			// LEGACY-cloudendpoint-kind: BEGIN
 			// The two kinds come from separate informers, so the cached twin
@@ -386,6 +397,19 @@ func (r *CloudEndpointReconciler) processDeletes(ctx context.Context, pair *clou
 		}
 	}
 	return ctrl.Result{}, nil
+}
+
+// freshID returns the ID recorded on ep's latest version in the API server, or "" when it has none or
+// is already gone.
+func (r *CloudEndpointReconciler) freshID(ctx context.Context, ep cloudendpoint.Resource) (string, error) {
+	fresh, ok := ep.DeepCopyObject().(cloudendpoint.Resource)
+	if !ok {
+		return "", nil
+	}
+	if err := r.APIReader.Get(ctx, client.ObjectKeyFromObject(ep), fresh); err != nil {
+		return "", client.IgnoreNotFound(err)
+	}
+	return fresh.GetID(), nil
 }
 
 // twinOf returns an empty object of the other kind, to read ep's twin into.
@@ -643,7 +667,12 @@ func (r *CloudEndpointReconciler) errResult(ep cloudendpoint.Resource, err error
 		18017,
 	}
 	if ngrok.IsErrorCode(err, retryableErrors...) {
-		return ctrl.Result{}, err
+		// The conflicting endpoint is usually one the operator is replacing for the same URL, such as
+		// the public AgentEndpoint a hostname used before it got a CloudEndpoint, and goes away within
+		// seconds. Retry on a short fixed delay rather than the growing error backoff, which would
+		// stretch the gap in service each time the retry comes too early.
+		r.Log.Info("another endpoint still holds this URL; retrying", "name", ep.GetName(), "namespace", ep.GetNamespace(), "error", err.Error())
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 	}
 	if errors.Is(err, domainpkg.ErrDomainNotReady) {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil

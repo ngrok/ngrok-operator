@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	common "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
@@ -178,8 +179,11 @@ type IRPathMatchType string
 
 const (
 	IRPathType_Prefix IRPathMatchType = "prefix"
-	IRPathType_Exact  IRPathMatchType = "exact"
-	IRPathType_Regex  IRPathMatchType = "regex"
+	// IRPathType_SegmentPrefix matches whole path segments, as the Gateway API's PathPrefix does: "/v2"
+	// matches "/v2" and "/v2/x" but not "/v2example".
+	IRPathType_SegmentPrefix IRPathMatchType = "segment-prefix"
+	IRPathType_Exact         IRPathMatchType = "exact"
+	IRPathType_Regex         IRPathMatchType = "regex"
 )
 
 type IRMethodMatch string
@@ -226,6 +230,24 @@ type IRRoute struct {
 	// A list of destinations for the route. A single destination will receive 100% of the traffic, otherwise
 	// the destination for any given request will be chosen according to the weights of the destinations.
 	Destinations []*IRDestination
+
+	// Precedence is set for routes from the Gateway API, which orders matches by its own rules.
+	// When both routes SortRoutes compares have it, those rules decide their order.
+	Precedence *IRRoutePrecedence
+}
+
+// IRRoutePrecedence is what the Gateway API orders HTTPRoute matches by, beyond the match itself.
+type IRRoutePrecedence struct {
+	// Hostname is the route hostname this match was attached to the virtual host with: an exact
+	// name, a "*." wildcard, or "" when the route matches every hostname.
+	Hostname string
+	// CreatedAt is the HTTPRoute's creation time. Older routes win ties.
+	CreatedAt time.Time
+	// Route is the HTTPRoute's "namespace/name", which breaks ties between routes created together.
+	Route string
+	// RuleIndex and MatchIndex locate the match within its HTTPRoute. Earlier rules win ties.
+	RuleIndex  int
+	MatchIndex int
 }
 
 type IRHTTPMatch struct {
@@ -308,6 +330,9 @@ type IRObjectRef struct {
 //  4. Method: Routes specifying a method come before those that don’t; otherwise, lex order.
 func (h *IRVirtualHost) SortRoutes() {
 	sort.SliceStable(h.Routes, func(i, j int) bool {
+		if h.Routes[i].Precedence != nil && h.Routes[j].Precedence != nil {
+			return gatewayRouteLess(h.Routes[i], h.Routes[j])
+		}
 		mi := h.Routes[i].HTTPMatchCriteria
 		mj := h.Routes[j].HTTPMatchCriteria
 
@@ -396,13 +421,84 @@ func (h *IRVirtualHost) SortRoutes() {
 	})
 }
 
+// gatewayRouteLess orders two Gateway API routes by the HTTPRoute precedence rules: the most
+// characters in a matching non-wildcard hostname, then in a matching hostname, then an exact path
+// over a prefix and the longest prefix, then a method, then the most header matches, then the most
+// query parameter matches. Remaining ties go to the oldest route, then to "namespace/name" in
+// alphabetical order, then to the earlier rule and match within the route.
+// https://gateway-api.sigs.k8s.io/reference/spec/#httprouterule
+func gatewayRouteLess(a, b *IRRoute) bool {
+	pa, pb := a.Precedence, b.Precedence
+
+	exactLen := func(h string) int {
+		if h == "" || strings.HasPrefix(h, "*") {
+			return 0
+		}
+		return len(h)
+	}
+	if la, lb := exactLen(pa.Hostname), exactLen(pb.Hostname); la != lb {
+		return la > lb
+	}
+	if len(pa.Hostname) != len(pb.Hostname) {
+		return len(pa.Hostname) > len(pb.Hostname)
+	}
+
+	ma, mb := a.HTTPMatchCriteria, b.HTTPMatchCriteria
+	if ma == nil {
+		ma = &IRHTTPMatch{}
+	}
+	if mb == nil {
+		mb = &IRHTTPMatch{}
+	}
+
+	pathOrder := func(m *IRHTTPMatch) int {
+		if m.Path == nil || m.PathType == nil {
+			// No path matches every path, like the prefix "/".
+			return pathTypeOrder(IRPathType_Prefix)
+		}
+		return pathTypeOrder(*m.PathType)
+	}
+	pathLen := func(m *IRHTTPMatch) int {
+		if m.Path == nil {
+			return 1
+		}
+		return len(*m.Path)
+	}
+	if oa, ob := pathOrder(ma), pathOrder(mb); oa != ob {
+		return oa < ob
+	}
+	if la, lb := pathLen(ma), pathLen(mb); la != lb {
+		return la > lb
+	}
+	if (ma.Method != nil) != (mb.Method != nil) {
+		return ma.Method != nil
+	}
+	if len(ma.Headers) != len(mb.Headers) {
+		return len(ma.Headers) > len(mb.Headers)
+	}
+	if len(ma.QueryParams) != len(mb.QueryParams) {
+		return len(ma.QueryParams) > len(mb.QueryParams)
+	}
+
+	if !pa.CreatedAt.Equal(pb.CreatedAt) {
+		return pa.CreatedAt.Before(pb.CreatedAt)
+	}
+	if pa.Route != pb.Route {
+		return pa.Route < pb.Route
+	}
+	if pa.RuleIndex != pb.RuleIndex {
+		return pa.RuleIndex < pb.RuleIndex
+	}
+	return pa.MatchIndex < pb.MatchIndex
+}
+
 // pathTypeOrder returns an integer to order the path types.
 // Lower values are considered more specific.
 func pathTypeOrder(pt IRPathMatchType) int {
 	switch pt {
 	case IRPathType_Exact:
 		return 0
-	case IRPathType_Prefix:
+	case IRPathType_Prefix, IRPathType_SegmentPrefix:
 		return 1
 	case IRPathType_Regex:
 		return 2

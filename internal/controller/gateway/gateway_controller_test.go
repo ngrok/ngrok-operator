@@ -8,6 +8,7 @@ import (
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	"github.com/ngrok/ngrok-operator/internal/deprecation"
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
+	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -178,6 +179,40 @@ var _ = Describe("Gateway controller", Ordered, func() {
 			})
 		})
 
+		When("the HTTPS listener's certificate Secret exists before the gateway", func() {
+			var secret *corev1.Secret
+
+			BeforeEach(func(ctx SpecContext) {
+				// Created before any Gateway references it, so the Secret watch filters out its event.
+				secret = testutils.NewTLSSecret(testutils.RandomName("cert"), "default")
+				Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+				DeferCleanup(func(ctx SpecContext) {
+					Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, secret))).To(Succeed())
+				})
+
+				gw.Spec.Listeners = []gatewayv1.Listener{{
+					Name:     "https",
+					Hostname: new(gatewayv1.Hostname(fmt.Sprintf("%s.ngrok.io", rand.String(10)))),
+					Port:     443,
+					Protocol: gatewayv1.HTTPSProtocolType,
+					TLS: &gatewayv1.ListenerTLSConfig{
+						CertificateRefs: []gatewayv1.SecretObjectReference{{Name: gatewayv1.ObjectName(secret.Name)}},
+					},
+				}}
+			})
+
+			It("Should resolve the certificate", func(ctx SpecContext) {
+				Eventually(func(g Gomega) {
+					obj := &gatewayv1.Gateway{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), obj)).To(Succeed())
+					g.Expect(obj.Status.Listeners).To(HaveLen(1))
+					cond := meta.FindStatusCondition(obj.Status.Listeners[0].Conditions, string(gatewayv1.ListenerConditionResolvedRefs))
+					g.Expect(cond).ToNot(BeNil())
+					g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+				}, timeout, interval).Should(Succeed())
+			})
+		})
+
 		When("the gateway has a HTTP listener with no hostname", func() {
 			BeforeEach(func() {
 				gw.Spec.Listeners = []gatewayv1.Listener{
@@ -200,7 +235,7 @@ var _ = Describe("Gateway controller", Ordered, func() {
 					gw.Spec.Listeners[0].Name,
 					gatewayv1.ListenerConditionAccepted,
 					metav1.ConditionFalse,
-					ListenerReasonHostnameRequired,
+					managerdriver.ListenerReasonHostnameRequired,
 				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 			})
 
@@ -238,7 +273,7 @@ var _ = Describe("Gateway controller", Ordered, func() {
 					gw.Spec.Listeners[0].Name,
 					gatewayv1.ListenerConditionAccepted,
 					metav1.ConditionFalse,
-					ListenerReasonHostnameRequired,
+					managerdriver.ListenerReasonHostnameRequired,
 				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 			})
 

@@ -18,6 +18,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // internalAgentEndpointName builds a string for the name of an internal AgentEndpoint
@@ -108,6 +109,14 @@ func buildInternalEndpointURL(protocol ir.IRProtocol, serviceUID, serviceName, n
 	// limit on subdomains for endpoint URLs.
 	ret = strings.ReplaceAll(ret, ".", "-")
 
+	// The label before ".internal" is a DNS label, at most 63 characters. Long Service or namespace
+	// names go over it, so cut it and keep it unique with a hash of the whole label. Labels that fit
+	// are unchanged.
+	if label := strings.TrimPrefix(ret, string(scheme)); len(label) > 63 {
+		sum := sha256.Sum256([]byte(label))
+		ret = string(scheme) + strings.TrimRight(label[:63-9], "-") + "-" + hex.EncodeToString(sum[:])[:8]
+	}
+
 	ret += ".internal"
 
 	if protocol == ir.IRProtocol_TCP || protocol == ir.IRProtocol_TLS {
@@ -165,7 +174,9 @@ func sanitizeStringForK8sName(s string) string {
 		hash := hex.EncodeToString(hashBytes[:])[:8]
 		truncateLength := 63 - len(hash) - 1
 		if truncateLength > 0 {
-			s = s[:truncateLength] + "-" + hash
+			// A cut can end on "." or "-", and a name may not have either just before the "-" that
+			// joins the hash (".-" makes an invalid label).
+			s = strings.TrimRight(s[:truncateLength], ".-") + "-" + hash
 		} else {
 			s = hash
 		}
@@ -417,4 +428,15 @@ func getProtoForServicePort(log logr.Logger, service *corev1.Service, portName s
 	}
 
 	return defaultProtocol, nil
+}
+
+// upstreamPort is the port the agent dials for a Service port. A headless Service has no cluster IP for
+// kube-proxy to translate the port on: its name resolves to the Pods, which listen on the targetPort,
+// so use that when it is a number. A named targetPort can only be resolved per Pod, so it falls back to
+// the Service port.
+func upstreamPort(service *corev1.Service, servicePort *corev1.ServicePort) int32 {
+	if service.Spec.ClusterIP == corev1.ClusterIPNone && servicePort.TargetPort.Type == intstr.Int && servicePort.TargetPort.IntVal != 0 {
+		return servicePort.TargetPort.IntVal
+	}
+	return servicePort.Port
 }

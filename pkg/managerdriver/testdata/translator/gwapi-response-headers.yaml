@@ -98,7 +98,7 @@ expected:
             on_http_request:
               - name: Generated-Route
                 expressions:
-                  - "req.url.path.startsWith('/test-service-1')"
+                  - "(req.url.path == '/test-service-1' || req.url.path.startsWith('/test-service-1/'))"
                 actions:
                   - type: forward-internal
                     config:
@@ -114,7 +114,7 @@ expected:
             on_http_response:
               - name: GatewayAPI-Response-Header-Filter
                 expressions:
-                  - "req.url.path.startsWith('/test-service-1')"
+                  - "(req.url.path == '/test-service-1' || req.url.path.startsWith('/test-service-1/'))"
                 actions:
                   - type: remove-headers
                     config:
@@ -128,7 +128,7 @@ expected:
                         X-Route-Set-Header: "add"
               - name: GatewayAPI-Response-Header-Filter
                 expressions:
-                  - "req.url.path.startsWith('/test-service-1')"
+                  - "(req.url.path == '/test-service-1' || req.url.path.startsWith('/test-service-1/'))"
                 actions:
                   - type: remove-headers
                     config:

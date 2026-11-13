@@ -3,6 +3,7 @@ package managerdriver
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	commonv1alpha1 "github.com/ngrok/ngrok-operator/api/common/v1alpha1"
@@ -38,12 +39,16 @@ type translator struct {
 	// We give users the ability to opt-out of requiring ReferenceGrants for cross namespace
 	// references when using Gateway API
 	disableGatewayReferenceGrants bool
+
+	gatewayHostnames GatewayHostnames
 }
 
 // TranslationResult is the final set of translation output resources
 type TranslationResult struct {
 	AgentEndpoints map[types.NamespacedName]*ngrokv1.AgentEndpoint
 	CloudEndpoints map[types.NamespacedName]*ngrokv1.CloudEndpoint
+	// GatewayHostnames lists, for each Gateway, the hostnames its HTTP, HTTPS and TLS endpoints use.
+	GatewayHostnames map[types.NamespacedName][]string
 }
 
 // NewTranslator creates a new default Translator
@@ -55,6 +60,7 @@ func NewTranslator(
 	defaultGatewayMetadata string,
 	clusterDomain string,
 	disableGatewayReferenceGrants bool,
+	gatewayHostnames GatewayHostnames,
 ) Translator {
 	return &translator{
 		log:                           log,
@@ -64,13 +70,14 @@ func NewTranslator(
 		defaultGatewayMetadata:        defaultGatewayMetadata,
 		clusterDomain:                 clusterDomain,
 		disableGatewayReferenceGrants: disableGatewayReferenceGrants,
+		gatewayHostnames:              gatewayHostnames,
 	}
 }
 
 // Translate looks up all relevant stored resources and translates them into the desired output types
 func (t *translator) Translate() *TranslationResult {
 	ingressVirtualHosts := t.ingressesToIR()
-	gatewayVirtualHosts := t.gatewayAPIToIR()
+	gatewayVirtualHosts, gatewayHostnames := t.gatewayAPIToIR()
 
 	virtualHosts := make([]*ir.IRVirtualHost, 0, len(ingressVirtualHosts)+len(gatewayVirtualHosts))
 	for _, irVHost := range ingressVirtualHosts {
@@ -85,8 +92,9 @@ func (t *translator) Translate() *TranslationResult {
 	cloudEndpoints, agentEndpoints := t.IRToEndpoints(virtualHosts)
 
 	return &TranslationResult{
-		AgentEndpoints: agentEndpoints,
-		CloudEndpoints: cloudEndpoints,
+		AgentEndpoints:   agentEndpoints,
+		CloudEndpoints:   cloudEndpoints,
+		GatewayHostnames: gatewayHostnames,
 	}
 }
 
@@ -94,6 +102,7 @@ func (t *translator) Translate() *TranslationResult {
 func validateMappingStrategies(irVHosts []*ir.IRVirtualHost) {
 
 	virtualHostsForService := make(map[ir.IRServiceKey]map[*ir.IRVirtualHost]bool)
+	serviceNamespaces := make(map[ir.IRServiceKey]string)
 	for _, irVHost := range irVHosts {
 		for _, irRoute := range irVHost.Routes {
 			for _, irDestination := range irRoute.Destinations {
@@ -101,6 +110,7 @@ func validateMappingStrategies(irVHosts []*ir.IRVirtualHost) {
 					continue
 				}
 				svcKey := irDestination.Upstream.Service.Key()
+				serviceNamespaces[svcKey] = irDestination.Upstream.Service.Namespace
 				if _, exists := virtualHostsForService[svcKey]; !exists {
 					virtualHostsForService[svcKey] = make(map[*ir.IRVirtualHost]bool)
 				}
@@ -109,6 +119,7 @@ func validateMappingStrategies(irVHosts []*ir.IRVirtualHost) {
 		}
 		if irVHost.DefaultDestination != nil && irVHost.DefaultDestination.Upstream != nil {
 			svcKey := irVHost.DefaultDestination.Upstream.Service.Key()
+			serviceNamespaces[svcKey] = irVHost.DefaultDestination.Upstream.Service.Namespace
 			if _, exists := virtualHostsForService[svcKey]; !exists {
 				virtualHostsForService[svcKey] = make(map[*ir.IRVirtualHost]bool)
 			}
@@ -121,8 +132,14 @@ func validateMappingStrategies(irVHosts []*ir.IRVirtualHost) {
 		// For each service, if it is only used on a single virtual host, then it can become a public AgentEndpoint
 		// if more than one virtual host routes to it, it must become an internal AgentEndpoint regardless of the mapping-strategy annotation
 
+		//
+		// The public AgentEndpoint lives in the Service's namespace, and so does the Domain the AgentEndpoint
+		// controller makes for its hostname. Only collapse when that is the virtual host's own namespace: a
+		// route to a Service elsewhere would otherwise put a second Domain for the same reservation in that
+		// namespace, and deleting it (reclaim policy Delete) would release the hostname the virtual host
+		// still serves.
 		for vHost := range vHostsForService {
-			if len(vHostsForService) == 1 && vHost.MappingStrategy == ir.IRMappingStrategy_EndpointsCollapsed {
+			if len(vHostsForService) == 1 && vHost.MappingStrategy == ir.IRMappingStrategy_EndpointsCollapsed && serviceNamespaces[irServiceKey] == vHost.Namespace {
 				collapsableServices[irServiceKey] = true
 			}
 		}
@@ -573,6 +590,12 @@ func irMatchCriteriaToTPExpressions(matchCriteria *ir.IRHTTPMatch, getRequestDat
 			} else {
 				expressions = appendStringUnique(expressions, fmt.Sprintf("req.url.path == '%s'", *matchCriteria.Path))
 			}
+		case ir.IRPathType_SegmentPrefix:
+			field := "req.url.path"
+			if getRequestDataFromVar {
+				field = "vars.original_path"
+			}
+			expressions = appendStringUnique(expressions, segmentPrefixExpression(field, *matchCriteria.Path))
 		case ir.IRPathType_Prefix:
 			fallthrough
 		default:
@@ -892,6 +915,41 @@ func buildDefault404TPRule() trafficpolicy.Rule {
 				},
 			},
 		},
+	}
+}
+
+// segmentPrefixExpression matches a path prefix by whole segments. A trailing "/" on the prefix is
+// ignored, and "/" matches every path.
+func segmentPrefixExpression(field, prefix string) string {
+	prefix = strings.TrimSuffix(prefix, "/")
+	if prefix == "" {
+		return fmt.Sprintf("%s.startsWith('/')", field)
+	}
+	return fmt.Sprintf("(%s == '%s' || %s.startsWith('%s/'))", field, prefix, field, prefix)
+}
+
+// unresolvedBackendDestination answers with a 500 for the share of a route's traffic that would have
+// gone to a backend that can't be used: one that doesn't exist, isn't a Service, or is in another
+// namespace without a ReferenceGrant. The Gateway API requires the 500 rather than letting the request
+// fall through to another route, and a rule with no backends at all gets one too.
+func unresolvedBackendDestination(weight *int, reason string) *ir.IRDestination {
+	return &ir.IRDestination{
+		Weight: weight,
+		TrafficPolicies: []*trafficpolicy.TrafficPolicy{{
+			OnHTTPRequest: []trafficpolicy.Rule{{
+				Name: "Unresolved-Backend-500",
+				Actions: []trafficpolicy.Action{{
+					Type: trafficpolicy.ActionType_CustomResponse,
+					Config: map[string]any{
+						"status_code": 500,
+						"content":     reason,
+						"headers": map[string]string{
+							"content-type": "text/plain",
+						},
+					},
+				}},
+			}},
+		}},
 	}
 }
 

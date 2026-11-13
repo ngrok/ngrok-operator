@@ -568,6 +568,13 @@ func (r *AgentEndpointReconciler) errResult(ep agentEndpoint, err error) (ctrl.R
 		r.Log.Info("referenced TrafficPolicy not found; awaiting (re)creation", "name", ep.GetName(), "namespace", ep.GetNamespace())
 		return ctrl.Result{}, nil
 	}
+	if strings.Contains(err.Error(), "ERR_NGROK_334") {
+		// Another, unpooled endpoint is online at this URL. It is usually the CloudEndpoint this
+		// AgentEndpoint is replacing, which the operator deletes within seconds. Retry on a short
+		// fixed delay; the growing error backoff would keep the URL offline long after it is free.
+		r.Log.Info("another endpoint is still online at this URL; retrying", "name", ep.GetName(), "namespace", ep.GetNamespace())
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+	}
 	if ngrokapi.IsTrafficPolicyError(err.Error()) {
 		// Terminal: CreateAgentEndpoint rejected the policy itself and
 		// TrafficPolicyManager.SetError already recorded it on the

@@ -113,7 +113,7 @@ expected:
                   - "original_query_params": "${req.url.query_params.encodeJson()}"
             - name: Gen-Random-Number
               expressions:
-              - "vars.original_path.startsWith('/weighted-routes')"
+              - "(vars.original_path == '/weighted-routes' || vars.original_path.startsWith('/weighted-routes/'))"
               actions:
               - type: set-vars
                 config:
@@ -121,7 +121,7 @@ expected:
                   - "weighted_route_random_num": "${rand.int(0,11)}"
             - name: GatewayAPI-URL-Rewrite-Filter
               expressions:
-                - "vars.original_path.startsWith('/weighted-routes')"
+                - "(vars.original_path == '/weighted-routes' || vars.original_path.startsWith('/weighted-routes/'))"
                 - "int(vars.weighted_route_random_num) <= 2"
               actions:
                 - type: url-rewrite
@@ -130,7 +130,7 @@ expected:
                     to: "$1://$2$3/rewrite-svc-1$5"
             - name: Generated-Route
               expressions:
-                - "vars.original_path.startsWith('/weighted-routes')"
+                - "(vars.original_path == '/weighted-routes' || vars.original_path.startsWith('/weighted-routes/'))"
                 - "int(vars.weighted_route_random_num) <= 2"
               actions:
                 - type: forward-internal
@@ -138,7 +138,7 @@ expected:
                     url: "https://e3b0c-test-service-1-default-8080.internal"
             - name: GatewayAPI-URL-Rewrite-Filter
               expressions:
-                - "vars.original_path.startsWith('/weighted-routes')"
+                - "(vars.original_path == '/weighted-routes' || vars.original_path.startsWith('/weighted-routes/'))"
                 - "int(vars.weighted_route_random_num) >= 3 && int(vars.weighted_route_random_num) <= 11"
               actions:
                 - type: url-rewrite
@@ -147,7 +147,7 @@ expected:
                     to: "$1://$2$3/rewrite-svc-2$5"
             - name: Generated-Route
               expressions:
-              - "vars.original_path.startsWith('/weighted-routes')"
+              - "(vars.original_path == '/weighted-routes' || vars.original_path.startsWith('/weighted-routes/'))"
               - "int(vars.weighted_route_random_num) >= 3 && int(vars.weighted_route_random_num) <= 11"
               actions:
                 - type: forward-internal

@@ -106,7 +106,7 @@ func TestGatewayToDomains_SkipsInternalDomains(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gateway := testutils.NewGatewayWithHostnames("test-gateway", "test-namespace", tt.hostnames...)
-			result := gatewayToDomains(gateway, nil)
+			result := gatewayToDomains(gateway, nil, GatewayHostnames{}, nil)
 
 			assert.Len(t, result, len(tt.expectedDomains))
 			for _, expectedDomain := range tt.expectedDomains {
@@ -144,7 +144,7 @@ func TestGatewayToDomains_SkipsExistingDomains(t *testing.T) {
 		},
 	}
 
-	result := gatewayToDomains(gateway, existingDomains)
+	result := gatewayToDomains(gateway, existingDomains, GatewayHostnames{}, nil)
 
 	assert.Len(t, result, 1)
 	_, found := result["new.example.com"]
@@ -184,7 +184,7 @@ func TestGatewayToDomains_SkipsNilHostname(t *testing.T) {
 		},
 	}
 
-	result := gatewayToDomains(gateway, nil)
+	result := gatewayToDomains(gateway, nil, GatewayHostnames{}, nil)
 
 	assert.Len(t, result, 1)
 	_, found := result["example.com"]
@@ -238,7 +238,7 @@ func TestIngressToDomains_WildcardHosts(t *testing.T) {
 
 func TestGatewayToDomains_WildcardHosts(t *testing.T) {
 	gateway := testutils.NewGatewayWithHostnames("test-gateway", "test-namespace", "*.example.com", "a.example.com")
-	domains := gatewayToDomains(gateway, nil)
+	domains := gatewayToDomains(gateway, nil, GatewayHostnames{}, nil)
 
 	assert.Len(t, domains, 2)
 

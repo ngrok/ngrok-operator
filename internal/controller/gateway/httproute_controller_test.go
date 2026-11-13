@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"reflect"
 	"time"
 
 	testutils "github.com/ngrok/ngrok-operator/internal/testutils"
@@ -15,98 +14,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
-
-var _ = Describe("mergeParentStatuses", func() {
-	const (
-		ngrokController = ControllerName
-		otherController = gatewayv1.GatewayController("k8s.io/some-other-controller")
-	)
-
-	It("should not pick up conditions from another controller with the same ParentRef", func() {
-		parentRef := gatewayv1.ParentReference{Name: "shared-gw"}
-
-		// Simulate another controller having already written a status for the same ParentRef
-		existing := []gatewayv1.RouteParentStatus{
-			{
-				ParentRef:      parentRef,
-				ControllerName: otherController,
-				Conditions: []metav1.Condition{
-					{
-						Type:               string(gatewayv1.RouteConditionAccepted),
-						Status:             metav1.ConditionFalse,
-						Reason:             "OtherReason",
-						LastTransitionTime: metav1.Now(),
-					},
-				},
-			},
-		}
-
-		// Reproduce the condition-reuse loop from validateRouteParentRefs.
-		// The fixed code filters by ControllerName to avoid cross-controller pollution.
-		parentStatus := gatewayv1.RouteParentStatus{
-			ParentRef:      parentRef,
-			ControllerName: ngrokController,
-			Conditions:     []metav1.Condition{},
-		}
-
-		for _, s := range existing {
-			if s.ControllerName != ngrokController {
-				continue
-			}
-			if !reflect.DeepEqual(s.ParentRef, parentRef) {
-				continue
-			}
-			parentStatus.Conditions = append([]metav1.Condition(nil), s.Conditions...)
-			break
-		}
-
-		// Should NOT have picked up the other controller's conditions
-		Expect(parentStatus.Conditions).To(BeEmpty(),
-			"should not inherit conditions from a different controller")
-	})
-
-	It("should not share the backing slice with the existing status", func() {
-		parentRef := gatewayv1.ParentReference{Name: "my-gw"}
-
-		existing := []gatewayv1.RouteParentStatus{
-			{
-				ParentRef:      parentRef,
-				ControllerName: ngrokController,
-				Conditions: []metav1.Condition{
-					{
-						Type:               string(gatewayv1.RouteConditionAccepted),
-						Status:             metav1.ConditionTrue,
-						Reason:             string(gatewayv1.RouteReasonAccepted),
-						LastTransitionTime: metav1.Now(),
-					},
-				},
-			},
-		}
-
-		parentStatus := gatewayv1.RouteParentStatus{
-			ParentRef:      parentRef,
-			ControllerName: ngrokController,
-			Conditions:     []metav1.Condition{},
-		}
-
-		// The fixed code deep-copies conditions to avoid aliasing
-		for _, s := range existing {
-			if s.ControllerName != ngrokController {
-				continue
-			}
-			if !reflect.DeepEqual(s.ParentRef, parentRef) {
-				continue
-			}
-			parentStatus.Conditions = append([]metav1.Condition(nil), s.Conditions...)
-			break
-		}
-
-		// Mutating the copy must NOT affect the original
-		parentStatus.Conditions[0].Reason = "Mutated"
-		Expect(existing[0].Conditions[0].Reason).To(Equal(string(gatewayv1.RouteReasonAccepted)),
-			"original conditions should not be mutated through the copy")
-	})
-})
 
 var _ = Describe("HTTPRoute controller", Ordered, func() {
 	const (
@@ -186,12 +93,61 @@ var _ = Describe("HTTPRoute controller", Ordered, func() {
 						g.Expect(parent.ParentRef.Name).To(Equal(gatewayv1.ObjectName(gw.Name)))
 						g.Expect(parent.ControllerName).To(Equal(ManagedControllerName))
 
-						g.Expect(parent.Conditions).To(HaveLen(1))
+						g.Expect(parent.Conditions).To(HaveLen(2))
 						cond := meta.FindStatusCondition(parent.Conditions, string(gatewayv1.RouteConditionAccepted))
 						g.Expect(cond).ToNot(BeNil())
 						g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 						g.Expect(cond.Reason).To(Equal(string(gatewayv1.RouteReasonAccepted)))
+						g.Expect(cond.ObservedGeneration).To(Equal(obj.Generation))
 
+						// The route has no backends, which resolves trivially.
+						cond = meta.FindStatusCondition(parent.Conditions, string(gatewayv1.RouteConditionResolvedRefs))
+						g.Expect(cond).ToNot(BeNil())
+						g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+
+					}, timeout, interval).Should(Succeed())
+				})
+
+				It("Should resolve a backend Service created after the route", func(ctx SpecContext) {
+					svc := testutils.NewTestServiceV1(testutils.RandomName("late-svc"), "default")
+					DeferCleanup(func(ctx SpecContext) {
+						Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, svc))).To(Succeed())
+					})
+
+					resolvedRefs := func(g Gomega) *metav1.Condition {
+						obj := &gatewayv1.HTTPRoute{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
+						g.Expect(obj.Status.Parents).To(HaveLen(1))
+						cond := meta.FindStatusCondition(obj.Status.Parents[0].Conditions, string(gatewayv1.RouteConditionResolvedRefs))
+						g.Expect(cond).ToNot(BeNil())
+						return cond
+					}
+
+					// Point the route at a Service that doesn't exist yet.
+					Eventually(func(g Gomega) {
+						obj := &gatewayv1.HTTPRoute{}
+						g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(route), obj)).To(Succeed())
+						obj.Spec.Rules[0].BackendRefs = []gatewayv1.HTTPBackendRef{{
+
+							Name: gatewayv1.ObjectName(svc.Name),
+							Port: ptr.To(gatewayv1.PortNumber(80)),
+						}}
+						g.Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+					}, timeout, interval).Should(Succeed())
+
+					Eventually(func(g Gomega) {
+						cond := resolvedRefs(g)
+						g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+						g.Expect(cond.Reason).To(Equal(string(gatewayv1.RouteReasonBackendNotFound)))
+					}, timeout, interval).Should(Succeed())
+
+					// Nothing reconciles the route when only the Service changes, so this checks the store
+					// change alone brings the route up to date.
+					Expect(k8sClient.Create(ctx, svc)).To(Succeed())
+					Eventually(func(g Gomega) {
+						cond := resolvedRefs(g)
+						g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+						g.Expect(cond.Reason).To(Equal(string(gatewayv1.RouteReasonResolvedRefs)))
 					}, timeout, interval).Should(Succeed())
 				})
 

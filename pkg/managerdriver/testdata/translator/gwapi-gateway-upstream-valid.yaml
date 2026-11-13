@@ -114,14 +114,14 @@ expected:
             on_http_request:
               - name: Generated-Route
                 expressions:
-                  - "req.url.path.startsWith('/test-service-https')"
+                  - "(req.url.path == '/test-service-https' || req.url.path.startsWith('/test-service-https/'))"
                 actions:
                   - type: forward-internal
                     config:
                       url: "https://e3b0c-test-service-https-default-mtls-baff5-443.internal"
               - name: Generated-Route
                 expressions:
-                  - "req.url.path.startsWith('/test-service-http')"
+                  - "(req.url.path == '/test-service-http' || req.url.path.startsWith('/test-service-http/'))"
                 actions:
                   - type: forward-internal
                     config:

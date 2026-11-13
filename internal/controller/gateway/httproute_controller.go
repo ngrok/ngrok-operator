@@ -26,9 +26,6 @@ package gateway
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"reflect"
 
 	"github.com/go-logr/logr"
 	ingressv1alpha1 "github.com/ngrok/ngrok-operator/api/ingress/v1alpha1"
@@ -39,10 +36,7 @@ import (
 	"github.com/ngrok/ngrok-operator/pkg/managerdriver"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -122,10 +116,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	// Validate the HTTPRoute before updating the store
-	_ = r.validateHTTPRoute(ctx, httproute)
-
-	// Update the HTTPRoute in the store if it passes validation
+	// Status is written by the driver at the end of Sync, from the whole store.
 	_, err = r.Driver.UpdateHTTPRoute(httproute)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -191,178 +182,6 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 	}
 	return builder.Complete(r)
-}
-
-var (
-	ErrValidation        = errors.New("validation")
-	ErrParentRefNotFound = errors.New("parentRefs not found")
-)
-
-func (r *HTTPRouteReconciler) validateHTTPRoute(ctx context.Context, route *gatewayv1.HTTPRoute) error {
-	log := ctrl.LoggerFrom(ctx)
-
-	parentRefsAccepted, err := r.validateRouteParentRefs(ctx, route)
-	if err != nil {
-		return err
-	}
-
-	// Merge our parent statuses with existing ones from other controllers,
-	// rather than replacing the entire RouteStatus which would drop statuses
-	// written by other gateway controllers (e.g. Istio, AWS).
-	mergedParents := mergeParentStatuses(route.Status.RouteStatus.Parents, parentRefsAccepted)
-	route.Status.RouteStatus = gatewayv1.RouteStatus{
-		Parents: mergedParents,
-	}
-
-	err = r.Client.Status().Update(ctx, route)
-	if err != nil {
-		return fmt.Errorf("failed to update httproute status: %w", err)
-	}
-
-	// Check to make sure that all parentRefs have been accepted.
-	// Use only the parent statuses computed by this controller
-	// (parentRefsAccepted) to avoid being affected by conditions
-	// written by other controllers.
-	log.V(3).Info("Checking if all parentRefs have been accepted", "parents", parentRefsAccepted)
-	for _, parentStatus := range parentRefsAccepted {
-		for _, cond := range parentStatus.Conditions {
-			if cond.Status != metav1.ConditionTrue {
-				return fmt.Errorf("%w: route has not been accepted by all parentRefs", ErrValidation)
-			}
-		}
-	}
-
-	log.V(3).Info("All parentRefs have been accepted", "parents", parentRefsAccepted)
-	return nil
-}
-
-func (r *HTTPRouteReconciler) validateRouteParentRefs(ctx context.Context, route *gatewayv1.HTTPRoute) ([]gatewayv1.RouteParentStatus, error) {
-	log := ctrl.LoggerFrom(ctx)
-
-	log.V(5).Info("Validating route parentRefs")
-
-	if len(route.Spec.ParentRefs) == 0 {
-		return nil, ErrParentRefNotFound
-	}
-
-	parentStatuses := []gatewayv1.RouteParentStatus{}
-
-	for _, parentRef := range route.Spec.ParentRefs {
-		// Only emit status for parentRefs that target a Gateway in the gateway API group.
-		// ParentRefs for other groups/kinds belong to other controllers.
-		if !parentRefIsGateway(parentRef) {
-			log.V(5).Info("Skipping parentRef that does not reference a Gateway", "parentRef", parentRef)
-			continue
-		}
-
-		parentRefName := string(parentRef.Name)
-		parentRefNamespace := string(ptr.Deref(parentRef.Namespace, gatewayv1.Namespace(route.Namespace)))
-		parentRefLog := log.WithValues("parentRef", types.NamespacedName{
-			Name:      parentRefName,
-			Namespace: parentRefNamespace,
-		})
-
-		// TODO: Get the gateway from the store to limit the number of API calls
-		gw := &gatewayv1.Gateway{}
-		if err := r.Client.Get(ctx, types.NamespacedName{Name: parentRefName, Namespace: parentRefNamespace}, gw); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				parentRefLog.Error(err, "Failed to get gateway")
-				return nil, err
-			}
-			// Gateway not found; cannot confirm ownership, skip this parentRef.
-			parentRefLog.V(5).Info("Gateway not found, skipping parentRef")
-			continue
-		}
-
-		// Only emit status for parentRefs whose Gateway uses our GatewayClass.
-		gwc := &gatewayv1.GatewayClass{}
-		if err := r.Client.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc); err != nil {
-			if client.IgnoreNotFound(err) != nil {
-				parentRefLog.Error(err, "Failed to get GatewayClass")
-				return nil, err
-			}
-			continue
-		}
-		if !ShouldHandleGatewayClass(gwc) {
-			parentRefLog.V(5).Info("GatewayClass is not managed by this controller, skipping parentRef",
-				"gatewayClass", gwc.Name, "controllerName", gwc.Spec.ControllerName)
-			continue
-		}
-
-		parentStatus := gatewayv1.RouteParentStatus{
-			ParentRef:      parentRef,
-			ControllerName: ControllerName,
-			Conditions:     []metav1.Condition{},
-		}
-
-		// Find & use existing conditions for this parentRef so we preserve previous conditions.
-		// Only reuse conditions from our own controller to avoid picking up another controller's state.
-		for _, s := range route.Status.RouteStatus.Parents {
-			if s.ControllerName != ControllerName {
-				continue
-			}
-			if !reflect.DeepEqual(s.ParentRef, parentRef) {
-				continue
-			}
-			parentStatus.Conditions = append([]metav1.Condition(nil), s.Conditions...)
-			break
-		}
-
-		// Find the listener that matches the parentRef
-		noMatchingParent := true
-		for _, listener := range gw.Spec.Listeners {
-			if parentRef.Port != nil && *parentRef.Port != listener.Port {
-				continue
-			}
-			if parentRef.SectionName != nil && *parentRef.SectionName != listener.Name {
-				continue
-			}
-			noMatchingParent = false
-		}
-
-		var reason gatewayv1.RouteConditionReason
-		if noMatchingParent {
-			reason = gatewayv1.RouteReasonNoMatchingParent
-		} else {
-			reason = gatewayv1.RouteReasonAccepted
-		}
-
-		cnd := r.newCondition(route, gatewayv1.RouteConditionAccepted, reason, "")
-		meta.SetStatusCondition(&parentStatus.Conditions, cnd)
-		parentStatuses = append(parentStatuses, parentStatus)
-	}
-
-	return parentStatuses, nil
-}
-
-// mergeParentStatuses merges our (ngrok) parent statuses into the existing list,
-// preserving statuses from other controllers. It replaces entries with matching
-// ControllerName and updates/adds our entries.
-func mergeParentStatuses(existing, ours []gatewayv1.RouteParentStatus) []gatewayv1.RouteParentStatus {
-	// Build result starting with existing statuses not owned by us
-	result := make([]gatewayv1.RouteParentStatus, 0, len(existing)+len(ours))
-	for _, e := range existing {
-		if e.ControllerName == ControllerName {
-			continue // will be replaced by our new statuses
-		}
-		result = append(result, e)
-	}
-	result = append(result, ours...)
-	return result
-}
-
-func (r *HTTPRouteReconciler) newCondition(route *gatewayv1.HTTPRoute, t gatewayv1.RouteConditionType, reason gatewayv1.RouteConditionReason, msg string) metav1.Condition {
-	status := metav1.ConditionTrue
-	if reason != gatewayv1.RouteReasonAccepted && reason != gatewayv1.RouteReasonResolvedRefs {
-		status = metav1.ConditionFalse
-	}
-	return metav1.Condition{
-		Type:               string(t),
-		Status:             status,
-		ObservedGeneration: route.Generation,
-		Reason:             string(reason),
-		Message:            msg,
-	}
 }
 
 func (r *HTTPRouteReconciler) findHTTPRouteForGateway(ctx context.Context, o client.Object) []reconcile.Request {

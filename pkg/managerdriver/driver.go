@@ -3,9 +3,11 @@ package managerdriver
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -15,6 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -62,11 +64,15 @@ type Driver struct {
 	syncPartialCh       chan struct{}
 	syncAllowConcurrent bool
 
+	resyncMu      sync.Mutex
+	resyncPending bool
+
 	gatewayEnabled                bool
 	gatewayTCPRouteEnabled        bool
 	gatewayTLSRouteEnabled        bool
 	disableGatewayReferenceGrants bool
 	gatewayControllerName         string
+	gatewayHostnames              GatewayHostnames
 
 	defaultDomainReclaimPolicy *ngrokv1.DomainReclaimPolicy
 	apiReader                  client.Reader
@@ -122,6 +128,18 @@ func WithGatewayTCPRouteEnabled(enabled bool) DriverOpt {
 func WithGatewayTLSRouteEnabled(enabled bool) DriverOpt {
 	return func(d *Driver) {
 		d.gatewayTLSRouteEnabled = enabled
+	}
+}
+
+// GatewayHostnames returns how Gateway hostnames become endpoint hostnames.
+func (d *Driver) GatewayHostnames() GatewayHostnames {
+	return d.gatewayHostnames
+}
+
+// WithGatewayHostnames sets how Gateway hostnames become endpoint hostnames.
+func WithGatewayHostnames(h GatewayHostnames) DriverOpt {
+	return func(d *Driver) {
+		d.gatewayHostnames = h
 	}
 }
 
@@ -611,6 +629,43 @@ const syncRequeueDelay = 100 * time.Millisecond
 // returns ctrl.Result{RequeueAfter: syncRequeueDelay} with a nil error so
 // controller-runtime requeues without logging an error or applying exponential
 // backoff. Real errors are passed through unchanged.
+// resyncDelay batches the bursts of store changes that arrive together, like the Services and
+// ReferenceGrants applied with a route, into one Sync.
+const resyncDelay = 250 * time.Millisecond
+
+// requestResync runs a Sync in the background, for a store change that no controller reconciles. Requests
+// made while one is pending join it. It runs until a Sync completes, because Sync asks the caller to try
+// again (ErrSyncRequeue) when another one was running.
+func (d *Driver) requestResync(c client.Client) {
+	d.resyncMu.Lock()
+	if d.resyncPending {
+		d.resyncMu.Unlock()
+		return
+	}
+	d.resyncPending = true
+	d.resyncMu.Unlock()
+
+	go func() {
+		time.Sleep(resyncDelay)
+		d.resyncMu.Lock()
+		d.resyncPending = false
+		d.resyncMu.Unlock()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		for {
+			err := d.Sync(ctx, c)
+			if stderrors.Is(err, ErrSyncRequeue) {
+				continue
+			}
+			if err != nil {
+				d.log.Error(err, "background resync after a store change failed")
+			}
+			return
+		}
+	}()
+}
+
 func HandleSyncResult(err error) (ctrl.Result, error) {
 	if err == ErrSyncRequeue {
 		return ctrl.Result{RequeueAfter: syncRequeueDelay}, nil
@@ -660,9 +715,6 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 	d.log.Info("syncing driver state!!")
 
-	// TODO (Alice): move domains, edges, tunnels to translator
-	domains := d.calculateDomainSet()
-
 	translator := NewTranslator(
 		d.log,
 		d.store,
@@ -671,8 +723,10 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		d.gatewayNgrokMetadata,
 		d.clusterDomain,
 		d.disableGatewayReferenceGrants,
+		d.gatewayHostnames,
 	)
 	translationResult := translator.Translate()
+	domains := d.calculateDomainSet(translationResult.GatewayHostnames)
 
 	// LEGACY-PREFIX-MIGRATION: BEGIN
 	// listAgentEndpointsForController / listCloudEndpointsForController
@@ -749,10 +803,7 @@ func (d *Driver) updateStatuses(ctx context.Context, c client.Client) error {
 
 	if d.gatewayEnabled {
 		g.Go(func() error {
-			if err := d.updateHTTPRouteStatuses(ctx, c); err != nil {
-				return err
-			}
-			return d.updateGatewayStatuses(ctx, c)
+			return d.updateGatewayAPIStatuses(ctx, c)
 		})
 	}
 
@@ -858,114 +909,111 @@ func (d *Driver) recordDomainEventsForIngress(ingress *netv1.Ingress, domains ma
 	}
 }
 
-func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) error {
+// updateGatewayAPIStatuses writes the status of every ngrok Gateway and every HTTPRoute attached to
+// one, as worked out by gatewayAPIState from the store. Each write reads the object first and changes
+// only the parts this controller owns, so conditions and route parents written by others survive.
+func (d *Driver) updateGatewayAPIStatuses(ctx context.Context, c client.Client) error {
 	domains, err := getDomainsByDomain(ctx, c)
 	if err != nil {
 		d.log.Error(err, "failed to list domains")
 		return err
 	}
 
-	needsUpdate := []*gatewayv1.Gateway{}
-
-	for _, gateway := range d.store.ListNgrokGateways() {
-		if gateway == nil {
-			continue
-		}
-
-		addresses := map[string]struct{}{}
-
-		newStatus := gateway.Status.DeepCopy()
-		newStatus.Addresses = []gatewayv1.GatewayStatusAddress{}
-
-		for _, listener := range gateway.Spec.Listeners {
-			if listener.Hostname == nil {
-				continue
-			}
-
-			d, ok := domains[string(*listener.Hostname)]
-			if !ok {
-				continue
-			}
-
-			var hostname string
-
-			if status := d.Status(); status.CNAMETarget != nil {
-				hostname = *status.CNAMETarget
-			} else {
-				// Trim the wildcard prefix if it exists for ngrok managed domains
-				hostname = strings.TrimPrefix(status.Domain, ".*")
-			}
-
-			if hostname != "" {
-				addresses[hostname] = struct{}{}
-			}
-		}
-
-		for addr := range addresses {
-			newStatus.Addresses = append(newStatus.Addresses, gatewayv1.GatewayStatusAddress{
-				Type:  ptr.To(gatewayv1.HostnameAddressType),
-				Value: addr,
-			})
-		}
-
-		sort.Slice(newStatus.Addresses, func(i, j int) bool {
-			return newStatus.Addresses[i].Value < newStatus.Addresses[j].Value
-		})
-
-		for i := range newStatus.Listeners {
-			listener := &newStatus.Listeners[i]
-			if meta.IsStatusConditionFalse(listener.Conditions, string(gatewayv1.ListenerConditionAccepted)) {
-				continue
-			}
-
-			meta.SetStatusCondition(&listener.Conditions, metav1.Condition{
-				Type:               string(gatewayv1.ListenerConditionProgrammed),
-				Status:             metav1.ConditionTrue,
-				Reason:             string(gatewayv1.ListenerReasonProgrammed),
-				ObservedGeneration: gateway.Generation,
-			})
-
-			meta.SetStatusCondition(&newStatus.Conditions, metav1.Condition{
-				Type:               string(gatewayv1.GatewayConditionProgrammed),
-				Status:             metav1.ConditionTrue,
-				Reason:             string(gatewayv1.GatewayReasonProgrammed),
-				ObservedGeneration: gateway.Generation,
-			})
-		}
-
-		if reflect.DeepEqual(gateway.Status, newStatus) {
-			continue
-		}
-
-		gateway.Status = *newStatus
-		needsUpdate = append(needsUpdate, gateway)
+	gateways := d.store.ListNgrokGateways()
+	gatewaysByKey := make(map[types.NamespacedName]*gatewayv1.Gateway, len(gateways))
+	for _, gw := range gateways {
+		gatewaysByKey[client.ObjectKeyFromObject(gw)] = gw
 	}
 
-	if len(needsUpdate) == 0 {
-		return nil
+	state := &gatewayAPIState{
+		controllerName:   gatewayv1.GatewayController(d.gatewayControllerName),
+		hostnames:        d.gatewayHostnames,
+		disableRefGrants: d.disableGatewayReferenceGrants,
+		tcpRoutesEnabled: d.gatewayTCPRouteEnabled,
+		tlsRoutesEnabled: d.gatewayTLSRouteEnabled,
+		referenceGrants:  d.store.ListReferenceGrants(),
+		getNamespace:     d.store.GetNamespaceV1,
+		getService:       d.store.GetServiceV1,
+		getSecret:        d.store.GetSecretV1,
+		getGateway: func(key types.NamespacedName) (*gatewayv1.Gateway, bool) {
+			gw, ok := gatewaysByKey[key]
+			return gw, ok
+		},
+		addresses: func(gw *gatewayv1.Gateway) []string {
+			return d.gatewayAddresses(gw, domains)
+		},
 	}
 
-	// Update the status of the gateways that need it
+	listeners := make(map[types.NamespacedName]map[gatewayv1.SectionName]*listenerResult, len(gateways))
+	for key, gw := range gatewaysByKey {
+		listeners[key] = state.listenerResults(gw)
+	}
+
+	type routeUpdate struct {
+		route        *gatewayv1.HTTPRoute
+		results      []routeParentResult
+		resolvedRefs metav1.Condition
+	}
+	routeUpdates := []routeUpdate{}
+	for _, route := range d.store.ListHTTPRoutes() {
+		results := state.routeParents(route.Namespace, kindHTTPRoute, route.Generation, route.Spec.ParentRefs, route.Spec.Hostnames, listeners)
+		if len(results) == 0 {
+			continue
+		}
+		routeUpdates = append(routeUpdates, routeUpdate{route: route, results: results, resolvedRefs: state.httpRouteResolvedRefs(route)})
+	}
+	// TCPRoutes and TLSRoutes don't get a status from us yet, but they count toward attachedRoutes.
+	if d.gatewayTCPRouteEnabled {
+		for _, route := range d.store.ListTCPRoutes() {
+			state.routeParents(route.Namespace, kindTCPRoute, route.Generation, route.Spec.ParentRefs, nil, listeners)
+		}
+	}
+	if d.gatewayTLSRouteEnabled {
+		for _, route := range d.store.ListTLSRoutes() {
+			state.routeParents(route.Namespace, kindTLSRoute, route.Generation, route.Spec.ParentRefs, route.Spec.Hostnames, listeners)
+		}
+	}
+
 	g := new(errgroup.Group)
 	g.SetLimit(4)
 
-	for _, gateway := range needsUpdate {
+	for key, stored := range gatewaysByKey {
 		g.Go(func() error {
 			return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				current := new(gatewayv1.Gateway)
-				err := c.Get(ctx, client.ObjectKeyFromObject(gateway), current)
-				if err != nil {
-					if apierrors.IsNotFound(err) { // If the gateway was deleted, we don't need to update the status
-						return nil
-					}
-					return err
+				if err := c.Get(ctx, key, current); err != nil {
+					return client.IgnoreNotFound(err)
 				}
-
-				if reflect.DeepEqual(current.Status, gateway.Status) {
+				// The status rules ran against the stored spec. If the Gateway changed since, its own
+				// reconcile will sync again with the new spec.
+				if current.Generation != stored.Generation {
 					return nil
 				}
+				status := state.gatewayStatus(current, listeners[key])
+				if equality.Semantic.DeepEqual(current.Status, status) {
+					return nil
+				}
+				current.Status = status
+				return c.Status().Update(ctx, current)
+			})
+		})
+	}
 
-				current.Status = gateway.Status
+	for _, u := range routeUpdates {
+		g.Go(func() error {
+			return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				current := new(gatewayv1.HTTPRoute)
+				if err := c.Get(ctx, client.ObjectKeyFromObject(u.route), current); err != nil {
+					return client.IgnoreNotFound(err)
+				}
+				if current.Generation != u.route.Generation {
+					return nil
+				}
+				parents := state.routeParentStatuses(current.Status.Parents, u.results, u.resolvedRefs)
+				if equality.Semantic.DeepEqual(current.Status.Parents, parents) {
+					return nil
+				}
+				current.Status.Parents = parents
 				return c.Status().Update(ctx, current)
 			})
 		})
@@ -974,9 +1022,33 @@ func (d *Driver) updateGatewayStatuses(ctx context.Context, c client.Client) err
 	return g.Wait()
 }
 
-// TODO: implement this
-func (d *Driver) updateHTTPRouteStatuses(_ context.Context, _ client.Client) error {
-	return nil
+// gatewayAddresses returns the hostnames a Gateway is reachable at: for each listener, the CNAME target
+// of its Domain when it has one (a custom domain), or the domain itself (an ngrok-managed domain).
+func (d *Driver) gatewayAddresses(gateway *gatewayv1.Gateway, domains map[string]domainpkg.Resource) []string {
+	addresses := []string{}
+	for _, listener := range gateway.Spec.Listeners {
+		domainName := d.gatewayHostnames.Listener(listener)
+		if domainName == "" && len(gateway.Spec.Addresses) == 0 && listenerUsesGeneratedDomain(listener) {
+			domainName = d.gatewayHostnames.Generated(gateway)
+		}
+		if domainName == "" {
+			continue
+		}
+		domain, ok := domains[domainName]
+		if !ok {
+			continue
+		}
+		status := domain.Status()
+		address := strings.TrimPrefix(status.Domain, "*.")
+		if status.CNAMETarget != nil {
+			address = *status.CNAMETarget
+		}
+		if address != "" && !slices.Contains(addresses, address) {
+			addresses = append(addresses, address)
+		}
+	}
+	sort.Strings(addresses)
+	return addresses
 }
 
 func (d *Driver) createEndpointPolicyForGateway(rule *gatewayv1.HTTPRouteRule, namespace string) (json.RawMessage, error) {

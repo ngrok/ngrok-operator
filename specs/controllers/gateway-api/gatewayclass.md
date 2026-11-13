@@ -14,7 +14,7 @@ The GatewayClass controller accepts GatewayClass resources that match the operat
 ## Reconciliation Flow
 
 1. Check if the GatewayClass matches the operator's controller name.
-2. Set the `Accepted` condition to `True`.
+2. Set the `Accepted` condition to `True` for the current generation, and `status.supportedFeatures` to the features the operator passes the conformance suite for (`SupportedFeatures` in `gatewayclass_controller.go`), sorted by name as the API requires.
 3. If Gateways reference this class: add the `gateway-exists-finalizer.gateway.networking.k8s.io` finalizer.
 4. If no Gateways reference this class: remove the finalizer.
 

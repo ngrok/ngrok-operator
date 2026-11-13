@@ -119,6 +119,7 @@ type apiManagerOpts struct {
 	enableFeatureBindings         bool
 	enableFeaturePrivateEndpoints bool
 	disableGatewayReferenceGrants bool
+	gatewayHostnames              managerdriver.GatewayHostnames
 
 	bindings struct {
 		endpointSelectors  []string
@@ -162,6 +163,8 @@ func apiCmd() *cobra.Command {
 	flags.IngressEnabled(fs, &opts.enableFeatureIngress)
 	flags.GatewayEnabled(fs, &opts.enableFeatureGateway)
 	flags.GatewayDisableReferenceGrants(fs, &opts.disableGatewayReferenceGrants)
+	flags.GatewayGeneratedDomainSuffix(fs, &opts.gatewayHostnames.GeneratedSuffix)
+	flags.GatewayConformanceHostSuffix(fs, &opts.gatewayHostnames.ConformanceSuffix)
 	flags.BindingsEnabled(fs, &opts.enableFeatureBindings)
 	flags.PrivateEndpointsEnabled(fs, &opts.enableFeaturePrivateEndpoints)
 	flags.BindingsEndpointSelectors(fs, &opts.bindings.endpointSelectors)
@@ -554,6 +557,7 @@ func getK8sResourceDriver(ctx context.Context, mgr manager.Manager, options apiM
 		managerdriver.WithGatewayControllerName(string(gatewaycontroller.ControllerName)),
 		managerdriver.WithClusterDomain(options.clusterDomain),
 		managerdriver.WithDisableGatewayReferenceGrants(options.disableGatewayReferenceGrants),
+		managerdriver.WithGatewayHostnames(options.gatewayHostnames),
 		managerdriver.WithDefaultDomainReclaimPolicy(defaultDomainReclaimPolicy),
 		managerdriver.WithEventRecorder(mgr.GetEventRecorder("k8s-resource-driver")),
 		managerdriver.WithAPIReader(mgr.GetAPIReader()),

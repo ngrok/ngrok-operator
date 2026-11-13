@@ -102,7 +102,7 @@ expected:
                     - "original_query_params": "${req.url.query_params.encodeJson()}"
             - name: GatewayAPI-URL-Rewrite-Filter
               expressions:
-                - vars.original_path.startsWith('/rewrite-fullpath')
+                - (vars.original_path == '/rewrite-fullpath' || vars.original_path.startsWith('/rewrite-fullpath/'))
               actions:
                 - type: url-rewrite
                   config:
@@ -110,7 +110,7 @@ expected:
                     to: "$1://$2$3/rewrite"
             - name: GatewayAPI-URL-Rewrite-Filter
               expressions:
-                - vars.original_path.startsWith('/rewrite-hostname')
+                - (vars.original_path == '/rewrite-hostname' || vars.original_path.startsWith('/rewrite-hostname/'))
               actions:
                 - type: url-rewrite
                   config:
@@ -118,7 +118,7 @@ expected:
                     to: "$1://rewrite-hostname.com$3$4$5"
             - name: GatewayAPI-URL-Rewrite-Filter
               expressions:
-                - vars.original_path.startsWith('/rewrite-prefix')
+                - (vars.original_path == '/rewrite-prefix' || vars.original_path.startsWith('/rewrite-prefix/'))
               actions:
                 - type: url-rewrite
                   config:

@@ -106,7 +106,7 @@ expected:
                         content-type: text/plain
               - name: Generated-Route
                 expressions:
-                  - "req.url.path.startsWith('/test-service-1')"
+                  - "(req.url.path == '/test-service-1' || req.url.path.startsWith('/test-service-1/'))"
                 actions:
                   - type: forward-internal
                     config:

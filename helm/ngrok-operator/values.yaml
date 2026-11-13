@@ -82,6 +82,8 @@ installCRDs: true
 ## @param ngrok.features.ingress.ingressClass.default Set the IngressClass as the cluster default
 ## @param ngrok.features.gateway.enabled Enable Gateway API support, if the Gateway API CRDs are detected
 ## @param ngrok.features.gateway.disableReferenceGrants Disable the ReferenceGrant requirement for cross-namespace references
+## @param ngrok.features.gateway.generatedDomainSuffix Suffix (for example ngrok.app) under which a Gateway listener without a hostname gets a generated domain. Empty (default) rejects such listeners
+## @param ngrok.features.gateway.conformanceHostnameSuffix Test only: suffix appended to every Gateway API hostname for the conformance suite. Leave empty
 ## @param ngrok.features.bindings.enabled Enable the Endpoint Bindings feature, including the bindings-forwarder
 ## @param ngrok.features.bindings.endpointSelectors CEL expressions filtering which endpoints are projected into this cluster. Default: `["true"]`
 ## @param ngrok.features.bindings.serviceAnnotations Annotations applied to projected services
@@ -134,6 +136,8 @@ ngrok:
     gateway:
       enabled: true
       disableReferenceGrants: false
+      generatedDomainSuffix: ""
+      conformanceHostnameSuffix: ""
     bindings:
       enabled: false
       endpointSelectors: []

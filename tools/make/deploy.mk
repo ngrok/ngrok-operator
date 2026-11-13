@@ -42,7 +42,7 @@ deploy_gateway: _deploy-check-env-vars docker-build manifests _helm_setup kind-l
 		--set ngrok.metadata.env=local,ngrok.metadata.from=makefile \
 		--set ngrok.features.gateway.enabled=true \
 		--set ngrok.features.cleanup.drainPolicy="Delete" \
-		$(HELM_DESCRIPTION_FLAG)
+		$(HELM_DESCRIPTION_FLAG) $(HELM_EXTRA_FLAGS)
 
 .PHONY: deploy_with_bindings
 deploy_with_bindings: _deploy-check-env-vars docker-build manifests _helm_setup kind-load-image ## Deploy controller to the K8s cluster specified in ~/.kube/config.

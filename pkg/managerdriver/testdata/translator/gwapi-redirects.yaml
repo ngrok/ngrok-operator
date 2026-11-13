@@ -110,7 +110,7 @@ expected:
           on_http_request:
             - name: GatewayAPI-Redirect-Filter
               expressions:
-                - "req.url.path.startsWith('/redirect-fullpath')"
+                - "(req.url.path == '/redirect-fullpath' || req.url.path.startsWith('/redirect-fullpath/'))"
               actions:
                 - type: redirect
                   config:
@@ -119,7 +119,7 @@ expected:
                     status_code: 302
             - name: GatewayAPI-Redirect-Filter
               expressions:
-                - "req.url.path.startsWith('/redirect-hostname')"
+                - "(req.url.path == '/redirect-hostname' || req.url.path.startsWith('/redirect-hostname/'))"
               actions:
                 - type: redirect
                   config:
@@ -128,7 +128,7 @@ expected:
                     status_code: 302
             - name: GatewayAPI-Redirect-Filter
               expressions:
-                - "req.url.path.startsWith('/redirect-prefix')"
+                - "(req.url.path == '/redirect-prefix' || req.url.path.startsWith('/redirect-prefix/'))"
               actions:
                 - type: redirect
                   config:
@@ -137,7 +137,7 @@ expected:
                     status_code: 302
             - name: GatewayAPI-Redirect-Filter
               expressions:
-                - "req.url.path.startsWith('/redirect-scheme')"
+                - "(req.url.path == '/redirect-scheme' || req.url.path.startsWith('/redirect-scheme/'))"
               actions:
                 - type: redirect
                   config:
@@ -146,7 +146,7 @@ expected:
                     status_code: 302
             - name: GatewayAPI-Redirect-Filter
               expressions:
-                - "req.url.path.startsWith('/redirect-port')"
+                - "(req.url.path == '/redirect-port' || req.url.path.startsWith('/redirect-port/'))"
               actions:
                 - type: redirect
                   config:

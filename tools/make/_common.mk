@@ -56,6 +56,9 @@ CRD_TEMPLATES_DIR = $(CRD_CHART_DIR)/templates
 ## Tool Versions
 # controller-gen, setup-envtest, helm, kind are provided by nixpkgs; use 'nix develop'
 
+# Extra flags passed to helm by deploy targets that support it (deploy_gateway).
+HELM_EXTRA_FLAGS ?=
+
 # GitHub Codespaces sets this; default to empty so --warn-undefined-variables doesn't fire.
 CODESPACE_NAME ?=
 
@@ -70,4 +73,5 @@ include tools/make/test.mk
 include tools/make/build.mk
 include tools/make/deploy.mk
 include tools/make/kind.mk
+include tools/make/conformance.mk
 include tools/make/release.mk

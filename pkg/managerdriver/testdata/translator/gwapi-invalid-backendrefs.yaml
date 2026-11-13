@@ -1,4 +1,5 @@
-# Request mirror filters are not currently supported and should be ignored
+# Request mirror filters are not currently supported and should be ignored. Rules whose backendRefs are
+# invalid (not a Service, missing port, missing Service) answer with a 500, as the Gateway API requires.
 input:
   gatewayClasses:
   - apiVersion: gateway.networking.k8s.io/v1
@@ -100,6 +101,19 @@ input:
         targetPort: http
       type: ClusterIP
 expected:
+  agentEndpoints:
+  - apiVersion: ngrok.com/v1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-test-service-1-default-8080
+      namespace: default
+    spec:
+      upstream:
+        url: http://test-service-1.default:8080
+      url: https://e3b0c-test-service-1-default-8080.internal
   cloudEndpoints:
   - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
@@ -112,33 +126,60 @@ expected:
     spec:
       trafficPolicy:
         inline:
-            on_http_request:
-              - name: Generated-Route
-                expressions:
-                  - "req.url.path.startsWith('/test-service-1')"
-                actions:
-                  - type: forward-internal
-                    config:
-                      url: "https://e3b0c-test-service-1-default-8080.internal"
-              - name: Fallback-404
-                actions:
-                - type: custom-response
-                  config:
-                    status_code: 404
-                    content: "No route was found for this ngrok Endpoint"
-                    headers:
-                      content-type: text/plain
+          on_http_request:
+          - actions:
+            - config:
+                url: https://e3b0c-test-service-1-default-8080.internal
+              type: forward-internal
+            expressions:
+            - (req.url.path == '/test-service-1' || req.url.path.startsWith('/test-service-1/'))
+            name: Generated-Route
+          - actions:
+            - config:
+                content: The backend for this route is not available
+                headers:
+                  content-type: text/plain
+                status_code: 500
+              type: custom-response
+            expressions:
+            - (req.url.path == '/test-service-1' || req.url.path.startsWith('/test-service-1/'))
+            name: Unresolved-Backend-500
+          - actions:
+            - config:
+                content: The backend for this route is not available
+                headers:
+                  content-type: text/plain
+                status_code: 500
+              type: custom-response
+            expressions:
+            - (req.url.path == '/test-service-1' || req.url.path.startsWith('/test-service-1/'))
+            name: Unresolved-Backend-500
+          - actions:
+            - config:
+                content: The backend for this route is not available
+                headers:
+                  content-type: text/plain
+                status_code: 500
+              type: custom-response
+            expressions:
+            - (req.url.path == '/test-service-3' || req.url.path.startsWith('/test-service-3/'))
+            name: Unresolved-Backend-500
+          - actions:
+            - config:
+                content: The backend for this route is not available
+                headers:
+                  content-type: text/plain
+                status_code: 500
+              type: custom-response
+            expressions:
+            - (req.url.path == '/test-service-4' || req.url.path.startsWith('/test-service-4/'))
+            name: Unresolved-Backend-500
+          - actions:
+            - config:
+                content: No route was found for this ngrok Endpoint
+                headers:
+                  content-type: text/plain
+                status_code: 404
+              type: custom-response
+            name: Fallback-404
       url: https://test-hostname.ngrok.io
-  agentEndpoints:
-  - apiVersion: ngrok.com/v1
-    kind: AgentEndpoint
-    metadata:
-      labels:
-        ngrok.com/controller-name: test-manager-name
-        ngrok.com/controller-namespace: test-manager-namespace
-      name: e3b0c-test-service-1-default-8080
-      namespace: default
-    spec:
-      url: "https://e3b0c-test-service-1-default-8080.internal"
-      upstream:
-        url: "http://test-service-1.default:8080"

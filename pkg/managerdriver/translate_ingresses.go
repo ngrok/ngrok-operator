@@ -359,7 +359,7 @@ func (t *translator) ingressBackendToIR(ingress *netv1.Ingress, backend *netv1.I
 		UID:       string(service.UID),
 		Name:      serviceName,
 		Namespace: ingress.Namespace,
-		Port:      servicePort.Port,
+		Port:      upstreamPort(service, servicePort),
 		Scheme:    irScheme,
 		Protocol:  appProtocol,
 	}

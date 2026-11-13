@@ -1,6 +1,8 @@
 package managerdriver
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -12,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestSanitizeStringForURL(t *testing.T) {
@@ -88,6 +91,16 @@ func TestBuildInternalEndpointURL(t *testing.T) {
 		protocol               ir.IRProtocol
 		expectedErr            *string
 	}{
+		{
+			name:           "Label over 63 characters is cut with a hash",
+			serviceName:    "headless-manual-endpointslices",
+			namespace:      "gateway-conformance-infra",
+			clusterDomain:  "",
+			port:           8080,
+			serviceUID:     "1234",
+			protocol:       ir.IRProtocol_HTTP,
+			expectedResult: "http://03ac6-headless-manual-endpointslices-gateway-conforman-" + sanitizeHash("03ac6-headless-manual-endpointslices-gateway-conformance-infra-8080") + ".internal",
+		},
 		{
 			name:           "Normal case",
 			serviceName:    "service",
@@ -208,6 +221,11 @@ func TestSanitizeStringForK8sName(t *testing.T) {
 			name:           "Invalid characters",
 			input:          "invalid*chars!",
 			expectedResult: "invalidwildcardchars",
+		},
+		{
+			name:           "Cut that would end on a dot",
+			input:          "gateway-add-listener.gateway-conformance-infra-secure.test.com.alex.gwapi-conformance.test",
+			expectedResult: "gateway-add-listener.gateway-conformance-infra-secure-" + sanitizeHash("gateway-add-listener.gateway-conformance-infra-secure.test.com.alex.gwapi-conformance.test"),
 		},
 		{
 			name:           "Exceeds max length with hash",
@@ -548,5 +566,35 @@ func TestCalculateIngressLoadBalancerIPStatus_DeterministicOrder(t *testing.T) {
 	for i := range 20 {
 		result := calculateIngressLoadBalancerIPStatus(ing, domains)
 		assert.Equal(t, expected, result, "iteration %d: status should be sorted by hostname", i)
+	}
+}
+
+func sanitizeHash(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])[:8]
+}
+
+func TestUpstreamPort(t *testing.T) {
+	port := func(target intstr.IntOrString) *corev1.ServicePort {
+		return &corev1.ServicePort{Port: 8080, TargetPort: target}
+	}
+	svc := func(clusterIP string) *corev1.Service {
+		return &corev1.Service{Spec: corev1.ServiceSpec{ClusterIP: clusterIP}}
+	}
+	tests := []struct {
+		name string
+		svc  *corev1.Service
+		port *corev1.ServicePort
+		want int32
+	}{
+		{"ClusterIP Service uses the Service port", svc("10.0.0.1"), port(intstr.FromInt32(3000)), 8080},
+		{"headless Service uses a numeric targetPort", svc(corev1.ClusterIPNone), port(intstr.FromInt32(3000)), 3000},
+		{"headless Service with a named targetPort falls back to the Service port", svc(corev1.ClusterIPNone), port(intstr.FromString("http")), 8080},
+		{"headless Service without a targetPort uses the Service port", svc(corev1.ClusterIPNone), port(intstr.IntOrString{}), 8080},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, upstreamPort(tt.svc, tt.port))
+		})
 	}
 }

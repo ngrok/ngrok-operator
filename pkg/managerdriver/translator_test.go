@@ -123,7 +123,7 @@ func TestBuildInternalAgentEndpoint(t *testing.T) {
 			clusterDomain:    "custom.domain",
 			metadata:         `{"owner":"prod-metadata"}`,
 			expectedName:     "5a464-another-service-custom-namespace-mtls-d025c-cust-5fd9effa",
-			expectedURL:      "https://5a464-another-service-custom-namespace-mtls-d025c-custom-domain-443.internal",
+			expectedURL:      "https://5a464-another-service-custom-namespace-mtls-d025c-cust-f5b619a1.internal",
 			expectedUpstream: "https://another-service.custom-namespace-custom.domain:443",
 		},
 	}
@@ -479,6 +479,10 @@ func TestGatewayMethodToIR(t *testing.T) {
 // TranslatorRawTestCase facuilitates the initial loading of test input/expected objects, but k8s objects with embedded structs don't parse cleanly
 // with regular yaml marshalling so we need to be a little creative about how we process them.
 type TranslatorRawTestCase struct {
+	GatewayHostnames struct {
+		GeneratedSuffix   string `yaml:"generatedSuffix"`
+		ConformanceSuffix string `yaml:"conformanceSuffix"`
+	} `yaml:"gatewayHostnames"`
 	Input struct {
 		GatewayClasses  []map[string]any `yaml:"gatewayClasses"`
 		Gateways        []map[string]any `yaml:"gateways"`
@@ -496,13 +500,17 @@ type TranslatorRawTestCase struct {
 	} `yaml:"input"`
 
 	Expected struct {
-		CloudEndpoints []map[string]any `yaml:"cloudEndpoints"`
-		AgentEndpoints []map[string]any `yaml:"agentEndpoints"`
+		CloudEndpoints   []map[string]any    `yaml:"cloudEndpoints"`
+		AgentEndpoints   []map[string]any    `yaml:"agentEndpoints"`
+		GatewayHostnames map[string][]string `yaml:"gatewayHostnames"`
 	} `yaml:"expected"`
 }
 
 // TranslatorTestCase stores our actual fully parsed inputs/outputs
 type TranslatorTestCase struct {
+	// GatewayHostnames configures the translator's Gateway hostname settings for this case.
+	GatewayHostnames GatewayHostnames
+
 	Input struct {
 		GatewayClasses []*gatewayv1.GatewayClass
 		Gateways       []*gatewayv1.Gateway
@@ -529,6 +537,9 @@ type TranslatorTestCase struct {
 	Expected struct {
 		CloudEndpoints []*ngrokv1.CloudEndpoint
 		AgentEndpoints []*ngrokv1.AgentEndpoint
+		// GatewayHostnames, when set, are the endpoint hostnames expected for each Gateway, keyed by
+		// "namespace/name". The Domains the driver reserves come from these.
+		GatewayHostnames map[string][]string
 	}
 }
 
@@ -598,10 +609,21 @@ func TestTranslate(t *testing.T) {
 				driver.gatewayNgrokMetadata,
 				"svc.cluster.local",
 				false, // Require reference grants (default)
+				tc.GatewayHostnames,
 			)
 
 			// Finally, run translate and check the contents
 			result := translator.Translate()
+			if tc.Expected.GatewayHostnames != nil {
+				actual := map[string][]string{}
+				for key, hostnames := range result.GatewayHostnames {
+					actual[key.String()] = hostnames
+				}
+				for key, hostnames := range tc.Expected.GatewayHostnames {
+					assert.ElementsMatch(t, hostnames, actual[key], "endpoint hostnames for Gateway %s", key)
+				}
+				assert.Len(t, actual, len(tc.Expected.GatewayHostnames))
+			}
 			assert.Equal(t, len(tc.Expected.CloudEndpoints), len(result.CloudEndpoints), fmt.Sprintf("mismatch in actual vs expected number of cloud endpoints from translation, expected: %v, actual: %v", toIDs(tc.Expected.CloudEndpoints), result.CloudEndpoints))
 			assert.Equal(t, len(tc.Expected.AgentEndpoints), len(result.AgentEndpoints), fmt.Sprintf("mismatch in actual vs expected number of agent endpoints from translation, expected: %v, actual: %v", toIDs(tc.Expected.AgentEndpoints), result.AgentEndpoints))
 
@@ -708,6 +730,7 @@ func TestTranslate(t *testing.T) {
 				driver.gatewayNgrokMetadata,
 				"svc.cluster.local",
 				true, // Disable reference grants
+				GatewayHostnames{},
 			)
 
 			// Finally, run translate and check the contents
@@ -842,6 +865,11 @@ func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) Tran
 
 	// Use scheme based decoding to properly parse everything into TestCase
 	tc := TranslatorTestCase{}
+	tc.GatewayHostnames = GatewayHostnames{
+		GeneratedSuffix:   rawTC.GatewayHostnames.GeneratedSuffix,
+		ConformanceSuffix: rawTC.GatewayHostnames.ConformanceSuffix,
+	}
+	tc.Expected.GatewayHostnames = rawTC.Expected.GatewayHostnames
 
 	// Decode input objects
 	for _, rawObj := range rawTC.Input.GatewayClasses {
@@ -1051,6 +1079,22 @@ func TestGatewayTLSTermConfigToIROptionPrecedence(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, tlsTermCfg.ExtendedOptions)
+		})
+	}
+}
+
+func TestSegmentPrefixExpression(t *testing.T) {
+	tests := []struct {
+		prefix, want string
+	}{
+		{"/", "req.url.path.startsWith('/')"},
+		{"/v2", "(req.url.path == '/v2' || req.url.path.startsWith('/v2/'))"},
+		{"/v2/", "(req.url.path == '/v2' || req.url.path.startsWith('/v2/'))"},
+		{"/a/b", "(req.url.path == '/a/b' || req.url.path.startsWith('/a/b/'))"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.prefix, func(t *testing.T) {
+			assert.Equal(t, tt.want, segmentPrefixExpression("req.url.path", tt.prefix))
 		})
 	}
 }

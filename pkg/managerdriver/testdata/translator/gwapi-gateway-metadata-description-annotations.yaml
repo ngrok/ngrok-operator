@@ -83,7 +83,7 @@ expected:
           on_http_request:
           - name: Generated-Route
             expressions:
-            - "req.url.path.startsWith('/app')"
+            - "(req.url.path == '/app' || req.url.path.startsWith('/app/'))"
             actions:
             - type: forward-internal
               config:

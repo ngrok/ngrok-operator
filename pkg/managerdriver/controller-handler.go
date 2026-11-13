@@ -22,28 +22,44 @@ var _ handler.EventHandler = &ControllerEventHandler{}
 // It is used to simply watch some resources and keep their values updated in the store.
 // It is used to keep various crds like edges/tunnels/domains, and core resources like ingress classes, updated.
 type ControllerEventHandler struct {
-	client client.Client
-	driver *Driver
-	store  store.Storer
-	log    logr.Logger
+	resourceName string
+	client       client.Client
+	driver       *Driver
+	store        store.Storer
+	log          logr.Logger
 }
 
 // NewControllerEventHandler creates a new ControllerEventHandler
 func NewControllerEventHandler(resourceName string, d *Driver, client client.Client) *ControllerEventHandler {
 	return &ControllerEventHandler{
-		driver: d,
-		client: client,
-		store:  d.store,
-		log:    d.log.WithValues("ControllerEventHandlerFor", resourceName),
+		resourceName: resourceName,
+		driver:       d,
+		client:       client,
+		store:        d.store,
+		log:          d.log.WithValues("ControllerEventHandlerFor", resourceName),
 	}
 }
 
+// changed reacts to a change in the store. Most kinds feed translation: a Service, Secret or
+// ReferenceGrant that appears after the route that uses it changes the endpoints and the route's
+// status, so the driver syncs again. A Domain only changes the addresses in status.
+func (e *ControllerEventHandler) changed(ctx context.Context) {
+	if e.resourceName == "Domain" {
+		if err := e.driver.updateStatuses(ctx, e.client); err != nil {
+			e.log.Error(err, "error updating statuses after domain change")
+		}
+		return
+	}
+	e.driver.requestResync(e.client)
+}
+
 // Create is called in response to an create event - e.g. Edge Creation.
-func (e *ControllerEventHandler) Create(_ context.Context, evt event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (e *ControllerEventHandler) Create(ctx context.Context, evt event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	if err := e.store.Update(evt.Object); err != nil {
 		e.log.Error(err, "error updating object in create", "object", evt.Object)
 		return
 	}
+	e.changed(ctx)
 }
 
 // Update is called in response to an update event -  e.g. Edge Updated.
@@ -52,18 +68,16 @@ func (e *ControllerEventHandler) Update(ctx context.Context, evt event.UpdateEve
 		e.log.Error(err, "error updating object in update", "object", evt.ObjectNew)
 		return
 	}
-	if err := e.driver.updateStatuses(ctx, e.client); err != nil {
-		e.log.Error(err, "error syncing after object update", "object", evt.ObjectNew)
-		return
-	}
+	e.changed(ctx)
 }
 
 // Delete is called in response to a delete event - e.g. Edge Deleted.
-func (e *ControllerEventHandler) Delete(_ context.Context, evt event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (e *ControllerEventHandler) Delete(ctx context.Context, evt event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	if err := e.store.Delete(evt.Object); err != nil {
 		e.log.Error(err, "error deleting object", "object", evt.Object)
 		return
 	}
+	e.changed(ctx)
 }
 
 // Generic is called in response to an event of an unknown type or a synthetic event triggered as a cron or

@@ -114,14 +114,14 @@ expected:
             on_http_request:
               - name: Generated-Route
                 expressions:
-                  - "req.url.path.startsWith('/cross-namespace-svc')"
+                  - "(req.url.path == '/cross-namespace-svc' || req.url.path.startsWith('/cross-namespace-svc/'))"
                 actions:
                   - type: forward-internal
                     config:
                       url: "https://e3b0c-cross-namespace-svc-other-8080.internal"
               - name: Generated-Route
                 expressions:
-                  - "req.url.path.startsWith('/same-namespace-svc')"
+                  - "(req.url.path == '/same-namespace-svc' || req.url.path.startsWith('/same-namespace-svc/'))"
                 actions:
                   - type: forward-internal
                     config:

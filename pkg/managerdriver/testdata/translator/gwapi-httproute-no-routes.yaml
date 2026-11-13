@@ -1,4 +1,5 @@
-# HTTPRoutes with no traffic policies or routes should not result in config
+# A rule with no backends and no filters has nothing to do with a request, so the Gateway API requires
+# a 500 for it.
 input:
   gatewayClasses:
   - apiVersion: gateway.networking.k8s.io/v1
@@ -57,6 +58,36 @@ input:
         targetPort: http
       type: ClusterIP
 expected:
-  cloudEndpoints: []
   agentEndpoints: []
-
+  cloudEndpoints:
+  - apiVersion: ngrok.com/v1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
+      name: test-gateway.default-test-hostname.ngrok.io
+      namespace: default
+    spec:
+      trafficPolicy:
+        inline:
+          on_http_request:
+          - actions:
+            - config:
+                content: This route has no backends
+                headers:
+                  content-type: text/plain
+                status_code: 500
+              type: custom-response
+            expressions:
+            - (req.url.path == '/test-service-1' || req.url.path.startsWith('/test-service-1/'))
+            name: Unresolved-Backend-500
+          - actions:
+            - config:
+                content: No route was found for this ngrok Endpoint
+                headers:
+                  content-type: text/plain
+                status_code: 404
+              type: custom-response
+            name: Fallback-404
+      url: https://test-hostname.ngrok.io

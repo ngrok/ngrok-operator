@@ -30,6 +30,7 @@ func (d *Driver) SyncEndpoints(ctx context.Context, c client.Client) error {
 		d.gatewayNgrokMetadata,
 		d.clusterDomain,
 		d.disableGatewayReferenceGrants,
+		d.gatewayHostnames,
 	)
 	translationResult := translator.Translate()
 
@@ -155,6 +156,11 @@ func (d *Driver) applyAgentEndpoints(ctx context.Context, c client.Client, desir
 				continue
 			}
 			d.log.Error(err, "error creating agent endpoint", "agent endpoint", agentEndpoint)
+			// The API server rejecting this one object won't change on retry, and returning would
+			// skip the rest of the Sync, status included, for every Ingress and Gateway.
+			if apierrors.IsInvalid(err) {
+				continue
+			}
 			return err
 		}
 	}
@@ -262,6 +268,11 @@ func (d *Driver) applyCloudEndpoints(ctx context.Context, c client.Client, desir
 				continue
 			}
 			d.log.Error(err, "error creating cloud endpoint", "cloud endpoint", cloudEndpoint)
+			// The API server rejecting this one object won't change on retry, and returning would
+			// skip the rest of the Sync, status included, for every Ingress and Gateway.
+			if apierrors.IsInvalid(err) {
+				continue
+			}
 			return err
 		}
 	}

@@ -1,0 +1,24 @@
+apiVersion: gateway.networking.kubernetes.io/v1
+kind: ImplementationListDetails
+organization: ngrok
+project: ngrok-operator
+url: https://github.com/ngrok/ngrok-operator
+fullName: ngrok Kubernetes Operator
+description: |
+  The [ngrok Kubernetes Operator][ngrok-operator] is an open source controller that
+  implements the Gateway API on top of [ngrok][ngrok]'s global network. It watches
+  Gateways and their routes and programs ngrok endpoints through the ngrok API. The cluster connects outbound only, so services are reachable
+  without a cloud load balancer, public IPs, or inbound firewall changes, which makes
+  it useful for clusters on-prem, at the edge, or inside customer environments.
+
+  ngrok Traffic Policy can be attached through `extensionRef` filters when a route
+  needs behavior beyond what the Gateway API expresses, such as authentication,
+  rate limiting, or request transformation.
+
+  See the [documentation][ngrok-operator-gwapi-docs] to get started. For bugs and
+  feature requests, [open an issue][ngrok-operator-issue-new].
+
+  [ngrok-operator]: https://github.com/ngrok/ngrok-operator
+  [ngrok]: https://ngrok.com
+  [ngrok-operator-gwapi-docs]: https://ngrok.com/docs/getting-started/kubernetes/gateway-api/
+  [ngrok-operator-issue-new]: https://github.com/ngrok/ngrok-operator/issues/new/choose

@@ -1675,7 +1675,7 @@ var _ = Describe("Driver", func() {
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
 			Expect(driver.Seed(GinkgoT().Context(), c)).To(BeNil())
 
-			domainSet := driver.calculateDomainSet()
+			domainSet := driver.calculateDomainSet(nil)
 			Expect(domainSet.endpointIngressDomains).To(HaveLen(4))
 			Expect(domainSet.endpointIngressDomains).To(HaveKey("a.customdomain.com"))
 			Expect(domainSet.endpointIngressDomains).To(HaveKey("b.customdomain.com"))
@@ -1684,7 +1684,7 @@ var _ = Describe("Driver", func() {
 		})
 	})
 
-	Describe("updateGatewayStatuses", func() {
+	Describe("updateGatewayAPIStatuses", func() {
 		It("Should not overwrite status of non-ngrok gateways", func() {
 			// Create ngrok and non-ngrok gateway classes
 			ngrokGWClass := testutils.NewGatewayClass(true)
@@ -1787,7 +1787,7 @@ var _ = Describe("Driver", func() {
 			err := gwDriver.Seed(GinkgoT().Context(), c)
 			Expect(err).ToNot(HaveOccurred())
 
-			err = gwDriver.updateGatewayStatuses(GinkgoT().Context(), c)
+			err = gwDriver.updateGatewayAPIStatuses(GinkgoT().Context(), c)
 			Expect(err).ToNot(HaveOccurred())
 
 			// Fetch the updated gateway and verify the Programmed condition on the listener
@@ -1834,7 +1834,7 @@ var _ = Describe("Driver", func() {
 			err := gwDriver.Seed(GinkgoT().Context(), c)
 			Expect(err).ToNot(HaveOccurred())
 
-			domainSet := gwDriver.calculateDomainSet()
+			domainSet := gwDriver.calculateDomainSet(nil)
 
 			// Should include the ngrok gateway domain
 			Expect(domainSet.endpointGatewayDomains).To(HaveKey("ngrok.example.com"))

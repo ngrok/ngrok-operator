@@ -3,9 +3,12 @@ package ngrok
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/go-logr/logr"
+	"github.com/ngrok/ngrok-api-go/v9"
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
 	"github.com/stretchr/testify/assert"
@@ -88,6 +91,20 @@ func TestIndexCloudEndpointTrafficPolicyRefs(t *testing.T) {
 			}
 			got := indexCloudEndpointTrafficPolicyRefs(tt.clep)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestErrResultURLConflict covers the retry for a URL another endpoint still holds: it requeues on a
+// short fixed delay instead of returning the error, which would back off further on each attempt.
+func TestErrResultURLConflict(t *testing.T) {
+	r := &CloudEndpointReconciler{Log: logr.Discard()}
+	ep := &ngrokv1.CloudEndpoint{}
+	for _, code := range []string{"ERR_NGROK_18016", "ERR_NGROK_18017"} {
+		t.Run(code, func(t *testing.T) {
+			res, err := r.errResult(ep, &ngrok.Error{StatusCode: 400, ErrorCode: code})
+			assert.NoError(t, err)
+			assert.Equal(t, 2*time.Second, res.RequeueAfter)
 		})
 	}
 }

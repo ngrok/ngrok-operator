@@ -11,6 +11,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -47,40 +48,57 @@ func ingressToDomains(in *netv1.Ingress, existingDomains map[string]ngrokv1.Doma
 	return endpointDomains
 }
 
-// gatewayToDomains constructs domains for edges/endpoints from an input Gateway
-func gatewayToDomains(in *gatewayv1.Gateway, existingDomains map[string]ngrokv1.Domain) (endpointDomains map[string]ngrokv1.Domain) {
+// gatewayToDomains constructs domains for edges/endpoints from an input Gateway: one for each listener
+// hostname, the Gateway's generated domain when a listener has no hostname, and endpointHostnames, the
+// hostnames translation gave the Gateway's endpoints (which can come from its routes).
+func gatewayToDomains(in *gatewayv1.Gateway, existingDomains map[string]ngrokv1.Domain, h GatewayHostnames, endpointHostnames []string) (endpointDomains map[string]ngrokv1.Domain) {
 	endpointDomains = make(map[string]ngrokv1.Domain)
-	for _, listener := range in.Spec.Listeners {
-		if listener.Hostname == nil {
-			continue
-		}
 
-		domainName := string(*listener.Hostname)
+	add := func(domainName string) {
 		if domainName == "" {
-			continue
+			return
 		}
 		// Skip internal domains - they cannot be reserved via the ngrok API
 		if util.IsInternalDomain(domainName) {
-			continue
+			return
 		}
 		if _, found := existingDomains[domainName]; found {
 			// TODO update gateway status
 			// also add error to error page
-			continue
+			return
 		}
-
-		domain := ngrokv1.Domain{
+		endpointDomains[domainName] = ngrokv1.Domain{
 			Name:      ngrokv1.HyphenatedDomainNameFromURL(domainName),
 			Namespace: in.Namespace,
 			Spec: ngrokv1.DomainSpec{
 				Domain: domainName,
 			},
 		}
+	}
 
-		endpointDomains[domainName] = domain
-
+	for _, listener := range in.Spec.Listeners {
+		if hostname := h.Listener(listener); hostname != "" {
+			add(hostname)
+			continue
+		}
+		if len(in.Spec.Addresses) == 0 && listenerUsesGeneratedDomain(listener) {
+			add(h.Generated(in))
+		}
+	}
+	for _, hostname := range endpointHostnames {
+		add(hostname)
 	}
 	return endpointDomains
+}
+
+// listenerUsesGeneratedDomain reports whether a listener without a hostname gets the Gateway's
+// generated domain. TCP and UDP endpoints are not addressed by hostname.
+func listenerUsesGeneratedDomain(l gatewayv1.Listener) bool {
+	switch l.Protocol {
+	case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType, gatewayv1.TLSProtocolType:
+		return true
+	}
+	return false
 }
 
 // applyDomains takes a set of the desired domains and current domains, creates any missing desired domains, and updated existing domains if needed
@@ -191,7 +209,9 @@ type domainSet struct {
 	totalDomains map[string]ngrokv1.Domain
 }
 
-func (d *Driver) calculateDomainSet() *domainSet {
+// calculateDomainSet works out every Domain the Ingresses and Gateways need. gatewayHostnames are the
+// endpoint hostnames translation gave each Gateway (TranslationResult.GatewayHostnames).
+func (d *Driver) calculateDomainSet(gatewayHostnames map[types.NamespacedName][]string) *domainSet {
 	ret := &domainSet{
 		endpointIngressDomains: make(map[string]ngrokv1.Domain),
 		endpointGatewayDomains: make(map[string]ngrokv1.Domain),
@@ -211,7 +231,7 @@ func (d *Driver) calculateDomainSet() *domainSet {
 	// Calculate domains from gateway resources
 	gateways := d.store.ListNgrokGateways()
 	for _, gateway := range gateways {
-		endpointDomains := gatewayToDomains(gateway, ret.totalDomains)
+		endpointDomains := gatewayToDomains(gateway, ret.totalDomains, d.gatewayHostnames, gatewayHostnames[client.ObjectKeyFromObject(gateway)])
 		for key, val := range endpointDomains {
 			ret.totalDomains[key] = val
 			ret.endpointGatewayDomains[key] = val

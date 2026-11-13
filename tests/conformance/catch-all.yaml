@@ -1,0 +1,22 @@
+# Answers 404 for every suffixed hostname that has no endpoint of its own, which is what the suite expects
+# for a hostname no route serves. Without it the ngrok edge redirects a plain-HTTP request for a hostname
+# it has no endpoint for to HTTPS. Endpoints the operator creates are more specific and win.
+# CONFORMANCE_HOSTNAME_SUFFIX is substituted by `make conformance-setup`.
+apiVersion: ngrok.com/v1
+kind: CloudEndpoint
+metadata:
+  name: conformance-catch-all
+  namespace: ngrok-operator
+spec:
+  url: http://*.CONFORMANCE_HOSTNAME_SUFFIX
+  description: Gateway API conformance catch-all, returns 404 for hostnames without an endpoint
+  trafficPolicy:
+    inline:
+      on_http_request:
+      - actions:
+        - type: custom-response
+          config:
+            status_code: 404
+            content: No endpoint serves this hostname
+            headers:
+              content-type: text/plain

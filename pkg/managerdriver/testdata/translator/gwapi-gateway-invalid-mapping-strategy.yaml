@@ -94,7 +94,7 @@ expected:
                     - request_matched_local_svc: false
             - name: Generated-Local-Service-Route
               expressions:
-                - "req.url.path.startsWith('/test-service-1')"
+                - "(req.url.path == '/test-service-1' || req.url.path.startsWith('/test-service-1/'))"
                 - "vars.request_matched_local_svc == false"
               actions:
                 - type: set-vars
