@@ -18,13 +18,13 @@ input:
     spec:
       gatewayClassName: ngrok
       listeners:
-        - name: nil hostname
+        - name: nil hostname # TCP endpoints aren't addressed by hostname, so need spec.addresses
           port: 443
-          protocol: HTTPS
+          protocol: TCP
         - name: empty hostname
           hostname: ""
           port: 443
-          protocol: HTTPS
+          protocol: TCP
         - name: "* hostname" # We require an actual hostname to build endpoints
           hostname: "*"
           port: 443

@@ -715,6 +715,14 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 
 	d.log.Info("syncing driver state!!")
 
+	hostnames := d.gatewayHostnames
+	assigned, err := d.assignedGatewayDomains(ctx, c)
+	if err != nil {
+		d.log.Error(err, "error reading the domains ngrok assigned to Gateways")
+		return err
+	}
+	hostnames.Assigned = assigned
+
 	translator := NewTranslator(
 		d.log,
 		d.store,
@@ -723,10 +731,10 @@ func (d *Driver) Sync(ctx context.Context, c client.Client) error {
 		d.gatewayNgrokMetadata,
 		d.clusterDomain,
 		d.disableGatewayReferenceGrants,
-		d.gatewayHostnames,
+		hostnames,
 	)
 	translationResult := translator.Translate()
-	domains := d.calculateDomainSet(translationResult.GatewayHostnames)
+	domains := d.calculateDomainSet(hostnames, translationResult.GatewayHostnames)
 
 	// LEGACY-PREFIX-MIGRATION: BEGIN
 	// listAgentEndpointsForController / listCloudEndpointsForController
@@ -919,6 +927,12 @@ func (d *Driver) updateGatewayAPIStatuses(ctx context.Context, c client.Client) 
 		return err
 	}
 
+	assigned, err := d.assignedGatewayDomains(ctx, c)
+	if err != nil {
+		d.log.Error(err, "failed to read the domains ngrok assigned to Gateways")
+		return err
+	}
+
 	gateways := d.store.ListNgrokGateways()
 	gatewaysByKey := make(map[types.NamespacedName]*gatewayv1.Gateway, len(gateways))
 	for _, gw := range gateways {
@@ -927,7 +941,6 @@ func (d *Driver) updateGatewayAPIStatuses(ctx context.Context, c client.Client) 
 
 	state := &gatewayAPIState{
 		controllerName:   gatewayv1.GatewayController(d.gatewayControllerName),
-		hostnames:        d.gatewayHostnames,
 		disableRefGrants: d.disableGatewayReferenceGrants,
 		tcpRoutesEnabled: d.gatewayTCPRouteEnabled,
 		tlsRoutesEnabled: d.gatewayTLSRouteEnabled,
@@ -940,7 +953,7 @@ func (d *Driver) updateGatewayAPIStatuses(ctx context.Context, c client.Client) 
 			return gw, ok
 		},
 		addresses: func(gw *gatewayv1.Gateway) []string {
-			return d.gatewayAddresses(gw, domains)
+			return d.gatewayAddresses(gw, assigned[gw.UID], domains)
 		},
 	}
 
@@ -1024,12 +1037,13 @@ func (d *Driver) updateGatewayAPIStatuses(ctx context.Context, c client.Client) 
 
 // gatewayAddresses returns the hostnames a Gateway is reachable at: for each listener, the CNAME target
 // of its Domain when it has one (a custom domain), or the domain itself (an ngrok-managed domain).
-func (d *Driver) gatewayAddresses(gateway *gatewayv1.Gateway, domains map[string]domainpkg.Resource) []string {
+// assigned is the domain ngrok assigned the Gateway, used for listeners without a hostname.
+func (d *Driver) gatewayAddresses(gateway *gatewayv1.Gateway, assigned string, domains map[string]domainpkg.Resource) []string {
 	addresses := []string{}
 	for _, listener := range gateway.Spec.Listeners {
 		domainName := d.gatewayHostnames.Listener(listener)
-		if domainName == "" && len(gateway.Spec.Addresses) == 0 && listenerUsesGeneratedDomain(listener) {
-			domainName = d.gatewayHostnames.Generated(gateway)
+		if domainName == "" && len(gateway.Spec.Addresses) == 0 && listenerUsesAssignedDomain(listener) {
+			domainName = assigned
 		}
 		if domainName == "" {
 			continue

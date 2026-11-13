@@ -30,13 +30,14 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/go-logr/logr"
@@ -182,6 +183,19 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		builder.WithPredicates(&referencedResourcePredicate{client: r.Client}),
 	)
 
+	// The claim that gets a Gateway its domain from ngrok (see pkg/managerdriver/gateway_address.go).
+	// When ngrok assigns the domain, the Gateway's reconcile pins it.
+	bldr = bldr.Watches(
+		&ngrokv1.AgentEndpoint{},
+		handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj client.Object) []reconcile.Request {
+			name, ok := obj.GetLabels()[managerdriver.GatewayNameLabel]
+			if !ok {
+				return nil
+			}
+			return []reconcile.Request{{Name: name, Namespace: obj.GetNamespace()}}
+		}),
+	)
+
 	return bldr.Complete(r)
 }
 
@@ -194,7 +208,7 @@ func (r *GatewayReconciler) storeReferencedObjects(ctx context.Context, gw *gate
 		if namespace != nil && *namespace != "" {
 			ns = string(*namespace)
 		}
-		refs = append(refs, &v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: string(name), Namespace: ns}})
+		refs = append(refs, &v1.Secret{Name: string(name), Namespace: ns})
 	}
 	addConfigMap := func(ref gatewayv1.ObjectReference) {
 		if string(ref.Kind) != "ConfigMap" {
@@ -204,7 +218,7 @@ func (r *GatewayReconciler) storeReferencedObjects(ctx context.Context, gw *gate
 		if ref.Namespace != nil && *ref.Namespace != "" {
 			ns = string(*ref.Namespace)
 		}
-		refs = append(refs, &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: string(ref.Name), Namespace: ns}})
+		refs = append(refs, &v1.ConfigMap{Name: string(ref.Name), Namespace: ns})
 	}
 
 	for _, l := range gw.Spec.Listeners {

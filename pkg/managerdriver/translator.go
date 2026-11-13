@@ -91,6 +91,12 @@ func (t *translator) Translate() *TranslationResult {
 	}
 
 	cloudEndpoints, agentEndpoints := t.IRToEndpoints(virtualHosts)
+	for _, gw := range t.store.ListNgrokGateways() {
+		if gatewayNeedsAssignedDomain(gw) && t.gatewayHostnames.Assigned[gw.UID] == "" {
+			claim := buildAddressClaim(gw, t.managedResourceLabels)
+			agentEndpoints[types.NamespacedName{Name: claim.Name, Namespace: claim.Namespace}] = claim
+		}
+	}
 
 	return &TranslationResult{
 		AgentEndpoints:   agentEndpoints,
@@ -834,7 +840,7 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1.CloudEndpoint, erro
 			// pooled, see pkg/agent) and a CloudEndpoint as its routes change, and ngrok only lets the
 			// two hold the URL at the same time when both are pooled (ERR_NGROK_18016, 18017). Unpooled,
 			// the new endpoint can't be created until the old one is gone, which drops traffic.
-			PoolingEnabled: ptr.To(ptr.Deref(irVHost.EndpointPoolingEnabled, true)),
+			PoolingEnabled: new(ptr.Deref(irVHost.EndpointPoolingEnabled, true)),
 			Metadata:       commonv1alpha1.MetadataToMap(json.RawMessage(irVHost.Metadata)),
 			Description:    irVHost.Description,
 			Bindings:       irVHost.Bindings,

@@ -24,11 +24,6 @@ import (
 // The rules follow the Gateway API spec and its conformance suite:
 // https://gateway-api.sigs.k8s.io/reference/spec/
 
-// ListenerReasonHostnameRequired is the reason an HTTP, HTTPS or TLS listener without a hostname is
-// rejected when the Gateway has no addresses and no generated domain suffix is configured: ngrok routes
-// by hostname, so the endpoint needs one.
-const ListenerReasonHostnameRequired gatewayv1.ListenerConditionReason = "HostnameRequired"
-
 const (
 	gatewayAPIGroup = gatewayv1.GroupName
 	kindGateway     = "Gateway"
@@ -42,7 +37,6 @@ const (
 // gatewayAPIState is what the status rules read.
 type gatewayAPIState struct {
 	controllerName   gatewayv1.GatewayController
-	hostnames        GatewayHostnames
 	disableRefGrants bool
 	tcpRoutesEnabled bool
 	tlsRoutesEnabled bool
@@ -108,9 +102,6 @@ func (s *gatewayAPIState) listenerResult(gw *gatewayv1.Gateway, l gatewayv1.List
 		res.accepted = condition(string(gatewayv1.ListenerConditionAccepted), string(gatewayv1.ListenerReasonPortUnavailable), metav1.ConditionFalse, gen, "ngrok only supports HTTP on port 80")
 	case l.Protocol == gatewayv1.HTTPSProtocolType && l.Port != 443:
 		res.accepted = condition(string(gatewayv1.ListenerConditionAccepted), string(gatewayv1.ListenerReasonPortUnavailable), metav1.ConditionFalse, gen, "ngrok only supports HTTPS on port 443")
-	case (l.Hostname == nil || *l.Hostname == "") && len(gw.Spec.Addresses) == 0 && listenerUsesGeneratedDomain(l) && s.hostnames.GeneratedSuffix == "":
-		res.accepted = condition(string(gatewayv1.ListenerConditionAccepted), string(ListenerReasonHostnameRequired), metav1.ConditionFalse, gen,
-			"ngrok routes by hostname: set a hostname on the listener, set Gateway spec.addresses, or configure features.gateway.generatedDomainSuffix")
 	}
 
 	// Supported kinds are the requested kinds this listener can serve; any it cannot is an error.

@@ -237,11 +237,6 @@
                                     "description": "Disable the ReferenceGrant requirement for cross-namespace references",
                                     "default": false
                                 },
-                                "generatedDomainSuffix": {
-                                    "type": "string",
-                                    "description": "Suffix (for example ngrok.app) under which a Gateway listener without a hostname gets a generated domain. Empty (default) rejects such listeners",
-                                    "default": ""
-                                },
                                 "conformanceHostnameSuffix": {
                                     "type": "string",
                                     "description": "Test only: suffix appended to every Gateway API hostname for the conformance suite. Leave empty",

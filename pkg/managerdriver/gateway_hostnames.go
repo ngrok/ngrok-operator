@@ -1,9 +1,9 @@
 package managerdriver
 
 import (
-	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/types"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -13,13 +13,12 @@ import (
 // operator creates needs one. A listener's hostname is optional in the Gateway
 // API, where an empty one means "every hostname". The endpoints for such a
 // listener take their hostnames from the routes attached to it, and when a
-// route has none either, from a domain generated for the Gateway (see
-// GeneratedSuffix).
+// route has none either, from the domain ngrok assigned the Gateway (see
+// gateway_address.go).
 type GatewayHostnames struct {
-	// GeneratedSuffix, when set, gives a Gateway whose listener has no hostname
-	// a domain under this suffix, such as ngrok.app. When empty, those
-	// listeners are rejected with HostnameRequired.
-	GeneratedSuffix string
+	// Assigned holds the domain ngrok assigned each Gateway, by Gateway UID.
+	// It is read from the cluster at the start of every sync.
+	Assigned map[types.UID]string
 
 	// ConformanceSuffix is appended to every hostname read from a Gateway or
 	// route. It exists only so the Gateway API conformance suite, whose
@@ -44,29 +43,6 @@ func (h GatewayHostnames) Listener(l gatewayv1.Listener) string {
 		return ""
 	}
 	return h.Map(string(*l.Hostname))
-}
-
-// Generated returns the domain generated for a Gateway, or "" when
-// GeneratedSuffix is unset. The name is the Gateway's name and namespace
-// with the start of its UID, so a Gateway re-created with the same name gets a
-// new domain, the way a re-created cloud load balancer gets a new address.
-func (h GatewayHostnames) Generated(gw *gatewayv1.Gateway) string {
-	if h.GeneratedSuffix == "" {
-		return ""
-	}
-	uid := strings.ReplaceAll(string(gw.UID), "-", "")
-	if len(uid) > 8 {
-		uid = uid[:8]
-	}
-	// A DNS label is at most 63 characters: leave room for "-" and the UID.
-	prefix := gw.Name + "-" + gw.Namespace
-	if max := 63 - 1 - len(uid); len(prefix) > max {
-		prefix = strings.TrimRight(prefix[:max], "-")
-	}
-	if uid == "" {
-		return fmt.Sprintf("%s.%s", prefix, h.GeneratedSuffix)
-	}
-	return fmt.Sprintf("%s-%s.%s", prefix, uid, h.GeneratedSuffix)
 }
 
 // intersectHostnames returns the hostnames that both a listener hostname and

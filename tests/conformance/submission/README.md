@@ -47,9 +47,9 @@ three accommodations, and one test is skipped because of the TLS model:
 - **Unknown hostnames.** For a hostname with no endpoint, the edge redirects plain HTTP to HTTPS. The
   harness creates one endpoint for `*.<suffix>.test` that answers 404, which the suite expects for a
   hostname no route serves. More specific endpoints take precedence.
-- **Listeners without a hostname.** The operator is run with `generatedDomainSuffix: ngrok.app`, an
-  ordinary product setting: a Gateway whose listener has no hostname gets a domain under `ngrok.app`,
-  published in `status.addresses` with type `Hostname`.
+- **Listeners without a hostname.** ngrok routes by hostname, so a Gateway whose listener has no
+  hostname gets a domain ngrok assigns it (a random `*.ngrok.app` name), published in `status.addresses`
+  with type `Hostname`. This is the operator's normal behavior, not a test setting.
 - **Skipped: `HTTPRouteHTTPSListener`.** TLS is terminated at ngrok's edge, which selects the endpoint
   by SNI. The test's client sends the SNI of the suite's own hostnames (`example.org`), which the edge
   can't route to this account.

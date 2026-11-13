@@ -510,8 +510,8 @@ func TestGatewayMethodToIR(t *testing.T) {
 // with regular yaml marshalling so we need to be a little creative about how we process them.
 type TranslatorRawTestCase struct {
 	GatewayHostnames struct {
-		GeneratedSuffix   string `yaml:"generatedSuffix"`
-		ConformanceSuffix string `yaml:"conformanceSuffix"`
+		Assigned          map[string]string `yaml:"assigned"`
+		ConformanceSuffix string            `yaml:"conformanceSuffix"`
 	} `yaml:"gatewayHostnames"`
 	Input struct {
 		GatewayClasses  []map[string]any `yaml:"gatewayClasses"`
@@ -896,8 +896,13 @@ func loadTranslatorTestCase(t *testing.T, file string, sch *runtime.Scheme) Tran
 	// Use scheme based decoding to properly parse everything into TestCase
 	tc := TranslatorTestCase{}
 	tc.GatewayHostnames = GatewayHostnames{
-		GeneratedSuffix:   rawTC.GatewayHostnames.GeneratedSuffix,
 		ConformanceSuffix: rawTC.GatewayHostnames.ConformanceSuffix,
+	}
+	for uid, domain := range rawTC.GatewayHostnames.Assigned {
+		if tc.GatewayHostnames.Assigned == nil {
+			tc.GatewayHostnames.Assigned = map[types.UID]string{}
+		}
+		tc.GatewayHostnames.Assigned[types.UID(uid)] = domain
 	}
 	tc.Expected.GatewayHostnames = rawTC.Expected.GatewayHostnames
 

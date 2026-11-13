@@ -290,8 +290,9 @@ func (t *translator) findMatchingVHostsForXRoute(
 				for _, h := range routeListenerHostnames(t.gatewayHostnames.Listener(matchingListener), mapHostnames(t.gatewayHostnames, routeHostnames)) {
 					attachment.hostnames = append(attachment.hostnames, h)
 					if h == "" {
-						// Neither the listener nor the route names a hostname: use the Gateway's.
-						h = t.gatewayHostnames.Generated(gateway)
+						// Neither the listener nor the route names a hostname: use the domain ngrok
+						// assigned the Gateway. Until it has one, the route is not served.
+						h = t.gatewayHostnames.Assigned[gateway.UID]
 					}
 					if h != "" {
 						virtualHostHostnames = appendStringUnique(virtualHostHostnames, h)
@@ -789,11 +790,11 @@ func (t *translator) matchGatewayListenersToXRoute(
 		listenerHostname := "*"
 		if len(gatewayAddressHostnames) == 0 {
 			// Without spec.addresses, the endpoints take their hostnames from the listener, from the
-			// routes, or from a generated domain (see GatewayHostnames). A listener with no hostname
-			// can only fall back on the last, so it needs GeneratedSuffix.
+			// routes, or from the domain ngrok assigned the Gateway (see gateway_address.go). TCP and
+			// UDP endpoints are not addressed by hostname, so they can't use the last.
 			if listener.Hostname == nil || string(*listener.Hostname) == "" {
-				if t.gatewayHostnames.GeneratedSuffix == "" || listener.Protocol == gatewayv1.TCPProtocolType || listener.Protocol == gatewayv1.UDPProtocolType {
-					t.log.Error(errors.New("gateway has a listener without a hostname"), "Gateway listeners without a hostname need Gateway.spec.addresses or the features.gateway.generatedDomainSuffix setting. Invalid listeners will be skipped.",
+				if !listenerUsesAssignedDomain(listener) {
+					t.log.Error(errors.New("gateway has a listener without a hostname"), "Gateway TCP and UDP listeners need Gateway.spec.addresses. Invalid listeners will be skipped.",
 						"gateway", fmt.Sprintf("%s.%s", gateway.Name, gateway.Namespace),
 					)
 					continue

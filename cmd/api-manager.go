@@ -163,7 +163,6 @@ func apiCmd() *cobra.Command {
 	flags.IngressEnabled(fs, &opts.enableFeatureIngress)
 	flags.GatewayEnabled(fs, &opts.enableFeatureGateway)
 	flags.GatewayDisableReferenceGrants(fs, &opts.disableGatewayReferenceGrants)
-	flags.GatewayGeneratedDomainSuffix(fs, &opts.gatewayHostnames.GeneratedSuffix)
 	flags.GatewayConformanceHostSuffix(fs, &opts.gatewayHostnames.ConformanceSuffix)
 	flags.BindingsEnabled(fs, &opts.enableFeatureBindings)
 	flags.PrivateEndpointsEnabled(fs, &opts.enableFeaturePrivateEndpoints)

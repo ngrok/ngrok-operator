@@ -10,9 +10,6 @@ CONFORMANCE_SUPPORTED_FEATURES ?= Gateway,HTTPRoute,ReferenceGrant
 CONFORMANCE_SKIP_TESTS ?=
 # Run a single test, e.g. CONFORMANCE_RUN_TEST=HTTPRouteSimpleSameNamespace
 CONFORMANCE_RUN_TEST ?=
-# Domain the operator generates names under for listeners without a hostname. The account must be able
-# to reserve names under it.
-CONFORMANCE_GENERATED_DOMAIN_SUFFIX ?= ngrok.app
 # Appended to the suite's hostnames (example.com) so the account can reserve them. .test is reserved by
 # RFC 2606 and never resolves, so these names can't collide with anyone's real domain. The user name keeps
 # two people's runs from claiming the same names.
@@ -28,7 +25,7 @@ conformance: conformance-setup conformance-test ## Install the Gateway API CRDs 
 conformance-setup: _deploy-check-env-vars ## Install the Gateway API CRDs and deploy the operator configured for the conformance suite.
 	@kind get clusters | grep -qx "$(KIND_CLUSTER_NAME)" || $(MAKE) kind-create
 	kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(CONFORMANCE_GATEWAY_API_VERSION)/standard-install.yaml
-	$(MAKE) deploy_gateway HELM_EXTRA_FLAGS="--set ngrok.features.gateway.generatedDomainSuffix=$(CONFORMANCE_GENERATED_DOMAIN_SUFFIX) --set ngrok.features.gateway.conformanceHostnameSuffix=$(CONFORMANCE_HOSTNAME_SUFFIX)"
+	$(MAKE) deploy_gateway HELM_EXTRA_FLAGS="--set ngrok.features.gateway.conformanceHostnameSuffix=$(CONFORMANCE_HOSTNAME_SUFFIX)"
 	kubectl -n $(KUBE_NAMESPACE) rollout status deploy/$(KUBE_DEPLOYMENT_NAME) --timeout=180s
 	printf 'apiVersion: gateway.networking.k8s.io/v1\nkind: GatewayClass\nmetadata:\n  name: %s\nspec:\n  controllerName: ngrok.com/gateway-controller\n' "$(CONFORMANCE_GATEWAY_CLASS)" | kubectl apply -f -
 	kubectl wait --for=condition=Accepted gatewayclass/$(CONFORMANCE_GATEWAY_CLASS) --timeout=60s

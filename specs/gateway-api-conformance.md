@@ -48,7 +48,7 @@ always 0, stale `observedGeneration`, routes had no `ResolvedRefs`.
 | Endpoint hostnames are the intersection of listener and route hostnames | A route for `foo.example.com` under listener `*.example.com` served every subdomain | `translate_gatewayapi.go`, `gateway_hostnames.go` |
 | Matches ordered by the Gateway API precedence rules | Header matches were ordered alphabetically; route age was ignored | `internal/ir/ir.go` |
 | Unresolved backendRefs, and rules with neither backends nor filters, answer 500 | They were dropped, so requests fell through to other rules or a 404 | `translate_gatewayapi.go` |
-| A Gateway listener without a hostname gets a generated domain when `features.gateway.generatedDomainSuffix` is set | The suite's Gateways have none; ngrok needs one | `gateway_hostnames.go`, chart value |
+| A Gateway listener without a hostname is served on a domain ngrok assigns the Gateway, pinned in a labeled Domain | The suite's Gateways have none; ngrok needs one. ngrok picks the name so it can't collide with anyone's | `gateway_address.go` |
 | A hostname is only collapsed into a public AgentEndpoint when the Service is in the virtual host's namespace | Otherwise the hostname's Domain was also created in the Service's namespace, and deleting it released a hostname still in use | `translator.go` |
 | A change to a Service, Secret, ReferenceGrant and the other store-fed kinds re-syncs | Objects created after the route that uses them were never picked up | `controller-handler.go`, `driver.go` |
 | A Gateway reconcile loads the Secrets and ConfigMaps it references into the store | Those watches drop objects no Gateway referenced yet, so a certificate created before its Gateway was never seen | `gateway_controller.go` |

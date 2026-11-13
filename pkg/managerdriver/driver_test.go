@@ -1675,7 +1675,7 @@ var _ = Describe("Driver", func() {
 			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(obs...).Build()
 			Expect(driver.Seed(GinkgoT().Context(), c)).To(BeNil())
 
-			domainSet := driver.calculateDomainSet(nil)
+			domainSet := driver.calculateDomainSet(GatewayHostnames{}, nil)
 			Expect(domainSet.endpointIngressDomains).To(HaveLen(4))
 			Expect(domainSet.endpointIngressDomains).To(HaveKey("a.customdomain.com"))
 			Expect(domainSet.endpointIngressDomains).To(HaveKey("b.customdomain.com"))
@@ -1834,7 +1834,7 @@ var _ = Describe("Driver", func() {
 			err := gwDriver.Seed(GinkgoT().Context(), c)
 			Expect(err).ToNot(HaveOccurred())
 
-			domainSet := gwDriver.calculateDomainSet(nil)
+			domainSet := gwDriver.calculateDomainSet(GatewayHostnames{}, nil)
 
 			// Should include the ngrok gateway domain
 			Expect(domainSet.endpointGatewayDomains).To(HaveKey("ngrok.example.com"))

@@ -1,8 +1,9 @@
-# With a generated domain suffix, a listener without a hostname is valid. A route without hostnames is
-# served on the Gateway's generated domain; a route with hostnames gets endpoints for those names. The
-# conformance suffix is appended to hostnames from the resources but not to the generated domain.
+# Once ngrok has assigned the Gateway a domain, a route without hostnames on a listener without a
+# hostname is served there; a route with hostnames gets endpoints for those names. The conformance
+# suffix is appended to hostnames from the resources but not to the assigned domain. No claim is made.
 gatewayHostnames:
-  generatedSuffix: ngrok.app
+  assigned:
+    0b2f6c1e-1111-2222-3333-444455556666: 6c91b4d450a5.ngrok.app
   conformanceSuffix: conf.test
 input:
   gatewayClasses:
@@ -68,7 +69,7 @@ input:
       ports: [{name: http, port: 80, protocol: TCP}]
 expected:
   gatewayHostnames:
-    default/gw: ["gw-default-0b2f6c1e.ngrok.app", "example.com.conf.test"]
+    default/gw: ["6c91b4d450a5.ngrok.app", "example.com.conf.test"]
   agentEndpoints:
   - apiVersion: ngrok.com/v1
     kind: AgentEndpoint
@@ -137,7 +138,7 @@ expected:
       labels:
         ngrok.com/controller-name: test-manager-name
         ngrok.com/controller-namespace: test-manager-namespace
-      name: gw.default-gw-default-0b2f6c1e.ngrok.app
+      name: gw.default-6c91b4d450a5.ngrok.app
       namespace: default
     spec:
       trafficPolicy:
@@ -158,5 +159,5 @@ expected:
                 status_code: 404
               type: custom-response
             name: Fallback-404
-      url: http://gw-default-0b2f6c1e.ngrok.app
+      url: http://6c91b4d450a5.ngrok.app
       poolingEnabled: true

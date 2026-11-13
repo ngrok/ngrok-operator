@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -224,30 +225,64 @@ var _ = Describe("Gateway controller", Ordered, func() {
 				}
 			})
 
-			It("Should not accept the gateway", func(ctx SpecContext) {
-				ExpectGatewayNotAccepted(ctx, gw).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
-			})
-
-			It("Should set the listener to not accepted and have a reason of HostnameRequired", func(ctx SpecContext) {
+			It("Should accept the listener", func(ctx SpecContext) {
 				ExpectListenerStatus(
 					ctx,
 					gw,
 					gw.Spec.Listeners[0].Name,
 					gatewayv1.ListenerConditionAccepted,
-					metav1.ConditionFalse,
-					managerdriver.ListenerReasonHostnameRequired,
+					metav1.ConditionTrue,
+					gatewayv1.ListenerReasonAccepted,
 				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 			})
 
-			It("Should set the listener programmed condition to invalid", func(ctx SpecContext) {
-				ExpectListenerStatus(
-					ctx,
-					gw,
-					gw.Spec.Listeners[0].Name,
-					gatewayv1.ListenerConditionProgrammed,
-					metav1.ConditionFalse,
-					gatewayv1.ListenerReasonInvalid,
-				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
+			It("Should get a domain from ngrok, keep it, and report it as the gateway's address", func(ctx SpecContext) {
+				claim := &ngrokv1.AgentEndpoint{}
+				claimKey := client.ObjectKey{Name: gw.Name + "-address-claim", Namespace: gw.Namespace}
+
+				By("Asking ngrok for a domain with a scheme-only AgentEndpoint")
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(ctx, claimKey, claim)).To(Succeed())
+					g.Expect(claim.Spec.URL).To(Equal("https://"))
+					g.Expect(claim.Labels).To(HaveKeyWithValue(managerdriver.GatewayUIDLabel, string(gw.UID)))
+				}, timeout, interval).Should(Succeed())
+
+				By("Pinning the domain ngrok assigned in a Domain labeled with the gateway")
+				assigned := fmt.Sprintf("%s.ngrok.app", rand.String(12))
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(ctx, claimKey, claim)).To(Succeed())
+					claim.Status.AssignedURL = "https://" + assigned
+					g.Expect(k8sClient.Status().Update(ctx, claim)).To(Succeed())
+				}, timeout, interval).Should(Succeed())
+
+				Eventually(func(g Gomega) {
+					domains := &ngrokv1.DomainList{}
+					g.Expect(k8sClient.List(ctx, domains, client.InNamespace(gw.Namespace), client.MatchingLabels{managerdriver.GatewayUIDLabel: string(gw.UID)})).To(Succeed())
+					g.Expect(domains.Items).To(HaveLen(1))
+					g.Expect(domains.Items[0].Spec.Domain).To(Equal(assigned))
+				}, timeout, interval).Should(Succeed())
+
+				By("Removing the claim, so ngrok lets the domain be reserved")
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, claimKey, &ngrokv1.AgentEndpoint{})
+					g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "claim still exists: %v", err)
+				}, timeout, interval).Should(Succeed())
+
+				By("Reporting the domain as the gateway's address")
+				Eventually(func(g Gomega) {
+					obj := &gatewayv1.Gateway{}
+					g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(gw), obj)).To(Succeed())
+					g.Expect(obj.Status.Addresses).To(ConsistOf(gatewayv1.GatewayStatusAddress{
+						Type:  ptr.To(gatewayv1.HostnameAddressType),
+						Value: assigned,
+					}))
+				}, timeout, interval).Should(Succeed())
+
+				By("Not asking for another domain")
+				Consistently(func(g Gomega) {
+					err := k8sClient.Get(ctx, claimKey, &ngrokv1.AgentEndpoint{})
+					g.Expect(apierrors.IsNotFound(err)).To(BeTrue(), "claim was made again: %v", err)
+				}, "2s", interval).Should(Succeed())
 			})
 		})
 
@@ -262,29 +297,14 @@ var _ = Describe("Gateway controller", Ordered, func() {
 				}
 			})
 
-			It("Should not accept the gateway", func(ctx SpecContext) {
-				ExpectGatewayNotAccepted(ctx, gw).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
-			})
-
-			It("Should set the listener to not accepted and have a reason of HostnameRequired", func(ctx SpecContext) {
+			It("Should accept the listener", func(ctx SpecContext) {
 				ExpectListenerStatus(
 					ctx,
 					gw,
 					gw.Spec.Listeners[0].Name,
 					gatewayv1.ListenerConditionAccepted,
-					metav1.ConditionFalse,
-					managerdriver.ListenerReasonHostnameRequired,
-				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
-			})
-
-			It("Should set the listener programmed condition to invalid", func(ctx SpecContext) {
-				ExpectListenerStatus(
-					ctx,
-					gw,
-					gw.Spec.Listeners[0].Name,
-					gatewayv1.ListenerConditionProgrammed,
-					metav1.ConditionFalse,
-					gatewayv1.ListenerReasonInvalid,
+					metav1.ConditionTrue,
+					gatewayv1.ListenerReasonAccepted,
 				).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 			})
 		})

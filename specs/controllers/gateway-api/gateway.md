@@ -30,7 +30,7 @@ Status is written by the Driver at the end of every `Sync()`, from the whole sto
 
 ### Addresses
 
-`status.addresses` lists, with type `Hostname`, the Domain of each listener's hostname (or the Gateway's generated domain, for a listener without one): its `status.cnameTarget` for a custom domain, otherwise the domain itself, with any `*.` prefix trimmed.
+`status.addresses` lists, with type `Hostname`, the Domain of each listener's hostname (or the domain ngrok assigned the Gateway, for a listener without one; see the assigned domain in [the feature spec](../../features/gateway-api.md)): its `status.cnameTarget` for a custom domain, otherwise the domain itself, with any `*.` prefix trimmed.
 
 ### Gateway conditions
 
@@ -51,7 +51,6 @@ Status is written by the Driver at the end of every `Sync()`, from the whole sto
 |------|--------|--------|------|
 | `Accepted` | `False` | `UnsupportedProtocol` | The protocol isn't HTTP, HTTPS, TLS or TCP (`supportedKinds` is empty) |
 | `Accepted` | `False` | `PortUnavailable` | HTTP not on port 80, or HTTPS not on 443 |
-| `Accepted` | `False` | `HostnameRequired` | No hostname, no `spec.addresses`, and no `generatedDomainSuffix` |
 | `Accepted` | `True` | `Accepted` | Otherwise |
 | `ResolvedRefs` | `False` | `InvalidRouteKinds` | `allowedRoutes.kinds` names a kind the listener can't serve |
 | `ResolvedRefs` | `False` | `RefNotPermitted` | A certificateRef in another namespace without a ReferenceGrant (checked before existence) |

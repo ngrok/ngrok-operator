@@ -3,6 +3,7 @@ package managerdriver
 import (
 	"context"
 	"errors"
+	"maps"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
 	domainpkg "github.com/ngrok/ngrok-operator/internal/domain"
@@ -49,7 +50,7 @@ func ingressToDomains(in *netv1.Ingress, existingDomains map[string]ngrokv1.Doma
 }
 
 // gatewayToDomains constructs domains for edges/endpoints from an input Gateway: one for each listener
-// hostname, the Gateway's generated domain when a listener has no hostname, and endpointHostnames, the
+// hostname, the domain ngrok assigned the Gateway when a listener has no hostname, and endpointHostnames, the
 // hostnames translation gave the Gateway's endpoints (which can come from its routes).
 func gatewayToDomains(in *gatewayv1.Gateway, existingDomains map[string]ngrokv1.Domain, h GatewayHostnames, endpointHostnames []string) (endpointDomains map[string]ngrokv1.Domain) {
 	endpointDomains = make(map[string]ngrokv1.Domain)
@@ -81,19 +82,26 @@ func gatewayToDomains(in *gatewayv1.Gateway, existingDomains map[string]ngrokv1.
 			add(hostname)
 			continue
 		}
-		if len(in.Spec.Addresses) == 0 && listenerUsesGeneratedDomain(listener) {
-			add(h.Generated(in))
+		if len(in.Spec.Addresses) == 0 && listenerUsesAssignedDomain(listener) {
+			add(h.Assigned[in.UID])
 		}
 	}
 	for _, hostname := range endpointHostnames {
 		add(hostname)
 	}
+	// The label is what keeps the assigned domain the Gateway's (see gateway_address.go).
+	if assigned := h.Assigned[in.UID]; assigned != "" {
+		if dom, ok := endpointDomains[assigned]; ok {
+			dom.Labels = map[string]string{GatewayUIDLabel: string(in.UID)}
+			endpointDomains[assigned] = dom
+		}
+	}
 	return endpointDomains
 }
 
-// listenerUsesGeneratedDomain reports whether a listener without a hostname gets the Gateway's
-// generated domain. TCP and UDP endpoints are not addressed by hostname.
-func listenerUsesGeneratedDomain(l gatewayv1.Listener) bool {
+// listenerUsesAssignedDomain reports whether a listener without a hostname is served on the domain
+// ngrok assigned the Gateway. TCP and UDP endpoints are not addressed by hostname.
+func listenerUsesAssignedDomain(l gatewayv1.Listener) bool {
 	switch l.Protocol {
 	case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType, gatewayv1.TLSProtocolType:
 		return true
@@ -125,6 +133,7 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 					n.Spec.ReclaimPolicy = *d.defaultDomainReclaimPolicy
 				}
 				d.controllerLabels.EnsureLabels(n)
+				maps.Copy(n.Labels, desiredDomain.Labels)
 			})
 			// LEGACY-domain-kind: BEGIN
 			if errors.Is(err, domainpkg.ErrLegacyDomainNotOwned) {
@@ -160,6 +169,7 @@ func (d *Driver) applyDomains(ctx context.Context, c client.Client, desiredDomai
 			// internal/domain/manager.go::ensureControllerLabels.
 			// LEGACY-PREFIX-MIGRATION: EnsureLabels dual-writes the legacy pair.
 			d.controllerLabels.EnsureLabels(domain)
+			maps.Copy(domain.Labels, desiredDomain.Labels)
 			if !equality.Semantic.DeepEqual(before, domain) {
 				err = c.Patch(ctx, domain, client.MergeFrom(before))
 				if err == nil && !created {
@@ -211,7 +221,7 @@ type domainSet struct {
 
 // calculateDomainSet works out every Domain the Ingresses and Gateways need. gatewayHostnames are the
 // endpoint hostnames translation gave each Gateway (TranslationResult.GatewayHostnames).
-func (d *Driver) calculateDomainSet(gatewayHostnames map[types.NamespacedName][]string) *domainSet {
+func (d *Driver) calculateDomainSet(h GatewayHostnames, gatewayHostnames map[types.NamespacedName][]string) *domainSet {
 	ret := &domainSet{
 		endpointIngressDomains: make(map[string]ngrokv1.Domain),
 		endpointGatewayDomains: make(map[string]ngrokv1.Domain),
@@ -231,7 +241,7 @@ func (d *Driver) calculateDomainSet(gatewayHostnames map[types.NamespacedName][]
 	// Calculate domains from gateway resources
 	gateways := d.store.ListNgrokGateways()
 	for _, gateway := range gateways {
-		endpointDomains := gatewayToDomains(gateway, ret.totalDomains, d.gatewayHostnames, gatewayHostnames[client.ObjectKeyFromObject(gateway)])
+		endpointDomains := gatewayToDomains(gateway, ret.totalDomains, h, gatewayHostnames[client.ObjectKeyFromObject(gateway)])
 		for key, val := range endpointDomains {
 			ret.totalDomains[key] = val
 			ret.endpointGatewayDomains[key] = val

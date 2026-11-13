@@ -12,7 +12,6 @@ The ngrok-operator supports the Kubernetes Gateway API, providing a role-oriente
 |------------------------------------|------------------------------------------------------|---------|
 | `ngrok.features.gateway.enabled`                  | Enable Gateway API support (if CRDs detected)        | `true`  |
 | `ngrok.features.gateway.disableReferenceGrants`   | Disable ReferenceGrant requirement                   | `false` |
-| `ngrok.features.gateway.generatedDomainSuffix`    | Suffix (for example `ngrok.app`) under which a Gateway with a listener without a hostname gets a domain | `""` (such listeners are rejected) |
 | `ngrok.features.gateway.conformanceHostnameSuffix` | Test only: appended to every Gateway API hostname so the conformance suite can run. See [gateway-api-conformance.md](../gateway-api-conformance.md) | `""` |
 
 ## Supported Resources
@@ -42,7 +41,17 @@ ngrok routes by hostname, so every HTTP, HTTPS and TLS endpoint needs one. The e
 
 1. If the Gateway sets `spec.addresses` (type `Hostname`), those addresses, for every listener.
 2. Otherwise, each route attached to the listener contributes the intersection of its hostnames with the listener's. A listener `*.example.com` with a route for `foo.example.com` gets an endpoint for `foo.example.com`; a route without hostnames takes the listener's.
-3. When neither the listener nor the route names a hostname, the Gateway's generated domain, `<gateway>-<namespace>-<uid prefix>.<generatedDomainSuffix>`. Without `generatedDomainSuffix`, a listener without a hostname is rejected with `Accepted=False`, reason `HostnameRequired`.
+3. When neither the listener nor the route names a hostname, a domain ngrok assigns the Gateway, the way `ngrok http 80` gets one. The operator doesn't make the name up, because a made-up name could already belong to someone else. TCP listeners still need `spec.addresses`.
+
+### The assigned domain
+
+See `pkg/managerdriver/gateway_address.go`. ngrok only hands out a name to an agent endpoint started without one (`url: https://`): the reserved-domains API needs a name, and a CloudEndpoint can't be created without one (`ERR_NGROK_18006`). The name changes every time such an endpoint restarts, so the operator pins the first one:
+
+1. While a Gateway with a hostname-less HTTP, HTTPS or TLS listener has no domain, the Driver adds a claim: AgentEndpoint `<gateway>-address-claim` with `url: https://`, a policy that answers 503, and labels `ngrok.com/gateway-uid` and `ngrok.com/gateway-name`. The agent writes the domain ngrok gave it to `status.assignedURL`.
+2. The Gateway controller watches claims, so the next Sync sees the domain. It creates a Domain for it labeled `ngrok.com/gateway-uid`, and stops adding the claim, which deletes it. ngrok refuses to reserve a domain an endpoint is using ("You may not reserve domains that are actively in use"); the Domain controller retries until the claim is gone.
+3. From then on the labeled Domain is the Gateway's domain (`assignedGatewayDomains` reads it from the API server, not the cache, so a sync right after the pin can't miss it and claim again). Its endpoints serve on it and it is the Gateway's `status.addresses` entry. Route changes and restarts keep it. A re-created Gateway has a new UID and gets a new domain.
+
+Until step 2, routes without hostnames on that listener aren't served and the Gateway reports `Programmed=False`, `AddressNotAssigned`.
 
 A route's rules are added to every endpoint of the listener whose hostname one of the route's hostnames covers, so a route for `*.example.com` also serves `foo.example.com` behind a more specific route for that name. Within an endpoint, matches are ordered by the Gateway API precedence rules: the most specific matching hostname, then exact path over prefix and the longest prefix, then method, then the most header matches, then the most query parameter matches, then the oldest route, then `namespace/name`, then rule order.
 

@@ -35,7 +35,6 @@ Settings, all optional (`tools/make/conformance.mk`):
 | `CONFORMANCE_SUPPORTED_FEATURES` | `Gateway,HTTPRoute,ReferenceGrant` | Features we claim; keep in step with `SupportedFeatures` in `internal/controller/gateway/gatewayclass_controller.go` |
 | `CONFORMANCE_SKIP_TESTS` | none | Comma-separated tests to skip. Every skip must be explained in the submitted README |
 | `CONFORMANCE_HOSTNAME_SUFFIX` | `<you>.gwapi-conformance.test` | See [the hostname suffix](#the-hostname-suffix) |
-| `CONFORMANCE_GENERATED_DOMAIN_SUFFIX` | `ngrok.app` | Where Gateways without hostnames get their domain |
 | `CONFORMANCE_OPERATOR_VERSION` | `git describe` | Version written into the report; a submitted report must name a release |
 
 A run reserves real domains in the ngrok account. They use `reclaimPolicy: Delete`, so deleting the
@@ -44,13 +43,13 @@ interrupted.
 
 ## How the operator is set up for the suite
 
-Two operator settings matter, both set by `make conformance-setup`:
+The suite's Gateways have listeners without a hostname. ngrok routes by hostname, so the operator asks
+ngrok to assign such a Gateway a domain (a random `*.ngrok.app` name, the way `ngrok http 80` gets one) and
+publishes it in `status.addresses`. That is ordinary product behavior with no setting; see "The assigned
+domain" in [specs/features/gateway-api.md](../../specs/features/gateway-api.md).
 
-- `ngrok.features.gateway.generatedDomainSuffix=ngrok.app`. The suite's Gateways have listeners without
-  a hostname. ngrok routes by hostname, so the operator gives such a Gateway a domain of its own,
-  `<gateway>-<namespace>-<uid>.ngrok.app`, and publishes it in `status.addresses`. This is an ordinary
-  product setting, not something only the suite uses.
-- `ngrok.features.gateway.conformanceHostnameSuffix=<suffix>`. Test only, explained next.
+One operator setting is set by `make conformance-setup`:
+`ngrok.features.gateway.conformanceHostnameSuffix=<suffix>`. Test only, explained next.
 
 ### The hostname suffix
 

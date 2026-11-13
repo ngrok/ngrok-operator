@@ -28,13 +28,11 @@ type testState struct {
 	gateways   map[types.NamespacedName]*gatewayv1.Gateway
 	grants     []*gatewayv1beta1.ReferenceGrant
 	addresses  []string
-	hostnames  GatewayHostnames
 }
 
 func (ts testState) state() *gatewayAPIState {
 	return &gatewayAPIState{
 		controllerName:  testController,
-		hostnames:       ts.hostnames,
 		referenceGrants: ts.grants,
 		getNamespace: func(name string) (*corev1.Namespace, error) {
 			if ns, ok := ts.namespaces[name]; ok {
@@ -137,13 +135,7 @@ func TestListenerResult(t *testing.T) {
 			wantAccepted: "PortUnavailable", wantResolved: "ResolvedRefs", wantKinds: []string{"HTTPRoute"},
 		},
 		{
-			name:         "no hostname and no generated suffix",
-			listener:     httpListener("http", ""),
-			wantAccepted: "HostnameRequired", wantResolved: "ResolvedRefs", wantKinds: []string{"HTTPRoute"},
-		},
-		{
-			name:         "no hostname with a generated suffix",
-			ts:           testState{hostnames: GatewayHostnames{GeneratedSuffix: "ngrok.app"}},
+			name:         "no hostname is served on the assigned domain",
 			listener:     httpListener("http", ""),
 			wantAccepted: "Accepted", wantResolved: "ResolvedRefs", wantKinds: []string{"HTTPRoute"},
 		},

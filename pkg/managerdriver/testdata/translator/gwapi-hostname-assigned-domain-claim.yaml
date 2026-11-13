@@ -1,0 +1,155 @@
+# Before ngrok has assigned the Gateway a domain, a route without hostnames on a listener without a
+# hostname has nowhere to be served. Translation adds the claim AgentEndpoint that gets the Gateway its
+# domain. The route with a hostname is served as usual.
+gatewayHostnames:
+  conformanceSuffix: conf.test
+input:
+  gatewayClasses:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    metadata:
+      name: ngrok
+    spec:
+      controllerName: ngrok.com/gateway-controller
+  gateways:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: gw
+      namespace: default
+      uid: 0b2f6c1e-1111-2222-3333-444455556666
+      annotations:
+        k8s.ngrok.com/mapping-strategy: "endpoints-verbose"
+    spec:
+      gatewayClassName: ngrok
+      listeners:
+        - name: http
+          port: 80
+          protocol: HTTP
+  httpRoutes:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: no-hostnames
+      namespace: default
+    spec:
+      parentRefs:
+      - name: gw
+      rules:
+      - matches:
+        - path: {type: PathPrefix, value: /}
+        backendRefs:
+        - {name: svc-a, port: 80}
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: with-hostname
+      namespace: default
+    spec:
+      hostnames: ["example.com"]
+      parentRefs:
+      - name: gw
+      rules:
+      - matches:
+        - path: {type: PathPrefix, value: /b}
+        backendRefs:
+        - {name: svc-b, port: 80}
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata: {name: svc-a, namespace: default}
+    spec:
+      ports: [{name: http, port: 80, protocol: TCP}]
+  - apiVersion: v1
+    kind: Service
+    metadata: {name: svc-b, namespace: default}
+    spec:
+      ports: [{name: http, port: 80, protocol: TCP}]
+expected:
+  gatewayHostnames:
+    default/gw: ["example.com.conf.test"]
+  agentEndpoints:
+  - apiVersion: ngrok.com/v1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
+        ngrok.com/gateway-uid: 0b2f6c1e-1111-2222-3333-444455556666
+        ngrok.com/gateway-name: gw
+      name: gw-address-claim
+      namespace: default
+    spec:
+      url: https://
+      description: Gets a domain from ngrok for Gateway default/gw
+      upstream:
+        url: http://localhost:1
+      trafficPolicy:
+        inline:
+          on_http_request:
+          - actions:
+            - type: custom-response
+              config:
+                status_code: 503
+                body: This Gateway's address is being assigned.
+  - apiVersion: ngrok.com/v1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-svc-a-default-80
+      namespace: default
+    spec:
+      upstream:
+        url: http://svc-a.default:80
+      url: http://e3b0c-svc-a-default-80.internal
+  - apiVersion: ngrok.com/v1
+    kind: AgentEndpoint
+    metadata:
+      labels:
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
+      name: e3b0c-svc-b-default-80
+      namespace: default
+    spec:
+      upstream:
+        url: http://svc-b.default:80
+      url: http://e3b0c-svc-b-default-80.internal
+  cloudEndpoints:
+  - apiVersion: ngrok.com/v1
+    kind: CloudEndpoint
+    metadata:
+      labels:
+        ngrok.com/controller-name: test-manager-name
+        ngrok.com/controller-namespace: test-manager-namespace
+      name: gw.default-example.com.conf.test
+      namespace: default
+    spec:
+      trafficPolicy:
+        inline:
+          on_http_request:
+          - actions:
+            - config:
+                url: http://e3b0c-svc-b-default-80.internal
+              type: forward-internal
+            expressions:
+            - (req.url.path == '/b' || req.url.path.startsWith('/b/'))
+            name: Generated-Route
+          - actions:
+            - config:
+                url: http://e3b0c-svc-a-default-80.internal
+              type: forward-internal
+            expressions:
+            - req.url.path.startsWith('/')
+            name: Generated-Route
+          - actions:
+            - config:
+                content: No route was found for this ngrok Endpoint
+                headers:
+                  content-type: text/plain
+                status_code: 404
+              type: custom-response
+            name: Fallback-404
+      url: http://example.com.conf.test
+      poolingEnabled: true
