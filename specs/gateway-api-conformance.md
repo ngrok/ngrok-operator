@@ -59,6 +59,7 @@ always 0, stale `observedGeneration`, routes had no `ResolvedRefs`.
 | A headless Service backend is dialed on its numeric `targetPort` | A headless Service has no cluster IP to translate the port, so its Pods were dialed on the Service port (`ERR_NGROK_3004`) | `utils.go` (`upstreamPort`) |
 | A URL still held by the endpoint being replaced (`ERR_NGROK_18016/18017` for CloudEndpoints, `ERR_NGROK_334` for AgentEndpoints) is retried every 2s | These conflicts clear in seconds, but the growing error backoff kept the URL offline for minutes | `cloudendpoint_controller.go`, `agent_endpoint_controller.go` |
 | A CloudEndpoint deleted right after it was created re-reads its ID from the API server before releasing its finalizer | The cache did not have the ID yet, so the ngrok endpoint was left behind, holding its URL and blocking its replacement | `cloudendpoint_controller.go` (`freshID`) |
+| A header filter with only `add` or only `remove` no longer emits an empty action | ngrok rejects an empty header list (`ERR_NGROK_2204`), which kept the whole endpoint offline | `translate_gatewayapi.go` (`headerActions`) |
 | Test-only `features.gateway.conformanceHostnameSuffix` | See below | `gateway_hostnames.go`, chart value |
 
 ## The hostname suffix

@@ -1098,3 +1098,26 @@ func TestSegmentPrefixExpression(t *testing.T) {
 		})
 	}
 }
+
+func TestHeaderActions(t *testing.T) {
+	tests := []struct {
+		name   string
+		remove []string
+		add    map[string]string
+		want   []trafficpolicy.ActionType
+	}{
+		{"remove only", []string{"X-Remove"}, nil, []trafficpolicy.ActionType{trafficpolicy.ActionType_RemoveHeaders}},
+		{"add only", nil, map[string]string{"X-Add": "v"}, []trafficpolicy.ActionType{trafficpolicy.ActionType_AddHeaders}},
+		{"both, remove first", []string{"X-Set"}, map[string]string{"X-Set": "v"}, []trafficpolicy.ActionType{trafficpolicy.ActionType_RemoveHeaders, trafficpolicy.ActionType_AddHeaders}},
+		{"neither", nil, map[string]string{}, []trafficpolicy.ActionType{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := []trafficpolicy.ActionType{}
+			for _, a := range headerActions(tt.remove, tt.add) {
+				got = append(got, a.Type)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

@@ -1018,6 +1018,25 @@ func (t *translator) gatewayAPIFilterToTrafficPolicy(filter gatewayv1.HTTPRouteF
 // #region Request Header Filter
 
 // gwapiRequestHeaderFilterToTrafficPolicy translates a GatewayAPI request header filter into traffic policy config
+// headerActions removes, then adds, headers. An action with nothing to do is left out: ngrok rejects
+// an empty header list (ERR_NGROK_2204), and that rejection takes down the whole endpoint.
+func headerActions(remove []string, add map[string]string) []trafficpolicy.Action {
+	actions := []trafficpolicy.Action{}
+	if len(remove) > 0 {
+		actions = append(actions, trafficpolicy.Action{
+			Type:   trafficpolicy.ActionType_RemoveHeaders,
+			Config: map[string]any{"headers": remove},
+		})
+	}
+	if len(add) > 0 {
+		actions = append(actions, trafficpolicy.Action{
+			Type:   trafficpolicy.ActionType_AddHeaders,
+			Config: map[string]any{"headers": add},
+		})
+	}
+	return actions
+}
+
 func gwapiRequestHeaderFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter) (*trafficpolicy.TrafficPolicy, error) {
 	requestHeaders := filter.RequestHeaderModifier
 	if requestHeaders == nil {
@@ -1041,21 +1060,8 @@ func gwapiRequestHeaderFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter) (
 
 	ret := trafficpolicy.NewTrafficPolicy()
 	ret.OnHTTPRequest = []trafficpolicy.Rule{{
-		Name: "GatewayAPI-Request-Header-Filter",
-		Actions: []trafficpolicy.Action{
-			{
-				Type: trafficpolicy.ActionType_RemoveHeaders,
-				Config: map[string]any{
-					"headers": headersToRemove,
-				},
-			},
-			{
-				Type: trafficpolicy.ActionType_AddHeaders,
-				Config: map[string]any{
-					"headers": headersToAdd,
-				},
-			},
-		},
+		Name:    "GatewayAPI-Request-Header-Filter",
+		Actions: headerActions(headersToRemove, headersToAdd),
 	}}
 
 	return ret, nil
@@ -1087,21 +1093,8 @@ func gwapiResponseHeaderFilterToTrafficPolicy(filter gatewayv1.HTTPRouteFilter) 
 
 	ret := trafficpolicy.NewTrafficPolicy()
 	ret.OnHTTPResponse = []trafficpolicy.Rule{{
-		Name: "GatewayAPI-Response-Header-Filter",
-		Actions: []trafficpolicy.Action{
-			{
-				Type: trafficpolicy.ActionType_RemoveHeaders,
-				Config: map[string]any{
-					"headers": headersToRemove,
-				},
-			},
-			{
-				Type: trafficpolicy.ActionType_AddHeaders,
-				Config: map[string]any{
-					"headers": headersToAdd,
-				},
-			},
-		},
+		Name:    "GatewayAPI-Response-Header-Filter",
+		Actions: headerActions(headersToRemove, headersToAdd),
 	}}
 
 	return ret, nil
