@@ -168,6 +168,18 @@ func (m *Manager) checkSkippedDomains(ctx context.Context, endpoint ngrokv1alpha
 		}, nil
 	}
 
+	// Skip scheme-only URLs (https://): ngrok assigns the endpoint a domain when it starts
+	if raw, err := url.Parse(endpoint.GetURL()); err == nil && raw.Scheme != "" && raw.Host == "" {
+		msg := "Domain ready (ngrok assigns the domain - no domain reservation needed)"
+		m.setDomainCondition(endpoint, true, ReasonDomainReady, msg)
+		endpoint.SetDomainRef(nil)
+		return &DomainResult{
+			IsReady:      true,
+			ReadyReason:  ReasonDomainReady,
+			ReadyMessage: msg,
+		}, nil
+	}
+
 	// Skip TCP ngrok URLs
 	if parsedURL.Scheme == "tcp" {
 		msg := "Domain ready (TCP ngrok URL - no domain reservation needed)"

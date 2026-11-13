@@ -221,6 +221,20 @@ func TestManager_EnsureDomainExists_SpecialURLs(t *testing.T) {
 			condStatus:   metav1.ConditionTrue,
 		},
 		{
+			name:         "https scheme only is skipped and ready",
+			url:          "https://",
+			expectReady:  true,
+			expectNilDom: true,
+			condStatus:   metav1.ConditionTrue,
+		},
+		{
+			name:         "http scheme only is skipped and ready",
+			url:          "http://",
+			expectReady:  true,
+			expectNilDom: true,
+			condStatus:   metav1.ConditionTrue,
+		},
+		{
 			name:         "internal domain is skipped and ready",
 			url:          "https://api.service.internal",
 			expectReady:  true,
