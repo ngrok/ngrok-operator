@@ -91,3 +91,4 @@ expected:
               type: custom-response
             name: Fallback-404
       url: https://test-hostname.ngrok.io
+      poolingEnabled: true

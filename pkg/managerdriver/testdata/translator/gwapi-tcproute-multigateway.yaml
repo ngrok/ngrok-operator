@@ -121,6 +121,7 @@ expected:
                 config:
                   url: "tcp://e3b0c-test-service-2-default.internal:12000"
       url: tcp://test-hostname.ngrok.io:9000
+      poolingEnabled: true
   - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
@@ -154,6 +155,7 @@ expected:
                 config:
                   url: "tcp://e3b0c-test-service-2-default.internal:12000"
       url: tcp://test-hostname-2.ngrok.io:7000
+      poolingEnabled: true
   agentEndpoints:
   - apiVersion: ngrok.com/v1
     kind: AgentEndpoint

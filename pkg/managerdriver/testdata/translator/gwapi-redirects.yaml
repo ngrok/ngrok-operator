@@ -162,3 +162,4 @@ expected:
                   headers:
                     content-type: text/plain
       url: https://test-hostname.ngrok.io
+      poolingEnabled: true

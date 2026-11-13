@@ -76,6 +76,7 @@ expected:
       namespace: default
     spec:
       url: "https://test-hostname.ngrok.io"
+      poolingEnabled: true
       metadata: {"env":"staging","team":"platform"}
       description: "Platform staging gateway"
       trafficPolicy:

@@ -130,6 +130,7 @@ expected:
               type: custom-response
             name: Fallback-404
       url: http://example.com.conf.test
+      poolingEnabled: true
   - apiVersion: ngrok.com/v1
     kind: CloudEndpoint
     metadata:
@@ -158,3 +159,4 @@ expected:
               type: custom-response
             name: Fallback-404
       url: http://gw-default-0b2f6c1e.ngrok.app
+      poolingEnabled: true

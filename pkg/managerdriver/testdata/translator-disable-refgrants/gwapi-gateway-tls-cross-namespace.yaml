@@ -139,6 +139,7 @@ expected:
                   "server_certificate": "ServerCert"
                   "server_private_key": "ServerPrivateKey"
       url: https://test-hostname.ngrok.io
+      poolingEnabled: true
   agentEndpoints:
   - apiVersion: ngrok.com/v1
     kind: AgentEndpoint

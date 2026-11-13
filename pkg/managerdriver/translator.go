@@ -16,6 +16,7 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/store"
 	"github.com/ngrok/ngrok-operator/internal/trafficpolicy"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -828,8 +829,12 @@ func buildCloudEndpoint(irVHost *ir.IRVirtualHost) (*ngrokv1.CloudEndpoint, erro
 		Labels:      irVHost.LabelsToAdd,
 		Annotations: irVHost.AnnotationsToAdd,
 		Spec: ngrokv1.CloudEndpointSpec{
-			URL:            publicURL,
-			PoolingEnabled: irVHost.EndpointPoolingEnabled,
+			URL: publicURL,
+			// Pooled unless the user turns it off. A hostname moves between a public AgentEndpoint (always
+			// pooled, see pkg/agent) and a CloudEndpoint as its routes change, and ngrok only lets the
+			// two hold the URL at the same time when both are pooled (ERR_NGROK_18016, 18017). Unpooled,
+			// the new endpoint can't be created until the old one is gone, which drops traffic.
+			PoolingEnabled: ptr.To(ptr.Deref(irVHost.EndpointPoolingEnabled, true)),
 			Metadata:       commonv1alpha1.MetadataToMap(json.RawMessage(irVHost.Metadata)),
 			Description:    irVHost.Description,
 			Bindings:       irVHost.Bindings,

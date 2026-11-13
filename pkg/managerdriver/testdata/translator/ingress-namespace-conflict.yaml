@@ -93,6 +93,7 @@ expected:
       namespace: aaa
     spec:
       url: https://test-ingresses.ngrok.io
+      poolingEnabled: true
       trafficPolicy:
         inline:
           on_http_request:

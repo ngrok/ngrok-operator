@@ -90,6 +90,7 @@ expected:
                     headers:
                       content-type: text/plain
       url: http://test-hostname.ngrok.io:8080
+      poolingEnabled: true
   agentEndpoints:
   - apiVersion: ngrok.com/v1
     kind: AgentEndpoint

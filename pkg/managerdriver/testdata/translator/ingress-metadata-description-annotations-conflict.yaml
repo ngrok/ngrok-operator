@@ -94,6 +94,7 @@ expected:
       namespace: default
     spec:
       url: "https://shared-host.ngrok.io"
+      poolingEnabled: true
       metadata: {"owner":"team-a"}
       description: "Team A description"
       trafficPolicy:

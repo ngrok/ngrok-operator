@@ -272,6 +272,36 @@ func TestBuildCloudEndpointMetadata(t *testing.T) {
 	}
 }
 
+func TestBuildCloudEndpointPooling(t *testing.T) {
+	testCases := []struct {
+		testName string
+		pooling  *bool
+		want     bool
+	}{
+		{testName: "unset defaults to pooled", pooling: nil, want: true},
+		{testName: "annotation enables", pooling: new(true), want: true},
+		{testName: "annotation disables", pooling: new(false), want: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			result, err := buildCloudEndpoint(&ir.IRVirtualHost{
+				Bindings:               []string{"public"},
+				Namespace:              "default",
+				EndpointPoolingEnabled: tc.pooling,
+				Listener: ir.IRListener{
+					Hostname: "cloud-host",
+					Port:     443,
+					Protocol: ir.IRProtocol_HTTPS,
+				},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, result.Spec.PoolingEnabled)
+			assert.Equal(t, tc.want, *result.Spec.PoolingEnabled)
+		})
+	}
+}
+
 func TestBuildDefaultDestinationPolicy(t *testing.T) {
 	testCases := []struct {
 		name               string
