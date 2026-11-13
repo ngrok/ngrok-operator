@@ -60,6 +60,8 @@ always 0, stale `observedGeneration`, routes had no `ResolvedRefs`.
 | A URL still held by the endpoint being replaced (`ERR_NGROK_18016/18017` for CloudEndpoints, `ERR_NGROK_334` for AgentEndpoints) is retried every 2s | These conflicts clear in seconds, but the growing error backoff kept the URL offline for minutes | `cloudendpoint_controller.go`, `agent_endpoint_controller.go` |
 | A CloudEndpoint deleted right after it was created re-reads its ID from the API server before releasing its finalizer | The cache did not have the ID yet, so the ngrok endpoint was left behind, holding its URL and blocking its replacement | `cloudendpoint_controller.go` (`freshID`) |
 | A header filter with only `add` or only `remove` no longer emits an empty action | ngrok rejects an empty header list (`ERR_NGROK_2204`), which kept the whole endpoint offline | `translate_gatewayapi.go` (`headerActions`) |
+| Translated CloudEndpoints pool by default (the `ngrok.com/pooling-enabled` annotation can turn it off) | Agent endpoints always pool; an unpooled CloudEndpoint can't share the URL while a hostname moves between the two, so the URL went offline in between (`ERR_NGROK_18016/18017`). ngrok allows mixed pools when every member pools | `translator.go` (`buildCloudEndpoint`) |
+| An endpoint with a scheme-only URL (`https://`) reserves no domain | It tried to reserve `localhost` (`ERR_NGROK_448`) and reported `Ready=False` while serving | `internal/domain/manager.go` |
 | Test-only `features.gateway.conformanceHostnameSuffix` | See below | `gateway_hostnames.go`, chart value |
 
 ## The hostname suffix
@@ -80,7 +82,7 @@ even with no skips. We disclose both in the submitted README.
 
 ## Account requirements
 
-The run reserves real domains: the generated `*.ngrok.app` names, custom domains under the suffix,
+The run reserves real domains: the `*.ngrok.app` names ngrok assigns to Gateways without hostnames, custom domains under the suffix,
 and 6 wildcard domains (`*.wildcard.org`, `*.wildcard.io`, `*.anotherwildcard.io`, `*.bar.com`,
 `*.foo.com`, and the catch-all). Accounts are limited to 5 wildcard domains by default
 (`ERR_NGROK_418`), so runs need an account with a higher limit; a dedicated test account also keeps
@@ -94,7 +96,9 @@ Core GATEWAY-HTTP tests, Gateway API v1.7.0:
 |---|---|---|
 | `main` (unmodified suite) | 0 / 40 | Setup fails |
 | This branch, run 3 | 27 / 40 | Before the collapse, resync and catch-all fixes |
-| This branch, run 4 | see the PR | |
+| This branch, run 9 | 37 / 40 | Two wildcard tests blocked by the account's 5-wildcard limit |
+| This branch, run 11 | 39 / 40 | Account limit raised; ngrok-assigned Gateway domains. Only `HTTPRouteHTTPSListener` fails |
+| This branch, run 12 | 39 passed, 1 skipped | As it would be submitted (`CONFORMANCE_SKIP_TESTS=HTTPRouteHTTPSListener`): `result: partial` |
 
 Expected skip: `HTTPRouteHTTPSListener`. TLS terminates at the edge, and the test's client sends the
 SNI of an unsuffixed test hostname (`example.org`), so the edge can't route it. This skip makes the
@@ -117,6 +121,13 @@ for edge- and proxy-fronted implementations, for BackendTLSPolicy
   Service becomes one public AgentEndpoint, and with more it becomes a CloudEndpoint. Each change
   replaces the endpoint holding the URL, which gives a gap of a few seconds. The suite changes routes on
   the same Gateway constantly, so it hits this often. Users who change routes see the same gap.
+  Translated CloudEndpoints now pool like agent endpoints, so the new endpoint can join the URL
+  before the old one leaves; the remaining risk is a short window where both serve.
+- **`HTTPRouteHTTPSListener` with an SNI shim:** the test verifies the listener's certificate (from a
+  Secret, which the operator does serve at the edge via `terminate-tls`) with SNI `example.org`. It could
+  pass with a harness that sends the suffixed SNI and verifies the certificate as `example.org`, plus an
+  HTTPS catch-all for `unknown-example.org`. Not built: it is more test-only machinery for reviewers to
+  judge. v1.8 accepts no skips, so this or an upstream change to the test is required for v1.8.
 - **TLS and TCP profiles:** the standard channel ships TLSRoute and TCPRoute as `v1` since v1.6, and
   the operator only looks for `v1alpha2`, so it disables them on current CRDs. Supporting them needs
   the gateway-api module bump (client-go 0.37, controller-runtime 0.25).
