@@ -43,7 +43,7 @@ three accommodations, and one test is skipped because of the TLS model:
   each request's `Host` and removes it from the `Host` the backend echoes and from redirect locations.
   Each hostname still gets its own ngrok endpoint and the edge still routes by `Host`; only the names
   differ, and `.test` names can't belong to anyone. This is the same accommodation as the
-  `X-Original-Host` header in the Cloudflare Tunnel controller's report.
+  `X-Original-Host` header in the report for lexfrei's Cloudflare Tunnel Gateway Controller.
 - **Unknown hostnames.** For a hostname with no endpoint, the edge redirects plain HTTP to HTTPS. The
   harness creates one endpoint for `*.<suffix>.test` that answers 404, which the suite expects for a
   hostname no route serves. More specific endpoints take precedence.

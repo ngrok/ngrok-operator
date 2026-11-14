@@ -28,9 +28,14 @@ and [the conformance levels page](https://github.com/kubernetes-sigs/gateway-api
   so a v1.7 report is the target; v1.8 is expected around Feb-Mar 2027.
 - `details.yaml` (the list entry) must not mention versions or commercial terms.
 
-The closest precedent is the Cloudflare Tunnel controller ([#4945](https://github.com/kubernetes-sigs/gateway-api/pull/4945),
-merged as partial): an edge in front of a tunnel, like us. It ran the suite with a test-only header
-that carries the hostname the suite wants, and skipped `HTTPRouteHTTPSListener`.
+The closest precedent is lexfrei's Cloudflare Tunnel Gateway Controller, a community project rather
+than one from Cloudflare ([#4945](https://github.com/kubernetes-sigs/gateway-api/pull/4945), a v1.6
+report merged as partial). Like us, it sits behind an edge that terminates TLS and reaches the cluster
+through a tunnel. It ran the suite with a test-only `X-Original-Host` header carrying the hostname the
+suite wants, and skipped `HTTPRouteHTTPSListener` and `HTTPRouteMultipleGateways`. The difference: it
+forwards every hostname to one in-cluster proxy that does all the routing, while ngrok routes at the
+edge by hostname, with an endpoint per hostname. That is why we need per-hostname names (the suffix) and
+a catch-all for unknown names, and why we pass `HTTPRouteMultipleGateways`.
 
 ## Where we started
 

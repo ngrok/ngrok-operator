@@ -73,8 +73,8 @@ What this does and does not change:
   reserved names can't belong to anyone. Nothing needs DNS: requests go to the Gateway's address with
   the suffixed `Host`.
 
-The [Cloudflare Tunnel controller's report](https://github.com/kubernetes-sigs/gateway-api/pull/4945)
-was accepted with the same kind of accommodation, for the same reason (TLS and routing at an edge in front
+The report for lexfrei's [Cloudflare Tunnel Gateway Controller](https://github.com/kubernetes-sigs/gateway-api/pull/4945)
+(a community project) was accepted with the same kind of accommodation, for the same reason (TLS and routing at an edge in front
 of a tunnel). We disclose ours in the submitted README.
 
 ## Submitting a report
