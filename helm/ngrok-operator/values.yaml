@@ -187,7 +187,6 @@ ngrok:
 ## @param components.common.topologySpreadConstraints Topology spread constraints for pod assignment
 ## @param components.common.priorityClassName Priority class for pod scheduling
 ## @param components.common.extraEnv Additional environment variables, as a map of name to value. A name the chart also sets replaces the chart's entry
-## @extra components.common.resources Resource requests and limits
 ## @extra components.common.lifecycle Container lifecycle hooks
 ## @extra components.common.extraVolumes Additional volumes
 ## @extra components.common.extraVolumeMounts Additional volume mounts
@@ -328,9 +327,6 @@ components:
     topologySpreadConstraints: []
     priorityClassName: ""
     extraEnv: {}
-    # resources:
-    #   limits: {}
-    #   requests: {}
     # lifecycle: {}
     # extraVolumes: []
     # extraVolumeMounts: []

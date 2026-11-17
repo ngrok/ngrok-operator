@@ -152,7 +152,6 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 | `components.common.topologySpreadConstraints`     | Topology spread constraints for pod assignment                                                                     | `[]`   |
 | `components.common.priorityClassName`             | Priority class for pod scheduling                                                                                  | `""`   |
 | `components.common.extraEnv`                      | Additional environment variables, as a map of name to value. A name the chart also sets replaces the chart's entry | `{}`   |
-| `components.common.resources`                     | Resource requests and limits                                                                                       |        |
 | `components.common.lifecycle`                     | Container lifecycle hooks                                                                                          |        |
 | `components.common.extraVolumes`                  | Additional volumes                                                                                                 |        |
 | `components.common.extraVolumeMounts`             | Additional volume mounts                                                                                           |        |
