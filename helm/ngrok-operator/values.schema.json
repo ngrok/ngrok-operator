@@ -51,8 +51,7 @@
                     "default": [],
                     "items": {}
                 }
-            },
-            "additionalProperties": false
+            }
         },
         "crdAccessRoles": {
             "type": "object",
@@ -67,8 +66,7 @@
                     "description": "Annotations for CRD access ClusterRoles (e.g., RBAC aggregation)",
                     "default": {}
                 }
-            },
-            "additionalProperties": false
+            }
         },
         "installCRDs": {
             "type": "boolean",
@@ -89,8 +87,7 @@
                                     "description": "The name of the secret the credentials are in. If not provided, one will be generated using the helm release name.",
                                     "default": ""
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "accessToken": {
                             "type": "string",
@@ -105,8 +102,7 @@
                                     "description": "Optional access token for the agent-manager only. Falls back to ngrok.credentials.accessToken.",
                                     "default": ""
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "apiManager": {
                             "type": "object",
@@ -116,8 +112,7 @@
                                     "description": "Optional access token for the api-manager only. Falls back to ngrok.credentials.accessToken.",
                                     "default": ""
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "privateEndpointForwarder": {
                             "type": "object",
@@ -127,11 +122,9 @@
                                     "description": "Optional access token for the private-endpoint-forwarder only. Falls back to ngrok.credentials.accessToken. With ngrok.features.privateEndpoints.enabled and no ngrok.credentials.secret.name, one of the two must be set or rendering fails. A custom secret is not checked at render time; it must hold a PRIVATE_ENDPOINTS_ACCESS_TOKEN key (without it the forwarder container never starts).",
                                     "default": ""
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         }
-                    },
-                    "additionalProperties": false
+                    }
                 },
                 "description": {
                     "type": "string",
@@ -186,8 +179,7 @@
                             "description": "Level at and above which stacktraces are captured: `info`, `error` or `panic`. Default: `error`",
                             "default": ""
                         }
-                    },
-                    "additionalProperties": false
+                    }
                 },
                 "features": {
                     "type": "object",
@@ -228,11 +220,9 @@
                                             "description": "Set the IngressClass as the cluster default",
                                             "default": false
                                         }
-                                    },
-                                    "additionalProperties": false
+                                    }
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "gateway": {
                             "type": "object",
@@ -247,8 +237,7 @@
                                     "description": "Disable the ReferenceGrant requirement for cross-namespace references",
                                     "default": false
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "bindings": {
                             "type": "object",
@@ -279,8 +268,7 @@
                                     "description": "Hostname of the bindings ingress endpoint. Default: `kubernetes-binding-ingress.ngrok.io:443`",
                                     "default": ""
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "privateEndpoints": {
                             "type": "object",
@@ -305,8 +293,7 @@
                                     "description": "Private dial transport: `auto` races QUIC against HTTP/2 and keeps the first to connect, `quic` or `h2` uses only that one. Default: `auto`",
                                     "default": ""
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "domains": {
                             "type": "object",
@@ -316,8 +303,7 @@
                                     "description": "Reclaim policy given to the Domains the operator creates: `Delete` or `Retain`. Default: `Delete`",
                                     "default": ""
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "cleanup": {
                             "type": "object",
@@ -337,8 +323,7 @@
                                     "description": "What the drain does with the ngrok API resources the operator created: `Delete` or `Retain`. Default: `Retain`",
                                     "default": ""
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "oneClickDemoMode": {
                             "type": "object",
@@ -348,14 +333,11 @@
                                     "description": "Start without credentials and become Ready without reconciling, for marketplace installs. Also skips rendering the agent and bindings-forwarder",
                                     "default": false
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         }
-                    },
-                    "additionalProperties": false
+                    }
                 }
-            },
-            "additionalProperties": false
+            }
         },
         "components": {
             "type": "object",
@@ -418,8 +400,7 @@
                                     "default": [],
                                     "items": {}
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "topologySpreadConstraints": {
                             "type": "array",
@@ -436,27 +417,8 @@
                             "type": "object",
                             "description": "Additional environment variables, as a map of name to value. A name the chart also sets replaces the chart's entry",
                             "default": {}
-                        },
-                        "resources": {
-                            "description": "Resource requests and limits"
-                        },
-                        "lifecycle": {
-                            "description": "Container lifecycle hooks"
-                        },
-                        "extraVolumes": {
-                            "description": "Additional volumes"
-                        },
-                        "extraVolumeMounts": {
-                            "description": "Additional volume mounts"
-                        },
-                        "terminationGracePeriodSeconds": {
-                            "description": "Graceful shutdown period, in seconds. Kubernetes default: `30`"
-                        },
-                        "updateStrategy": {
-                            "description": "Deployment update strategy. Kubernetes default: `RollingUpdate`"
                         }
-                    },
-                    "additionalProperties": false
+                    }
                 },
                 "apiManager": {
                     "type": "object",
@@ -478,12 +440,8 @@
                                     "type": "string",
                                     "description": "Maximum unavailable pods",
                                     "default": "1"
-                                },
-                                "minAvailable": {
-                                    "description": "Minimum available pods. Set this instead of `maxUnavailable`, not alongside it"
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "serviceAccount": {
                             "type": "object",
@@ -492,72 +450,10 @@
                                     "type": "boolean",
                                     "description": "Whether to create a ServiceAccount",
                                     "default": true
-                                },
-                                "name": {
-                                    "description": "ServiceAccount name. Generated if empty"
-                                },
-                                "annotations": {
-                                    "description": "ServiceAccount annotations"
                                 }
-                            },
-                            "additionalProperties": false
-                        },
-                        "resources": {
-                            "description": "Resource requests and limits"
-                        },
-                        "log": {
-                            "description": "Overrides of `ngrok.log` for the api-manager"
-                        },
-                        "podAnnotations": {
-                            "description": "Overrides `components.common.podAnnotations` for the api-manager"
-                        },
-                        "podLabels": {
-                            "description": "Overrides `components.common.podLabels` for the api-manager"
-                        },
-                        "nodeSelector": {
-                            "description": "Overrides `components.common.nodeSelector` for the api-manager"
-                        },
-                        "tolerations": {
-                            "description": "Overrides `components.common.tolerations` for the api-manager"
-                        },
-                        "affinity": {
-                            "description": "Overrides `components.common.affinity` for the api-manager"
-                        },
-                        "podAffinityPreset": {
-                            "description": "Overrides `components.common.podAffinityPreset` for the api-manager"
-                        },
-                        "podAntiAffinityPreset": {
-                            "description": "Overrides `components.common.podAntiAffinityPreset` for the api-manager"
-                        },
-                        "nodeAffinityPreset": {
-                            "description": "Overrides `components.common.nodeAffinityPreset` for the api-manager"
-                        },
-                        "topologySpreadConstraints": {
-                            "description": "Overrides `components.common.topologySpreadConstraints` for the api-manager"
-                        },
-                        "priorityClassName": {
-                            "description": "Overrides `components.common.priorityClassName` for the api-manager"
-                        },
-                        "extraEnv": {
-                            "description": "Overrides `components.common.extraEnv` for the api-manager"
-                        },
-                        "lifecycle": {
-                            "description": "Overrides `components.common.lifecycle` for the api-manager"
-                        },
-                        "extraVolumes": {
-                            "description": "Overrides `components.common.extraVolumes` for the api-manager"
-                        },
-                        "extraVolumeMounts": {
-                            "description": "Overrides `components.common.extraVolumeMounts` for the api-manager"
-                        },
-                        "terminationGracePeriodSeconds": {
-                            "description": "Overrides `components.common.terminationGracePeriodSeconds` for the api-manager"
-                        },
-                        "updateStrategy": {
-                            "description": "Overrides `components.common.updateStrategy` for the api-manager"
+                            }
                         }
-                    },
-                    "additionalProperties": false
+                    }
                 },
                 "agent": {
                     "type": "object",
@@ -574,72 +470,10 @@
                                     "type": "boolean",
                                     "description": "Whether to create a ServiceAccount",
                                     "default": true
-                                },
-                                "name": {
-                                    "description": "ServiceAccount name. Generated if empty"
-                                },
-                                "annotations": {
-                                    "description": "ServiceAccount annotations"
                                 }
-                            },
-                            "additionalProperties": false
-                        },
-                        "resources": {
-                            "description": "Resource requests and limits"
-                        },
-                        "log": {
-                            "description": "Overrides of `ngrok.log` for the agent"
-                        },
-                        "podAnnotations": {
-                            "description": "Overrides `components.common.podAnnotations` for the agent"
-                        },
-                        "podLabels": {
-                            "description": "Overrides `components.common.podLabels` for the agent"
-                        },
-                        "nodeSelector": {
-                            "description": "Overrides `components.common.nodeSelector` for the agent"
-                        },
-                        "tolerations": {
-                            "description": "Overrides `components.common.tolerations` for the agent"
-                        },
-                        "affinity": {
-                            "description": "Overrides `components.common.affinity` for the agent"
-                        },
-                        "podAffinityPreset": {
-                            "description": "Overrides `components.common.podAffinityPreset` for the agent"
-                        },
-                        "podAntiAffinityPreset": {
-                            "description": "Overrides `components.common.podAntiAffinityPreset` for the agent"
-                        },
-                        "nodeAffinityPreset": {
-                            "description": "Overrides `components.common.nodeAffinityPreset` for the agent"
-                        },
-                        "topologySpreadConstraints": {
-                            "description": "Overrides `components.common.topologySpreadConstraints` for the agent"
-                        },
-                        "priorityClassName": {
-                            "description": "Overrides `components.common.priorityClassName` for the agent"
-                        },
-                        "extraEnv": {
-                            "description": "Overrides `components.common.extraEnv` for the agent"
-                        },
-                        "lifecycle": {
-                            "description": "Overrides `components.common.lifecycle` for the agent"
-                        },
-                        "extraVolumes": {
-                            "description": "Overrides `components.common.extraVolumes` for the agent"
-                        },
-                        "extraVolumeMounts": {
-                            "description": "Overrides `components.common.extraVolumeMounts` for the agent"
-                        },
-                        "terminationGracePeriodSeconds": {
-                            "description": "Overrides `components.common.terminationGracePeriodSeconds` for the agent"
-                        },
-                        "updateStrategy": {
-                            "description": "Overrides `components.common.updateStrategy` for the agent"
+                            }
                         }
-                    },
-                    "additionalProperties": false
+                    }
                 },
                 "bindingsForwarder": {
                     "type": "object",
@@ -656,72 +490,10 @@
                                     "type": "boolean",
                                     "description": "Whether to create a ServiceAccount",
                                     "default": true
-                                },
-                                "name": {
-                                    "description": "ServiceAccount name. Generated if empty"
-                                },
-                                "annotations": {
-                                    "description": "ServiceAccount annotations"
                                 }
-                            },
-                            "additionalProperties": false
-                        },
-                        "resources": {
-                            "description": "Resource requests and limits"
-                        },
-                        "log": {
-                            "description": "Overrides of `ngrok.log` for the bindings-forwarder"
-                        },
-                        "podAnnotations": {
-                            "description": "Overrides `components.common.podAnnotations` for the bindings-forwarder"
-                        },
-                        "podLabels": {
-                            "description": "Overrides `components.common.podLabels` for the bindings-forwarder"
-                        },
-                        "nodeSelector": {
-                            "description": "Overrides `components.common.nodeSelector` for the bindings-forwarder"
-                        },
-                        "tolerations": {
-                            "description": "Overrides `components.common.tolerations` for the bindings-forwarder"
-                        },
-                        "affinity": {
-                            "description": "Overrides `components.common.affinity` for the bindings-forwarder"
-                        },
-                        "podAffinityPreset": {
-                            "description": "Overrides `components.common.podAffinityPreset` for the bindings-forwarder"
-                        },
-                        "podAntiAffinityPreset": {
-                            "description": "Overrides `components.common.podAntiAffinityPreset` for the bindings-forwarder"
-                        },
-                        "nodeAffinityPreset": {
-                            "description": "Overrides `components.common.nodeAffinityPreset` for the bindings-forwarder"
-                        },
-                        "topologySpreadConstraints": {
-                            "description": "Overrides `components.common.topologySpreadConstraints` for the bindings-forwarder"
-                        },
-                        "priorityClassName": {
-                            "description": "Overrides `components.common.priorityClassName` for the bindings-forwarder"
-                        },
-                        "extraEnv": {
-                            "description": "Overrides `components.common.extraEnv` for the bindings-forwarder"
-                        },
-                        "lifecycle": {
-                            "description": "Overrides `components.common.lifecycle` for the bindings-forwarder"
-                        },
-                        "extraVolumes": {
-                            "description": "Overrides `components.common.extraVolumes` for the bindings-forwarder"
-                        },
-                        "extraVolumeMounts": {
-                            "description": "Overrides `components.common.extraVolumeMounts` for the bindings-forwarder"
-                        },
-                        "terminationGracePeriodSeconds": {
-                            "description": "Overrides `components.common.terminationGracePeriodSeconds` for the bindings-forwarder"
-                        },
-                        "updateStrategy": {
-                            "description": "Overrides `components.common.updateStrategy` for the bindings-forwarder"
+                            }
                         }
-                    },
-                    "additionalProperties": false
+                    }
                 },
                 "privateEndpointForwarder": {
                     "type": "object",
@@ -738,72 +510,10 @@
                                     "type": "boolean",
                                     "description": "Whether to create a ServiceAccount",
                                     "default": true
-                                },
-                                "name": {
-                                    "description": "ServiceAccount name. Generated if empty"
-                                },
-                                "annotations": {
-                                    "description": "ServiceAccount annotations"
                                 }
-                            },
-                            "additionalProperties": false
-                        },
-                        "resources": {
-                            "description": "Resource requests and limits"
-                        },
-                        "log": {
-                            "description": "Overrides of `ngrok.log` for the private-endpoint-forwarder"
-                        },
-                        "podAnnotations": {
-                            "description": "Overrides `components.common.podAnnotations` for the private-endpoint-forwarder"
-                        },
-                        "podLabels": {
-                            "description": "Overrides `components.common.podLabels` for the private-endpoint-forwarder"
-                        },
-                        "nodeSelector": {
-                            "description": "Overrides `components.common.nodeSelector` for the private-endpoint-forwarder"
-                        },
-                        "tolerations": {
-                            "description": "Overrides `components.common.tolerations` for the private-endpoint-forwarder"
-                        },
-                        "affinity": {
-                            "description": "Overrides `components.common.affinity` for the private-endpoint-forwarder"
-                        },
-                        "podAffinityPreset": {
-                            "description": "Overrides `components.common.podAffinityPreset` for the private-endpoint-forwarder"
-                        },
-                        "podAntiAffinityPreset": {
-                            "description": "Overrides `components.common.podAntiAffinityPreset` for the private-endpoint-forwarder"
-                        },
-                        "nodeAffinityPreset": {
-                            "description": "Overrides `components.common.nodeAffinityPreset` for the private-endpoint-forwarder"
-                        },
-                        "topologySpreadConstraints": {
-                            "description": "Overrides `components.common.topologySpreadConstraints` for the private-endpoint-forwarder"
-                        },
-                        "priorityClassName": {
-                            "description": "Overrides `components.common.priorityClassName` for the private-endpoint-forwarder"
-                        },
-                        "extraEnv": {
-                            "description": "Overrides `components.common.extraEnv` for the private-endpoint-forwarder"
-                        },
-                        "lifecycle": {
-                            "description": "Overrides `components.common.lifecycle` for the private-endpoint-forwarder"
-                        },
-                        "extraVolumes": {
-                            "description": "Overrides `components.common.extraVolumes` for the private-endpoint-forwarder"
-                        },
-                        "extraVolumeMounts": {
-                            "description": "Overrides `components.common.extraVolumeMounts` for the private-endpoint-forwarder"
-                        },
-                        "terminationGracePeriodSeconds": {
-                            "description": "Overrides `components.common.terminationGracePeriodSeconds` for the private-endpoint-forwarder"
-                        },
-                        "updateStrategy": {
-                            "description": "Overrides `components.common.updateStrategy` for the private-endpoint-forwarder"
+                            }
                         }
-                    },
-                    "additionalProperties": false
+                    }
                 },
                 "cleanupHook": {
                     "type": "object",
@@ -826,8 +536,7 @@
                                     "description": "The pull policy for the cleanup hook image",
                                     "default": "IfNotPresent"
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         },
                         "resources": {
                             "type": "object",
@@ -842,14 +551,11 @@
                                     "description": "The requested resources for the cleanup hook container",
                                     "default": {}
                                 }
-                            },
-                            "additionalProperties": false
+                            }
                         }
-                    },
-                    "additionalProperties": false
+                    }
                 }
-            },
-            "additionalProperties": false
+            }
         }
     }
 }
