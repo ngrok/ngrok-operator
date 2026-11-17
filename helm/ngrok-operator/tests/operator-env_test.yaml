@@ -186,7 +186,7 @@ tests:
       components.agent.features.gateway.enabled: false
     asserts:
       - failedTemplate:
-          errorPattern: "components.agent.features is not supported"
+          errorPattern: "at '/components/agent': additional properties 'features' not allowed"
 
   - it: rejects a per-component ngrok override
     template: api-manager/deployment.yaml
@@ -194,7 +194,7 @@ tests:
       components.apiManager.ngrok.region: eu
     asserts:
       - failedTemplate:
-          errorPattern: "components.apiManager.ngrok is not supported"
+          errorPattern: "at '/components/apiManager': additional properties 'ngrok' not allowed"
 
   # LEGACY-values-layout: BEGIN
   - it: fails on values from the pre-0.25 layout

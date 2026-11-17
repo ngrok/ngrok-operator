@@ -205,6 +205,7 @@ log value inherits the shared one.
 */}}
 {{- define "ngrok-operator.componentConfig" -}}
 {{- $component := index .context.Values.components .component -}}
+{{- /* values.schema.json rejects these keys first. This is what is left when schema validation is skipped, and it names where they belong. */ -}}
 {{- range $key := list "ngrok" "features" -}}
 {{- if hasKey $component $key -}}
 {{- fail (printf "components.%s.%s is not supported: ngrok settings apply to every component. Set them under ngrok instead." $.component $key) -}}

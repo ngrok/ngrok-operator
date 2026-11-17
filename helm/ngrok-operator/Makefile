@@ -25,3 +25,9 @@ update-snapshots: ## Update helm unittest snapshots
 .PHONY: update-readme
 update-readme: ## Updates the README.md file with the chart values
 	readme-generator --values "values.yaml" --readme "README.md" --schema "values.schema.json"
+	$(MAKE) close-schema
+
+.PHONY: close-schema
+close-schema: ## Closes the generated schema, so unknown values keys are an error
+	jq --indent 4 --rawfile values values.yaml -f close-schema.jq values.schema.json > values.schema.json.tmp
+	mv values.schema.json.tmp values.schema.json
