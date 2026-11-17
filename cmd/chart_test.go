@@ -199,7 +199,7 @@ func TestChartSchemaClosed(t *testing.T) {
 	require.NoError(t, err)
 	for _, m := range regexp.MustCompile(`(?m)^## @(?:param|extra) ([\w.]+) `).FindAllStringSubmatch(string(b), -1) {
 		node := schema
-		for _, key := range strings.Split(m[1], ".") {
+		for key := range strings.SplitSeq(m[1], ".") {
 			props, _ := node["properties"].(map[string]any)
 			child, ok := props[key].(map[string]any)
 			if !assert.True(t, ok, "values.yaml documents %s, but values.schema.json has no such key, so the chart rejects it", m[1]) {
