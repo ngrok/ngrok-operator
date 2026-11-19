@@ -222,7 +222,7 @@ Current sentinel tags:
   ngrok API resource.
 - `LEGACY-metadata-format` — CRD `spec.metadata` raw JSON **string** → `map[string]string` (a field *type* change, not a rename; same `json:` tag).
 - `LEGACY-enabledfeatures-format` — `KubernetesOperator.status.enabledFeatures` comma-separated **string** → `[]string` (a field *type* change on an operator-only, operator-written status field; same `json:` tag).
-- `LEGACY-values-layout` — Helm values moved in the 0.25 layout. `templates/_legacy-values.tpl` fails the render when an old top-level key is set, naming its new path, so old values are never silently ignored. Delete the file, its include and the tagged tests once 0.25 is the oldest release users upgrade from.
+- `LEGACY-values-layout` — Helm values moved in the 0.25 layout. `templates/_legacy-values.tpl` fails the render when an old top-level key is set, naming its new path, so old values are never silently ignored. `templates/credentials-secret.yaml` also fails on `ngrok.credentials.apiKey` or `ngrok.credentials.authtoken`, the 0.24 key names moved without being renamed. Delete the file, its include, the tagged check and the tagged tests once 0.25 is the oldest release users upgrade from.
 - `LEGACY-cloudendpoint-kind` — CRD **group** move: `ngrok.k8s.ngrok.com/v1alpha1 CloudEndpoint` → `ngrok.com/v1 CloudEndpoint` (spec identical except `spec.metadata`, a `map[string]string` in v1). See the CloudEndpoint catalog entry below.
 
 ## Per-shim catalog: `k8s.ngrok.com/` → `ngrok.com/` migration
