@@ -16,6 +16,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -36,20 +37,26 @@ var _ = Describe("KubernetesOperator Controller", Ordered, func() {
 
 	// forceDeleteKO removes the finalizer and deletes the KubernetesOperator to
 	// avoid triggering the drain workflow during test cleanup.
+	//
+	// The reconciler may still be writing to the KO when cleanup runs (some
+	// specs leave it terminating), so the finalizer removal re-reads and
+	// retries on conflict, and treats the KO disappearing as done.
 	forceDeleteKO := func(ctx context.Context) {
+		key := client.ObjectKey{Namespace: controllerNamespace, Name: k8sOpName}
 		ko := &ngrokv1.KubernetesOperator{}
-		err := k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: controllerNamespace,
-			Name:      k8sOpName,
-		}, ko)
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			if err := k8sClient.Get(ctx, key, ko); err != nil {
+				return err
+			}
+			if !util.RemoveFinalizer(ko) {
+				return nil
+			}
+			return k8sClient.Update(ctx, ko)
+		})
 		if apierrors.IsNotFound(err) {
 			return
 		}
 		Expect(err).NotTo(HaveOccurred())
-
-		if util.RemoveFinalizer(ko) {
-			Expect(k8sClient.Update(ctx, ko)).To(Succeed())
-		}
 		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ko))).To(Succeed())
 
 		// Wait for it to actually be gone
