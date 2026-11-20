@@ -267,6 +267,9 @@ Rolling back at this point is safe and easy via a `helm rollback` command. The `
 
 ## Migrate your alpha objects to their v1 versions
 
+> [!WARNING] 
+> After creating user-managed `v1` CRs, rollback is discouraged as in 0.24 you must manually keep the `v1` CR in sync with the `v1alpha1` CR or risk losing changes when re-upgrading
+
 Once the Operator is running, you can create `v1` versions of them. Both the `v1alpha1` version and the `v1` versions can live side by side without conflicting or resulting in duplicate resources being created. Instead, the operator will see that there is a pair of resources of different `Kinds` but with the same `metadata.name` and namespace and prefer the `v1` as the source of truth, adopting the `v1alpha1` resources `status` fields like `ID` and adds the status condition of `Ready` and reason `SupersededByV1` to the `v1alpha1` indicating that the `v1` version is the primary object.
 
 Trying to modify the `v1alpha1` in this state will result in a `DeprecatedAPIGroup` warning event, and changes will be ignored, indicating that the changes should be made on the `v1` version. **NOTE:** Changes to `v1` are not persisted to `v1alpha1` objects.
