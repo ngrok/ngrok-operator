@@ -37,4 +37,29 @@ subjects:
 - kind: ServiceAccount
   name: {{ include "ngrok-operator.privateEndpoints.forwarder.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
+---
+# The forwarder finds the Pod behind each connection by its source IP and
+# sends that Pod's identity on the private dial. Callers can run in any
+# namespace, so this is a ClusterRole whatever `watchNamespace` is.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoint-forwarder
+rules:
+- apiGroups: [""]
+  resources: [pods]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoint-forwarder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ngrok-operator.fullname" . }}-private-endpoint-forwarder
+subjects:
+- kind: ServiceAccount
+  name: {{ include "ngrok-operator.privateEndpoints.forwarder.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
 {{- end }}

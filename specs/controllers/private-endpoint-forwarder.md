@@ -9,8 +9,9 @@ The Private Endpoint Forwarder controller keeps one TCP listener open per forwar
 | Resource          | Relation | Predicate |
 |-------------------|----------|-----------|
 | `PrivateEndpoint` | Primary  | None; every change triggers a full sync |
+| `Pod`             | Read only, indexed by `status.podIP` | Not a trigger; read when a connection is accepted |
 
-The cache is scoped to the forwarder's own namespace.
+PrivateEndpoints are cached from the forwarder's own namespace only. Pods are cached from every namespace, because a caller can run in any of them. The Pod informer starts with the manager, so the first sync waits for it.
 
 ## Reconciliation Flow
 
@@ -35,10 +36,11 @@ A first sync runs once the cache has synced, so the table is marked synced even 
 
 ## Connection Handling
 
-Each accepted connection is dialed to the endpoint as `hostname:port` and joined with the client:
+Each accepted connection is dialed to the endpoint as `hostname:port`, with the caller's [pod identity](#pod-identity), and joined with the client:
 
 | Event | Behavior |
 |-------|----------|
+| Pod lookup fails | The client is reset and nothing is dialed, so it does not see a clean EOF that looks like an empty response. The error is logged. |
 | Dial fails | The client is reset, rather than given a clean EOF that looks like an empty response. Dial time is bounded by private dial (5s per dial). |
 | One direction reaches EOF | Its destination is half-closed (`CloseWrite`, or `Close` when unsupported). |
 | Client half-closes first | No timer starts; the endpoint may take as long as it needs to respond. |
@@ -46,6 +48,22 @@ Each accepted connection is dialed to the endpoint as `hostname:port` and joined
 | Copy error (not EOF) | Both sides are aborted and the error is logged, so a truncated stream is never reported as an orderly close. A TCP client is reset; the private dial stream is cancelled. |
 
 There is no idle timeout: a silent but live peer can hold a connection open.
+
+## Pod Identity
+
+Before it dials, the forwarder finds the Pod whose `status.podIP` is the connection's source IP, and sends that Pod's identity on the dial (`privatedial.WithPodIdentity`). This is the same lookup the bindings forwarder does (`internal/podidentity`).
+
+| Pods with the source IP | Identity sent |
+|-------------------------|---------------|
+| One | That Pod's UID, name, namespace, and its annotations with the `ngrok.com/` or `k8s.ngrok.com/` prefix. Other annotations are dropped. |
+| None | An empty identity, and a log line. ngrok then reports that no pod identity was given. |
+| More than one | The first one listed, and a log line. Host-network Pods on one node share the node's IP, so this can name the wrong Pod. |
+
+Pods in phase `Succeeded` or `Failed` keep `status.podIP` and stay in the index. When a node reuses such an IP for a new Pod, the lookup can match the finished Pod and send its identity. The bindings forwarder has the same behavior.
+
+The source IP is the caller's Pod IP only when nothing between the caller and the forwarder rewrites it. A CNI or kube-proxy mode that SNATs Service traffic gives the node's IP instead, so the caller gets an empty identity or a wrong one.
+
+ngrok does not verify the identity. See [Pod Identity](../features/private-endpoints.md#pod-identity) in the feature spec.
 
 ## Private Dial Session
 

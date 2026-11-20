@@ -1,13 +1,21 @@
 package privateendpoints
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"syscall"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/ngrok/ngrok-operator/internal/podidentity"
+	"github.com/ngrok/ngrok-operator/internal/testutils"
 )
 
 // These specs run the forwarder without the PrivateEndpoint controller and
@@ -232,6 +240,81 @@ var _ = Describe("Forwarder controller", func() {
 		deleteCR(e.ns, "tcp://held.ngrok.direct:6379")
 
 		Eventually(e.forwarder.BindErr).ShouldNot(HaveOccurred())
+	})
+
+	Context("pod identity", func() {
+		// createPod creates a Pod whose status IP is ip. Specs dial the
+		// forwarder from 127.0.0.1, so a Pod with that IP is the caller.
+		createPod := func(ip string, annotations map[string]string) *corev1.Pod {
+			GinkgoHelper()
+			pod := &corev1.Pod{
+				Name: "caller-" + rand.String(6), Namespace: createNamespace(), Annotations: annotations,
+				Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "app", Image: "app"}}},
+			}
+			Expect(k8sClient.Create(ctx, pod)).To(Succeed())
+			// envtest has no namespace controller, so a Pod would outlive its
+			// namespace and become the caller in later specs.
+			DeferCleanup(func() {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, pod, client.GracePeriodSeconds(0)))).To(Succeed())
+			})
+			pod.Status.PodIP = ip
+			Expect(k8sClient.Status().Update(ctx, pod)).To(Succeed())
+			return pod
+		}
+
+		// dialAndRead opens a connection through the forwarder, waits for the
+		// echo greeting so the dial has happened, and returns the identity
+		// the dial carried.
+		dialAndRead := func(g Gomega, port int32, target string) podidentity.Identity {
+			before := len(e.dialer.Identities())
+			c, err := dialForwarder(port)
+			g.Expect(err).NotTo(HaveOccurred())
+			defer c.Close()
+			_ = c.SetReadDeadline(time.Now().Add(time.Second))
+			_, err = io.ReadFull(c, make([]byte, len("["+target+"]")))
+			g.Expect(err).NotTo(HaveOccurred())
+			ids := e.dialer.Identities()[before:]
+			g.Expect(ids).To(HaveLen(1))
+			return ids[0]
+		}
+
+		It("dials with the identity of the pod that opened the connection", func() {
+			pod := createPod("127.0.0.1", map[string]string{"ngrok.com/team": "payments", "other.io/x": "y"})
+			wireCR(createCR(e.ns, "tcp://who.ngrok.direct:7000"), "10.0.0.2", e.portMin)
+			e.eventuallyRoutes(e.portMin, "who.ngrok.direct:7000")
+
+			Eventually(func(g Gomega) {
+				g.Expect(dialAndRead(g, e.portMin, "who.ngrok.direct:7000")).To(Equal(podidentity.Identity{
+					UID:         string(pod.UID),
+					Name:        pod.Name,
+					Namespace:   pod.Namespace,
+					Annotations: map[string]string{"ngrok.com/team": "payments"},
+				}))
+			}).WithTimeout(testutils.DefaultTimeout).WithPolling(50 * time.Millisecond).Should(Succeed())
+		})
+
+		It("dials with an empty identity when no pod has the caller's IP", func() {
+			createPod("10.9.9.9", nil)
+			wireCR(createCR(e.ns, "tcp://anon.ngrok.direct:7000"), "10.0.0.2", e.portMin)
+			e.eventuallyRoutes(e.portMin, "anon.ngrok.direct:7000")
+
+			Expect(dialAndRead(Default, e.portMin, "anon.ngrok.direct:7000")).To(Equal(podidentity.Identity{}))
+		})
+
+		It("closes the connection without dialing when pods can't be listed", func() {
+			wireCR(createCR(e.ns, "tcp://nolist.ngrok.direct:7000"), "10.0.0.2", e.portMin)
+			e.eventuallyRoutes(e.portMin, "nolist.ngrok.direct:7000")
+			e.fwdBoundary.inject(&fault{op: "List", kind: "PodList", err: errors.New("cache unavailable")})
+			dials := len(e.dialer.Targets())
+
+			c, err := dialForwarder(e.portMin)
+			Expect(err).NotTo(HaveOccurred())
+			defer c.Close()
+			_ = c.SetReadDeadline(time.Now().Add(time.Second))
+			_, err = c.Read(make([]byte, 1))
+			Expect(err).To(MatchError(syscall.ECONNRESET), "a reset, not a clean EOF that looks like an empty response")
+			Expect(e.dialer.Targets()[dials:]).To(BeEmpty())
+		})
 	})
 
 	It("closes every listener on Close", func() {

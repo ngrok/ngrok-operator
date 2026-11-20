@@ -97,12 +97,20 @@ Nothing the feature creates carries a finalizer, and it creates nothing on the n
 
 Leftover Services select no pods, so their names still resolve through the CoreDNS rewrite but connections to them fail. Remove them with `kubectl delete svc -n <namespace> -l ngrok.com/managed-by=private-endpoint-poller`, and remove the cluster's CoreDNS rewrite rule.
 
+## Pod Identity
+
+The forwarder sends the identity of the calling pod on each private dial: its UID, name, namespace, and its annotations under `ngrok.com/` and `k8s.ngrok.com/`. It finds the pod by the connection's source IP, the same way the [bindings](bindings.md#pod-identity) forwarder does. Traffic Policy on the endpoint can match on these values. This is always on when the feature is enabled, and needs read access to Pods in every namespace (see [RBAC](../rbac/private-endpoint-forwarder.md)).
+
+When no pod has the source IP, the forwarder sends an empty identity, and ngrok reports that no pod identity was given. See the [forwarder spec](../controllers/private-endpoint-forwarder.md#pod-identity) for the full rules.
+
+> **The identity is not verified.** ngrok takes it as the forwarder sends it. Any credential that can private dial in the account can send any identity, so do not use it as authentication. Treat it as a label set by the cluster's operator. A later token policy is planned to limit who can set it.
+
 ## Known Limitations
 
 | Limitation | Detail |
 |------------|--------|
 | Account-wide exposure | Every mirrored private endpoint is reachable from every pod in the cluster. There are no selectors, and DNS configuration is not authorization. |
-| No pod identity | The dial carries no identity of the calling pod, so Traffic Policy on the endpoint cannot match the caller. |
+| Unverified pod identity | The pod identity on each dial is not verified by ngrok. See [Pod Identity](#pod-identity). |
 | Single-label hostnames | Only `<label>.ngrok.direct` is supported, where `<label>` is a DNS-1035 label of at most 50 characters. Other hostnames are mirrored but not wired (`UnsupportedHostname`). |
 | TCP/443 egress | The forwarder needs outbound TCP/443 for HTTP/2. QUIC is used only when UDP/443 is open and the node allows large UDP buffers (7 MiB; otherwise privatedial skips QUIC), so most clusters run on HTTP/2. |
 | Capacity | Forwarder ports come from 20000–20999, so a cluster serves at most 1000 endpoint-ports. Forwarder replicas add throughput, not capacity. |

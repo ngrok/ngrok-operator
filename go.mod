@@ -18,7 +18,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.28.0
-	golang.ngrok.com/ngrok/privatedial v0.1.0
+	golang.ngrok.com/ngrok/privatedial v0.1.1-0.20261120163019-c3e282a8c5c8
 	golang.ngrok.com/ngrok/v2 v2.1.1
 	golang.org/x/sync v0.24.0
 	google.golang.org/protobuf v1.36.12

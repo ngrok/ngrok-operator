@@ -29,13 +29,16 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"golang.ngrok.com/ngrok/privatedial"
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	privateendpointscontroller "github.com/ngrok/ngrok-operator/internal/controller/privateendpoints"
 	"github.com/ngrok/ngrok-operator/internal/flags"
+	"github.com/ngrok/ngrok-operator/internal/podidentity"
 	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
 	"github.com/ngrok/ngrok-operator/internal/version"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
@@ -96,7 +99,7 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderManagerOpts) error
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		Cache:                  cache.Options{DefaultNamespaces: map[string]cache.Config{namespace: {}}},
+		Cache:                  forwarderCacheOptions(namespace),
 		Metrics:                server.Options{BindAddress: opts.MetricsAddr},
 		HealthProbeBindAddress: opts.ProbeAddr,
 		LeaderElection:         false,
@@ -119,8 +122,13 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderManagerOpts) error
 		Listeners:    bindingsdriver.New(),
 		DrainTimeout: 5 * time.Second,
 		Log:          log.WithName("forward"),
-		Dial: func(ctx context.Context, address string) (net.Conn, error) {
-			return dialer.DialContext(ctx, "tcp", address)
+		Dial: func(ctx context.Context, address string, id podidentity.Identity) (net.Conn, error) {
+			return dialer.DialContextWithOptions(ctx, "tcp", address, privatedial.WithPodIdentity(privatedial.PodIdentity{
+				UID:         id.UID,
+				Name:        id.Name,
+				Namespace:   id.Namespace,
+				Annotations: id.Annotations,
+			}))
 		},
 	}
 	defer forwarderReconciler.Close()
@@ -145,6 +153,17 @@ func runPrivateEndpointForwarder(opts privateEndpointForwarderManagerOpts) error
 
 	log.Info("serving", "privateDialProtocol", opts.privateDialProtocol, "privateDialQUICServer", opts.privateDialQUICServer, "privateDialH2Server", opts.privateDialH2Server)
 	return mgr.Start(ctrl.SetupSignalHandler())
+}
+
+func forwarderCacheOptions(namespace string) cache.Options {
+	return cache.Options{
+		DefaultNamespaces: map[string]cache.Config{namespace: {}},
+		// Callers can run in any namespace, and the forwarder finds the
+		// calling Pod by its IP.
+		ByObject: map[client.Object]cache.ByObject{
+			&corev1.Pod{}: {Namespaces: map[string]cache.Config{cache.AllNamespaces: {}}},
+		},
+	}
 }
 
 func parsePrivateDialProtocol(s string) (privatedial.Protocol, error) {

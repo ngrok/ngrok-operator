@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-logr/logr"
 	ngrokv1alpha1 "github.com/ngrok/ngrok-operator/api/ngrok/v1alpha1"
+	"github.com/ngrok/ngrok-operator/internal/podidentity"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -119,48 +120,6 @@ func generateTestTLSMaterial() (certPEM, keyPEM []byte, err error) {
 	return certPEM, keyPEM, nil
 }
 
-var _ = Describe("podIdentityFromPod", func() {
-	var (
-		pod *v1.Pod = &v1.Pod{
-			UID:         "uid123",
-			Name:        "pod1",
-			Namespace:   "default",
-			Annotations: map[string]string{},
-		}
-	)
-
-	It("prunes non-prefixed annotations and returns PodIdentity", func() {
-		pod.Annotations = map[string]string{
-			"k8s.ngrok.com/keep": "yes",
-			"some.other/strip":   "no",
-		}
-
-		pid := podIdentityFromPod(pod)
-		Expect(pid).To(Not(BeNil()))
-		Expect(pid.Uid).To(Equal("uid123"))
-		Expect(pid.Name).To(Equal("pod1"))
-		Expect(pid.Namespace).To(Equal("default"))
-		Expect(pid.Annotations).To(Not(BeNil()))
-		Expect(pid.Annotations).To(HaveKey("k8s.ngrok.com/keep"))
-		Expect(pid.Annotations).To(Not(HaveKey("some.other/strip")))
-	})
-
-	It("keeps both canonical and legacy prefixed annotations", func() {
-		pod.Annotations = map[string]string{
-			"ngrok.com/foo":     "new",
-			"k8s.ngrok.com/bar": "old",
-			"unrelated.io/baz":  "skip",
-		}
-
-		pid := podIdentityFromPod(pod)
-		Expect(pid).To(Not(BeNil()))
-		Expect(pid.Annotations).To(Equal(map[string]string{
-			"ngrok.com/foo":     "new",
-			"k8s.ngrok.com/bar": "old",
-		}))
-	})
-})
-
 var _ = Describe("ForwarderReconciler field indexer integration", func() {
 	const ip = "10.2.2.2"
 
@@ -186,7 +145,7 @@ var _ = Describe("ForwarderReconciler field indexer integration", func() {
 		// Wait until the manager cache/indexer exposes the pod via the field index
 		Eventually(func() bool {
 			list := &v1.PodList{}
-			if err := k8sManager.GetClient().List(ctx, list, client.MatchingFields{"status.podIP": ip}); err != nil {
+			if err := k8sManager.GetClient().List(ctx, list, client.MatchingFields{podidentity.IPIndex: ip}); err != nil {
 				return false
 			}
 			return len(list.Items) > 0 && list.Items[0].Status.PodIP == ip

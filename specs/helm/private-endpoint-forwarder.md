@@ -21,6 +21,12 @@ Any key from `components.common` (see [common.md](common.md)) can also be set he
 
 Pods carry `app.kubernetes.io/component: private-endpoint-forwarder`, which the per-hostname Services select. Probes: liveness `/healthz` and readiness `/readyz` on port 8081; metrics on port 8080.
 
+## RBAC
+
+The chart renders a namespaced Role for PrivateEndpoints and a ClusterRole for read access to Pods in every namespace, both bound to the forwarder's ServiceAccount. The ClusterRole lets the forwarder find the calling Pod and send its identity; it is rendered whatever `watchNamespace` is. See [RBAC](../rbac/private-endpoint-forwarder.md).
+
+**Upgrade note:** the chart binds this ClusterRole to the forwarder's ServiceAccount even when `components.privateEndpointForwarder.serviceAccount.create: false`. If you manage the forwarder's RBAC yourself instead of applying the chart's, grant its ServiceAccount get, list and watch on `pods` in every namespace. Without it the forwarder's cache never syncs and the pod never becomes Ready.
+
 ## Credentials
 
 The forwarder mounts the `PRIVATE_ENDPOINTS_ACCESS_TOKEN` key of the credentials Secret as `NGROK_ACCESS_TOKEN`.

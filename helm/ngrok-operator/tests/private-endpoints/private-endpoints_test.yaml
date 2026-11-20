@@ -229,12 +229,42 @@ tests:
       - kind: ServiceAccount
         name: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
         namespace: NAMESPACE
-- it: needs no cluster-scoped RBAC
+# Documents in rbac.yaml: 3 forwarder ClusterRole, 4 its ClusterRoleBinding.
+- it: forwarder ClusterRole only reads pods
   set:
     ngrok.features.privateEndpoints.enabled: true
-  templates:
-  - private-endpoints/rbac.yaml
-  - api-manager/private-endpoints-role.yaml
+  template: private-endpoints/rbac.yaml
+  documentIndex: 3
+  asserts:
+  - isKind:
+      of: ClusterRole
+  - equal:
+      path: rules
+      value:
+      - apiGroups: [""]
+        resources: [pods]
+        verbs: [get, list, watch]
+- it: forwarder ClusterRoleBinding binds the forwarder service account
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+  template: private-endpoints/rbac.yaml
+  documentIndex: 4
+  asserts:
+  - isKind:
+      of: ClusterRoleBinding
+  - equal:
+      path: roleRef.name
+      value: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
+  - equal:
+      path: subjects
+      value:
+      - kind: ServiceAccount
+        name: RELEASE-NAME-ngrok-operator-private-endpoint-forwarder
+        namespace: NAMESPACE
+- it: api-manager needs no cluster-scoped RBAC for private endpoints
+  set:
+    ngrok.features.privateEndpoints.enabled: true
+  template: api-manager/private-endpoints-role.yaml
   asserts:
   - notEqual:
       path: kind

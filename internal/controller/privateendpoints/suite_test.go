@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
+	"github.com/ngrok/ngrok-operator/internal/podidentity"
 	pe "github.com/ngrok/ngrok-operator/internal/privateendpoints"
 	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
@@ -515,15 +516,17 @@ func (b *boundary) crossRoutes() []string {
 }
 
 // recordingDialer stands in for private dial with testutils.EchoDial and
-// records every target it is asked for.
+// records every target it is asked for, with the caller's identity.
 type recordingDialer struct {
-	mu      sync.Mutex
-	targets []string
+	mu         sync.Mutex
+	targets    []string
+	identities []podidentity.Identity
 }
 
-func (d *recordingDialer) Dial(ctx context.Context, target string) (net.Conn, error) {
+func (d *recordingDialer) Dial(ctx context.Context, target string, id podidentity.Identity) (net.Conn, error) {
 	d.mu.Lock()
 	d.targets = append(d.targets, target)
+	d.identities = append(d.identities, id)
 	d.mu.Unlock()
 	return testutils.EchoDial(ctx, target)
 }
@@ -532,6 +535,12 @@ func (d *recordingDialer) Targets() []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return slices.Clone(d.targets)
+}
+
+func (d *recordingDialer) Identities() []podidentity.Identity {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return slices.Clone(d.identities)
 }
 
 func createNamespace() string {

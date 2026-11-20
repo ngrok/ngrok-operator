@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ngrok/ngrok-operator/internal/podidentity"
 	"github.com/ngrok/ngrok-operator/internal/testutils"
 )
 
@@ -19,7 +20,9 @@ func TestForwardConnJoinsBothWays(t *testing.T) {
 	client, server := net.Pipe()
 	defer client.Close()
 	go func() {
-		_ = ForwardConn(context.Background(), testutils.EchoDial, server, "foo.ngrok.direct:80", time.Second)
+		_ = ForwardConn(context.Background(), func(ctx context.Context, target string, _ podidentity.Identity) (net.Conn, error) {
+			return testutils.EchoDial(ctx, target)
+		}, server, "foo.ngrok.direct:80", podidentity.Identity{}, time.Second)
 	}()
 
 	assert.Equal(t, "[foo.ngrok.direct:80]", readN(t, client, len("[foo.ngrok.direct:80]")))
@@ -31,9 +34,11 @@ func TestForwardConnJoinsBothWays(t *testing.T) {
 func TestForwardConnDialFailureClosesClient(t *testing.T) {
 	client, server := net.Pipe()
 	defer client.Close()
-	failDial := func(context.Context, string) (net.Conn, error) { return nil, errors.New("endpoint offline") }
+	failDial := func(context.Context, string, podidentity.Identity) (net.Conn, error) {
+		return nil, errors.New("endpoint offline")
+	}
 
-	err := ForwardConn(context.Background(), failDial, server, "gone.ngrok.direct:80", time.Second)
+	err := ForwardConn(context.Background(), failDial, server, "gone.ngrok.direct:80", podidentity.Identity{}, time.Second)
 	require.ErrorContains(t, err, "endpoint offline")
 	_ = client.SetReadDeadline(time.Now().Add(time.Second))
 	_, err = client.Read(make([]byte, 1))
@@ -57,14 +62,16 @@ func TestForwardConnDrainsAfterUpstreamEOF(t *testing.T) {
 		_, _ = io.Copy(io.Discard, c) // returns once the forwarder closes its side
 		close(upstreamSawClose)
 	}()
-	dial := func(context.Context, string) (net.Conn, error) { return net.Dial("tcp", upstreamL.Addr().String()) }
+	dial := func(context.Context, string, podidentity.Identity) (net.Conn, error) {
+		return net.Dial("tcp", upstreamL.Addr().String())
+	}
 
 	clientL := listen(t)
 	defer clientL.Close()
 	go func() {
 		server, err := clientL.Accept()
 		if err == nil {
-			_ = ForwardConn(context.Background(), dial, server, "done.ngrok.direct:80", 200*time.Millisecond)
+			_ = ForwardConn(context.Background(), dial, server, "done.ngrok.direct:80", podidentity.Identity{}, 200*time.Millisecond)
 		}
 	}()
 	client, err := net.Dial("tcp", clientL.Addr().String())
@@ -182,7 +189,9 @@ func TestForwardConnOverTCP(t *testing.T) {
 				defer c.Close()
 				upstreamErr <- tt.upstream(c.(*net.TCPConn))
 			}()
-			dial := func(context.Context, string) (net.Conn, error) { return net.Dial("tcp", upstreamL.Addr().String()) }
+			dial := func(context.Context, string, podidentity.Identity) (net.Conn, error) {
+				return net.Dial("tcp", upstreamL.Addr().String())
+			}
 
 			clientL := listen(t)
 			defer clientL.Close()
@@ -193,7 +202,7 @@ func TestForwardConnOverTCP(t *testing.T) {
 					forwardErr <- err
 					return
 				}
-				forwardErr <- ForwardConn(context.Background(), dial, server, "x.ngrok.direct:80", drain)
+				forwardErr <- ForwardConn(context.Background(), dial, server, "x.ngrok.direct:80", podidentity.Identity{}, drain)
 			}()
 
 			c, err := net.Dial("tcp", clientL.Addr().String())

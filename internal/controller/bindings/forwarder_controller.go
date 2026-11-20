@@ -39,11 +39,11 @@ import (
 
 	"github.com/go-logr/logr"
 	bindingsv1alpha1 "github.com/ngrok/ngrok-operator/api/bindings/v1alpha1"
-	parser "github.com/ngrok/ngrok-operator/internal/annotations/parser"
 	"github.com/ngrok/ngrok-operator/internal/controller"
 	"github.com/ngrok/ngrok-operator/internal/kubernetesoperator"
 	"github.com/ngrok/ngrok-operator/internal/mux"
 	pb_agent "github.com/ngrok/ngrok-operator/internal/pb_agent"
+	"github.com/ngrok/ngrok-operator/internal/podidentity"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
@@ -119,17 +119,8 @@ func (r *ForwarderReconciler) SetupWithManager(mgr ctrl.Manager) (err error) {
 		return
 	}
 
-	// Register field indexer for IP-based pod lookup
-	err = mgr.GetFieldIndexer().IndexField(context.Background(), &v1.Pod{}, "status.podIP", func(obj client.Object) []string {
-		pod := obj.(*v1.Pod)
-		if pod.Status.PodIP == "" {
-			return nil
-		}
-		return []string{pod.Status.PodIP}
-	})
-
-	if err != nil {
-		return fmt.Errorf("unable to create pod IP index: %w", err)
+	if err = podidentity.RegisterIndex(context.Background(), mgr.GetFieldIndexer()); err != nil {
+		return err
 	}
 
 	err = mgr.Add(cont)
@@ -200,22 +191,22 @@ func (r *ForwarderReconciler) update(ctx context.Context, epb *bindingsv1alpha1.
 
 		clientIp := conn.RemoteAddr().(*net.TCPAddr).IP.String()
 
-		podList := &v1.PodList{}
-		if err := r.Client.List(ctx, podList, client.MatchingFields{"status.podIP": clientIp}); err != nil {
+		id, matches, err := podidentity.Lookup(ctx, r.Client, clientIp)
+		if err != nil {
 			log.Error(err, "failed to list pods")
 			return err
 		}
-
-		var podIdentity *pb_agent.PodIdentity
-		if len(podList.Items) == 0 {
+		switch {
+		case matches == 0:
 			log.Info("no pods matched podIP; using default identity", "podIP", clientIp)
-			podIdentity = &pb_agent.PodIdentity{}
-		} else {
-			if len(podList.Items) > 1 {
-				log.Info("multiple pods matched podIP; picking best candidate", "podIP", clientIp, "count", len(podList.Items))
-			}
-			pod := &podList.Items[0]
-			podIdentity = podIdentityFromPod(pod)
+		case matches > 1:
+			log.Info("multiple pods matched podIP; picking best candidate", "podIP", clientIp, "count", matches)
+		}
+		podIdentity := &pb_agent.PodIdentity{
+			Uid:         id.UID,
+			Name:        id.Name,
+			Namespace:   id.Namespace,
+			Annotations: id.Annotations,
 		}
 
 		log.V(5).Info("Pod Identity", podIdentity)
@@ -351,24 +342,4 @@ func joinConnections(log logr.Logger, conn1, conn2 net.Conn) error {
 		return err
 	})
 	return g.Wait()
-}
-
-// podIdentityFromPod extracts a PodIdentity from a Pod, pruning annotations
-// to only include ngrok-prefixed keys. Exported for unit testing.
-func podIdentityFromPod(pod *v1.Pod) *pb_agent.PodIdentity {
-	anns := make(map[string]string)
-	for key := range pod.Annotations {
-		// LEGACY-PREFIX-MIGRATION (read-side cleanup): drop the legacy prefix match
-		if strings.HasPrefix(key, parser.CanonicalAnnotationsPrefix+"/") ||
-			strings.HasPrefix(key, parser.LegacyAnnotationsPrefix+"/") {
-			anns[key] = pod.Annotations[key]
-		}
-	}
-
-	return &pb_agent.PodIdentity{
-		Uid:         string(pod.UID),
-		Name:        pod.Name,
-		Namespace:   pod.Namespace,
-		Annotations: anns,
-	}
 }

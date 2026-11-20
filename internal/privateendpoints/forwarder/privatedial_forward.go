@@ -24,7 +24,7 @@ package forwarder
 // Proposed upstream API: privatedial.Join (this file's join, exported) and a
 // Forwarder that serves a listener.
 //
-// When that exists: replace ForwardConn/join/closeWrite/abort with privatedial.Join
+// When that exists: replace ForwardConn/join/closeWrite/Abort with privatedial.Join
 // (or have the ForwarderReconciler hand each listener to Dialer.Forward and drop the
 // per-connection handler entirely).
 //
@@ -51,16 +51,19 @@ import (
 	"io"
 	"net"
 	"time"
+
+	"github.com/ngrok/ngrok-operator/internal/podidentity"
 )
 
-// DialFunc dials a private endpoint at host:port.
-type DialFunc func(ctx context.Context, address string) (net.Conn, error)
+// DialFunc dials a private endpoint at host:port on behalf of the Pod id.
+type DialFunc func(ctx context.Context, address string, id podidentity.Identity) (net.Conn, error)
 
-// ForwardConn dials target and joins it with client. It always closes client.
-func ForwardConn(ctx context.Context, dial DialFunc, client net.Conn, target string, drain time.Duration) error {
-	upstream, err := dial(ctx, target)
+// ForwardConn dials target as id and joins it with client. It always closes
+// client.
+func ForwardConn(ctx context.Context, dial DialFunc, client net.Conn, target string, id podidentity.Identity, drain time.Duration) error {
+	upstream, err := dial(ctx, target, id)
 	if err != nil {
-		abort(client)
+		Abort(client)
 		return fmt.Errorf("private dial to %s: %w", target, err)
 	}
 	if err := join(client, upstream, drain); err != nil {
@@ -90,8 +93,8 @@ func join(client, upstream net.Conn, drain time.Duration) error {
 
 	first := <-done
 	if first.err != nil {
-		abort(client)
-		abort(upstream)
+		Abort(client)
+		Abort(upstream)
 		<-done
 		return first.err
 	}
@@ -105,8 +108,8 @@ func join(client, upstream net.Conn, drain time.Duration) error {
 	select {
 	case second := <-done:
 		if second.err != nil {
-			abort(client)
-			abort(upstream)
+			Abort(client)
+			Abort(upstream)
 			return second.err
 		}
 		_ = client.Close()
@@ -127,9 +130,9 @@ func closeWrite(c net.Conn) {
 	_ = c.Close()
 }
 
-// abort closes c so the peer sees a reset rather than an orderly EOF, where
+// Abort closes c so the peer sees a reset rather than an orderly EOF, where
 // the conn type allows it.
-func abort(c net.Conn) {
+func Abort(c net.Conn) {
 	if l, ok := c.(interface{ SetLinger(int) error }); ok {
 		_ = l.SetLinger(0)
 	}

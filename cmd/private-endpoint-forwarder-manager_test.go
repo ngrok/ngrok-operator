@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.ngrok.com/ngrok/privatedial"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	ngrokv1 "github.com/ngrok/ngrok-operator/api/ngrok/v1"
@@ -23,6 +25,15 @@ import (
 	"github.com/ngrok/ngrok-operator/internal/privateendpoints/forwarder"
 	"github.com/ngrok/ngrok-operator/pkg/bindingsdriver"
 )
+
+func TestForwarderCacheOptions(t *testing.T) {
+	got := forwarderCacheOptions("op")
+
+	assert.Equal(t, map[string]cache.Config{"op": {}}, got.DefaultNamespaces, "PrivateEndpoints come from the release namespace only")
+	pods, ok := byObjectNamespaces[*corev1.Pod](got)
+	assert.True(t, ok)
+	assert.Equal(t, []string{cache.AllNamespaces}, pods, "callers can run in any namespace")
+}
 
 func TestForwarderReadyz(t *testing.T) {
 	tests := []struct {
