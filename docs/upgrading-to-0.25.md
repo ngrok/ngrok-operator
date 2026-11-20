@@ -408,6 +408,10 @@ At this point, you can also delete the `API Key` and `Authtoken` from your accou
 
 In `1.0`, the `v1alpha1` CRDs will be ignored by the controllers, and in `1.1`, they will be removed from Helm. This makes `0.25.0` a required stop for `1.0` .
 
+## Feedback and support
+
+We tried to cover all of our bases in these instructions, but if you have any remaining questions or run into issues, either reach out to your ngrok customer rep, or file an issue on the [github issues page](https://github.com/ngrok/ngrok-operator/issues)
+
 ## Appendix
 
 ### Access token scopes
