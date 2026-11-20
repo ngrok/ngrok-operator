@@ -176,6 +176,41 @@ Fields that were deprecated in 0.24 are now removed in 0.25. If you completed th
 
 0.25 still reads the `k8s.ngrok.com/*` annotations you set, but [rename them to `ngrok.com/*`](upgrading-to-0.24.md#rename-user-set-annotations) before upgrading to 1.0.
 
+### Check your cluster
+
+The [check script](https://github.com/ngrok/ngrok-operator/blob/main/scripts/check-0.24-deprecations.sh) runs every audit from the 0.24 guide's ["After the rollback window"](upgrading-to-0.24.md#after-the-rollback-window) section against your 0.24 cluster. It only reads from the cluster and requires `kubectl` and `jq` 1.6 or later:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/ngrok/ngrok-operator/main/scripts/check-0.24-deprecations.sh
+bash check-0.24-deprecations.sh
+```
+
+It uses your current kube context. To use a different one, set `KUBECTL`, for example `KUBECTL="kubectl --context prod" bash check-0.24-deprecations.sh`.
+
+Each check prints `ok`, `skipped` (the resource type isn't installed), or `NEEDS ACTION` followed by the objects to fix:
+
+```
+== Required before 0.25
+ok: Domain spec.resolves_to -> spec.resolvesTo
+NEEDS ACTION: CloudEndpoint legacy traffic policy fields
+    default/my-endpoint
+
+== Required when writing v1 objects
+ok: domains.ingress.k8s.ngrok.com spec.metadata string -> map
+...
+
+== Required before 1.0
+ok: ingresses k8s.ngrok.com/* annotations
+skipped: gateways.gateway.networking.k8s.io k8s.ngrok.com/* annotations (gateways.gateway.networking.k8s.io not found)
+...
+```
+
+- **Required before 0.25**: fix these before you upgrade. The script exits with status 1 if any of them need action.
+- **Required when writing v1 objects**: objects whose `spec.metadata` is a JSON string with values you set. Convert it to a map when you [create their `v1` versions](#specmetadata). Strings that only hold the default `owned-by` value are not listed.
+- **Required before 1.0**: legacy `k8s.ngrok.com/*` annotations and `appProtocol` values to rename.
+
+The script skips objects the operator generated from an Ingress, Gateway, or Service, because the operator migrates those itself. It can't check tooling outside the cluster, such as dashboards or monitoring that select on the bindings labels, so review those by hand.
+
 ## Upgrade `ngrok-crds` Helm Chart if installed separately
 
 By default, the Helm chart comes packaged with the CRDs, if you installed them separately, you need to upgrade the CRDs independently. Helm Chart 0.5.0 introduces `v1` versions of CRDs in new group locations that are canonical and deprecating the `v1alpha1` versions of those CRDs.
