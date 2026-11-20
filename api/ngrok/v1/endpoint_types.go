@@ -60,8 +60,8 @@ const (
 )
 
 // TrafficPolicyCfg configures a TrafficPolicy attached to an endpoint, either
-// inline or by reference to an NgrokTrafficPolicy resource in the same
-// namespace as the endpoint.
+// inline or by reference to a TrafficPolicy resource in the same namespace as
+// the endpoint.
 //
 // +kubebuilder:validation:XValidation:rule="[has(self.inline), has(self.targetRef)].exists_one(x, x)", message="exactly one of inline or targetRef must be set on trafficPolicy"
 type TrafficPolicyCfg struct {
@@ -74,8 +74,9 @@ type TrafficPolicyCfg struct {
 	Inline json.RawMessage `json:"inline,omitempty"`
 
 	// Reference to a TrafficPolicy resource to attach to the Endpoint. The
-	// referenced NgrokTrafficPolicy must live in the same namespace as the
-	// endpoint.
+	// referenced TrafficPolicy must live in the same namespace as the
+	// endpoint. A deprecated NgrokTrafficPolicy of the same name is used if no
+	// TrafficPolicy exists.
 	Reference *K8sObjectRef `json:"targetRef,omitempty"`
 }
 
