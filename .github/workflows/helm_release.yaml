@@ -72,7 +72,7 @@ jobs:
         run: make _helm_setup
 
       - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.7.0
+        uses: helm/chart-releaser-action@v1.9.0
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CR_RELEASE_NAME_TEMPLATE: "helm-chart-{{ .Name }}-{{ .Version }}" # Publishes a new release. Ex: helm-chart-ngrok-operator-0.1.0
