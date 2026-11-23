@@ -21,11 +21,11 @@ jobs:
       pull-requests: read
     steps:
     - name: Checkout repo
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
     - id: filter
-      uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+      uses: dorny/paths-filter@v4.0.3
       with:
         filters: |
           chartyaml:
@@ -59,7 +59,7 @@ jobs:
     steps:
     - if: needs.changes.outputs.chartyaml == 'true'
       name: Notify about changes to Chart.yaml
-      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      uses: actions/github-script@v9.0.0
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -71,7 +71,7 @@ jobs:
           })
     - if: needs.changes.outputs.tag == 'true'
       name: Notify about version change
-      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      uses: actions/github-script@v9.0.0
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
