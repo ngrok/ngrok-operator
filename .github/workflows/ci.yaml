@@ -27,10 +27,10 @@ jobs:
       make: ${{ steps.changes.outputs.make }}
       nix: ${{ steps.changes.outputs.nix }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
-    - uses: "./.github/actions/changes"
+    - uses: "$/.github/actions/changes"
       id: changes
 
   basic-tests:
@@ -54,10 +54,10 @@ jobs:
       (needs.changes.outputs.make == 'true') ||
       (needs.changes.outputs.nix == 'true')
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
-    - uses: ./.github/actions/nix-setup
+    - uses: $/.github/actions/nix-setup
     - name: Generate manifest bundle
       run: make manifest-bundle
     - name: Fail if there are uncommitted manifest bundle changes
@@ -76,24 +76,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      uses: docker/setup-qemu-action@v4.4.0
     - id: buildx-setup
       name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      uses: docker/setup-buildx-action@v4.4.1
       with:
         platforms: ${{ env.DOCKER_BUILDX_PLATFORMS }}
     - name: Setup Nix
-      uses: ./.github/actions/nix-setup
+      uses: $/.github/actions/nix-setup
     # The Dockerfile only COPYs prebuilt binaries, so they must exist before
     # the image build. See scripts/build.sh.
     - name: Build binaries
       run: make image-binaries IMAGE_PLATFORMS=${{ env.DOCKER_BUILDX_PLATFORMS }}
     - name: Build
-      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      uses: docker/build-push-action@v7.4.0
       with:
         context: .
         platforms: ${{ steps.buildx-setup.outputs.platforms }}
@@ -124,12 +124,12 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
-      uses: ./.github/actions/nix-setup
-    - uses: "./.github/actions/build-and-test"
+      uses: $/.github/actions/nix-setup
+    - uses: "$/.github/actions/build-and-test"
       with:
         # this workflow is for incoming PRs, so we want to skip e2e tests
         # and deploy the demo mode because our api keys are not available
@@ -144,11 +144,11 @@ jobs:
       (needs.changes.outputs.nix == 'true') ||
       (needs.changes.outputs.charts == 'true')
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
-      uses: ./.github/actions/nix-setup
+      uses: $/.github/actions/nix-setup
     - name: Lint Helm Chart
       run: make helm-lint
     - name: Helm Unit Tests
@@ -183,12 +183,12 @@ jobs:
         (needs.changes.outputs.nix == 'true')
       )
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
-      uses: ./.github/actions/nix-setup
-    - uses: "./.github/actions/build-and-test"
+      uses: $/.github/actions/nix-setup
+    - uses: "$/.github/actions/build-and-test"
       with:
         run-e2e: true
         ngrok-access-token: ${{ secrets.NGROK_CI_ACCESS_TOKEN }}
@@ -219,11 +219,11 @@ jobs:
         (needs.changes.outputs.nix == 'true')
       )
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
-      uses: ./.github/actions/nix-setup
+      uses: $/.github/actions/nix-setup
     - name: Create Kind Cluster
       run: make kind-create
     - name: Deploy
@@ -268,11 +268,11 @@ jobs:
         (needs.changes.outputs.nix == 'true')
       )
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
     - name: Setup Nix
-      uses: ./.github/actions/nix-setup
+      uses: $/.github/actions/nix-setup
     - name: Create Kind Cluster
       run: make kind-create
     - name: Run Uninstall E2E Tests

@@ -34,10 +34,10 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.go-changed || inputs.make-changed || inputs.nix-changed }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
-    - uses: ./.github/actions/nix-setup
+    - uses: $/.github/actions/nix-setup
     - name: Generate manifests
       run: make manifests
     - name: Fail if there are uncommitted manifest changes
@@ -51,10 +51,10 @@ jobs:
     timeout-minutes: 10
     if: ${{ inputs.go-changed || inputs.make-changed || inputs.nix-changed }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
-    - uses: ./.github/actions/nix-setup
+    - uses: $/.github/actions/nix-setup
     - name: Lint
       run: make lint
 
@@ -63,10 +63,10 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ inputs.go-changed || inputs.nix-changed }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
-    - uses: ./.github/actions/nix-setup
+    - uses: $/.github/actions/nix-setup
     - run: go mod tidy
     - run: git diff --exit-code go.mod
     - run: git diff --exit-code go.sum
@@ -78,10 +78,10 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
-    - uses: ./.github/actions/nix-setup
+    - uses: $/.github/actions/nix-setup
     - name: Run go fix
       run: make go-fix
     - name: Fail if there are uncommitted changes
@@ -94,14 +94,14 @@ jobs:
     # chart-only change runs the unit tests too.
     if: ${{ inputs.go-changed || inputs.make-changed || inputs.nix-changed || inputs.charts-changed || github.event_name == 'schedule' }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@v7.0.1
       with:
         persist-credentials: false
-    - uses: ./.github/actions/nix-setup
+    - uses: $/.github/actions/nix-setup
     - name: Run unit tests
       run: make test
     - if: github.repository == 'ngrok/ngrok-operator'
       name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+      uses: codecov/codecov-action@v7.1.1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}

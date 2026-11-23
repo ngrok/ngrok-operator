@@ -22,12 +22,12 @@ jobs:
     if: github.repository == 'ngrok/ngrok-operator'
     steps:
       - name: Checkout repo
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - name: Check for changes
         id: filter
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        uses: dorny/paths-filter@v4.0.3
         with:
           filters: |
             ngrok-operator:
@@ -50,13 +50,13 @@ jobs:
       )
     steps:
       - name: Checkout repo
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           # Fetch entire history. Required for chart-releaser to work.
           fetch-depth: 0
 
       - name: Setup Nix
-        uses: ./.github/actions/nix-setup
+        uses: $/.github/actions/nix-setup
 
       - name: Configure Git
         run: |
@@ -72,7 +72,7 @@ jobs:
         run: make _helm_setup
 
       - name: Run chart-releaser
-        uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0
+        uses: helm/chart-releaser-action@v1.7.0
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CR_RELEASE_NAME_TEMPLATE: "helm-chart-{{ .Name }}-{{ .Version }}" # Publishes a new release. Ex: helm-chart-ngrok-operator-0.1.0
