@@ -22,6 +22,6 @@ jobs:
       with:
         persist-credentials: false
     - name: Apply size label
-      uses: ngrok/pr-size-labeler@v1
+      uses: ngrok/pr-size-labeler@v2
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
