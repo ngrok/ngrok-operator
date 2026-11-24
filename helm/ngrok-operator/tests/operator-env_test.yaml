@@ -220,6 +220,21 @@ tests:
       - failedTemplate:
           errorPattern: "(?s)extraVolumeMounts -> components.common.extraVolumeMounts.*extraVolumes -> components.common.extraVolumes.*lifecycle -> components.common.lifecycle"
 
+  - it: points the 0.24 scheduling values only the api-manager read at components.apiManager
+    template: api-manager/deployment.yaml
+    set:
+      nodeSelector:
+        disk: ssd
+      tolerations:
+        - key: dedicated
+          operator: Exists
+      topologySpreadConstraints:
+        - maxSkew: 1
+      priorityClassName: high
+    asserts:
+      - failedTemplate:
+          errorPattern: "(?s)nodeSelector -> components.apiManager.nodeSelector.*priorityClassName -> components.apiManager.priorityClassName.*tolerations -> components.apiManager.tolerations.*topologySpreadConstraints -> components.apiManager.topologySpreadConstraints"
+
   - it: fails on the moved cleanupHook section
     template: api-manager/deployment.yaml
     set:
