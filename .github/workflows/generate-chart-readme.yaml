@@ -25,6 +25,15 @@ jobs:
       - name: Execute readme-generator-for-helm
         working-directory: helm/ngrok-operator
         run: readme-generator --values "values.yaml" --readme "README.md" --schema "values.schema.json"
+      # The same command as `make close-schema`, inlined on purpose:
+      # pull_request_target runs with a write token on the PR author's
+      # checkout, so running their Makefile would hand them the token. jq
+      # only reads the files it is given and cannot run commands.
+      - name: Close the generated schema
+        working-directory: helm/ngrok-operator
+        run: |
+          jq --indent 4 --rawfile values values.yaml -f close-schema.jq values.schema.json > values.schema.json.tmp
+          mv values.schema.json.tmp values.schema.json
       - name: Push changes
         uses: stefanzweifel/git-auto-commit-action@v7.2.1
         with:

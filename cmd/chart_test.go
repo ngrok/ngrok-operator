@@ -162,6 +162,54 @@ func TestChartComponentOverrides(t *testing.T) {
 	}
 }
 
+// TestChartSchemaClosed checks that values.schema.json rejects a values path
+// the chart does not read. readme-generator leaves every object open, so
+// `make close-schema` closes the ones with a known key set and puts back the
+// keys documented with "@extra", which have no value for it to read: a schema
+// regenerated without it fails here instead of letting a typo render cleanly
+// with the setting dropped. See helm/ngrok-operator/close-schema.jq.
+func TestChartSchemaClosed(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join(chartDir, "values.schema.json"))
+	require.NoError(t, err)
+	var schema map[string]any
+	require.NoError(t, json.Unmarshal(b, &schema))
+
+	// The root takes the subchart values Helm keeps there, and
+	// templates/_legacy-values.tpl reports a pre-0.25 top-level key itself,
+	// naming the path it moved to.
+	assert.Nil(t, schema["additionalProperties"], "the root must stay open")
+
+	var walk func(path string, node map[string]any)
+	walk = func(path string, node map[string]any) {
+		props, ok := node["properties"].(map[string]any)
+		if !ok {
+			return // A free-form map: labels, annotations, extraEnv, resources.
+		}
+		if path != "" {
+			assert.Equal(t, false, node["additionalProperties"], "%s has a known key set but takes unknown keys", path)
+		}
+		for key, child := range props {
+			m, _ := child.(map[string]any)
+			walk(strings.TrimPrefix(path+"."+key, "."), m)
+		}
+	}
+	walk("", schema)
+
+	b, err = os.ReadFile(filepath.Join(chartDir, "values.yaml"))
+	require.NoError(t, err)
+	for _, m := range regexp.MustCompile(`(?m)^## @(?:param|extra) ([\w.]+) `).FindAllStringSubmatch(string(b), -1) {
+		node := schema
+		for key := range strings.SplitSeq(m[1], ".") {
+			props, _ := node["properties"].(map[string]any)
+			child, ok := props[key].(map[string]any)
+			if !assert.True(t, ok, "values.yaml documents %s, but values.schema.json has no such key, so the chart rejects it", m[1]) {
+				break
+			}
+			node = child
+		}
+	}
+}
+
 // TestChartEnvParses renders the chart with every setting set and checks the
 // api-manager gets every variable, each read back by the commands as the
 // value that was set.
