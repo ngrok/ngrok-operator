@@ -77,5 +77,5 @@ The Helm chart includes a pre-delete hook that automates the drain process durin
 |---------------------------|--------------------------------|--------------------|
 | `ngrok.features.cleanup.enabled` | Enable the pre-delete hook    | `true`             |
 | `ngrok.features.cleanup.timeout` | Timeout in seconds            | `300`              |
-| `components.cleanupHook.image`       | kubectl image configuration    | `bitnami/kubectl`  |
+| `components.cleanupHook.image`       | kubectl image configuration    | `alpine/k8s`       |
 | `components.cleanupHook.resources`   | Job resource limits/requests   | 100m/128Mi         |

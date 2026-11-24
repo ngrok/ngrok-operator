@@ -49,12 +49,12 @@ spec:
       terminationGracePeriodSeconds: {{ . }}
       {{- end }}
       {{- if $values.affinity }}
-      affinity: {{- include "common.tplvalues.render" (dict "value" $values.affinity "context" $) | nindent 8 }}
+      affinity: {{- include "ngrok-operator.tplvalues.render" (dict "value" $values.affinity "context" $) | nindent 8 }}
       {{- else }}
       affinity:
-        podAffinity: {{- include "common.affinities.pods" (dict "type" $values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
-        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" $values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
-        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" $values.nodeAffinityPreset.type "key" $values.nodeAffinityPreset.key "values" $values.nodeAffinityPreset.values) | nindent 10 }}
+        podAffinity: {{- include "ngrok-operator.affinities.pods" (dict "type" $values.podAffinityPreset "component" $component "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "ngrok-operator.affinities.pods" (dict "type" $values.podAntiAffinityPreset "component" $component "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "ngrok-operator.affinities.nodes" (dict "type" $values.nodeAffinityPreset.type "key" $values.nodeAffinityPreset.key "values" $values.nodeAffinityPreset.values) | nindent 10 }}
       {{- end }}
       {{- with $values.nodeSelector }}
       nodeSelector:

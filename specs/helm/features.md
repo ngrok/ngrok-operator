@@ -83,8 +83,9 @@ The hook's own pod settings live under `components.cleanupHook`:
 
 | Parameter                              | Description                                  | Default              |
 |----------------------------------------|----------------------------------------------|----------------------|
-| `components.cleanupHook.image.repository`         | kubectl image repository                     | `bitnami/kubectl`    |
-| `components.cleanupHook.image.tag`               | kubectl image tag                            | `latest`             |
+| `components.cleanupHook.image.repository`         | kubectl image repository                     | `alpine/k8s`         |
+| `components.cleanupHook.image.tag`               | kubectl image tag                            | `1.36.5`             |
+| `components.cleanupHook.image.digest`            | kubectl image digest; takes precedence over the tag | pinned `sha256` digest |
 | `components.cleanupHook.image.pullPolicy`         | Image pull policy                            | `IfNotPresent`       |
 | `components.cleanupHook.resources`               | Resource requests/limits for the hook        | See below            |
 

@@ -524,12 +524,17 @@
                                 "repository": {
                                     "type": "string",
                                     "description": "The repository for the kubectl image used by the cleanup hook",
-                                    "default": "bitnami/kubectl"
+                                    "default": "alpine/k8s"
                                 },
                                 "tag": {
                                     "type": "string",
                                     "description": "The tag for the kubectl image",
-                                    "default": "latest"
+                                    "default": "1.36.5"
+                                },
+                                "digest": {
+                                    "type": "string",
+                                    "description": "The digest for the kubectl image. It takes precedence over the tag. Set it to \"\" to pull by tag",
+                                    "default": "sha256:094adf64cdc4827377cdbe7ea5747472ce115f9fbc64a4e35970ec66777f9a00"
                                 },
                                 "pullPolicy": {
                                     "type": "string",

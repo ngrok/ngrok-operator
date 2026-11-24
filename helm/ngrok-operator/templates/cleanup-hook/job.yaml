@@ -21,10 +21,25 @@ spec:
     spec:
       serviceAccountName: {{ include "ngrok-operator.fullname" . }}-cleanup
       restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
       containers:
         - name: cleanup
-          image: "{{ .Values.components.cleanupHook.image.repository }}:{{ .Values.components.cleanupHook.image.tag }}"
-          imagePullPolicy: {{ .Values.components.cleanupHook.image.pullPolicy }}
+          {{- with .Values.components.cleanupHook.image }}
+          image: "{{ .repository }}{{ if .digest }}@{{ .digest }}{{ else }}:{{ .tag }}{{ end }}"
+          imagePullPolicy: {{ .pullPolicy }}
+          {{- end }}
+          # The image runs as root by default. kubectl needs a writable HOME for its cache.
+          env:
+            - name: HOME
+              value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - /bin/sh
             - -c

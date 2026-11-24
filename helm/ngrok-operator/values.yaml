@@ -307,6 +307,7 @@ ngrok:
 ##
 ## @param components.cleanupHook.image.repository The repository for the kubectl image used by the cleanup hook
 ## @param components.cleanupHook.image.tag The tag for the kubectl image
+## @param components.cleanupHook.image.digest The digest for the kubectl image. It takes precedence over the tag. Set it to "" to pull by tag
 ## @param components.cleanupHook.image.pullPolicy The pull policy for the cleanup hook image
 ## @param components.cleanupHook.resources.limits The resources limits for the cleanup hook container
 ## @param components.cleanupHook.resources.requests The requested resources for the cleanup hook container
@@ -451,8 +452,9 @@ components:
     #   type: RollingUpdate
   cleanupHook:
     image:
-      repository: bitnami/kubectl
-      tag: latest
+      repository: alpine/k8s
+      tag: 1.36.5
+      digest: sha256:094adf64cdc4827377cdbe7ea5747472ce115f9fbc64a4e35970ec66777f9a00
       pullPolicy: IfNotPresent
     resources:
       limits: {}

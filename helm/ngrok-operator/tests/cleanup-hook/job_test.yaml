@@ -1,0 +1,26 @@
+suite: test cleanup hook job
+templates:
+- cleanup-hook/job.yaml
+set:
+  ngrok.features.cleanup.enabled: true
+tests:
+- it: pulls the image by digest when one is set
+  set:
+    components.cleanupHook.image:
+      repository: example.com/kubectl
+      tag: "1.0"
+      digest: sha256:abc
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: example.com/kubectl@sha256:abc
+- it: pulls the image by tag when the digest is empty
+  set:
+    components.cleanupHook.image:
+      repository: example.com/kubectl
+      tag: "1.0"
+      digest: ""
+  asserts:
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: example.com/kubectl:1.0

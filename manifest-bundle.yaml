@@ -5869,10 +5869,23 @@ spec:
     spec:
       serviceAccountName: ngrok-operator-cleanup
       restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
       containers:
         - name: cleanup
-          image: "bitnami/kubectl:latest"
+          image: "alpine/k8s@sha256:094adf64cdc4827377cdbe7ea5747472ce115f9fbc64a4e35970ec66777f9a00"
           imagePullPolicy: IfNotPresent
+          # The image runs as root by default. kubectl needs a writable HOME for its cache.
+          env:
+            - name: HOME
+              value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - /bin/sh
             - -c

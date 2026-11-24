@@ -271,10 +271,11 @@ To run multiple ngrok-operator instances in the same cluster (e.g., in different
 
 ### Components: Cleanup Hook
 
-| Name                                        | Description                                                   | Value             |
-| ------------------------------------------- | ------------------------------------------------------------- | ----------------- |
-| `components.cleanupHook.image.repository`   | The repository for the kubectl image used by the cleanup hook | `bitnami/kubectl` |
-| `components.cleanupHook.image.tag`          | The tag for the kubectl image                                 | `latest`          |
-| `components.cleanupHook.image.pullPolicy`   | The pull policy for the cleanup hook image                    | `IfNotPresent`    |
-| `components.cleanupHook.resources.limits`   | The resources limits for the cleanup hook container           | `{}`              |
-| `components.cleanupHook.resources.requests` | The requested resources for the cleanup hook container        | `{}`              |
+| Name                                        | Description                                                                                     | Value                                                                     |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `components.cleanupHook.image.repository`   | The repository for the kubectl image used by the cleanup hook                                   | `alpine/k8s`                                                              |
+| `components.cleanupHook.image.tag`          | The tag for the kubectl image                                                                   | `1.36.5`                                                                  |
+| `components.cleanupHook.image.digest`       | The digest for the kubectl image. It takes precedence over the tag. Set it to "" to pull by tag | `sha256:094adf64cdc4827377cdbe7ea5747472ce115f9fbc64a4e35970ec66777f9a00` |
+| `components.cleanupHook.image.pullPolicy`   | The pull policy for the cleanup hook image                                                      | `IfNotPresent`                                                            |
+| `components.cleanupHook.resources.limits`   | The resources limits for the cleanup hook container                                             | `{}`                                                                      |
+| `components.cleanupHook.resources.requests` | The requested resources for the cleanup hook container                                          | `{}`                                                                      |
